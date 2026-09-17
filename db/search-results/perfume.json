@@ -1,0 +1,51 @@
+{
+  "success": true,
+  "query": "perfume bottle product photo on clean white background",
+  "count": 6,
+  "ranked": true,
+  "captioned_count": 6,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/7a32449b73ef.jpg",
+      "caption": "The image contains a large amount of text information: an \"Access Restricted\" security block message on a dark background.",
+      "source": "VectorStock",
+      "original_width": "1000px",
+      "original_height": "1080px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/46c105d3818d.jpg",
+      "caption": "Colorful designer perfume bottles arranged diagonally on light blue background, featuring CYKLAR Modern Patchouli, Tommy Hilfiger Freedom, Carolina Herrera, Estée Lauder; suitable for background image",
+      "source": "Cosmopolitan",
+      "original_width": "1080px",
+      "original_height": "1080px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/415cf3f53047.jpg",
+      "caption": "A white D.R. Harris \"Milk of Cucumbers & Roses\" skincare bottle, product shot on plain background, contains some text.",
+      "source": "Boston General Store",
+      "original_width": "1024px",
+      "original_height": "1024px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/b45179bbcfc3.png",
+      "caption": "Four Maison 21G Paris perfume vials (Sage Ocean, Mimosa Bergamot, Vetiver Ginger, Sandalwood Tea) on beige backdrop. Suitable for background image.",
+      "source": "www.maison21g.com",
+      "original_width": "1086px",
+      "original_height": "1448px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/c3ef5599e4a3.jpg",
+      "caption": "A small perfume sample vial labeled \"90'S VANILLE OVEROSE PARIS\" with pink liquid on white background; suitable for background image.",
+      "source": "Overose",
+      "original_width": "2520px",
+      "original_height": "2520px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/1225a58a0da4.jpg",
+      "caption": "Access Restricted error message screenshot stating a request was blocked by automated security systems; contact: peter@vectorstock.com.",
+      "source": "VectorStock",
+      "original_width": "1000px",
+      "original_height": "1080px"
+    }
+  ]
+}

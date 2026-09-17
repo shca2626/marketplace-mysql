@@ -1,0 +1,51 @@
+{
+  "success": true,
+  "query": "portable bluetooth speaker product photo on clean white background",
+  "count": 6,
+  "ranked": true,
+  "captioned_count": 6,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/20f4e4e4a68b.png",
+      "caption": "A black Skullcandy spherical portable speaker with skull logo grille, volume buttons, clip, on dark background. Suitable for background image.",
+      "source": "Skullcandy",
+      "original_width": "1946px",
+      "original_height": "1946px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/118560695c94.png",
+      "caption": "A collage of four colorful portable Bluetooth speakers: red, black, blue UE, and black Marshall brand.",
+      "source": "Popular Science",
+      "original_width": "1333px",
+      "original_height": "867px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/f0a7c5798d7b.jpg",
+      "caption": "Close-up of a blue fabric portable Bluetooth speaker showing its USB-C charging port, on orange background. Suitable for background image.",
+      "source": "ny times",
+      "original_width": "2048px",
+      "original_height": "1365px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/082695777b71.jpg",
+      "caption": "Black JBL party speaker with glowing green LED light rings around two drivers and JBL logo; white background, suitable for background image",
+      "source": "Sweetwater",
+      "original_width": "750px",
+      "original_height": "1582px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/88e73f2ee130.jpg",
+      "caption": "Various portable Bluetooth speakers (Tribit, JBL, Bose, Marshall, Sonos) displayed on wooden shelves beside a large Marshall amplifier.",
+      "source": "TechRadar",
+      "original_width": "1920px",
+      "original_height": "1080px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/083e6254f525.jpeg",
+      "caption": "A compact cream-colored cylindrical Bluetooth speaker with perforated circular grille, brand text \"HAMMER\" on top.",
+      "source": "Zepto",
+      "original_width": "2000px",
+      "original_height": "2000px"
+    }
+  ]
+}

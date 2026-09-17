@@ -1,0 +1,51 @@
+{
+  "success": true,
+  "query": "adjustable dumbbell product photo on clean white background",
+  "count": 6,
+  "ranked": true,
+  "captioned_count": 5,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/dde588fc676f.jpg",
+      "caption": "Two black adjustable dumbbells with metal handles lie on a plain white background. No text or watermarks. Suitable for background image.",
+      "source": "Assassin Goods",
+      "original_width": "1200px",
+      "original_height": "1200px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/3d57d940cfad.jpg",
+      "caption": "A black adjustable dumbbell with stacked weight plates resting in its plastic storage tray, on a white background. Suitable for background image.",
+      "source": "Argos",
+      "original_width": "1401px",
+      "original_height": "1382px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/848b65a28515.png",
+      "caption": "Two black adjustable dumbbells with weight plates and knurled handles resting in storage trays, white background, \"WARNING\" label visible.",
+      "source": "Strong Home Gym",
+      "original_width": "1746px",
+      "original_height": "1562px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/5513270ec814.png",
+      "caption": "Split image: man lifting PowerBlock dumbbells; Nike and BowFlex adjustable dumbbells with \"MEN'S JOURNAL FITNESS AWARDS 2026\" badge.",
+      "source": "Men's Journal",
+      "original_width": "1920px",
+      "original_height": "1080px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/c7c1ef240d32.jpeg",
+      "caption": "",
+      "source": "Walmart",
+      "original_width": "3000px",
+      "original_height": "3000px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/085213d1b8c8.jpg",
+      "caption": "Various dumbbells including black hex, green \"PHYSICAL 5\", yellow/teal \"BODY SCULPTURE\" set with rack, on mint background.",
+      "source": "Woman&Home",
+      "original_width": "1920px",
+      "original_height": "1080px"
+    }
+  ]
+}

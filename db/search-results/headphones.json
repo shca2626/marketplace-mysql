@@ -1,0 +1,51 @@
+{
+  "success": true,
+  "query": "wireless over-ear headphones product photo on clean white background",
+  "count": 6,
+  "ranked": true,
+  "captioned_count": 6,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/2418b098a341.jpg",
+      "caption": "White FOFUN wireless over-ear headphones with silver accents on a clean white background; small \"FOFUN\" branding text, no watermark. Suitable for background image.",
+      "source": "Amazon.com",
+      "original_width": "1600px",
+      "original_height": "1600px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/b0147d481533.jpg",
+      "caption": "Silver wireless over-ear headphones with black ear cushions and headband padding, shown against a clean white background; high clarity, no text or watermarks.\n\nsuitable for background image",
+      "source": "Amazon.in",
+      "original_width": "1080px",
+      "original_height": "1438px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/e22b36161092.jpg",
+      "caption": "Black over-ear headphones product photo on light gray background; text \"OEM/ODM Accepted\" bottom right, no watermark.",
+      "source": "ElectronicsHub by Alibaba.com",
+      "original_width": "1024px",
+      "original_height": "1024px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/68e2d8376e13.jpg",
+      "caption": "Three over-ear headphones displayed side-by-side on purple, green, and yellow backgrounds; high clarity, no watermark, suitable for background image.",
+      "source": "The New York Times",
+      "original_width": "1024px",
+      "original_height": "768px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/fa783b0c91e4.jpg",
+      "caption": "White Bose over-ear headphones laid flat on a beige surface, with \"BOSE\" logos on both earcups.",
+      "source": "TechRadar",
+      "original_width": "1200px",
+      "original_height": "675px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/9de0fc6c3f55.png",
+      "caption": "Semi-transparent 3D rendering of futuristic over-ear headphones revealing internal components, on black background. No text or watermarks. Suitable for background image.",
+      "source": "nwm",
+      "original_width": "2500px",
+      "original_height": "2500px"
+    }
+  ]
+}

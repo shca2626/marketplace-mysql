@@ -1,0 +1,44 @@
+{
+  "success": true,
+  "query": "GoPro action camera isolated on white background product shot",
+  "count": 5,
+  "ranked": true,
+  "captioned_count": 5,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/43f127da5720.jpg",
+      "caption": "GoPro HERO5 Black camera in retail packaging on white background; watermarked Alamy stock photo, not suitable for background.",
+      "source": "Alamy",
+      "original_width": "1044px",
+      "original_height": "1390px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/5626f93d1bfd.webp",
+      "caption": "White 360 action camera with fisheye lens and screen displaying \"SD 2h18m\" and \"8K·50\".",
+      "source": "Carmarthen Cameras",
+      "original_width": "1200px",
+      "original_height": "1200px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/7115e8ce85ac.jpeg",
+      "caption": "A yellow 3D-rendered metal component with circular cutouts and two prongs, on a white background.",
+      "source": "flywoo",
+      "original_width": "2000px",
+      "original_height": "2000px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/02966049242a.jpg",
+      "caption": "A black GoPro action camera mounted on a flexible suction cup mount with adjustable arm, shown on white background.",
+      "source": "SeaSucker",
+      "original_width": "1200px",
+      "original_height": "1200px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/11b09dccd18c.jpg",
+      "caption": "A black GoPro portable power bank with dual USB ports and USB-C port on white background, minimal product image.",
+      "source": "Amazon.com",
+      "original_width": "1910px",
+      "original_height": "1000px"
+    }
+  ]
+}

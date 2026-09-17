@@ -1,0 +1,375 @@
+=== action_camera.json (success: true, count: 6)
+  [0] 1456pxx970px | The New York Times | A black Insta360 X5 360-degree camera standing upright against a plain blue background, casting a soft shadow.
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/0aa011735bd8.jpg
+  [1] 1280pxx720px | YouTube | Five cameras displayed on a green background with "UNDER $100" text and star ratings; thumbnail-style review g
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/a2b226df7c97.jpg
+  [2] 894pxx904px | Amazon.com | A bright photo studio featuring a blank white backdrop on stands, with large windows revealing a blurred city 
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/4d791e21ac4a.jpg
+  [3] 4784pxx3035px | Digital Camera World | A woman in a yellow top arranges black high heels on a white table while a camera on a tripod photographs them
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/9b2fef770974.jpg
+  [4] 1200pxx818px | cameramall.com | Sigma lens advertisement: black camera lens photo left; text: "SIGMA", "SAVE ON PREMIUM LENSES", "$100 off 14-
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/b923e9f642d8.jpg
+  [5] 1000pxx1000px | Reliance Digital | www.reliancedigital.in | A black DJI Osmo Pocket handheld gimbal camera on a white background, its screen showing a mountain landscape.
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/51e657ff6891.jpg
+=== backpack.json (success: true, count: 6)
+  [0] 1200pxx1200px | eBay | A person in a white blouse and plaid skirt carries a plain black backpack over one shoulder, white background.
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/9c31a80a74f9.jpg
+  [1] 1500pxx1500px | GORUCK | Olive green tactical backpack shown in side view with MOLLE webbing straps, red zipper pull, padded shoulder s
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/b4a8c6e480a5.jpg
+  [2] 1280pxx720px | CNN | A teal blue backpack with orange bungee cords and dark "stio" logo text, photographed on white background.
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/763e7276e134.jpg
+  [3] 900pxx900px | Beis | Back view of a black fabric backpack with padded straps, zippered pocket, and side pockets on beige background
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/93c9dc0ee8de.jpg
+  [4] 1200pxx1200px | Heroes & Villains | A tan and brown canvas backpack labeled "Deckmaster" with colorful patterned pouches and a Magic playmat case.
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/9d441a86bdff.jpg
+  [5] 1600pxx1238px | WIRED | A black BREVITĒ backpack sits on a beige fabric couch; small logo text visible. No watermark; suitable for bac
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/f95e70334560.jpg
+=== bath_bombs.json (success: true, count: 6)
+  [0] 1254pxx1254px | www.amazon.eg | Colorful ocean-themed bath bomb gift set with twelve bombs, toy sea animals, on snowy blue background. Suitabl
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/7bf6acb012db.jpg
+  [1] 1500pxx1500px | Hi Peach Layne | A clear product photo of a transparent bag containing 15 colorful mini bath bombs, with visible packaging text
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/a51a76cf3ded.jpg
+  [2] 1946pxx1946px | Da Bomb Bath Fizzers | A clear jar labeled "AMAZE BALLS™ Mixed Fruit" containing colorful bath fizzers with toy surprises inside, Net
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/d228a8c87406.jpg
+  [3] 1946pxx1946px | Da Bomb Bath Fizzers | Colorful bath bombs spilled from a clear container labeled "AMAZING BALLS," with a black mesh loofah on white 
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/3fdc9fd82176.jpg
+  [4] 1080pxx1080px | Pacha Soap Co. | Colorful "MYSTERY BATH BOMB — SURPRISE CENTER, with cotton candy center burst, NET WT 5 OZ/141g" products disp
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/2ba68bf33035.png
+  [5] 1946pxx1946px | Happy Hippo Bath Co | Blue "happy hippo" Mini Bath Bombs (Rainbow) box with colorful cubes scattered on white tile, clear, no waterm
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/edb0836d8efb.jpg
+=== beanie.json (success: true, count: 6)
+  [0] 3000pxx3750px | Colorful Standard | A light blue ribbed knit beanie with folded cuff, centered on a plain white background, no text or watermarks.
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/a0c2bd38dd8f.jpg
+  [1] 1000pxx1000px | Isotoner | A soft pink fleece beanie hat with folded brim, displayed on a clean white background. No text or watermarks.
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/c5371d1b04a3.jpg
+  [2] 1500pxx2100px | Thunders Love | A light gray ribbed knit beanie hat with folded cuff, centered on a plain off-white background. suitable for b
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/80406d683b8f.webp
+  [3] 800pxx1077px | Universal Works | A dark navy knitted beanie with folded cuff, displayed on a plain white background, no text or watermarks.
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/217a19d442ec.jpg
+  [4] 800pxx1120px | endource | A cream ribbed knit beanie hat laid flat on a light gray background, minimal and clean, no text or watermark; 
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/3290aecd1732.jpg
+  [5] 1125pxx1500px | Giglio | A black knitted beanie hat with ribbed cuff, centered on a plain light background, no text or watermarks. Suit
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/68c99e676dbf.jpg
+=== bt_speaker.json (success: true, count: 6)
+  [0] 1946pxx1946px | Skullcandy | A black Skullcandy spherical portable speaker with skull logo grille, volume buttons, clip, on dark background
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/20f4e4e4a68b.png
+  [1] 1333pxx867px | Popular Science | A collage of four colorful portable Bluetooth speakers: red, black, blue UE, and black Marshall brand.
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/118560695c94.png
+  [2] 2048pxx1365px | ny times | Close-up of a blue fabric portable Bluetooth speaker showing its USB-C charging port, on orange background. Su
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/f0a7c5798d7b.jpg
+  [3] 750pxx1582px | Sweetwater | Black JBL party speaker with glowing green LED light rings around two drivers and JBL logo; white background, 
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/082695777b71.jpg
+  [4] 1920pxx1080px | TechRadar | Various portable Bluetooth speakers (Tribit, JBL, Bose, Marshall, Sonos) displayed on wooden shelves beside a 
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/88e73f2ee130.jpg
+  [5] 2000pxx2000px | Zepto | A compact cream-colored cylindrical Bluetooth speaker with perforated circular grille, brand text "HAMMER" on 
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/083e6254f525.jpeg
+=== ceramic_vase.json (success: true, count: 6)
+  [0] 1600pxx1600px | Amazon.sg | Four white ceramic vases of varying shapes on gray background, one holding white flowers; no text, high clarit
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/d68c156c6ee3.jpg
+  [1] 1500pxx1500px | Walmart | A simple matte white ceramic vase with a rounded body and narrow flared neck, photographed against a plain whi
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/ea2a92d80c06.jpeg
+  [2] 1500pxx1500px | Amazon | Five white ceramic vases with dried pampas grass on rustic wood, pink background, decorative flowers, high cla
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/9174ad052a3b.jpg
+  [3] 1200pxx674px | West Elm | Minimalist still life of white ceramic vases on gray pedestals with green leafy branches, high clarity, no wat
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/7a49a60d46fd.jpg
+  [4] 1983pxx2560px | Room For Tuesday | A collection of neutral-toned ceramic vases in beige, white, and terracotta arranged on a textured woven rug; 
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/c8febbc785d2.jpg
+  [5] 896pxx1195px | Amazon.in | A blue and white floral ceramic vase on a wooden table, with books and a succulent blurred in the background. 
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/3b0140039304.jpg
+=== denim_jacket.json (success: true, count: 6)
+  [0] 2000pxx2693px | Universal Works | Navy denim jacket with orange stitching, button closures, and two chest flap pockets on white background; suit
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/1afa34699cb3.jpg
+  [1] 900pxx1200px | eBay | A young man with curly brown hair wears a dark denim jacket over a white t-shirt against a plain white backgro
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/d5ab7f2e1041.jpg
+  [2] 2000pxx3000px | Diesel | A blue Diesel denim jacket with brown suede collar, text "Diesel Industry," branded label, no watermark.
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/9c647fda07f5.jpg
+  [3] 1910pxx1000px | Amazon.com | A black denim jacket displayed on a white background, layered over a white t-shirt; no watermarks or text pres
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/f99c69aaf205.jpg
+  [4] 1500pxx1500px | The Jacket Maker | Back view of a man wearing a light blue denim jacket and black jeans against a plain background. No text or wa
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/5926217f16e5.jpg
+  [5] 2667pxx3667px | Percival | A young man models a dark denim jacket, white t-shirt, cream trousers, and black sneakers against a gray-blue 
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/7ee8b5679fd6.jpg
+=== desk_lamp.json (success: true, count: 6)
+  [0] 1456pxx970px | ny times | A minimalist desk setup with white lamp, open notebook, pencils, candle, and potted plant against white wall; 
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/ec7f0beb36be.jpg
+  [1] 1280pxx720px | YouTube | A man in a blue shirt demonstrating an adjustable white desk lamp with long arm, no text present.
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/7351fe5c204c.jpg
+  [2] 1600pxx1200px | WIRED | A cozy home office desk setup with dual monitors displaying Japanese lanterns, mechanical keyboard, yellow the
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/9f646c81a5c3.jpg
+  [3] 871pxx1089px | Clare Paint | A minimalist white interior with a laptop, ceramic vase with branches, and round mirror above a table. Suitabl
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/ddf4938599d5.jpg
+  [4] 1600pxx1238px | WIRED | A detailed desk setup with dual monitors showing lily pad wallpaper, "0302" time, "Tuesday, 26 November 2024" 
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/ab607e582b32.jpg
+  [5] 2666pxx3999px | Vogue | A warm mid-century study with wooden desk, red chairs, bookshelves, plants, and globe pendant light; high clar
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/2bfd38e1696b.jpg
+=== dumbbell.json (success: true, count: 6)
+  [0] 1200pxx1200px | Assassin Goods | Two black adjustable dumbbells with metal handles lie on a plain white background. No text or watermarks. Suit
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/dde588fc676f.jpg
+  [1] 1401pxx1382px | Argos | A black adjustable dumbbell with stacked weight plates resting in its plastic storage tray, on a white backgro
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/3d57d940cfad.jpg
+  [2] 1746pxx1562px | Strong Home Gym | Two black adjustable dumbbells with weight plates and knurled handles resting in storage trays, white backgrou
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/848b65a28515.png
+  [3] 1920pxx1080px | Men's Journal | Split image: man lifting PowerBlock dumbbells; Nike and BowFlex adjustable dumbbells with "MEN'S JOURNAL FITNE
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/5513270ec814.png
+  [4] 3000pxx3000px | Walmart | (no caption)
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/c7c1ef240d32.jpeg
+  [5] 1920pxx1080px | Woman&Home | Various dumbbells including black hex, green "PHYSICAL 5", yellow/teal "BODY SCULPTURE" set with rack, on mint
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/085213d1b8c8.jpg
+=== headphones.json (success: true, count: 6)
+  [0] 1600pxx1600px | Amazon.com | White FOFUN wireless over-ear headphones with silver accents on a clean white background; small "FOFUN" brandi
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/2418b098a341.jpg
+  [1] 1080pxx1438px | Amazon.in | Silver wireless over-ear headphones with black ear cushions and headband padding, shown against a clean white 
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/b0147d481533.jpg
+  [2] 1024pxx1024px | ElectronicsHub by Alibaba.com | Black over-ear headphones product photo on light gray background; text "OEM/ODM Accepted" bottom right, no wat
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/e22b36161092.jpg
+  [3] 1024pxx768px | The New York Times | Three over-ear headphones displayed side-by-side on purple, green, and yellow backgrounds; high clarity, no wa
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/68e2d8376e13.jpg
+  [4] 1200pxx675px | TechRadar | White Bose over-ear headphones laid flat on a beige surface, with "BOSE" logos on both earcups.
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/fa783b0c91e4.jpg
+  [5] 2500pxx2500px | nwm | Semi-transparent 3D rendering of futuristic over-ear headphones revealing internal components, on black backgr
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/9de0fc6c3f55.png
+=== hero_bags.json (success: true, count: 6)
+  [0] 1600pxx1156px | Dreamstime.com | A smiling gray-haired woman in a red sweater examines yellow shopping bag on couch; pink and blue bags nearby.
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/abc039ecde8a.jpg
+  [1] 1500pxx1100px | Shutterstock | A cheerful woman sits among colorful shopping bags in a flat cartoon illustration with Shutterstock watermarks
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/496a92444fa6.jpg
+  [2] 1000pxx1000px | Redbubble | A woman in a white t-shirt carries a cream tote bag with rainbow flowers and text "Happy and free".
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/a2e4ebc44547.jpg
+  [3] 1200pxx1200px | diktakt | A white tote bag with "Happy Easter" floral wreath, bunny, and "Sophia" text, surrounded by colorful Easter eg
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/c35faf310469.webp
+  [4] 1000pxx1000px | Redbubble | A woman in white t-shirt and jeans carries a cream tote bag featuring a colorful retro clown illustration with
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/e5eefedeb0bf.jpg
+  [5] 2000pxx1333px | LA Times | A smiling middle-aged Asian man in a black T-shirt stands before a colorful cartoon doodle background featurin
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/f5b634d74843.jpg
+=== hero_ecom.json (success: true, count: 6)
+  [0] 1200pxx799px | LA Times | A smiling curly-haired woman in a leather jacket uses a phone beside futuristic shopping UI overlays, "YOUR CA
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/ccbec151f0f9.jpg
+  [1] 1999pxx1166px | Shopify | Rakuten homepage: "Earn Cashback when you shop online" headline, Join for Free button, phone photo, MAC lipsti
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/09758059a148.png
+  [2] 1500pxx1000px | Justinmind | A fashion e-commerce website homepage "Acme" featuring navigation, blog article cards, and fashion imagery. Co
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/b023c0603fbf.png
+  [3] 1600pxx900px | Strategyand.pwc.com | Woman sitting on carpet using laptop showing an online checkout page, surrounded by open packages, boots, and 
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/48123c636211.jpeg
+  [4] 1500pxx1100px | Justinmind | Furniture e-commerce website design mockups featuring "Embrace Peaceful Oasis" homepage and a Round table prod
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/339580f354be.png
+  [5] 1538pxx673px | CJdropshipping | E-commerce page showing "Best Sellers in Electronics" and "Best Sellers in Kitchen & Dining" with product list
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/b99f90f39330.png
+=== hero_flatlay.json (success: true, count: 6)
+  [0] 1536pxx1024px | Monefy | Flat lay of beige calculator showing 1250, "CASH BACK" credit cards, twenty-dollar bills, and coins on white m
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/39fd9d00938f.png
+  [1] 1200pxx900px | Business Insider | Several credit cards (VISA, American Express, Mastercard) fanned upright against a bright pink background.
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/703ad2c74863.jpg
+  [2] 1280pxx720px | Bankrate | Man in green hoodie carries giant purple credit card on his back, pink background. Text: "1234 5678 9012 3456 
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/9138920a8624.jpg
+  [3] 1000pxx1000px | REEF | Smiling woman in beige bikini and platform sandals sitting on a leaning palm tree trunk over tropical water.
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/fcdb48530780.jpg
+  [4] 1200pxx675px | LA Times | Warehouse backroom with red Target carts, cardboard stacks, and a man in a red hoodie working at a packing sta
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/2822f569b7b7.jpg
+  [5] 2280pxx1456px | Claid.ai | AI fashion photography website screenshot showing model photos with text: "Flat-lay to Bulk Catalog", "20,000+
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/0948ed8651e9.jpg
+=== hiking_boots.json (success: true, count: 6)
+  [0] 1920pxx1277px | Better Trail | A close-up of a hiker's teal Merrell boot with Vibram sole stepping on a rock; text: "MERRELL", "Vibram". Suit
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/2d353b77bff6.jpg
+  [1] 1920pxx1277px | Better Trail | Close-up of gray-teal Merrell hiking boots with patterned socks on sandy red dirt trail; "Merrell" and "Vibram
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/04faef95fc58.jpg
+  [2] 2000pxx1326px | GearJunkie | A pair of light blue and tan Merrell hiking shoes with Vibram soles rest on dirt and grass. Text: "MERRELL," "
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/36a39033d36b.jpg
+  [3] 1200pxx675px | Outdoor Gear Lab | Six pairs of winter boots displayed in snow against a misty snowy forest backdrop; visible text: "MUCK", "ARCT
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/637f9ab9dc60.jpg
+  [4] 2400pxx3000px | www.lechameau.com | Olive green knee-high rubber rain boot with adjustable strap, buckle, and blue inner lining on white backgroun
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/1c4840f2fce1.jpg
+  [5] 750pxx1100px | www.garagegrowngear.com | Two smiling campers sit beside a tent at sunset in a mountain valley, holding drinks, no text, high clarity. S
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/7385d7927a75.jpg
+=== jute_basket.json (success: true, count: 6)
+  [0] 1200pxx1200px | Primeval | A woven beige lidded laundry hamper with rope handles, open lid, photographed on white background; no text or 
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/7d358772ad31.jpg
+  [1] 2000pxx2000px | texxture | Three cylindrical woven seagrass baskets in dark brown tones on a light background. Contains watermark text "P
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/24c57aa763fc.jpg
+  [2] 1200pxx1200px | Primeval | An oval handwoven natural straw basket with two side handles, textured braided bands, on a white background; s
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/2b12a7da0717.jpg
+  [3] 825pxx1100px | John Lewis | A plush fox toy sits inside a woven natural jute basket with cutout handles, on a white background; suitable f
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/e37022f9b192.jpg
+  [4] 1200pxx1504px | McGee & Co. | A woven rattan basket with curled handles and white fabric liner, centered on a plain white background. Suitab
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/622c12309424.jpg
+  [5] 1500pxx1500px | Goodee | Two handwoven natural straw baskets, one round and one bowl-shaped, displayed on a beige surface. Suitable for
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/73d788ca0608.jpg
+=== macrame.json (success: true, count: 6)
+  [0] 1600pxx1600px | Amazon.com | A green ombre macrame wall hanging decorates a white wall above a green velvet sofa with pillows.
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/e560af6ff801.jpg
+  [1] 1024pxx1024px | The Citizenry | Cream-colored fiber tassels hang in rows from a wooden rod, forming bubble shapes, wall art decor, suitable fo
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/2bd84570fdf9.jpg
+  [2] 1625pxx2029px | Indiehaat.com | A cream macrame banner with woven diamond patterns, wooden beads, and fringed tassels hangs on a gray wall. Su
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/acdff48bffee.jpg
+  [3] 1200pxx1200px | Fansee Australia | Cozy bohemian living room with macramé wall hanging, neutral cushions, plants, rattan furniture, warm lamp lig
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/a146ac15d39e.png
+  [4] 1500pxx2000px | Walmart | A cream macramé wall hanging on a wooden dowel above a table with books, photo frame, and yellow vase with gre
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/8d52f6fd7010.jpeg
+  [5] 1280pxx720px | YouTube | A cozy scene with a macrame wall hanging, lamp, pampas grass vase, book, and blanket. Contains watermark text:
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/6f657320aaaf.jpg
+=== mech_keyboard.json (success: true, count: 6)
+  [0] 1200pxx1200px | KBDfans | A black and white mechanical keyboard floating diagonally on a minimalist white geometric background, clean, h
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/141cbde21ff2.jpg
+  [1] 5760pxx3840px | Apos | A white mechanical keyboard with blue accent keys (esc, shift, arrows) photographed top-down against a bright 
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/5d1245d7b330.jpg
+  [2] 1800pxx1800px | Nuphy | A transparent retro-style mechanical keyboard with colorful keycaps (yellow spacebar, blue Enter, red knob) on
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/b023e0d6e774.jpg
+  [3] 2000pxx2000px | Lofree | A sleek white wireless keyboard with silver aluminum frame and numeric keypad, angled on a clean white backgro
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/52f5c78c7ea9.webp
+  [4] 2880pxx2880px | TacType | Minimalist flat-lay of white mechanical keyboard keycap sets arranged by rows (R1–R4), with key legends and un
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/aa3ec0214541.jpg
+  [5] 2000pxx1125px | Tom's Guide | A transparent mechanical keyboard with white, gray, orange keycaps and RGB backlighting, displayed on a wooden
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/8c5fbdac9e87.jpg
+=== mug_set.json (success: true, count: 5)
+  [0] 956pxx1368px | Year & Day | Four pale pink ceramic mugs lined up on a minimalist beige background, no text or watermarks. Suitable for bac
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/57f163e350c8.jpg
+  [1] 3000pxx3000px | Overstock | Four white ceramic coffee mugs arranged in a two-by-two grid on a clean white background, product photography 
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/822ecdcb7a03.jpg
+  [2] 1946pxx1946px | Hudson Grace | Handmade ceramic dinnerware set with brown spotted glaze—mug, bowl, and two plates on gray surface. Suitable f
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/0025d4f11802.jpg
+  [3] 1200pxx1200px | HF Coors | Four plain white ceramic mugs arranged diagonally on a white background, clean product photography, no text or
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/ed8d77414a4a.jpg
+  [4] 847pxx1135px | Le Creuset | A glossy red ceramic mug with cream interior sits on a white pedestal against minimalist white blocks. suitabl
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/cb46465a6ddb.jpg
+=== perfume.json (success: true, count: 6)
+  [0] 1000pxx1080px | VectorStock | The image contains a large amount of text information: an "Access Restricted" security block message on a dark
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/7a32449b73ef.jpg
+  [1] 1080pxx1080px | Cosmopolitan | Colorful designer perfume bottles arranged diagonally on light blue background, featuring CYKLAR Modern Patcho
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/46c105d3818d.jpg
+  [2] 1024pxx1024px | Boston General Store | A white D.R. Harris "Milk of Cucumbers & Roses" skincare bottle, product shot on plain background, contains so
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/415cf3f53047.jpg
+  [3] 1086pxx1448px | www.maison21g.com | Four Maison 21G Paris perfume vials (Sage Ocean, Mimosa Bergamot, Vetiver Ginger, Sandalwood Tea) on beige bac
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/b45179bbcfc3.png
+  [4] 2520pxx2520px | Overose | A small perfume sample vial labeled "90'S VANILLE OVEROSE PARIS" with pink liquid on white background; suitabl
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/c3ef5599e4a3.jpg
+  [5] 1000pxx1080px | VectorStock | Access Restricted error message screenshot stating a request was blocked by automated security systems; contac
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/1225a58a0da4.jpg
+=== skincare_set.json (success: true, count: 6)
+  [0] 1254pxx1254px | Glimmer Goddess | Product infographic for Glimmer Goddess organic skincare line, containing substantial text describing hyaluron
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/46d54d7efc27.png
+  [1] 1080pxx1080px | Alitura Naturals | Black Alitura skincare product bottles and jars displayed on white pedestals with award badges; text includes 
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/ed5754403fba.png
+  [2] 1600pxx1600px | Skin Authority | Product packaging mockup for "skinauthority Clear Skin Kit," showing five skincare products, feature icons, an
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/da8ed6d983df.jpg
+  [3] 2000pxx2000px | ST.SAJ | Five ST.SAJ skincare products (Supreme Skin 7, Niaglow Clarity Boost, Glass Mask, Peptide Power Essence, Clear
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/6455baae7251.jpg
+  [4] 1800pxx1013px | Barnum Mechanical | Blank blue skincare product set (serum, pump bottle, jar, tube) on white podium, soft shadows, no text, suitab
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/78280f2c3121.jpg
+  [5] 1024pxx1024px | Exposed Skin Care | Exposed Skincare product set: white bottles, gray tubes, rolled towel, branded box with green leaf, product te
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/83949e9cfcf3.jpg
+=== smartwatch.json (success: true, count: 6)
+  [0] 5120pxx3280px | Apple | Three Apple Watches with different straps (woven, Milanese, sport band) showing watch faces with time 10:09 an
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/0f3cf9c91fd8.jpg
+  [1] 1184pxx1580px | HUAWEI Global | A white and green smartwatch displaying time "10:08", weather 24°, altitude 2171 m, sunrise 06:21, sunset 17:5
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/21b87b13ae03.jpg
+  [2] 1000pxx1000px | Shinery | A white "SHINERY" luxury jewelry cleaner box displayed with a watch, bracelet, rings, and earrings inside.
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/094fe6ee999b.png
+  [3] 1024pxx1024px | Fairwhale | Close-up of a silver square automatic wristwatch on a wrist; text includes "MARK PAIRWHALE" and "AUTOMATIC"; c
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/7a353b14698a.jpg
+  [4] 1728pxx912px | Apple | Two white wireless earbuds with black mesh vents, centered on a clean light gray background, no text or waterm
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/1d17cf127d9b.jpg
+  [5] 1000pxx1000px | Alibaba.com | A hand holding a white square plate with translucent circular discs arranged on it, against dark background.
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/64f9520a6eb1.jpg
+=== sneakers.json (success: true, count: 6)
+  [0] 1920pxx800px | Adidas | A three-panel Adidas ad featuring athlete Anna Hall wearing light blue activewear and pink running shoes; text
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/dafc6608c382.jpg
+  [1] 980pxx980px | Women's Health | A person's lower legs wearing white socks and cream-colored athletic sneakers, standing on a gray textured flo
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/5d38bbf67f27.jpg
+  [2] 2048pxx1365px | The New York Times | Gloved hand applying Amodex Ink & Stain Remover onto dirty blue-and-white sneakers on a white towel.
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/23e990f23edb.jpg
+  [3] 1280pxx720px | YouTube | Adidas Ultra Boost 3.0 cleaning comparison: dirty versus cleaned white sneakers, containing brand logo and tex
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/f10a72db7e82.jpg
+  [4] 980pxx980px | Women's Health | A person's legs wearing white socks and pale mint-white Brooks running shoes against a white wall.
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/8a6decd421a5.jpg
+  [5] 1440pxx1080px | Adidas | A floating white and blue Adidas sneaker with three stripes, clean gray background, high clarity, no watermark
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/18749cd50588.jpg
+=== soy_candle.json (success: true, count: 6)
+  [0] 1600pxx2000px | RX Candles | Cream-colored soy candle jar with lid beside it; text reads "Rx LOS ANGELES, NO. 30 SOY CANDLE, HANDMADE IN L.
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/7025763aacf8.jpg
+  [1] 1024pxx1024px | PartyLite | Product infographic of a PartyLite candle jar with feature text: burn time up to 50 hours, natural lead-free w
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/a12552174451.jpg
+  [2] 3000pxx2000px | Unsplash | Five lit amber glass candles with blank white labels on a warm beige background, one rose gold lid removed. Su
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/1310449ec1fc.jpg
+  [3] 1362pxx2048px | The Bequem | A white glass candle labeled "the bequem" sits on orange backdrop with lemon, lime slice, and pink crystals; n
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/791694823597.jpg
+  [4] 1365pxx1365px | fontanacandlecompany.com | Three amber Fontana Candle Co. jars labeled "Pumpkin Pie," "Warm Flannel," and "Cinnamon Orange Clove," one li
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/012ef033f430.jpg
+  [5] 1695pxx1052px | GlassNow | A lit white candle in a clear glass jar with dried flower decoration, wooden lid, and eucalyptus leaves. Suita
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/f66c742d8ed2.jpg
+=== sunglasses.json (success: true, count: 6)
+  [0] 1200pxx1200px | eBay | Aviator-style sunglasses with gold frames and brown gradient lenses on a white background, no text or watermar
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/2389ddc89c47.jpg
+  [1] 1636pxx1634px | titanium optix | Rimless sunglasses with green-tinted lenses and thin black frames on a white background, clear product image w
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/f5b0a4977ff4.jpg
+  [2] 1000pxx1250px | Southern Tide | Silver aviator sunglasses with blue mirrored lenses on a plain beige background, product photography, clean an
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/734e754f3895.jpg
+  [3] 1984pxx768px | Anrri | A front view of black aviator sunglasses with dark gray lenses on a white background. Suitable for background 
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/3e1cf8d221b6.jpg
+  [4] 1300pxx739px | Alamy | Golden aviator sunglasses with orange-tinted lenses on white background; contains Alamy watermarks and text, n
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/6d47e8e9c230.jpg
+  [5] 2020pxx1010px | Flight Sunglasses | Blue-framed aviator sunglasses with dark gray lenses, centered on a clean white background; suitable for backg
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/bb9f8121a639.png
+=== tennis_racket.json (success: true, count: 6)
+  [0] 800pxx1067px | Functional Tennis | A blue and black HEAD tennis racket with white logo, displayed vertically on a white background. Suitable for 
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/48b8bf7c381c.jpg
+  [1] 2000pxx2000px | Walmart | A blue Wilson Tour Slam Lite tennis racket with red "W" logo on white strings, white grip, on plain background
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/c6421f9aa3b1.jpeg
+  [2] 1062pxx1062px | Walmart | A pink and white Wilson tennis racket beside a can of Wilson Championship extra duty tennis balls.
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/fd203a17c7bf.jpeg
+  [3] 1024pxx1024px | Amazon.in | A white twisted-wire bottle cleaning brush with soft nylon bristles, isolated on a black background, suitable 
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/879e695aedf3.jpg
+  [4] 800pxx1067px | Adidas | Tennis player Alexander Zverev celebrates triumphantly on blue court, arms outstretched, racket in hand. Text:
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/d06cf93fe09e.jpg
+  [5] 1774pxx887px | www.pbpropickleball.com | A boy in a blue shirt and sunglasses leans on a pickleball net holding a "CARBON" paddle; no watermark, high c
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/525740b1f1e9.png
+=== throw_pillow.json (success: true, count: 6)
+  [0] 1654pxx1654px | Etsy | A serene neutral bedroom with white bedding, sage-green pillows, framed vintage artworks, and fresh white flow
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/81a29acf5fb5.jpg
+  [1] 1024pxx1024px | Wild Linens | A plain sage green square linen pillow on a white background, no text or watermark. suitable for background im
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/70aba4813a38.jpg
+  [2] 1000pxx1000px | Etsy | A decorative pillow with abstract botanical leaf patterns in earthy tones, styled with dried flowers on a text
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/9a6c7111b9ea.jpg
+  [3] 3000pxx3000px | ABC Carpet | A blush pink quilted velvet square cushion with subtle vertical channel stitching, photographed against a plai
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/f3874d9a8210.jpg
+  [4] 1000pxx1250px | Farmhouse Pottery | Stacked velvet throw pillows in blue, mint, cream, and rust tones against a soft neutral background; no text, 
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/e62e063eab9a.jpg
+  [5] 1600pxx2000px | Quince | (no caption)
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/0926deebe602.jpg
+=== wall_shelf.json (success: true, count: 6)
+  [0] 1024pxx1024px | Oakguys | Three wooden wall shelves holding a Louis Vuitton book, white donut vase, trailing plant, and terracotta pot. 
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/b56712d5e3b1.png
+  [1] 1200pxx1200px | Nathan James | A product image showing "Benji Wall Shelf" in four color options: Warm Pine, Brushed Dark Brown, Black Oak, Li
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/28927aa56cee.jpg
+  [2] 1200pxx1200px | Kmart | Floating wooden wall shelves displaying books, candles, a trailing plant, and a diffuser on a clean white back
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/636d422a922c.jpg
+  [3] 1080pxx1080px | Woodendot | Minimalist wooden wall shelves holding ceramic bottles and hanging white towels, bright clean aesthetic, no te
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/260209c716be.jpg
+  [4] 831pxx1080px | Lulu and Georgia | A close-up of a wooden floating shelf with a black metal mounting bracket and four screws against a plain beig
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/7ad07954234e.jpg
+  [5] 2000pxx2000px | Nathan James | Minimalist wooden wall-mounted bookshelf with ceramics, books, and a potted plant; high clarity, suitable for 
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/0fe4b62a4aef.jpg
+=== walnut_phone_dock.json (success: true, count: 6)
+  [0] 894pxx894px | Amazon.com | Wooden nightstand organizer advertisement with before/after comparison, text "DECLUTTER HIS Space," "BEFORE," 
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/1e9619c44ffd.jpg
+  [1] 1300pxx1000px | Gadget Flow | A smartphone stands on a wooden and concrete docking station on a white desk, with blurred keys and papers nea
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/da78af8a858e.jpeg
+  [2] 3500pxx3500px | Trendhim | A dark wooden multi-device docking station with phone stand, shelf, and tray; text "TRENDHIM" printed on base.
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/7df963c606c3.jpg
+  [3] 1200pxx1200px | Simon Pearce | A wooden desk organizer tray with multiple compartments and a clear glass smartphone stand, on white backgroun
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/9ece922343f2.jpg
+  [4] 1200pxx1200px | eBay | A polished wooden phone stand made of walnut and layered plywood, photographed cleanly on a white background. 
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/89b5894bf2b2.jpg
+  [5] 1200pxx1200px | Advantage Lumber | Three smooth walnut wood boards with rich brown grain, arranged diagonally on a clean white background. Suitab
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/5ca8de398225.jpg
+=== yoga_mat.json (success: true, count: 6)
+  [0] 871pxx1014px | Manduka | Partially rolled blue patterned yoga mat with dark navy backing, small brand logo label, on light gray backgro
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/1b0ed9935258.jpg
+  [1] 871pxx1014px | Manduka | A navy blue textured yoga mat partially rolled up, with a small Manduka logo, on a clean white background; no 
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/25ad7d593d9f.jpg
+  [2] 2048pxx2048px | Stakt | Two women doing plank exercises on folding yoga mats, navy and beige, against a clean white studio background.
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/a676f1b71d8c.jpg
+  [3] 2000pxx2000px | SKIMS | A gray Nike SKIMS yoga mat on white background; text reads "NIKE SKIMS" with Nike swoosh logo.
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/ebb45280cf4a.jpg
+  [4] 1920pxx1080px | Tom's Guide | Colorful rolled yoga mats (blue, purple, orange, pink) stacked against blurred green background; high clarity,
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/04a5a3f4d0e6.jpg
+  [5] 894pxx891px | Amazon.in | Product collage showing a gray Proberos foldable exercise mat: full view, zigzag-folded, and stacked; includes
+      https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/d87195caaac9.jpg

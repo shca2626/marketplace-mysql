@@ -1,0 +1,51 @@
+{
+  "success": true,
+  "query": "brown leather hiking boots isolated on white background",
+  "count": 6,
+  "ranked": true,
+  "captioned_count": 6,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/fa7c2228670a.jpg",
+      "caption": "A pair of brown suede leather hiking boots with metal eyelets and laces on white background. Contains Dreamstime watermarks.",
+      "source": "Dreamstime.com",
+      "original_width": "1600px",
+      "original_height": "1690px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/3493958c68bf.jpg",
+      "caption": "Brown hiking boots pair on white background, one showing treaded sole. Contains Alamy watermarks and ID text (PDWWBD). Not suitable as background.",
+      "source": "Alamy",
+      "original_width": "1300px",
+      "original_height": "951px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/1b3a11ec5aca.jpg",
+      "caption": "Top-down view of a brown leather hiking boot with cream laces on white background; contains Alamy watermark and stock image text.",
+      "source": "Alamy",
+      "original_width": "975px",
+      "original_height": "1390px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/fde26c32fda6.jpg",
+      "caption": "Pair of brown leather men's shoes with laces on white background; contains Shutterstock watermarks and logo, not suitable for background.",
+      "source": "Shutterstock",
+      "original_width": "1500px",
+      "original_height": "1600px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/080c4f52828e.jpg",
+      "caption": "A pair of worn brown leather lace-up boots on white background, with Alamy watermark and ID text.",
+      "source": "Alamy",
+      "original_width": "1300px",
+      "original_height": "953px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/4787f77a9d9d.jpg",
+      "caption": "A pair of worn dark brown leather lace-up work boots with rugged soles, displayed on a plain white background.",
+      "source": "Etsy",
+      "original_width": "1080px",
+      "original_height": "1439px"
+    }
+  ]
+}

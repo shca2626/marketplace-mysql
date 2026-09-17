@@ -1,0 +1,51 @@
+{
+  "success": true,
+  "query": "modern e-commerce lifestyle photo people shopping online marketplace",
+  "count": 6,
+  "ranked": true,
+  "captioned_count": 6,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/ccbec151f0f9.jpg",
+      "caption": "A smiling curly-haired woman in a leather jacket uses a phone beside futuristic shopping UI overlays, \"YOUR CART,\" on a bokeh night street.",
+      "source": "LA Times",
+      "original_width": "1200px",
+      "original_height": "799px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/09758059a148.png",
+      "caption": "Rakuten homepage: \"Earn Cashback when you shop online\" headline, Join for Free button, phone photo, MAC lipstick (£8.28 Cashback). Contains logo; not suitable as background image.",
+      "source": "Shopify",
+      "original_width": "1999px",
+      "original_height": "1166px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/b023c0603fbf.png",
+      "caption": "A fashion e-commerce website homepage \"Acme\" featuring navigation, blog article cards, and fashion imagery. Contains text: \"Acme\", \"Home\", \"Shop\", \"Blog\", \"Contact\", \"How I Lost The Secret Of Dazzling Success For 20 years\", \"Mother Earth Hosts Our Travels\", \"Proven Techniques Help You Herbal Skin Care Routine\", \"SHINE BRIGHT LIKE A DIAMOND\", \"FASHION VIBES 2021\", \"Explore the new\".",
+      "source": "Justinmind",
+      "original_width": "1500px",
+      "original_height": "1000px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/48123c636211.jpeg",
+      "caption": "Woman sitting on carpet using laptop showing an online checkout page, surrounded by open packages, boots, and shipping boxes.",
+      "source": "Strategyand.pwc.com",
+      "original_width": "1600px",
+      "original_height": "900px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/339580f354be.png",
+      "caption": "Furniture e-commerce website design mockups featuring \"Embrace Peaceful Oasis\" homepage and a Round table product page with reviews.",
+      "source": "Justinmind",
+      "original_width": "1500px",
+      "original_height": "1100px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/b99f90f39330.png",
+      "caption": "E-commerce page showing \"Best Sellers in Electronics\" and \"Best Sellers in Kitchen & Dining\" with product listings; contains large amounts of text information.",
+      "source": "CJdropshipping",
+      "original_width": "1538px",
+      "original_height": "673px"
+    }
+  ]
+}

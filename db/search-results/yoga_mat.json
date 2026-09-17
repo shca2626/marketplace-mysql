@@ -1,0 +1,51 @@
+{
+  "success": true,
+  "query": "yoga mat product photo on clean white background",
+  "count": 6,
+  "ranked": true,
+  "captioned_count": 6,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/1b0ed9935258.jpg",
+      "caption": "Partially rolled blue patterned yoga mat with dark navy backing, small brand logo label, on light gray background. Suitable for background image.",
+      "source": "Manduka",
+      "original_width": "871px",
+      "original_height": "1014px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/25ad7d593d9f.jpg",
+      "caption": "A navy blue textured yoga mat partially rolled up, with a small Manduka logo, on a clean white background; no watermark, suitable for background image",
+      "source": "Manduka",
+      "original_width": "871px",
+      "original_height": "1014px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/a676f1b71d8c.jpg",
+      "caption": "Two women doing plank exercises on folding yoga mats, navy and beige, against a clean white studio background. Suitable for background image.",
+      "source": "Stakt",
+      "original_width": "2048px",
+      "original_height": "2048px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/ebb45280cf4a.jpg",
+      "caption": "A gray Nike SKIMS yoga mat on white background; text reads \"NIKE SKIMS\" with Nike swoosh logo.",
+      "source": "SKIMS",
+      "original_width": "2000px",
+      "original_height": "2000px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/04a5a3f4d0e6.jpg",
+      "caption": "Colorful rolled yoga mats (blue, purple, orange, pink) stacked against blurred green background; high clarity, no text, no watermark; suitable for background image",
+      "source": "Tom's Guide",
+      "original_width": "1920px",
+      "original_height": "1080px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/d87195caaac9.jpg",
+      "caption": "Product collage showing a gray Proberos foldable exercise mat: full view, zigzag-folded, and stacked; includes brand text.",
+      "source": "Amazon.in",
+      "original_width": "894px",
+      "original_height": "891px"
+    }
+  ]
+}

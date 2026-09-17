@@ -1,0 +1,44 @@
+{
+  "success": true,
+  "query": "stoneware mug set product photo on clean white background",
+  "count": 5,
+  "ranked": true,
+  "captioned_count": 5,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/57f163e350c8.jpg",
+      "caption": "Four pale pink ceramic mugs lined up on a minimalist beige background, no text or watermarks. Suitable for background image.",
+      "source": "Year & Day",
+      "original_width": "956px",
+      "original_height": "1368px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/822ecdcb7a03.jpg",
+      "caption": "Four white ceramic coffee mugs arranged in a two-by-two grid on a clean white background, product photography style, no text or watermarks.",
+      "source": "Overstock",
+      "original_width": "3000px",
+      "original_height": "3000px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/0025d4f11802.jpg",
+      "caption": "Handmade ceramic dinnerware set with brown spotted glaze—mug, bowl, and two plates on gray surface. Suitable for background image.",
+      "source": "Hudson Grace",
+      "original_width": "1946px",
+      "original_height": "1946px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/ed8d77414a4a.jpg",
+      "caption": "Four plain white ceramic mugs arranged diagonally on a white background, clean product photography, no text or watermarks, suitable for background image.",
+      "source": "HF Coors",
+      "original_width": "1200px",
+      "original_height": "1200px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/cb46465a6ddb.jpg",
+      "caption": "A glossy red ceramic mug with cream interior sits on a white pedestal against minimalist white blocks. suitable for background image",
+      "source": "Le Creuset",
+      "original_width": "847px",
+      "original_height": "1135px"
+    }
+  ]
+}

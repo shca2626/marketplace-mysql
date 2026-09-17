@@ -1,0 +1,51 @@
+{
+  "success": true,
+  "query": "tennis racket product photo on clean white background",
+  "count": 6,
+  "ranked": true,
+  "captioned_count": 6,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/48b8bf7c381c.jpg",
+      "caption": "A blue and black HEAD tennis racket with white logo, displayed vertically on a white background. Suitable for background image",
+      "source": "Functional Tennis",
+      "original_width": "800px",
+      "original_height": "1067px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/c6421f9aa3b1.jpeg",
+      "caption": "A blue Wilson Tour Slam Lite tennis racket with red \"W\" logo on white strings, white grip, on plain background. Text: \"TOUR SLAM LITE\", \"STRENGTH BRIDGE\", \"Wilson\".",
+      "source": "Walmart",
+      "original_width": "2000px",
+      "original_height": "2000px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/fd203a17c7bf.jpeg",
+      "caption": "A pink and white Wilson tennis racket beside a can of Wilson Championship extra duty tennis balls.",
+      "source": "Walmart",
+      "original_width": "1062px",
+      "original_height": "1062px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/879e695aedf3.jpg",
+      "caption": "A white twisted-wire bottle cleaning brush with soft nylon bristles, isolated on a black background, suitable for background image.",
+      "source": "Amazon.in",
+      "original_width": "1024px",
+      "original_height": "1024px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/d06cf93fe09e.jpg",
+      "caption": "Tennis player Alexander Zverev celebrates triumphantly on blue court, arms outstretched, racket in hand. Text: \"ALEXANDER ZVEREV\". Suitable for background image.",
+      "source": "Adidas",
+      "original_width": "800px",
+      "original_height": "1067px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/525740b1f1e9.png",
+      "caption": "A boy in a blue shirt and sunglasses leans on a pickleball net holding a \"CARBON\" paddle; no watermark, high clarity, suitable for background image.",
+      "source": "www.pbpropickleball.com",
+      "original_width": "1774px",
+      "original_height": "887px"
+    }
+  ]
+}

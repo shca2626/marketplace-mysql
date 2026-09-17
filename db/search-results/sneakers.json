@@ -1,0 +1,51 @@
+{
+  "success": true,
+  "query": "running sneakers product photo on clean white background",
+  "count": 6,
+  "ranked": true,
+  "captioned_count": 6,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/dafc6608c382.jpg",
+      "caption": "A three-panel Adidas ad featuring athlete Anna Hall wearing light blue activewear and pink running shoes; text: \"ANNA HALL,\" \"RUNNER'S 2026 SHOE AWARDS.\"",
+      "source": "Adidas",
+      "original_width": "1920px",
+      "original_height": "800px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/5d38bbf67f27.jpg",
+      "caption": "A person's lower legs wearing white socks and cream-colored athletic sneakers, standing on a gray textured floor.",
+      "source": "Women's Health",
+      "original_width": "980px",
+      "original_height": "980px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/23e990f23edb.jpg",
+      "caption": "Gloved hand applying Amodex Ink & Stain Remover onto dirty blue-and-white sneakers on a white towel.",
+      "source": "The New York Times",
+      "original_width": "2048px",
+      "original_height": "1365px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/f10a72db7e82.jpg",
+      "caption": "Adidas Ultra Boost 3.0 cleaning comparison: dirty versus cleaned white sneakers, containing brand logo and text \"adidas ultra boost 3.0 cleaning\".",
+      "source": "YouTube",
+      "original_width": "1280px",
+      "original_height": "720px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/8a6decd421a5.jpg",
+      "caption": "A person's legs wearing white socks and pale mint-white Brooks running shoes against a white wall.",
+      "source": "Women's Health",
+      "original_width": "980px",
+      "original_height": "980px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/18749cd50588.jpg",
+      "caption": "A floating white and blue Adidas sneaker with three stripes, clean gray background, high clarity, no watermark — suitable for background image",
+      "source": "Adidas",
+      "original_width": "1440px",
+      "original_height": "1080px"
+    }
+  ]
+}

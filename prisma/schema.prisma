@@ -1,0 +1,111 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  password  String
+  name      String
+  image     String?
+  role      String     @default("BUYER") // BUYER | SELLER
+  storeName String?
+  storeBio  String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  products  Product[]
+  orders    Order[]
+  reviews   Review[]
+  favorites Favorite[]
+}
+
+model Category {
+  id       String    @id @default(cuid())
+  name     String
+  slug     String    @unique
+  icon      String? // lucide icon name
+  products Product[]
+}
+
+model Product {
+  id             String     @id @default(cuid())
+  title          String
+  description    String
+  price          Float
+  compareAtPrice Float?
+  images         String     @default("[]") // JSON string array of URLs
+  categoryId     String
+  category        Category   @relation(fields: [categoryId], references: [id])
+  sellerId       String
+  seller         User       @relation(fields: [sellerId], references: [id])
+  stock          Int        @default(10)
+  soldCount      Int        @default(0)
+  rating         Float      @default(0)
+  reviewCount    Int        @default(0)
+  featured       Boolean    @default(false)
+  status         String     @default("ACTIVE") // ACTIVE | DRAFT | ARCHIVED
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  reviews        Review[]
+  favorites      Favorite[]
+  orderItems     OrderItem[]
+}
+
+model Order {
+  id        String      @id @default(cuid())
+  buyerId   String
+  buyer     User        @relation(fields: [buyerId], references: [id])
+  items     OrderItem[]
+  total     Float
+  status    String      @default("PAID") // PAID | PROCESSING | SHIPPED | DELIVERED | CANCELLED
+  fullName  String
+  address   String
+  city      String
+  country   String
+  zip       String
+  phone     String?
+  createdAt DateTime    @default(now())
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  sellerId  String
+  quantity  Int
+  price     Float
+  title     String // snapshot of product title at purchase time
+  image     String? // snapshot of first product image
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  rating    Int // 1..5
+  comment   String
+  verified  Boolean @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([productId, userId])
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+}

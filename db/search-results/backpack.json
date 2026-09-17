@@ -1,0 +1,51 @@
+{
+  "success": true,
+  "query": "canvas backpack product photo on clean white background",
+  "count": 6,
+  "ranked": true,
+  "captioned_count": 6,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/9c31a80a74f9.jpg",
+      "caption": "A person in a white blouse and plaid skirt carries a plain black backpack over one shoulder, white background.",
+      "source": "eBay",
+      "original_width": "1200px",
+      "original_height": "1200px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/b4a8c6e480a5.jpg",
+      "caption": "Olive green tactical backpack shown in side view with MOLLE webbing straps, red zipper pull, padded shoulder straps, on white background.",
+      "source": "GORUCK",
+      "original_width": "1500px",
+      "original_height": "1500px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/763e7276e134.jpg",
+      "caption": "A teal blue backpack with orange bungee cords and dark \"stio\" logo text, photographed on white background.",
+      "source": "CNN",
+      "original_width": "1280px",
+      "original_height": "720px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/93c9dc0ee8de.jpg",
+      "caption": "Back view of a black fabric backpack with padded straps, zippered pocket, and side pockets on beige background; no text, no watermark.",
+      "source": "Beis",
+      "original_width": "900px",
+      "original_height": "900px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/9d441a86bdff.jpg",
+      "caption": "A tan and brown canvas backpack labeled \"Deckmaster\" with colorful patterned pouches and a Magic playmat case.",
+      "source": "Heroes & Villains",
+      "original_width": "1200px",
+      "original_height": "1200px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/f95e70334560.jpg",
+      "caption": "A black BREVITĒ backpack sits on a beige fabric couch; small logo text visible. No watermark; suitable for background image.",
+      "source": "WIRED",
+      "original_width": "1600px",
+      "original_height": "1238px"
+    }
+  ]
+}

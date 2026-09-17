@@ -1,0 +1,51 @@
+{
+  "success": true,
+  "query": "mechanical keyboard product photo on clean white background",
+  "count": 6,
+  "ranked": true,
+  "captioned_count": 6,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/141cbde21ff2.jpg",
+      "caption": "A black and white mechanical keyboard floating diagonally on a minimalist white geometric background, clean, high clarity, no watermarks. Suitable for background image.",
+      "source": "KBDfans",
+      "original_width": "1200px",
+      "original_height": "1200px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/5d1245d7b330.jpg",
+      "caption": "A white mechanical keyboard with blue accent keys (esc, shift, arrows) photographed top-down against a bright cloudy sky background. High clarity, strong visual impact, no watermarks — suitable for background image",
+      "source": "Apos",
+      "original_width": "5760px",
+      "original_height": "3840px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/b023e0d6e774.jpg",
+      "caption": "A transparent retro-style mechanical keyboard with colorful keycaps (yellow spacebar, blue Enter, red knob) on white background; suitable for background image.",
+      "source": "Nuphy",
+      "original_width": "1800px",
+      "original_height": "1800px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/52f5c78c7ea9.webp",
+      "caption": "A sleek white wireless keyboard with silver aluminum frame and numeric keypad, angled on a clean white background, no watermarks. Suitable for background image",
+      "source": "Lofree",
+      "original_width": "2000px",
+      "original_height": "2000px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/aa3ec0214541.jpg",
+      "caption": "Minimalist flat-lay of white mechanical keyboard keycap sets arranged by rows (R1–R4), with key legends and unit sizes labeled.",
+      "source": "TacType",
+      "original_width": "2880px",
+      "original_height": "2880px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/8c5fbdac9e87.jpg",
+      "caption": "A transparent mechanical keyboard with white, gray, orange keycaps and RGB backlighting, displayed on a wooden desk.",
+      "source": "Tom's Guide",
+      "original_width": "2000px",
+      "original_height": "1125px"
+    }
+  ]
+}

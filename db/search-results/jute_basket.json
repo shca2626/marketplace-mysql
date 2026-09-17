@@ -1,0 +1,51 @@
+{
+  "success": true,
+  "query": "jute basket product photo on clean white background",
+  "count": 6,
+  "ranked": true,
+  "captioned_count": 6,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/7d358772ad31.jpg",
+      "caption": "A woven beige lidded laundry hamper with rope handles, open lid, photographed on white background; no text or watermarks.",
+      "source": "Primeval",
+      "original_width": "1200px",
+      "original_height": "1200px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/24c57aa763fc.jpg",
+      "caption": "Three cylindrical woven seagrass baskets in dark brown tones on a light background. Contains watermark text \"Photo / Image and Design © Copyright Design Ideas, Ltd. All rights reserved.\"",
+      "source": "texxture",
+      "original_width": "2000px",
+      "original_height": "2000px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/2b12a7da0717.jpg",
+      "caption": "An oval handwoven natural straw basket with two side handles, textured braided bands, on a white background; suitable for background image",
+      "source": "Primeval",
+      "original_width": "1200px",
+      "original_height": "1200px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/e37022f9b192.jpg",
+      "caption": "A plush fox toy sits inside a woven natural jute basket with cutout handles, on a white background; suitable for background image",
+      "source": "John Lewis",
+      "original_width": "825px",
+      "original_height": "1100px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/622c12309424.jpg",
+      "caption": "A woven rattan basket with curled handles and white fabric liner, centered on a plain white background. Suitable for background image",
+      "source": "McGee & Co.",
+      "original_width": "1200px",
+      "original_height": "1504px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/73d788ca0608.jpg",
+      "caption": "Two handwoven natural straw baskets, one round and one bowl-shaped, displayed on a beige surface. Suitable for background image",
+      "source": "Goodee",
+      "original_width": "1500px",
+      "original_height": "1500px"
+    }
+  ]
+}

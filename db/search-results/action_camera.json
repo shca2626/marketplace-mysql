@@ -1,0 +1,51 @@
+{
+  "success": true,
+  "query": "action camera product photo on clean white background",
+  "count": 6,
+  "ranked": true,
+  "captioned_count": 6,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/0aa011735bd8.jpg",
+      "caption": "A black Insta360 X5 360-degree camera standing upright against a plain blue background, casting a soft shadow.",
+      "source": "The New York Times",
+      "original_width": "1456px",
+      "original_height": "970px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/a2b226df7c97.jpg",
+      "caption": "Five cameras displayed on a green background with \"UNDER $100\" text and star ratings; thumbnail-style review graphic, unsuitable for background.",
+      "source": "YouTube",
+      "original_width": "1280px",
+      "original_height": "720px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/4d791e21ac4a.jpg",
+      "caption": "A bright photo studio featuring a blank white backdrop on stands, with large windows revealing a blurred city skyline.",
+      "source": "Amazon.com",
+      "original_width": "894px",
+      "original_height": "904px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/9b2fef770974.jpg",
+      "caption": "A woman in a yellow top arranges black high heels on a white table while a camera on a tripod photographs them indoors. No watermark or text; clear, visually striking image — suitable for background image.",
+      "source": "Digital Camera World",
+      "original_width": "4784px",
+      "original_height": "3035px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/b923e9f642d8.jpg",
+      "caption": "Sigma lens advertisement: black camera lens photo left; text: \"SIGMA\", \"SAVE ON PREMIUM LENSES\", \"$100 off 14-24mm F2.8 DG DN and 24-70mm F2.8 DG DN II | Art.\", \"August 31–September 27.\" Contains logo; promotional ad, not suitable for background image.",
+      "source": "cameramall.com",
+      "original_width": "1200px",
+      "original_height": "818px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/51e657ff6891.jpg",
+      "caption": "A black DJI Osmo Pocket handheld gimbal camera on a white background, its screen showing a mountain landscape. Text: \"OSMO\", \"16:9\", \"24/25\".",
+      "source": "Reliance Digital | www.reliancedigital.in",
+      "original_width": "1000px",
+      "original_height": "1000px"
+    }
+  ]
+}

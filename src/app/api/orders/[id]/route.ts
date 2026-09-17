@@ -1,0 +1,71 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { db } from '@/lib/db'
+import { getSessionUser } from '@/lib/auth'
+import { serializeOrder } from '@/lib/serialize'
+
+const STATUS_FLOW = ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED']
+
+// GET /api/orders/[id] — single order (buyer or participating seller)
+export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await ctx.params
+    const user = await getSessionUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const order = await db.order.findUnique({
+      where: { id },
+      include: { items: true, buyer: { select: { id: true, name: true, email: true } } },
+    })
+    if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+
+    const isBuyer = order.buyerId === user.id
+    const isSeller = order.items.some((i) => i.sellerId === user.id)
+    if (!isBuyer && !isSeller)
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+    return NextResponse.json({ order: serializeOrder(order, isSeller && !isBuyer ? user.id : undefined) })
+  } catch (err) {
+    console.error('order GET error', err)
+    return NextResponse.json({ error: 'Failed to load order' }, { status: 500 })
+  }
+}
+
+// PATCH /api/orders/[id] — seller advances fulfillment status
+export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await ctx.params
+    const user = await getSessionUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const body = await req.json()
+    const parsed = z.object({ status: z.enum(['PROCESSING', 'SHIPPED', 'DELIVERED']) }).safeParse(body)
+    if (!parsed.success) return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
+
+    const order = await db.order.findUnique({ where: { id }, include: { items: true } })
+    if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+
+    const isSeller = order.items.some((i) => i.sellerId === user.id)
+    if (!isSeller) return NextResponse.json({ error: 'Only the seller can update fulfillment' }, { status: 403 })
+
+    const currentIdx = STATUS_FLOW.indexOf(order.status)
+    const nextIdx = STATUS_FLOW.indexOf(parsed.data.status)
+    if (nextIdx !== currentIdx + 1) {
+      return NextResponse.json(
+        { error: `Cannot move from ${order.status} to ${parsed.data.status}` },
+        { status: 400 }
+      )
+    }
+
+    const updated = await db.order.update({
+      where: { id },
+      data: { status: parsed.data.status },
+      include: { items: true, buyer: { select: { id: true, name: true, email: true } } },
+    })
+
+    return NextResponse.json({ order: serializeOrder(updated, user.id) })
+  } catch (err) {
+    console.error('order PATCH error', err)
+    return NextResponse.json({ error: 'Failed to update order' }, { status: 500 })
+  }
+}

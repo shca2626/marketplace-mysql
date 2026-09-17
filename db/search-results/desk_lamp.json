@@ -1,0 +1,51 @@
+{
+  "success": true,
+  "query": "modern desk lamp product photo on clean white background",
+  "count": 6,
+  "ranked": true,
+  "captioned_count": 6,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/ec7f0beb36be.jpg",
+      "caption": "A minimalist desk setup with white lamp, open notebook, pencils, candle, and potted plant against white wall; clean, high clarity, suitable for background image.",
+      "source": "ny times",
+      "original_width": "1456px",
+      "original_height": "970px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/7351fe5c204c.jpg",
+      "caption": "A man in a blue shirt demonstrating an adjustable white desk lamp with long arm, no text present.",
+      "source": "YouTube",
+      "original_width": "1280px",
+      "original_height": "720px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/9f646c81a5c3.jpg",
+      "caption": "A cozy home office desk setup with dual monitors displaying Japanese lanterns, mechanical keyboard, yellow thermos, microphone, wooden desk, black office chair, and hardwood floor.",
+      "source": "WIRED",
+      "original_width": "1600px",
+      "original_height": "1200px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/ddf4938599d5.jpg",
+      "caption": "A minimalist white interior with a laptop, ceramic vase with branches, and round mirror above a table. Suitable for background image.",
+      "source": "Clare Paint",
+      "original_width": "871px",
+      "original_height": "1089px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/ab607e582b32.jpg",
+      "caption": "A detailed desk setup with dual monitors showing lily pad wallpaper, \"0302\" time, \"Tuesday, 26 November 2024\" text, \"WIRED\" sticker, gaming PC, keyboard, microphone. Contains logo/watermark (bottom-right) and multiple texts.",
+      "source": "WIRED",
+      "original_width": "1600px",
+      "original_height": "1238px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/2bfd38e1696b.jpg",
+      "caption": "A warm mid-century study with wooden desk, red chairs, bookshelves, plants, and globe pendant light; high clarity, no watermark, suitable for background image",
+      "source": "Vogue",
+      "original_width": "2666px",
+      "original_height": "3999px"
+    }
+  ]
+}

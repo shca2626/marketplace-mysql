@@ -1,0 +1,51 @@
+{
+  "success": true,
+  "query": "colorful bath bombs product photo on clean white background",
+  "count": 6,
+  "ranked": true,
+  "captioned_count": 6,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/7bf6acb012db.jpg",
+      "caption": "Colorful ocean-themed bath bomb gift set with twelve bombs, toy sea animals, on snowy blue background. Suitable for background image.",
+      "source": "www.amazon.eg",
+      "original_width": "1254px",
+      "original_height": "1254px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/a51a76cf3ded.jpg",
+      "caption": "A clear product photo of a transparent bag containing 15 colorful mini bath bombs, with visible packaging text and branding.",
+      "source": "Hi Peach Layne",
+      "original_width": "1500px",
+      "original_height": "1500px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/d228a8c87406.jpg",
+      "caption": "A clear jar labeled \"AMAZE BALLS™ Mixed Fruit\" containing colorful bath fizzers with toy surprises inside, Net Wt. 16 oz.",
+      "source": "Da Bomb Bath Fizzers",
+      "original_width": "1946px",
+      "original_height": "1946px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/3fdc9fd82176.jpg",
+      "caption": "Colorful bath bombs spilled from a clear container labeled \"AMAZING BALLS,\" with a black mesh loofah on white background; no watermark; suitable for background image.",
+      "source": "Da Bomb Bath Fizzers",
+      "original_width": "1946px",
+      "original_height": "1946px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/2ba68bf33035.png",
+      "caption": "Colorful \"MYSTERY BATH BOMB — SURPRISE CENTER, with cotton candy center burst, NET WT 5 OZ/141g\" products displayed among fuzzy pom-poms on bright blue background; high clarity, strong visual impact. Suitable for background image",
+      "source": "Pacha Soap Co.",
+      "original_width": "1080px",
+      "original_height": "1080px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/edb0836d8efb.jpg",
+      "caption": "Blue \"happy hippo\" Mini Bath Bombs (Rainbow) box with colorful cubes scattered on white tile, clear, no watermark; suitable for background image",
+      "source": "Happy Hippo Bath Co",
+      "original_width": "1946px",
+      "original_height": "1946px"
+    }
+  ]
+}

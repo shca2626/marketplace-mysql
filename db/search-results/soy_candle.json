@@ -1,0 +1,51 @@
+{
+  "success": true,
+  "query": "soy candle in glass jar product photo on clean background",
+  "count": 6,
+  "ranked": true,
+  "captioned_count": 6,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/7025763aacf8.jpg",
+      "caption": "Cream-colored soy candle jar with lid beside it; text reads \"Rx LOS ANGELES, NO. 30 SOY CANDLE, HANDMADE IN L.A.\" Suitable for background image.",
+      "source": "RX Candles",
+      "original_width": "1600px",
+      "original_height": "2000px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/a12552174451.jpg",
+      "caption": "Product infographic of a PartyLite candle jar with feature text: burn time up to 50 hours, natural lead-free wick, non-toxic paraffin and soy wax blend, dimensions 3 in/8 cm W, 3.75 in/10 cm H.",
+      "source": "PartyLite",
+      "original_width": "1024px",
+      "original_height": "1024px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/1310449ec1fc.jpg",
+      "caption": "Five lit amber glass candles with blank white labels on a warm beige background, one rose gold lid removed. Suitable for background image.",
+      "source": "Unsplash",
+      "original_width": "3000px",
+      "original_height": "2000px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/791694823597.jpg",
+      "caption": "A white glass candle labeled \"the bequem\" sits on orange backdrop with lemon, lime slice, and pink crystals; no watermark, high clarity, suitable for background image",
+      "source": "The Bequem",
+      "original_width": "1362px",
+      "original_height": "2048px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/012ef033f430.jpg",
+      "caption": "Three amber Fontana Candle Co. jars labeled \"Pumpkin Pie,\" \"Warm Flannel,\" and \"Cinnamon Orange Clove,\" one lit. Clean, high clarity, minimal text, strong visual appeal — suitable for background image.",
+      "source": "fontanacandlecompany.com",
+      "original_width": "1365px",
+      "original_height": "1365px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/f66c742d8ed2.jpg",
+      "caption": "A lit white candle in a clear glass jar with dried flower decoration, wooden lid, and eucalyptus leaves. Suitable for background image",
+      "source": "GlassNow",
+      "original_width": "1695px",
+      "original_height": "1052px"
+    }
+  ]
+}

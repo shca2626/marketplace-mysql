@@ -1,0 +1,51 @@
+{
+  "success": true,
+  "query": "minimalist LED desk lamp isolated on white background product shot",
+  "count": 6,
+  "ranked": true,
+  "captioned_count": 6,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/2a9e7d69637e.jpeg",
+      "caption": "A black gooseneck LED desk lamp with storage organizer base on white background, dimension text \"6.3\"\" shown.",
+      "source": "Walmart",
+      "original_width": "800px",
+      "original_height": "1067px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/1561b3007a0d.jpg",
+      "caption": "The image shows a bright photography studio scene: a DSLR camera on tripod, softbox lighting, and a glowing transparent glass cube centered near large windows. A leather portfolio with a portrait photo, sketch papers, and color palettes are spread on the floor. Text overlay reads: \"Lifematel Photography\" and \"4:5 social Wediaar preview\". Contains a watermark/logo, so it is not suitable as a background image.",
+      "source": "ElectronicsHub by Alibaba.com",
+      "original_width": "1664px",
+      "original_height": "928px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/1fd1e63accf0.jpg",
+      "caption": "A photo studio setup with lighting equipment illuminating a wooden director's chair. Watermarked with Alamy logos and text (Image ID: 3DYX1XK, www.alamy.com), so unsuitable for background use.",
+      "source": "Alamy",
+      "original_width": "1300px",
+      "original_height": "957px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/cbde2331ed00.jpg",
+      "caption": "Studio photography setup with black softbox umbrella, light stands, and white reflector panels against plain background. Contains Alamy watermarks and logo (Image ID: 3BJ03HE, www.alamy.com); not suitable for background image.",
+      "source": "Alamy",
+      "original_width": "1300px",
+      "original_height": "773px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/2789e02d616d.webp",
+      "caption": "Blue light glasses rest on a wooden desk beside a tablet showing a chart, smartphone, coffee mug, and glowing lamp.",
+      "source": "Rokform",
+      "original_width": "1200px",
+      "original_height": "670px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/d66935da42ff.jpg",
+      "caption": "A man photographs chess pieces inside a lightbox using his smartphone, which displays a chessboard pattern.",
+      "source": "PetaPixel",
+      "original_width": "1600px",
+      "original_height": "840px"
+    }
+  ]
+}

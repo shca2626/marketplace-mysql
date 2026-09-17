@@ -1,0 +1,65 @@
+{
+  "success": true,
+  "query": "modern table lamp product photo isolated on plain background",
+  "count": 8,
+  "ranked": true,
+  "captioned_count": 8,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/64e9db96259b.jpg",
+      "caption": "A glowing layered fabric table lamp on a wooden desk beside a laptop, notebooks, and bookshelf at night.\n\nsuitable for background image",
+      "source": "Livarea",
+      "original_width": "1696px",
+      "original_height": "2528px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/aff693f9105b.jpg",
+      "caption": "A warm-toned desk setup with black desk lamp, computer monitor, keyboard, and mouse, no text. Suitable for background image.",
+      "source": "Hebbia",
+      "original_width": "1618px",
+      "original_height": "910px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/bedfd2ff5fff.webp",
+      "caption": "A white modern LED desk lamp with circular head and round base, on a black background, small \"vino\" logo text.",
+      "source": "Lumie",
+      "original_width": "1000px",
+      "original_height": "1000px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/7b6b38ff74c5.jpg",
+      "caption": "A modern brass floor lamp stands beside a tan leather sofa with a beige throw blanket in a minimalist room. Suitable for background image.",
+      "source": "Article furniture",
+      "original_width": "1080px",
+      "original_height": "1080px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/d7f419f272a9.png",
+      "caption": "A glossy ceramic flower sculpture in peach and cream tones with layered ruffled petals, centered on a pure black background.",
+      "source": "Chive Studio",
+      "original_width": "1000px",
+      "original_height": "1249px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/d4d87d3000a3.jpg",
+      "caption": "Simple black line drawing of a table on white background; contains Alamy watermarks and footer text, not suitable as background.",
+      "source": "Alamy",
+      "original_width": "1300px",
+      "original_height": "1390px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/36bf4853c6cd.jpg",
+      "caption": "Cozy neutral living room: beige textured wall, cream sofa, rattan coffee table, pampas grass, patterned rug, high clarity, suitable for background image",
+      "source": "Walls Republic",
+      "original_width": "1200px",
+      "original_height": "2000px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/a607017dbd47.jpg",
+      "caption": "An empty golden picture frame on white background, containing an Alamy watermark and text: \"alamy,\" \"Image ID: 3D0REJ1,\" \"www.alamy.com.\"",
+      "source": "Alamy",
+      "original_width": "1300px",
+      "original_height": "1065px"
+    }
+  ]
+}

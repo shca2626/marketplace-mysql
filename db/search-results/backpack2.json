@@ -1,0 +1,51 @@
+{
+  "success": true,
+  "query": "canvas rucksack backpack isolated on white background product shot",
+  "count": 6,
+  "ranked": true,
+  "captioned_count": 6,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/60eb83a4cc72.jpg",
+      "caption": "Red and black hiking backpack shown from back, with straps and buckles, on white background; contains \"depositphotos\" watermarks.",
+      "source": "DepositPhotos",
+      "original_width": "1600px",
+      "original_height": "1700px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/d9a100f97679.jpg",
+      "caption": "A black leather messenger bag with a gold zipper and shoulder strap, isolated on a white background. Contains \"Adobe Stock\" watermark and ID #297066369.",
+      "source": "Posters USA, Art Prints and Wall Murals",
+      "original_width": "1000px",
+      "original_height": "1000px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/99421752c23b.jpg",
+      "caption": "Mockup advertisement: green tiger-print polyester backpack with \"creatsy\" logo, \"Polyester Backpack Mockup Set\" text, features list, and \"MWW ON DEMAND\" logo.",
+      "source": "Creatsy",
+      "original_width": "1920px",
+      "original_height": "1277px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/217078a7a3ff.jpg",
+      "caption": "Blank black and white tote bag mockups on white background with Adobe Stock watermarks.",
+      "source": "Abposters.com",
+      "original_width": "1000px",
+      "original_height": "844px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/2c18fec764b9.jpg",
+      "caption": "Back view of a beige and black backpack with padded mesh straps, handle, logo, and orange zipper pulls.",
+      "source": "Stubble & Co",
+      "original_width": "960px",
+      "original_height": "1200px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/3bc1de20381a.jpg",
+      "caption": "A man wearing a cap models a tan \"Burlebo\" backpack against a plain background; product photo with brand logo.",
+      "source": "BURLEBO",
+      "original_width": "1100px",
+      "original_height": "1100px"
+    }
+  ]
+}
