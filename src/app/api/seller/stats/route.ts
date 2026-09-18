@@ -20,7 +20,7 @@ export async function GET() {
           _avg: { rating: true },
         }),
         db.orderItem.findMany({
-          where: { sellerId: user.id },
+          where: { sellerId: user.id, order: { status: { not: 'CANCELLED' } } },
           select: { price: true, quantity: true, orderId: true, order: { select: { createdAt: true } } },
         }),
         db.order.findMany({

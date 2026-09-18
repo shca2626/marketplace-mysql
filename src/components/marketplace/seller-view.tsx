@@ -597,7 +597,14 @@ export function SellerView() {
                           </p>
                         </div>
                         <div className="flex items-center gap-3">
-                          <Badge variant="secondary" className="rounded-full text-[11px]">
+                          <Badge
+                            variant="secondary"
+                            className={
+                              order.status === 'CANCELLED'
+                                ? 'rounded-full text-[11px] bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400'
+                                : 'rounded-full text-[11px]'
+                            }
+                          >
                             {order.status}
                           </Badge>
                           <span className="text-sm font-bold tabular-nums">{formatUSD(myTotal)}</span>

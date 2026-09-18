@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   BadgeCheck,
@@ -53,6 +53,7 @@ export function ProductView() {
   const setCartOpen = useMarketplace((s) => s.setCartOpen)
   const user = useMarketplace((s) => s.user)
   const openAuth = useMarketplace((s) => s.openAuth)
+  const trackView = useMarketplace((s) => s.trackView)
 
   const { data, loading, setData } = useApi<ProductDetailResponse>(
     productId ? `/api/products/${productId}` : null
@@ -65,6 +66,12 @@ export function ProductView() {
   const [submittingReview, setSubmittingReview] = useState(false)
 
   const product = data?.product
+
+  // Record the visit for the "Recently viewed" row on home
+  useEffect(() => {
+    if (productId) trackView(productId)
+  }, [productId, trackView])
+
   const discount = useMemo(
     () => (product ? discountPercent(product.price, product.compareAtPrice) : null),
     [product]

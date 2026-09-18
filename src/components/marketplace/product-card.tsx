@@ -78,7 +78,7 @@ export function ProductCard({ product, index = 0 }: { product: ProductDTO; index
                 src={product.images[0]}
                 alt={product.title}
                 loading="lazy"
-                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105 dark:brightness-[0.96]"
               />
             ) : (
               <div className="flex h-full items-center justify-center text-muted-foreground">

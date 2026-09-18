@@ -31,10 +31,13 @@ interface MarketplaceState {
   authModalOpen: boolean
   authMode: 'login' | 'register'
   afterAuth: { view: View; params?: ViewParams } | null
+  recentlyViewed: string[]
 
   navigate: (view: View, params?: ViewParams) => void
   setUser: (user: SessionUser | null) => void
   setAuthChecked: (v: boolean) => void
+  trackView: (productId: string) => void
+  clearRecentlyViewed: () => void
   addToCart: (product: ProductDTO, quantity?: number) => { ok: boolean; message: string }
   updateQuantity: (productId: string, quantity: number) => void
   removeFromCart: (productId: string) => void
@@ -58,6 +61,7 @@ export const useMarketplace = create<MarketplaceState>()(
       authModalOpen: false,
       authMode: 'login',
       afterAuth: null,
+      recentlyViewed: [],
 
       navigate: (view, params = {}) => {
         set({ view, params, cartOpen: false })
@@ -66,6 +70,16 @@ export const useMarketplace = create<MarketplaceState>()(
 
       setUser: (user) => set({ user }),
       setAuthChecked: (v) => set({ authChecked: v }),
+
+      trackView: (productId) =>
+        set((state) => ({
+          recentlyViewed: [
+            productId,
+            ...state.recentlyViewed.filter((id) => id !== productId),
+          ].slice(0, 10),
+        })),
+
+      clearRecentlyViewed: () => set({ recentlyViewed: [] }),
 
       addToCart: (product, quantity = 1) => {
         const existing = get().cart.find((i) => i.productId === product.id)
@@ -123,7 +137,7 @@ export const useMarketplace = create<MarketplaceState>()(
     {
       name: 'vendora-store',
       storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({ cart: state.cart }),
+      partialize: (state) => ({ cart: state.cart, recentlyViewed: state.recentlyViewed }),
       // Avoid SSR hydration mismatch: rehydrate explicitly after mount (see MarketplaceApp)
       skipHydration: true,
     }

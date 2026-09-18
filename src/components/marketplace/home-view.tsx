@@ -2,21 +2,30 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowRight, BadgeCheck, Flame, Search, ShieldCheck, Sparkles, Store, TrendingUp } from 'lucide-react'
+import { ArrowRight, BadgeCheck, Clock, Flame, Search, ShieldCheck, Sparkles, Store, TrendingUp, X } from 'lucide-react'
 import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
-import type { HomeFeed } from '@/lib/types'
+import type { HomeFeed, ProductDTO } from '@/lib/types'
 import { formatNumber, formatUSD } from '@/lib/format'
 import { HERO_COLLAGE, HERO_IMAGE } from '@/lib/constants'
 import { ProductCard, ProductCardSkeleton } from './product-card'
+import { StarRating } from './star-rating'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 
 export function HomeView() {
   const navigate = useMarketplace((s) => s.navigate)
+  const recentlyViewed = useMarketplace((s) => s.recentlyViewed)
+  const clearRecentlyViewed = useMarketplace((s) => s.clearRecentlyViewed)
   const { data, loading } = useApi<HomeFeed>('/api/home')
   const [search, setSearch] = useState('')
+
+  const idsQuery = recentlyViewed.length > 0 ? recentlyViewed.join(',') : null
+  const { data: recentData } = useApi<{ items: ProductDTO[] }>(
+    idsQuery ? `/api/products?ids=${encodeURIComponent(idsQuery)}&limit=10` : null
+  )
+  const recentItems = recentData?.items ?? []
 
   const submitSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -172,6 +181,58 @@ export function HomeView() {
           )}
         </div>
       </section>
+
+      {/* ── Recently viewed ─────────────────────────────── */}
+      {recentlyViewed.length > 0 && recentItems.length > 0 && (
+        <section className="mx-auto max-w-7xl px-4 pb-12 pt-4" aria-labelledby="recent-heading">
+          <div className="mb-5 flex items-end justify-between">
+            <div>
+              <h2 id="recent-heading" className="flex items-center gap-2 text-2xl font-bold tracking-tight">
+                <Clock className="text-primary" size={22} /> Recently viewed
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">Pick up where you left off.</p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="rounded-full text-xs text-muted-foreground hover:text-foreground"
+              onClick={clearRecentlyViewed}
+            >
+              <X size={14} className="mr-1" /> Clear history
+            </Button>
+          </div>
+          <div className="scrollbar-thin -mx-4 flex snap-x gap-4 overflow-x-auto px-4 pb-2">
+            {recentItems.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => navigate('product', { productId: p.id })}
+                className="group flex w-44 shrink-0 snap-start flex-col gap-2 rounded-2xl border bg-card p-3 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md sm:w-52"
+              >
+                <div className="aspect-square overflow-hidden rounded-xl bg-muted">
+                  {p.images[0] && (
+                    <img
+                      src={p.images[0]}
+                      alt={p.title}
+                      loading="lazy"
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105 dark:brightness-[0.96]"
+                    />
+                  )}
+                </div>
+                <p className="line-clamp-2 min-h-10 text-sm font-medium leading-5">{p.title}</p>
+                <div className="flex w-full items-baseline justify-between gap-1.5">
+                  <span className="text-sm font-bold text-primary">{formatUSD(p.price)}</span>
+                  {p.compareAtPrice && (
+                    <span className="text-[11px] text-muted-foreground line-through">
+                      {formatUSD(p.compareAtPrice)}
+                    </span>
+                  )}
+                </div>
+                <StarRating value={p.rating} showValue count={p.reviewCount} />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ── Featured ─────────────────────────────────────── */}
       <section className="bg-muted/40 py-12" aria-labelledby="featured-heading">

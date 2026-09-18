@@ -31,7 +31,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   }
 }
 
-// PATCH /api/orders/[id] — seller advances fulfillment status
+// PATCH /api/orders/[id] — seller advances fulfillment status, OR buyer cancels a PAID order
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await ctx.params
@@ -39,6 +39,42 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body = await req.json()
+
+    // ── Buyer cancellation flow ─────────────────────────────
+    const cancelParsed = z.object({ action: z.literal('cancel') }).safeParse(body)
+    if (cancelParsed.success) {
+      const order = await db.order.findUnique({ where: { id }, include: { items: true } })
+      if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+      if (order.buyerId !== user.id)
+        return NextResponse.json({ error: 'Only the buyer can cancel this order' }, { status: 403 })
+      if (order.status !== 'PAID')
+        return NextResponse.json(
+          { error: 'This order can no longer be cancelled — it is already being processed' },
+          { status: 400 }
+        )
+
+      const updated = await db.$transaction(async (tx) => {
+        // Restock every item and roll back sold counts
+        for (const item of order.items) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: {
+              stock: { increment: item.quantity },
+              soldCount: { decrement: item.quantity },
+            },
+          })
+        }
+        return tx.order.update({
+          where: { id },
+          data: { status: 'CANCELLED' },
+          include: { items: true, buyer: { select: { id: true, name: true, email: true } } },
+        })
+      })
+
+      return NextResponse.json({ order: serializeOrder(updated, user.id) })
+    }
+
+    // ── Seller fulfillment flow ─────────────────────────────
     const parsed = z.object({ status: z.enum(['PROCESSING', 'SHIPPED', 'DELIVERED']) }).safeParse(body)
     if (!parsed.success) return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
 

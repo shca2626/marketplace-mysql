@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Check, ClipboardList, PackageCheck, PackageOpen, Star, Truck } from 'lucide-react'
+import { Ban, Check, ClipboardList, PackageCheck, PackageOpen, Star, Truck } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
@@ -11,6 +11,17 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
 
 const STATUS_STEPS = [
@@ -25,16 +36,43 @@ const STATUS_COLORS: Record<string, string> = {
   PROCESSING: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
   SHIPPED: 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300',
   DELIVERED: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+  CANCELLED: 'bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400',
 }
 
 export function OrdersView() {
   const user = useMarketplace((s) => s.user)
   const openAuth = useMarketplace((s) => s.openAuth)
   const navigate = useMarketplace((s) => s.navigate)
-  const { data, loading } = useApi<{ orders: OrderDTO[] }>(user ? '/api/orders' : null, {
+  const { data, loading, refetch } = useApi<{ orders: OrderDTO[] }>(user ? '/api/orders' : null, {
     skip: !user,
   })
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [cancellingId, setCancellingId] = useState<string | null>(null)
+
+  const cancelOrder = async (orderId: string) => {
+    setCancellingId(orderId)
+    try {
+      const res = await fetch(`/api/orders/${orderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel' }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        toast({ title: 'Cannot cancel order', description: json.error ?? 'Something went wrong', variant: 'destructive' })
+        return
+      }
+      toast({
+        title: 'Order cancelled',
+        description: `#${orderId.slice(-8).toUpperCase()} — items were returned to stock`,
+      })
+      void refetch()
+    } catch {
+      toast({ title: 'Error', description: 'Network error', variant: 'destructive' })
+    } finally {
+      setCancellingId(null)
+    }
+  }
 
   if (!user) {
     return (
@@ -94,7 +132,20 @@ export function OrdersView() {
                 </button>
 
                 <CardContent className="space-y-5 p-5">
-                  {/* Progress timeline */}
+                  {/* Progress timeline (or cancellation notice) */}
+                  {order.status === 'CANCELLED' ? (
+                    <div className="flex items-center gap-3 rounded-xl border border-dashed bg-muted/40 px-4 py-3">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
+                        <Ban size={14} />
+                      </span>
+                      <div>
+                        <p className="text-sm font-semibold">Order cancelled</p>
+                        <p className="text-xs text-muted-foreground">
+                          You cancelled this order before it was processed — items were returned to stock.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
                   <div className="flex items-start">
                     {STATUS_STEPS.map((step, i) => {
                       const done = i <= currentIdx
@@ -104,14 +155,14 @@ export function OrdersView() {
                             <span
                               className={cn(
                                 'absolute right-1/2 top-4 -z-0 h-0.5 w-full',
-                                i <= currentIdx ? 'bg-primary' : 'bg-muted'
+                                i <= currentIdx ? 'bg-primary' : 'bg-border'
                               )}
                             />
                           )}
                           <span
                             className={cn(
                               'z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 bg-background',
-                              done ? 'border-primary text-primary' : 'border-muted text-muted-foreground/50'
+                              done ? 'border-primary text-primary' : 'border-border text-muted-foreground/70'
                             )}
                           >
                             {done && i < currentIdx ? <Check size={13} /> : <step.icon size={13} />}
@@ -119,7 +170,7 @@ export function OrdersView() {
                           <span
                             className={cn(
                               'mt-1.5 text-center text-[10px] font-medium leading-tight sm:text-xs',
-                              done ? 'text-foreground' : 'text-muted-foreground/60'
+                              done ? 'text-foreground' : 'text-muted-foreground/70'
                             )}
                           >
                             {step.label}
@@ -128,6 +179,7 @@ export function OrdersView() {
                       )
                     })}
                   </div>
+                  )}
 
                   {/* Items */}
                   <div className="space-y-3">
@@ -172,18 +224,53 @@ export function OrdersView() {
                     <span>
                       Ship to: {order.fullName}, {order.address}, {order.city} {order.zip}
                     </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 rounded-full text-xs"
-                      onClick={() => {
-                        navigator.clipboard?.writeText(order.id).then(() =>
-                          toast({ title: 'Order ID copied', description: order.id })
-                        )
-                      }}
-                    >
-                      Copy order ID
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      {order.status === 'PAID' && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={cancellingId === order.id}
+                              className="h-7 rounded-full text-xs text-destructive hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                            >
+                              <Ban size={12} className="mr-1" />
+                              {cancellingId === order.id ? 'Cancelling…' : 'Cancel order'}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Cancel this order?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Order #{order.id.slice(-8).toUpperCase()} ({formatUSD(order.total)}) will be
+                                cancelled and the items returned to stock. This can't be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Keep order</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="bg-destructive text-white hover:bg-destructive/90"
+                                onClick={() => void cancelOrder(order.id)}
+                              >
+                                Yes, cancel order
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 rounded-full text-xs"
+                        onClick={() => {
+                          navigator.clipboard?.writeText(order.id).then(() =>
+                            toast({ title: 'Order ID copied', description: order.id })
+                          )
+                        }}
+                      >
+                        Copy order ID
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

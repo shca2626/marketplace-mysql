@@ -90,3 +90,27 @@ Stage Summary:
 - STATUS: AWAITING USER APPROVAL of the five deliverables. ⚠️ DO NOT begin the architectural rebuild until the user approves/amends the proposals in chat.
 - Until approval, webDevReview rounds may ONLY: QA the live MVP with agent-browser, fix breakage/bugs in the existing MVP, and do non-architectural polish. NO schema rewrites, NO new transaction architecture.
 - Next step after approval: Phase 0 (guarded Prisma client + isolation suite + auth hardening + i18n/RTL shell).
+
+---
+Task ID: CRON-R1 (webDevReview round 1 — QA + non-architectural fixes/features)
+Agent: Z.ai Code (orchestrator)
+Task: Scheduled QA round: agent-browser QA of live MVP, fix bugs, non-architectural styling/features only (rebuild still frozen pending user approval of PLAN-1)
+
+Work Log:
+- Read worklog; confirmed PLAN-1 freeze constraint (no schema rewrites, no RFQ/offer architecture)
+- QA pass with agent-browser: home render, search "headphones", product detail, add-to-cart + badge, cart drawer, checkout auth-guard, demo login, shipping form (native validation correctly blocks empty required fields), order placement (#$6AF3YT8T), orders timeline, console/errors clean, lint clean
+- VLM screenshot audits (mobile 390px, dark mode) flagged: announcement banner/search button rendering WHITE in dark mode + Next dev-tools "N" overlay obscuring mobile content
+- Root-caused the dark-mode bug: served CSS bundle contained a stale Turbopack-compiled `.dark` block with shadcn zinc/neutral defaults (#e5e5e5 primary, #0a0a0a bg, blue charts) overriding our warm theme (compiled `.dark` values were never derived from source oklch values — orange oklch(0.72 0.16 45) cannot convert to blue #1447e6). Both .next cache chunks confirmed stale. Fix: forced recompile by touching globals.css → compiled `.dark` now #f47f46 warm orange; verified via getComputedStyle (chroma 42.8 vs broken 0) + VLM in both modes
+- next.config.ts: added devIndicators: false (removes "N" overlay; effective on next server restart)
+- NEW FEATURE — buyer order cancellation: PATCH /api/orders/[id] now accepts {action:'cancel'} (buyer-only via buyerId check, PAID-only guard, $transaction restocks items + decrements soldCount); orders-view: CANCELLED badge (neutral), cancellation notice replaces timeline, Cancel order button with AlertDialog confirm, destructive styling; seller-view: CANCELLED badge variant + advance button already guarded by next-status lookup
+- NEW FEATURE — recently viewed: store tracks productId on ProductView mount (max 10, dedup, most-recent-first, persisted via partialize); products API accepts ids= param (max 20, preserves caller order, ACTIVE-only); home shows horizontal snap-scroll carousel below Categories with Clear history; fixed stale-fetch visibility bug (gate on store list AND fetched items); moved section above Featured for better UX (python move script initially dropped the block due to anchor mismatch — caught by live h2-order eval check and re-inserted via Edit tool)
+- Polish: order stepper inactive states bumped to border-border/text-muted-foreground/70; dark:brightness-[0.96] on product images (card + recent carousel) to soften white-bg photos
+- E2E evidence: cancel flow verified (PAID→CANCELLED, stock 22→23, soldCount 314→313, toast shown, notice rendered); guard verified (PROCESSING order → 400 "can no longer be cancelled"); recently-viewed verified (3 cards, correct order, localStorage persisted, Clear history hides section); lint clean; dev.log clean (only expected 401 logged-out + intentional 400 guard test)
+- Follow-up fix found while closing the round: seller stats counted CANCELLED order items in revenue/salesByDay — added `order: { status: { not: 'CANCELLED' } }` filter to the orderItem query in /api/seller/stats; verified as TechNest (seller1): today revenue $0 with the cancelled $189.99 order excluded while /api/seller/orders still lists it as a CANCELLED record; logged back out to neutral state
+
+Stage Summary:
+- CRITICAL FIX: dark mode was serving stale zinc theme since last session (Turbopack cache artifact) — now serving warm burnt-orange theme, verified in both modes
+- Shipped: buyer order cancellation (transactional restock) + recently-viewed carousel (persisted, id-ordered) + stepper/image dark-mode polish + devIndicators off
+- Files touched: next.config.ts, globals.css (touch only), src/store/marketplace.ts, src/app/api/products/route.ts, src/app/api/orders/[id]/route.ts, src/app/api/seller/stats/route.ts, orders-view.tsx, home-view.tsx, product-view.tsx, product-card.tsx, seller-view.tsx
+- Still frozen: PLAN-1 architectural rebuild awaits user approval — do NOT start Phase 0 without it
+- Known minor: devIndicators takes effect on next dev-server restart

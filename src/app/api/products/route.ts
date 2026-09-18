@@ -16,6 +16,10 @@ export async function GET(req: NextRequest) {
     const featured = sp.get('featured') === '1'
     const sellerId = sp.get('sellerId') || ''
     const mine = sp.get('mine') === '1'
+    const idsParam = sp.get('ids') || ''
+    const ids = idsParam
+      ? idsParam.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 20)
+      : []
     const page = Math.max(1, parseInt(sp.get('page') || '1') || 1)
     const limit = Math.min(48, Math.max(1, parseInt(sp.get('limit') || '24') || 24))
 
@@ -35,6 +39,7 @@ export async function GET(req: NextRequest) {
     if (featured) where.featured = true
     if (sellerId) where.sellerId = sellerId
     if (categorySlug) where.category = { slug: categorySlug }
+    if (ids.length > 0) where.id = { in: ids }
     if (!Number.isNaN(min) && min > 0) where.price = { ...(where.price as object), gte: min }
     if (!Number.isNaN(max) && max > 0) where.price = { ...(where.price as object), lte: max }
 
@@ -58,7 +63,13 @@ export async function GET(req: NextRequest) {
       newest: (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
       popular: (a, b) => b.soldCount - a.soldCount || b.rating - a.rating,
     }
-    products.sort(sorters[sort] ?? sorters.popular)
+    if (ids.length > 0) {
+      // Preserve the caller's id order (used by "recently viewed")
+      const order = new Map(ids.map((id, i) => [id, i]))
+      products.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
+    } else {
+      products.sort(sorters[sort] ?? sorters.popular)
+    }
 
     const total = products.length
     const pages = Math.max(1, Math.ceil(total / limit))
