@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/auth'
+import { PLATFORM_COMMISSION_RATE } from '@/lib/pricing'
 
 // GET /api/seller/stats — dashboard KPIs, sales-by-day, top products
 export async function GET() {
@@ -21,7 +22,12 @@ export async function GET() {
         }),
         db.orderItem.findMany({
           where: { sellerId: user.id, order: { status: { not: 'CANCELLED' } } },
-          select: { price: true, quantity: true, orderId: true, order: { select: { createdAt: true } } },
+          select: {
+            price: true,
+            quantity: true,
+            orderId: true,
+            order: { select: { createdAt: true, status: true } },
+          },
         }),
         db.order.findMany({
           where: { items: { some: { sellerId: user.id } } },
@@ -35,6 +41,33 @@ export async function GET() {
       ])
 
     const revenue = itemsWithDates.reduce((sum, i) => sum + i.price * i.quantity, 0)
+
+    // ── Payout summary (read-only, derived from live order items) ──
+    // Net = gross − platform commission. "Available" covers DELIVERED items
+    // (settled), "in transit" covers PAID/PROCESSING/SHIPPED (clearing).
+    const round2 = (n: number) => Math.round(n * 100) / 100
+    const grossSales = round2(revenue)
+    const platformFee = round2(grossSales * PLATFORM_COMMISSION_RATE)
+    const netEarnings = round2(grossSales - platformFee)
+    let deliveredGross = 0
+    let transitGross = 0
+    for (const item of itemsWithDates) {
+      const amount = item.price * item.quantity
+      if (item.order.status === 'DELIVERED') deliveredGross += amount
+      else transitGross += amount // PAID | PROCESSING | SHIPPED
+    }
+    const netOf = (gross: number) => round2(gross - gross * PLATFORM_COMMISSION_RATE)
+    const nextPayout = new Date()
+    nextPayout.setHours(12, 0, 0, 0)
+    nextPayout.setDate(nextPayout.getDate() + ((5 - nextPayout.getDay() + 7) % 7 || 7)) // next Friday
+    const payouts = {
+      grossSales,
+      platformFee,
+      netEarnings,
+      availableBalance: netOf(deliveredGross),
+      inTransitBalance: netOf(transitGross),
+      nextPayoutDate: nextPayout.toISOString(),
+    }
 
     // Revenue + distinct order count per day, last 14 days
     const salesByDayMap = new Map<string, { revenue: number; orderIds: Set<string> }>()
@@ -82,6 +115,7 @@ export async function GET() {
         totalSold: productAgg._sum.soldCount ?? 0,
         revenue: Math.round(revenue * 100) / 100,
         avgRating: Math.round((productAgg._avg.rating ?? 0) * 10) / 10,
+        payouts,
         salesByDay,
         topProducts,
         recentOrders: recentOrders.map((o) => ({

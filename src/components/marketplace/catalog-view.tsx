@@ -9,7 +9,6 @@ import { ProductCard, ProductCardSkeleton } from './product-card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import {
   Sheet,
@@ -167,25 +166,44 @@ export function CatalogView() {
             setCategory(v === 'all' ? '' : v)
             setPage(1)
           }}
-          className="gap-2"
+          className="gap-1"
         >
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="all" id="cat-all" />
-            <Label htmlFor="cat-all" className="cursor-pointer text-sm font-normal">
-              All categories
-            </Label>
-          </div>
-          {categories.map((c) => (
-            <div key={c.id} className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value={c.slug} id={`cat-${c.slug}`} />
-                <Label htmlFor={`cat-${c.slug}`} className="cursor-pointer text-sm font-normal">
-                  {c.name}
-                </Label>
-              </div>
-              <span className="text-xs text-muted-foreground">{c.productCount}</span>
-            </div>
-          ))}
+          {[
+            { value: 'all', id: 'cat-all', name: 'All categories', count: categories.reduce((s, c) => s + c.productCount, 0) },
+            ...categories.map((c) => ({ value: c.slug, id: `cat-${c.slug}`, name: c.name, count: c.productCount })),
+          ].map((row) => {
+            const selected = (category || 'all') === row.value
+            return (
+              <label
+                key={row.id}
+                htmlFor={row.id}
+                className={cn(
+                  'flex w-full cursor-pointer items-center justify-between gap-2 rounded-xl px-2.5 py-1.5 transition-colors',
+                  selected ? 'bg-primary/10' : 'hover:bg-muted/70'
+                )}
+              >
+                <span className="flex min-w-0 items-center gap-2.5">
+                  <RadioGroupItem value={row.value} id={row.id} className="border-muted-foreground/40" />
+                  <span
+                    className={cn(
+                      'truncate text-sm',
+                      selected ? 'font-semibold text-primary' : 'font-normal text-foreground/90'
+                    )}
+                  >
+                    {row.name}
+                  </span>
+                </span>
+                <span
+                  className={cn(
+                    'shrink-0 text-xs tabular-nums',
+                    selected ? 'font-semibold text-primary' : 'text-muted-foreground'
+                  )}
+                >
+                  {row.count}
+                </span>
+              </label>
+            )
+          })}
         </RadioGroup>
       </div>
 
@@ -201,7 +219,7 @@ export function CatalogView() {
               setMinPrice(e.target.value)
               setPage(1)
             }}
-            className="h-9 text-sm"
+            className="h-9 text-sm tabular-nums [color-scheme:light] dark:[color-scheme:dark]"
             aria-label="Minimum price"
           />
           <span className="text-muted-foreground">—</span>
@@ -214,7 +232,7 @@ export function CatalogView() {
               setMaxPrice(e.target.value)
               setPage(1)
             }}
-            className="h-9 text-sm"
+            className="h-9 text-sm tabular-nums [color-scheme:light] dark:[color-scheme:dark]"
             aria-label="Maximum price"
           />
         </div>

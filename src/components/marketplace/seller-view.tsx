@@ -16,6 +16,7 @@ import {
   Trash2,
   TrendingUp,
   Truck,
+  Wallet,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
@@ -311,6 +312,73 @@ export function SellerView() {
                   </Card>
                 ))}
           </div>
+
+          {/* Payouts summary (read-only, derived from order items) */}
+          {statsLoading || !stats ? (
+            <Skeleton className="h-44 rounded-2xl" />
+          ) : (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Wallet size={16} className="text-primary" /> Payouts
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Weekly payout runs every Friday · Vendora fee 8% of gross sales
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl border bg-muted/40 p-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Available now
+                    </p>
+                    <p className="mt-1 text-xl font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400">
+                      {formatUSD(stats.payouts.availableBalance)}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">from delivered orders</p>
+                  </div>
+                  <div className="rounded-xl border bg-muted/40 p-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      In transit
+                    </p>
+                    <p className="mt-1 text-xl font-extrabold tabular-nums">
+                      {formatUSD(stats.payouts.inTransitBalance)}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">clears once orders deliver</p>
+                  </div>
+                  <div className="rounded-xl border bg-muted/40 p-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Next payout
+                    </p>
+                    <p className="mt-1 text-xl font-extrabold">
+                      {new Date(stats.payouts.nextPayoutDate).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">Friday · weekly run</p>
+                  </div>
+                </div>
+                <div className="mt-4 space-y-1.5 rounded-xl border p-4 text-sm">
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Gross sales (all time)</span>
+                    <span className="tabular-nums">{formatUSD(stats.payouts.grossSales)}</span>
+                  </div>
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Vendora fee (8%)</span>
+                    <span className="tabular-nums">−{formatUSD(stats.payouts.platformFee)}</span>
+                  </div>
+                  <div className="flex justify-between border-t pt-1.5 font-bold">
+                    <span>Net earnings</span>
+                    <span className="tabular-nums">{formatUSD(stats.payouts.netEarnings)}</span>
+                  </div>
+                </div>
+                <p className="mt-3 text-[11px] text-muted-foreground">
+                  Payouts are simulated in this demo — no real money moves. Cancelled orders are excluded.
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Chart */}
           <Card>

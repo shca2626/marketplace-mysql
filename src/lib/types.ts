@@ -113,6 +113,18 @@ export interface SellerStats {
   revenue: number
   avgRating: number
   activeListings: number
+  /** Read-only payout summary (derived from order items, no ledger stored). */
+  payouts: {
+    grossSales: number
+    platformFee: number
+    netEarnings: number
+    /** Net earnings from DELIVERED order items — cleared for payout. */
+    availableBalance: number
+    /** Net earnings from PAID/PROCESSING/SHIPPED items — clearing. */
+    inTransitBalance: number
+    /** ISO date of the next weekly payout run (next Friday). */
+    nextPayoutDate: string
+  }
   recentOrders: {
     id: string
     total: number

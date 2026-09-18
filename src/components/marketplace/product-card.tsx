@@ -23,6 +23,17 @@ export function ProductCard({ product, index = 0 }: { product: ProductDTO; index
 
   const openProduct = () => navigate('product', { productId: product.id })
 
+  // Keyboard access: the card behaves as a button (Enter/Space opens the product).
+  // Inner interactive elements (favorite / add / store link) already stopPropagation
+  // and are skipped here so they keep their own key handling.
+  const onCardKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return
+    const target = e.target as HTMLElement
+    if (target.closest('button, a, input, textarea, select')) return
+    e.preventDefault()
+    openProduct()
+  }
+
   const openStore = (e: React.MouseEvent) => {
     e.stopPropagation()
     navigate('store', { sellerId: product.sellerId })
@@ -74,8 +85,12 @@ export function ProductCard({ product, index = 0 }: { product: ProductDTO; index
       transition={{ duration: 0.3, delay: Math.min(index * 0.05, 0.4) }}
     >
       <Card
-        className="group cursor-pointer overflow-hidden gap-0 py-0 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
+        role="button"
+        tabIndex={0}
+        aria-label={`View ${product.title}`}
+        className="group cursor-pointer overflow-hidden gap-0 py-0 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         onClick={openProduct}
+        onKeyDown={onCardKeyDown}
       >
         <CardHeader className="relative z-10 p-0">
           <div className="relative aspect-square overflow-hidden bg-muted">
@@ -92,12 +107,12 @@ export function ProductCard({ product, index = 0 }: { product: ProductDTO; index
               </div>
             )}
             {discount !== null && (
-              <Badge className="absolute left-2.5 top-2.5 bg-red-500/95 text-[11px] font-bold text-white hover:bg-red-500">
+              <Badge className="absolute left-2.5 top-2.5 rounded-full bg-red-500/95 px-2 text-[11px] font-bold text-white shadow-sm hover:bg-red-500">
                 -{discount}%
               </Badge>
             )}
             {product.stock <= 5 && product.stock > 0 && (
-              <Badge variant="secondary" className="absolute right-2.5 top-2.5 text-[11px] font-semibold shadow-sm">
+              <Badge variant="secondary" className="absolute right-2.5 top-2.5 rounded-full px-2 text-[11px] font-semibold shadow-sm">
                 Only {product.stock} left
               </Badge>
             )}
@@ -126,8 +141,8 @@ export function ProductCard({ product, index = 0 }: { product: ProductDTO; index
             </Button>
           </div>
         </CardHeader>
-        <CardFooter className="flex flex-col items-start gap-1.5 p-3.5">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-primary/80">
+        <CardFooter className="flex flex-col items-start gap-1.5 p-4">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-primary/80">
             {product.category.name}
           </span>
           <h3 className="line-clamp-2 min-h-10 w-full text-sm font-medium leading-5 text-foreground/90">
@@ -158,7 +173,7 @@ export function ProductCard({ product, index = 0 }: { product: ProductDTO; index
             <StarRating value={product.rating} showValue count={product.reviewCount} />
             <Button
               size="sm"
-              className="h-8 gap-1.5 rounded-full px-3 text-xs"
+              className="h-8 gap-1.5 rounded-full px-3.5 text-xs transition-transform active:scale-95"
               disabled={product.stock === 0}
               onClick={handleAdd}
             >

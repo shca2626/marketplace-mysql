@@ -6,6 +6,10 @@
 export const FREE_SHIPPING_THRESHOLD = 75
 export const SHIPPING_FEE = 6.99
 
+/** Platform commission taken from each seller's gross sales (displayed in the
+ *  seller dashboard Payouts card). Single source of truth for API + UI. */
+export const PLATFORM_COMMISSION_RATE = 0.08
+
 export interface Coupon {
   code: string
   percentOff: number

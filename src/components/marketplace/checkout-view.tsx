@@ -430,6 +430,7 @@ export function CheckoutView() {
                   onChange={set('fullName')}
                   placeholder="Jane Doe"
                   required
+                  autoComplete="name"
                   aria-invalid={!!fieldErrors.fullName}
                   className={cn('h-11 rounded-xl', fieldErrors.fullName && 'border-destructive focus-visible:ring-destructive')}
                 />
@@ -445,6 +446,7 @@ export function CheckoutView() {
                   onChange={set('address')}
                   placeholder="123 Main Street, Apt 4"
                   required
+                  autoComplete="street-address"
                   aria-invalid={!!fieldErrors.address}
                   className={cn('h-11 rounded-xl', fieldErrors.address && 'border-destructive focus-visible:ring-destructive')}
                 />
@@ -460,6 +462,7 @@ export function CheckoutView() {
                   onChange={set('city')}
                   placeholder="Portland"
                   required
+                  autoComplete="address-level2"
                   aria-invalid={!!fieldErrors.city}
                   className={cn('h-11 rounded-xl', fieldErrors.city && 'border-destructive focus-visible:ring-destructive')}
                 />
@@ -478,6 +481,7 @@ export function CheckoutView() {
                   onChange={setZip}
                   placeholder="97201"
                   required
+                  autoComplete="postal-code"
                   aria-invalid={!!fieldErrors.zip}
                   className={cn('h-11 rounded-xl uppercase', fieldErrors.zip && 'border-destructive focus-visible:ring-destructive')}
                 />
@@ -492,6 +496,7 @@ export function CheckoutView() {
                   value={form.country}
                   onChange={set('country')}
                   required
+                  autoComplete="country-name"
                   aria-invalid={!!fieldErrors.country}
                   className={cn('h-11 rounded-xl', fieldErrors.country && 'border-destructive focus-visible:ring-destructive')}
                 />
@@ -509,6 +514,7 @@ export function CheckoutView() {
                   onChange={setPhone}
                   placeholder="(555) 000-0000"
                   inputMode="tel"
+                  autoComplete="tel"
                   aria-invalid={!!fieldErrors.phone}
                   className="h-11 rounded-xl"
                 />

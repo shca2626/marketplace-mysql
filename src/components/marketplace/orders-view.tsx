@@ -1,12 +1,13 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Ban, CalendarClock, Check, ClipboardList, PackageCheck, PackageOpen, Search, Star, Truck, X } from 'lucide-react'
+import { Ban, CalendarClock, Check, ClipboardList, PackageCheck, PackageOpen, ReceiptText, Search, Star, Truck, X } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
 import type { OrderDTO } from '@/lib/types'
 import { formatDate, formatUSD } from '@/lib/format'
+import { InvoiceDialog } from './invoice-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -387,6 +388,12 @@ export function OrdersView() {
                           </AlertDialogContent>
                         </AlertDialog>
                       )}
+                      <InvoiceDialog order={order}>
+                        <Button variant="outline" size="sm" className="h-7 rounded-full text-xs">
+                          <ReceiptText size={12} className="mr-1" />
+                          Invoice
+                        </Button>
+                      </InvoiceDialog>
                       <Button
                         variant="outline"
                         size="sm"

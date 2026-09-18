@@ -167,3 +167,42 @@ body {
 ::selection {
   background: oklch(0.63 0.185 42 / 20%);
 }
+
+/* ── Invoice printing ──────────────────────────────────────────────────
+   Only the element flagged .print-area (and its descendants) is printed;
+   everything else on the SPA page is hidden. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: white !important;
+    color: black !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* Soft brand-colored glow around the active search box (search-box.tsx). */
+.search-glow {
+  border-radius: 0.75rem;
+  transition: box-shadow 0.2s ease;
+}
+.search-glow:focus-within {
+  /* color-mix instead of oklch(var(--primary) / x) — --primary already
+     contains a full oklch() value, so nesting it would be invalid. */
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary) 14%, transparent);
+}
+
