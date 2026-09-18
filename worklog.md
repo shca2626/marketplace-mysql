@@ -160,3 +160,25 @@ Stage Summary:
 - All non-architectural as required; existing schema untouched; no new transactional surface beyond one read-only public endpoint.
 - Still frozen: PLAN-1 architectural rebuild awaits user approval — do NOT start Phase 0 without it.
 - Next-round candidates (non-architectural): order confirmation "email" simulation, admin analytics view, product image upload, infinite scroll. If dev server found dead, restart via (setsid bun run dev &).
+
+---
+Task ID: CRON-R4 (webDevReview round 4 — search autocomplete + image lightbox + email sim)
+Agent: Z.ai Code (orchestrator)
+Task: Scheduled QA round: agent-browser QA, fix defects, non-architectural features/styling only (PLAN-1 rebuild still frozen pending user approval)
+
+Work Log:
+- Read worklog; dev server healthy (200, R3's setsid restart held); confirmed PLAN-1 freeze (no schema rewrites, no RFQ/offer architecture)
+- QA sweep (agent-browser): home sections, catalog nav + seller rows, store view + browser back/forward, product detail, add-to-cart → drawer → checkout auth-guard, dark-mode primary (warm lab chroma 42.8), mobile 390px no overflow. ZERO bugs found this sweep — R3 features all healthy.
+- NEW FEATURE — live search autocomplete: new SearchBox component (search-box.tsx) replacing both header searches (desktop top bar + mobile hamburger sheet). Debounced 220ms fetch /api/products?q=…&limit=5 with AbortController cancellation; dropdown shows product rows (thumbnail, title, category · price) + "See all results for X (n total)" footer + "No matches" empty state; full keyboard nav (ArrowDown/Up cycles products→See-all, Enter selects product or submits, Escape closes); aria combobox/listbox pattern; outside-pointerdown close; loading spinner during debounce. Search goes straight to product page on row click, catalog results on See-all/Enter; mobile sheet auto-closes via onNavigate callback.
+- NEW FEATURE — product image lightbox: main gallery image now clickable (cursor-zoom-in, ZoomIn badge fades in on hover, subtle 1.03 scale) → Dialog with max-h-[75vh] image, prev/next round buttons (disabled at ends), dot pagination (active dot elongates), X close, ArrowLeft/ArrowRight keyboard nav, sr-only DialogTitle. Shares activeImage state with the inline gallery.
+- NEW FEATURE — simulated confirmation email: order success screen now shows an emerald pill banner (MailCheck icon, delay-0.5 fade-in) "Confirmation email sent to {user.email}" — the R3 candidate "order email simulation", implemented as UI simulation only (no email infra, no schema).
+- FIX found during testing: duplicate DOM ids — both SearchBox instances rendered id="search-suggestions" (desktop hidden + mobile sheet) → aria-controls ambiguous. Fixed with React useId() per-instance listbox id. Also removed dead autoFocus prop.
+- Test artifact documented (NOT a bug): first mobile-sheet test "failed" because querySelector grabbed the hidden desktop SearchBox instance (first in DOM) — clicking its invisible dropdown option navigated without closing the sheet since desktop instance has no onNavigate. Retest scoped to [role=dialog] input confirmed sheet auto-close works. Lesson: scope selectors to the visible panel when duplicate aria-labels exist.
+- E2E evidence: dropdown opens on ≥2 chars (query "head" → 2 products + See-all with total); native-keyboard nav verified (ArrowDown×3 lands on See-all, Enter → /?view=catalog&q=head); suggestion click → product page; outside click closes; "zzzzqqq" → "No matches" empty state; mobile sheet dropdown (query "mat" → 5 options) + auto-close on navigation; lightbox: open/prev/next/dots/Escape + ArrowRight/ArrowLeft key nav; checkout E2E: registered search-test@example.com (BUYER), added 2× candle, placed real order $50.99 (44.00+6.99 shipping) → success screen shows "Confirmation email sent to search-test@example.com"; VLM audits: desktop dropdown (aligned, readable, no glitch), dark-mode dropdown (warm charcoal, orange See-all footer, WCAG AA), lightbox (centered, controls present, clean), success screen (banner + order card correct). Lint clean; dev.log clean; zero JS console errors across full journey; browser left neutral (logged out, storage cleared, cart 0).
+- Test data note: new account search-test@example.com / searchtest1234 (1 order, 2× Soy Wax Candle). Demo accounts unaffected.
+
+Stage Summary:
+- Shipped: SearchBox autocomplete (desktop + mobile, keyboard + a11y complete), product image lightbox (fullscreen viewer w/ keyboard nav), simulated confirmation-email banner, duplicate-ID fix.
+- All non-architectural as required; schema untouched; only read-only API reuse (existing q param).
+- Still frozen: PLAN-1 architectural rebuild awaits user approval — do NOT start Phase 0 without it.
+- Next-round candidates (non-architectural): admin analytics view, product image upload, infinite scroll in catalog, order tracking timeline enhancements, seller store customization (cover image picker from constants).

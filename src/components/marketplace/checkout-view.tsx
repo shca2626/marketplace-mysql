@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowLeft, BadgePercent, CheckCircle2, CreditCard, Loader2, Lock, MapPin, ShieldCheck, Ticket, X } from 'lucide-react'
+import { ArrowLeft, BadgePercent, CheckCircle2, CreditCard, Loader2, Lock, MailCheck, MapPin, ShieldCheck, Ticket, X } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
 import type { OrderDTO } from '@/lib/types'
@@ -150,6 +150,21 @@ export function CheckoutView() {
           <p className="mt-2 text-muted-foreground">
             Thanks, {placedOrder.fullName.split(' ')[0]}! Your order has been placed and is being processed.
           </p>
+
+          {/* Simulated confirmation email */}
+          {user?.email && (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5, duration: 0.35 }}
+              className="mt-5 flex items-center gap-2.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs font-medium text-emerald-700 dark:text-emerald-400"
+            >
+              <MailCheck size={15} className="shrink-0" />
+              <span>
+                Confirmation email sent to <strong>{user.email}</strong>
+              </span>
+            </motion.div>
+          )}
 
           <Card className="mt-8 w-full">
             <CardContent className="space-y-4 p-6">

@@ -12,7 +12,6 @@ import {
   Menu,
   Moon,
   Package,
-  Search,
   Settings,
   ShoppingCart,
   Store,
@@ -23,8 +22,8 @@ import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
 import type { CategoryDTO } from '@/lib/types'
 import { initials } from '@/lib/format'
+import { SearchBox } from './search-box'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
@@ -54,19 +53,10 @@ export function Header() {
   const view = useMarketplace((s) => s.view)
   const activeCategory = useMarketplace((s) => s.params.category)
   const { theme, setTheme } = useTheme()
-  const [search, setSearch] = useState('')
   const [mobileOpen, setMobileOpen] = useState(false)
 
   const { data: catData } = useApi<{ categories: CategoryDTO[] }>('/api/categories')
   const categories = catData?.categories ?? []
-
-  const submitSearch = (e?: React.FormEvent) => {
-    e?.preventDefault()
-    const q = search.trim()
-    if (!q) return
-    setMobileOpen(false)
-    navigate('catalog', { query: q })
-  }
 
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -101,16 +91,12 @@ export function Header() {
             </SheetHeader>
             <div className="mt-2 space-y-1 px-2">
               {/* Mobile search (desktop search lives in the top bar) */}
-              <form onSubmit={submitSearch} className="relative mb-2 md:hidden" role="search">
-                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search products…"
-                  className="h-11 rounded-xl bg-muted/60 pl-10 text-sm"
-                  aria-label="Search products"
+              <div className="mb-2 md:hidden">
+                <SearchBox
+                  inputClassName="h-11 rounded-xl bg-muted/60 pl-10 text-sm"
+                  onNavigate={() => setMobileOpen(false)}
                 />
-              </form>
+              </div>
               <p className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Shop
               </p>
@@ -157,24 +143,12 @@ export function Header() {
           <span className="hidden text-xl font-extrabold tracking-tight sm:block">Vendora</span>
         </Link>
 
-        {/* Search (desktop) */}
-        <form onSubmit={submitSearch} className="relative hidden flex-1 md:block" role="search">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search products, brands and stores…"
-            className="h-10 rounded-full border-input bg-muted/50 pl-9 pr-24 text-sm shadow-none focus-visible:ring-1"
-            aria-label="Search products"
-          />
-          <Button
-            type="submit"
-            size="sm"
-            className="absolute right-1 top-1/2 h-8 -translate-y-1/2 rounded-full px-4"
-          >
-            Search
-          </Button>
-        </form>
+        {/* Search (desktop) — with live product suggestions */}
+        <SearchBox
+          className="hidden flex-1 md:block"
+          placeholder="Search products, brands and stores…"
+          inputClassName="h-10 rounded-full border-input bg-muted/50 pr-12 text-sm shadow-none focus-visible:ring-1"
+        />
 
         {/* Actions */}
         <div className="ml-auto flex items-center gap-1 sm:gap-2">

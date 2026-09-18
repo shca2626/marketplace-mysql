@@ -11,7 +11,9 @@ import {
   ShoppingCart,
   Star,
   Truck,
+  X,
   Zap,
+  ZoomIn,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
@@ -29,6 +31,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 
 interface ProductDetailResponse {
@@ -59,6 +62,7 @@ export function ProductView() {
   )
 
   const [activeImage, setActiveImage] = useState(0)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
   const [quantity, setQuantity] = useState(1)
   const [reviewRating, setReviewRating] = useState(5)
   const [reviewComment, setReviewComment] = useState('')
@@ -208,14 +212,23 @@ export function ProductView() {
             initial={{ opacity: 0.4, scale: 0.99 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.25 }}
-            className="relative overflow-hidden rounded-2xl border bg-muted"
+            className="group relative overflow-hidden rounded-2xl border bg-muted"
           >
             {product.images[activeImage] ? (
-              <img
-                src={product.images[activeImage]}
-                alt={`${product.title} — image ${activeImage + 1}`}
-                className="aspect-square w-full object-cover"
-              />
+              <button
+                className="block w-full cursor-zoom-in"
+                onClick={() => setLightboxOpen(true)}
+                aria-label="Enlarge image"
+              >
+                <img
+                  src={product.images[activeImage]}
+                  alt={`${product.title} — image ${activeImage + 1}`}
+                  className="aspect-square w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                />
+                <span className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-background/80 text-foreground opacity-0 shadow-sm backdrop-blur transition-opacity duration-200 group-hover:opacity-100">
+                  <ZoomIn size={16} />
+                </span>
+              </button>
             ) : (
               <div className="flex aspect-square items-center justify-center text-muted-foreground">No image</div>
             )}
@@ -389,6 +402,72 @@ export function ProductView() {
           )}
         </motion.div>
       </div>
+
+      {/* ── Image lightbox ── */}
+      <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
+        <DialogContent
+          className="max-w-4xl overflow-hidden rounded-2xl border-none bg-background/95 p-0 shadow-2xl backdrop-blur sm:rounded-3xl [&>button]:hidden"
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowRight' && activeImage < product.images.length - 1) setActiveImage(activeImage + 1)
+            if (e.key === 'ArrowLeft' && activeImage > 0) setActiveImage(activeImage - 1)
+          }}
+        >
+          <DialogTitle className="sr-only">{product.title} — image gallery</DialogTitle>
+          <div className="relative">
+            <img
+              src={product.images[activeImage]}
+              alt={`${product.title} — image ${activeImage + 1} enlarged`}
+              className="max-h-[75vh] w-full object-contain"
+            />
+            <Button
+              variant="secondary"
+              size="icon"
+              className="absolute right-3 top-3 h-10 w-10 rounded-full bg-background/80 shadow-md backdrop-blur"
+              onClick={() => setLightboxOpen(false)}
+              aria-label="Close image viewer"
+            >
+              <X size={18} />
+            </Button>
+            {product.images.length > 1 && (
+              <>
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  className="absolute left-3 top-1/2 h-11 w-11 -translate-y-1/2 rounded-full bg-background/80 shadow-md backdrop-blur transition-transform hover:scale-105 disabled:opacity-30"
+                  disabled={activeImage === 0}
+                  onClick={() => setActiveImage((i) => Math.max(0, i - 1))}
+                  aria-label="Previous image"
+                >
+                  <ChevronRight size={20} className="rotate-180" />
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  className="absolute right-3 top-1/2 h-11 w-11 -translate-y-1/2 rounded-full bg-background/80 shadow-md backdrop-blur transition-transform hover:scale-105 disabled:opacity-30"
+                  disabled={activeImage === product.images.length - 1}
+                  onClick={() => setActiveImage((i) => Math.min(product.images.length - 1, i + 1))}
+                  aria-label="Next image"
+                >
+                  <ChevronRight size={20} />
+                </Button>
+                <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5 rounded-full bg-background/80 px-3 py-1.5 shadow-sm backdrop-blur">
+                  {product.images.map((img, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setActiveImage(i)}
+                      aria-label={`Show image ${i + 1}`}
+                      className={cn(
+                        'h-2 rounded-full transition-all',
+                        i === activeImage ? 'w-6 bg-primary' : 'w-2 bg-muted-foreground/40 hover:bg-muted-foreground/70'
+                      )}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Tabs: description / reviews ── */}
       <Tabs defaultValue="description" className="mt-14">
