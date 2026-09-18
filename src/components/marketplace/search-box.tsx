@@ -95,6 +95,34 @@ export function SearchBox({
 
   useEffect(() => () => abortRef.current?.abort(), [])
 
+  // Press "/" anywhere to jump to search (skips when already typing or a modal owns the page)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return
+      const target = e.target as HTMLElement | null
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      )
+        return
+      const input = inputRef.current
+      if (!input) return
+      // If a dialog (auth modal / filter sheet) is open, only the search inside it responds
+      const inDialog = !!input.closest('[role="dialog"]')
+      const openDialog = document.querySelector('[role="dialog"][data-state="open"]')
+      if (openDialog && !inDialog) return
+      if (!openDialog && !input.offsetParent) return // this instance is hidden (e.g. desktop search on mobile)
+      e.preventDefault()
+      input.focus()
+      input.select()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [])
+
   const go = (view: Parameters<typeof navigate>[0], params?: Parameters<typeof navigate>[1]) => {
     setOpen(false)
     setActiveIndex(-1)
@@ -159,12 +187,18 @@ export function SearchBox({
         aria-controls={listboxId}
         aria-autocomplete="list"
       />
-      {loading && query.trim().length >= MIN_CHARS && (
+      {loading && query.trim().length >= MIN_CHARS ? (
         <Loader2
           size={14}
           className="absolute right-3.5 top-1/2 -translate-y-1/2 animate-spin text-muted-foreground"
           aria-hidden
         />
+      ) : (
+        !query && (
+          <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 select-none rounded border border-border bg-muted px-1.5 py-px font-mono text-[10px] font-semibold text-muted-foreground md:block">
+            /
+          </kbd>
+        )
       )}
 
       <AnimatePresence>

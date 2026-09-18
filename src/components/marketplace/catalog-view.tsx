@@ -1,7 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, PackageSearch, SlidersHorizontal, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ChevronDown, Loader2, PackageSearch, SlidersHorizontal, X } from 'lucide-react'
 import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
 import type { CategoryDTO, ProductDTO } from '@/lib/types'
@@ -55,6 +55,14 @@ export function CatalogView() {
   const [page, setPage] = useState(1)
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
 
+  // Accumulated product list across pages (infinite scroll / Load more)
+  const [products, setProducts] = useState<ProductDTO[]>([])
+  const [total, setTotal] = useState(0)
+  const [pages, setPages] = useState(1)
+  const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const requestSeqRef = useRef(0) // guards against stale async responses overwriting newer ones
+
   // Sync local state when navigation params change while the view stays mounted
   // (e.g. searching from a product page, switching categories from the header)
   const navKey = `${params.category ?? ''}|${params.query ?? ''}`
@@ -63,25 +71,82 @@ export function CatalogView() {
     setPrevNavKey(navKey)
     setCategory(params.category ?? '')
     setPage(1)
+    setProducts([])
+    setLoading(true) // avoid flashing the empty state before the fetch starts
   }
 
   const { data: catData } = useApi<{ categories: CategoryDTO[] }>('/api/categories')
   const categories = catData?.categories ?? []
 
-  const query = useMemo(() => {
+  const baseQuery = useMemo(() => {
     const sp = new URLSearchParams()
     if (params.query) sp.set('q', params.query)
     if (category) sp.set('category', category)
     if (minPrice) sp.set('min', minPrice)
     if (maxPrice) sp.set('max', maxPrice)
     sp.set('sort', sort)
-    sp.set('page', String(page))
     sp.set('limit', String(PER_PAGE))
-    return `/api/products?${sp.toString()}`
-  }, [params.query, category, minPrice, maxPrice, sort, page])
+    return sp.toString()
+  }, [params.query, category, minPrice, maxPrice, sort])
 
-  const { data, loading } = useApi<ProductsResponse>(query)
-  const products = data?.items ?? []
+  const loadPage = useCallback(
+    async (p: number, mode: 'replace' | 'append') => {
+      const seq = ++requestSeqRef.current
+      if (mode === 'replace') setLoading(true)
+      else setLoadingMore(true)
+      try {
+        const res = await fetch(`/api/products?${baseQuery}&page=${p}`, { cache: 'no-store' })
+        if (!res.ok) return
+        const json = (await res.json()) as ProductsResponse
+        if (seq !== requestSeqRef.current) return // a newer request superseded this one
+        setTotal(json.total)
+        setPages(json.pages)
+        setProducts((prev) => {
+          if (mode === 'replace' || p === 1) return json.items
+          const seen = new Set(prev.map((x) => x.id))
+          return [...prev, ...json.items.filter((x) => !seen.has(x.id))]
+        })
+      } catch {
+        // network error — keep current items; Load more stays available for retry
+      } finally {
+        if (seq === requestSeqRef.current) {
+          setLoading(false)
+          setLoadingMore(false)
+        }
+      }
+    },
+    [baseQuery]
+  )
+
+  // (Re)load the first page whenever filters/sort/query change
+  useEffect(() => {
+    void loadPage(1, 'replace')
+  }, [loadPage])
+
+  const canLoadMore = page < pages && !loadingMore && !loading && products.length > 0
+
+  const loadMore = useCallback(() => {
+    if (page >= pages || loadingMore || loading) return
+    const next = page + 1
+    setPage(next)
+    void loadPage(next, 'append')
+  }, [page, pages, loadingMore, loading, loadPage])
+
+  // Auto-load next page when the sentinel scrolls into view
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el || !canLoadMore) return
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) loadMore()
+      },
+      { rootMargin: '600px 0px' }
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [canLoadMore, loadMore])
+
   const hasFilters = Boolean(category || minPrice || maxPrice || params.query)
 
   const clearFilters = () => {
@@ -196,7 +261,7 @@ export function CatalogView() {
           )}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          {loading ? 'Loading…' : `${data?.total ?? 0} products found`}
+          {loading ? 'Loading…' : `${total} ${total === 1 ? 'product' : 'products'} found`}
         </p>
       </div>
 
@@ -307,50 +372,43 @@ export function CatalogView() {
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
-              {products.map((p, i) => (
-                <ProductCard key={p.id} product={p} index={i} />
-              ))}
-            </div>
-          )}
+            <>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+                {products.map((p, i) => (
+                  <ProductCard key={p.id} product={p} index={i % PER_PAGE} />
+                ))}
+                {loadingMore &&
+                  Array.from({ length: 4 }).map((_, i) => (
+                    <ProductCardSkeleton key={`more-${i}`} />
+                  ))}
+              </div>
 
-          {/* Pagination */}
-          {!loading && (data?.pages ?? 1) > 1 && (
-            <nav className="mt-8 flex items-center justify-center gap-2" aria-label="Pagination">
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-9 w-9 rounded-full"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                aria-label="Previous page"
-              >
-                <ChevronLeft size={16} />
-              </Button>
-              {Array.from({ length: data?.pages ?? 1 }).map((_, i) => (
-                <Button
-                  key={i}
-                  variant={page === i + 1 ? 'default' : 'outline'}
-                  size="icon"
-                  className="h-9 w-9 rounded-full text-sm"
-                  onClick={() => setPage(i + 1)}
-                  aria-label={`Page ${i + 1}`}
-                  aria-current={page === i + 1 ? 'page' : undefined}
-                >
-                  {i + 1}
-                </Button>
-              ))}
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-9 w-9 rounded-full"
-                disabled={page >= (data?.pages ?? 1)}
-                onClick={() => setPage((p) => p + 1)}
-                aria-label="Next page"
-              >
-                <ChevronRight size={16} />
-              </Button>
-            </nav>
+              {/* Infinite-scroll sentinel + Load more */}
+              <div ref={sentinelRef} className="h-px" aria-hidden="true" />
+              <div className="mt-8 flex flex-col items-center gap-2.5">
+                <p className="text-xs text-muted-foreground" aria-live="polite">
+                  Showing {products.length} of {total}{' '}
+                  {total === 1 ? 'product' : 'products'}
+                  {pages > 1 && !loadingMore && canLoadMore ? ' — scroll for more' : ''}
+                </p>
+                {canLoadMore && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-full"
+                    onClick={loadMore}
+                    disabled={loadingMore}
+                  >
+                    {loadingMore ? (
+                      <Loader2 size={14} className="mr-1.5 animate-spin" />
+                    ) : (
+                      <ChevronDown size={14} className="mr-1.5" />
+                    )}
+                    {loadingMore ? 'Loading…' : 'Load more'}
+                  </Button>
+                )}
+              </div>
+            </>
           )}
         </div>
       </div>

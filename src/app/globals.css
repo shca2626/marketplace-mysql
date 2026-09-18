@@ -151,6 +151,14 @@ nextjs-portal {
   display: none;
 }
 
+/* Reserve room for the mobile sticky buy bar (product page) so it never
+   covers the footer while it is visible. */
+@media (max-width: 639px) {
+  body.has-buy-bar {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom));
+  }
+}
+
 body {
   text-rendering: optimizeLegibility;
 }

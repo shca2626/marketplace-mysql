@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   BadgeCheck,
@@ -67,6 +67,26 @@ export function ProductView() {
   const [reviewRating, setReviewRating] = useState(5)
   const [reviewComment, setReviewComment] = useState('')
   const [submittingReview, setSubmittingReview] = useState(false)
+  const [showBuyBar, setShowBuyBar] = useState(false)
+  const buyActionsRef = useRef<HTMLDivElement>(null)
+
+  // Mobile sticky buy bar: reveal once the main action buttons scroll out of view
+  useEffect(() => {
+    const onScroll = () => {
+      const el = buyActionsRef.current
+      if (!el) return
+      setShowBuyBar(el.getBoundingClientRect().bottom < 72)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    onScroll()
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [productId, data])
+
+  // Reserve space at the document bottom on phones so the fixed bar never covers the footer
+  useEffect(() => {
+    document.body.classList.toggle('has-buy-bar', showBuyBar)
+    return () => document.body.classList.remove('has-buy-bar')
+  }, [showBuyBar])
 
   const product = data?.product
 
@@ -315,7 +335,7 @@ export function ProductView() {
           </div>
 
           {/* Quantity + actions */}
-          <div className="mt-6 flex flex-wrap items-center gap-3">
+          <div ref={buyActionsRef} className="mt-6 flex flex-wrap items-center gap-3">
             <QuantityInput value={quantity} onChange={setQuantity} max={Math.max(1, product.stock)} />
             <Button
               size="lg"
@@ -637,6 +657,48 @@ export function ProductView() {
             ))}
           </div>
         </section>
+      )}
+
+      {/* ── Mobile sticky buy bar (revealed after the action buttons scroll away) ── */}
+      {showBuyBar && !lightboxOpen && (
+        <motion.div
+          initial={{ y: 88, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+          className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 shadow-[0_-4px_20px_rgb(0_0_0/0.06)] backdrop-blur sm:hidden"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+          role="complementary"
+          aria-label="Quick purchase bar"
+        >
+          <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2.5">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[11px] leading-tight text-muted-foreground">{product.title}</p>
+              <p className="mt-0.5 flex items-baseline gap-1.5 leading-tight">
+                <span className="text-lg font-extrabold tracking-tight">{formatUSD(product.price)}</span>
+                {product.compareAtPrice && (
+                  <span className="text-xs font-normal text-muted-foreground line-through">
+                    {formatUSD(product.compareAtPrice)}
+                  </span>
+                )}
+              </p>
+            </div>
+            <Button
+              className="h-11 shrink-0 rounded-xl px-5"
+              disabled={product.stock === 0}
+              onClick={() => handleAddToCart(false)}
+            >
+              <ShoppingCart size={16} className="mr-1.5" /> Add
+            </Button>
+            <Button
+              variant="secondary"
+              className="h-11 shrink-0 rounded-xl border px-5"
+              disabled={product.stock === 0}
+              onClick={handleBuyNow}
+            >
+              <Zap size={15} className="mr-1.5" /> Buy
+            </Button>
+          </div>
+        </motion.div>
       )}
     </div>
   )

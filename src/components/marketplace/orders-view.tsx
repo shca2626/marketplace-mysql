@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Ban, Check, ClipboardList, PackageCheck, PackageOpen, Star, Truck } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Ban, Check, ClipboardList, PackageCheck, PackageOpen, Search, Star, Truck, X } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
@@ -10,6 +10,7 @@ import { formatDate, formatUSD } from '@/lib/format'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   AlertDialog,
@@ -48,6 +49,8 @@ export function OrdersView() {
   })
   const [expanded, setExpanded] = useState<string | null>(null)
   const [cancellingId, setCancellingId] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState<string>('ALL')
+  const [search, setSearch] = useState('')
 
   const cancelOrder = async (orderId: string) => {
     setCancellingId(orderId)
@@ -74,6 +77,40 @@ export function OrdersView() {
     }
   }
 
+  const orders = data?.orders ?? []
+
+  // Status chips: ALL + every status present in the order list (canonical order)
+  const statusCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const o of orders) counts.set(o.status, (counts.get(o.status) ?? 0) + 1)
+    const order = ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED']
+    return order.filter((s) => counts.has(s)).map((s) => ({ status: s, count: counts.get(s)! }))
+  }, [orders])
+
+  // Filter by status chip + free-text search (order id suffix, item titles, name/city)
+  const filteredOrders = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return orders.filter((o) => {
+      if (statusFilter !== 'ALL' && o.status !== statusFilter) return false
+      if (!q) return true
+      const idSuffix = o.id.slice(-8).toLowerCase()
+      const haystack = [
+        o.id.toLowerCase(),
+        idSuffix,
+        `#${idSuffix}`,
+        o.fullName.toLowerCase(),
+        o.city.toLowerCase(),
+        ...o.items.map((it) => it.title.toLowerCase()),
+      ]
+      return haystack.some((h) => h.includes(q))
+    })
+  }, [orders, statusFilter, search])
+
+  const clearOrderFilters = () => {
+    setStatusFilter('ALL')
+    setSearch('')
+  }
+
   if (!user) {
     return (
       <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
@@ -87,12 +124,68 @@ export function OrdersView() {
     )
   }
 
-  const orders = data?.orders ?? []
-
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
       <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">My orders</h1>
       <p className="mt-1 text-sm text-muted-foreground">Track and review your purchases.</p>
+
+      {/* Status filter chips + search */}
+      {!loading && orders.length > 0 && (
+        <div className="mt-5 space-y-3">
+          {statusCounts.length > 1 && (
+            <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="Filter orders by status">
+              <button
+                role="tab"
+                aria-selected={statusFilter === 'ALL'}
+                onClick={() => setStatusFilter('ALL')}
+                className={cn(
+                  'shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors',
+                  statusFilter === 'ALL'
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground'
+                )}
+              >
+                All <span className="ml-0.5 opacity-70">{orders.length}</span>
+              </button>
+              {statusCounts.map(({ status, count }) => (
+                <button
+                  key={status}
+                  role="tab"
+                  aria-selected={statusFilter === status}
+                  onClick={() => setStatusFilter(statusFilter === status ? 'ALL' : status)}
+                  className={cn(
+                    'shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-semibold capitalize transition-colors',
+                    statusFilter === status
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground'
+                  )}
+                >
+                  {status.toLowerCase()} <span className="ml-0.5 opacity-70">{count}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="relative max-w-sm">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search orders — product or #ID…"
+              className="h-10 rounded-full pl-10 pr-9 text-sm"
+              aria-label="Search orders"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+                aria-label="Clear search"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 space-y-5">
         {loading ? (
@@ -106,8 +199,19 @@ export function OrdersView() {
               Start shopping
             </Button>
           </Card>
+        ) : filteredOrders.length === 0 ? (
+          <Card className="flex flex-col items-center border-dashed py-14 text-center">
+            <Search size={40} className="text-muted-foreground/40" />
+            <h2 className="mt-4 text-lg font-semibold">No matching orders</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Nothing matches {statusFilter !== 'ALL' ? statusFilter.toLowerCase() : ''}{statusFilter !== 'ALL' && search.trim() ? ' + ' : ''}{search.trim() ? `“${search.trim()}”` : ''}.
+            </p>
+            <Button variant="outline" className="mt-5 rounded-full" onClick={clearOrderFilters}>
+              <X size={14} className="mr-1.5" /> Clear filters
+            </Button>
+          </Card>
         ) : (
-          orders.map((order) => {
+          filteredOrders.map((order) => {
             const currentIdx = STATUS_STEPS.findIndex((s) => s.key === order.status)
             const isOpen = expanded === order.id
             return (
