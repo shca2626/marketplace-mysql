@@ -1,11 +1,13 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { CartItem, ProductDTO, SessionUser } from '@/lib/types'
+import { parseLocation, viewToQuery } from '@/lib/routing'
 
 export type View =
   | 'home'
   | 'catalog'
   | 'product'
+  | 'store'
   | 'cart'
   | 'checkout'
   | 'orders'
@@ -34,6 +36,7 @@ interface MarketplaceState {
   recentlyViewed: string[]
 
   navigate: (view: View, params?: ViewParams) => void
+  applyLocation: (location?: { view: View; params?: ViewParams }) => void
   setUser: (user: SessionUser | null) => void
   setAuthChecked: (v: boolean) => void
   trackView: (productId: string) => void
@@ -65,7 +68,22 @@ export const useMarketplace = create<MarketplaceState>()(
 
       navigate: (view, params = {}) => {
         set({ view, params, cartOpen: false })
-        if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
+        // Keep the address bar in sync so views are deep-linkable/shareable
+        if (typeof window !== 'undefined') {
+          const qs = viewToQuery(view, params)
+          const next = qs ? `/?${qs}` : '/'
+          if (window.location.search !== (qs ? `?${qs}` : '') || window.location.pathname !== '/') {
+            window.history.pushState({}, '', next)
+          }
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+        }
+      },
+
+      // Apply a location WITHOUT pushing a new history entry
+      // (used on initial boot and on browser back/forward popstate)
+      applyLocation: (location) => {
+        const { view, params } = location ?? parseLocation()
+        set({ view, params, cartOpen: false })
       },
 
       setUser: (user) => set({ user }),

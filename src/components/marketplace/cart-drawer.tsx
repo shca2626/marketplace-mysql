@@ -118,7 +118,16 @@ export function CartDrawer() {
                     <div className="min-w-0 flex-1">
                       <p className="line-clamp-2 text-sm font-medium leading-5">{item.title}</p>
                       {item.sellerName && (
-                        <p className="mt-0.5 text-xs text-muted-foreground">by {item.sellerName}</p>
+                        <button
+                          className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-primary"
+                          onClick={() => {
+                            setCartOpen(false)
+                            navigate('store', { sellerId: item.sellerId })
+                          }}
+                          aria-label={`Visit ${item.sellerName} store`}
+                        >
+                          by {item.sellerName}
+                        </button>
                       )}
                       <div className="mt-2 flex items-center justify-between">
                         <div className="flex items-center gap-0.5">

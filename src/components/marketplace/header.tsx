@@ -52,6 +52,7 @@ export function Header() {
   const openAuth = useMarketplace((s) => s.openAuth)
   const setUser = useMarketplace((s) => s.setUser)
   const view = useMarketplace((s) => s.view)
+  const activeCategory = useMarketplace((s) => s.params.category)
   const { theme, setTheme } = useTheme()
   const [search, setSearch] = useState('')
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -99,7 +100,18 @@ export function Header() {
               </SheetTitle>
             </SheetHeader>
             <div className="mt-2 space-y-1 px-2">
-              <p className="px-3 pb-1 pt-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {/* Mobile search (desktop search lives in the top bar) */}
+              <form onSubmit={submitSearch} className="relative mb-2 md:hidden" role="search">
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search products…"
+                  className="h-11 rounded-xl bg-muted/60 pl-10 text-sm"
+                  aria-label="Search products"
+                />
+              </form>
+              <p className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Shop
               </p>
               <Button
@@ -258,8 +270,8 @@ export function Header() {
           <button
             onClick={() => navigate('catalog')}
             className={cn(
-              'flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-foreground',
-              view === 'catalog' && 'text-primary'
+              'flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent hover:text-foreground',
+              view === 'catalog' && !activeCategory ? 'bg-accent text-primary' : 'text-foreground/80'
             )}
           >
             All Products
@@ -269,7 +281,12 @@ export function Header() {
             <button
               key={c.id}
               onClick={() => navigate('catalog', { category: c.slug })}
-              className="rounded-md px-3 py-1.5 text-sm text-foreground/70 transition-colors hover:bg-accent hover:text-foreground"
+              className={cn(
+                'rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-accent hover:text-foreground',
+                view === 'catalog' && activeCategory === c.slug
+                  ? 'bg-accent font-medium text-primary'
+                  : 'text-foreground/70'
+              )}
             >
               {c.name}
             </button>

@@ -88,6 +88,25 @@ export interface CartItem {
   sellerName?: string | null
 }
 
+export interface StoreDTO {
+  id: string
+  name: string
+  storeName: string | null
+  storeBio: string | null
+  memberSince: string
+  activeListings: number
+  totalSold: number
+  avgRating: number
+  reviewCount: number
+}
+
+export interface StoreCategoryDTO {
+  id: string
+  name: string
+  slug: string
+  count: number
+}
+
 export interface SellerStats {
   totalProducts: number
   totalSold: number

@@ -73,7 +73,13 @@ export function CartView() {
                       <div className="min-w-0">
                         <p className="line-clamp-2 font-medium leading-5">{item.title}</p>
                         {item.sellerName && (
-                          <p className="mt-0.5 text-xs text-muted-foreground">Sold by {item.sellerName}</p>
+                          <button
+                            className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-primary"
+                            onClick={() => navigate('store', { sellerId: item.sellerId })}
+                            aria-label={`Visit ${item.sellerName} store`}
+                          >
+                            Sold by {item.sellerName}
+                          </button>
                         )}
                         <p className="mt-1 text-sm text-muted-foreground">{formatUSD(item.price)} each</p>
                       </div>

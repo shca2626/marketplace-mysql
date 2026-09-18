@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Heart, ShoppingCart } from 'lucide-react'
+import { Heart, ShoppingCart, Store } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
 import type { ProductDTO } from '@/lib/types'
@@ -22,6 +22,11 @@ export function ProductCard({ product, index = 0 }: { product: ProductDTO; index
   const discount = discountPercent(product.price, product.compareAtPrice)
 
   const openProduct = () => navigate('product', { productId: product.id })
+
+  const openStore = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    navigate('store', { sellerId: product.sellerId })
+  }
 
   const handleAdd = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -64,7 +69,8 @@ export function ProductCard({ product, index = 0 }: { product: ProductDTO; index
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-40px' }}
       transition={{ duration: 0.3, delay: Math.min(index * 0.05, 0.4) }}
     >
       <Card
@@ -127,6 +133,16 @@ export function ProductCard({ product, index = 0 }: { product: ProductDTO; index
           <h3 className="line-clamp-2 min-h-10 w-full text-sm font-medium leading-5 text-foreground/90">
             {product.title}
           </h3>
+          <button
+            className="flex w-full items-center gap-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-primary"
+            onClick={openStore}
+            aria-label={`Visit ${(product.seller?.storeName ?? product.seller?.name) || 'seller'} store`}
+          >
+            <Store size={12} className="shrink-0" />
+            <span className="truncate">
+              {product.seller?.storeName ?? product.seller?.name ?? 'Vendora seller'}
+            </span>
+          </button>
           <div className="flex w-full items-center justify-between">
             <div className="flex items-baseline gap-1.5">
               <span className="text-base font-bold text-foreground">{formatUSD(product.price)}</span>

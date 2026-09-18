@@ -6,7 +6,6 @@ import {
   BadgeCheck,
   ChevronRight,
   Heart,
-  MapPin,
   RotateCcw,
   ShieldCheck,
   ShoppingCart,
@@ -351,29 +350,41 @@ export function ProductView() {
             ))}
           </div>
 
-          {/* Seller card */}
+          {/* Seller card — links to the public storefront */}
           {data.seller && (
-            <Card className="mt-7 flex items-center gap-4 p-5">
-              <Avatar className="h-13 w-13 border">
-                <AvatarFallback className="bg-primary/10 font-bold text-primary">
-                  {initials(data.seller.storeName ?? data.seller.name)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <p className="truncate font-semibold">{data.seller.storeName ?? data.seller.name}</p>
-                  <BadgeCheck size={15} className="shrink-0 text-primary" />
-                </div>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Member since {formatDate(data.seller.memberSince)} · {data.seller.activeListings} listings
-                </p>
-                {data.seller.storeBio && (
-                  <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-                    {data.seller.storeBio}
+            <Card
+              className="group mt-7 cursor-pointer p-5 transition-all hover:border-primary/40 hover:shadow-md"
+              onClick={() => navigate('store', { sellerId: data.seller!.id })}
+              role="link"
+              aria-label={`Visit ${data.seller.storeName ?? data.seller.name} store`}
+            >
+              <div className="flex items-center gap-4">
+                <Avatar className="h-13 w-13 border">
+                  <AvatarFallback className="bg-primary/10 font-bold text-primary">
+                    {initials(data.seller.storeName ?? data.seller.name)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate font-semibold group-hover:text-primary">
+                      {data.seller.storeName ?? data.seller.name}
+                    </p>
+                    <BadgeCheck size={15} className="shrink-0 text-primary" />
+                  </div>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Member since {formatDate(data.seller.memberSince)} · {data.seller.activeListings} listings
                   </p>
-                )}
+                  {data.seller.storeBio && (
+                    <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                      {data.seller.storeBio}
+                    </p>
+                  )}
+                </div>
+                <span className="hidden shrink-0 items-center gap-1 text-xs font-semibold text-primary sm:flex">
+                  View store
+                  <ChevronRight size={14} className="transition-transform group-hover:translate-x-0.5" />
+                </span>
               </div>
-              <MapPin size={16} className="hidden text-muted-foreground sm:block" />
             </Card>
           )}
         </motion.div>
