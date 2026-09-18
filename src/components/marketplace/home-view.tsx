@@ -239,13 +239,18 @@ export function HomeView() {
         <div className="mx-auto max-w-7xl px-4">
           <div className="mb-6 flex items-end justify-between">
             <div>
-              <h2 id="featured-heading" className="flex items-center gap-2 text-2xl font-bold tracking-tight">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary/80">Editor’s choice</p>
+              <h2 id="featured-heading" className="mt-0.5 flex items-center gap-2 text-2xl font-bold tracking-tight">
                 <BadgeCheck className="text-primary" size={22} /> Featured picks
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">Hand-picked favorites from our editors.</p>
             </div>
-            <Button variant="ghost" className="hidden rounded-full text-primary sm:flex" onClick={() => navigate('catalog')}>
-              View all <ArrowRight size={15} className="ml-1" />
+            <Button
+              variant="ghost"
+              className="group hidden rounded-full text-primary sm:flex"
+              onClick={() => navigate('catalog')}
+            >
+              View all <ArrowRight size={15} className="ml-1 transition-transform duration-200 group-hover:translate-x-0.5" />
             </Button>
           </div>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
@@ -290,7 +295,8 @@ export function HomeView() {
       <section className="mx-auto max-w-7xl px-4 pb-12" aria-labelledby="trending-heading">
         <div className="mb-6 flex items-end justify-between">
           <div>
-            <h2 id="trending-heading" className="flex items-center gap-2 text-2xl font-bold tracking-tight">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-orange-500/90">Hot right now</p>
+            <h2 id="trending-heading" className="mt-0.5 flex items-center gap-2 text-2xl font-bold tracking-tight">
               <Flame className="text-orange-500" size={22} /> Trending this week
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">What everyone is adding to cart.</p>
@@ -308,13 +314,18 @@ export function HomeView() {
         <div className="mx-auto max-w-7xl px-4">
           <div className="mb-6 flex items-end justify-between">
             <div>
-              <h2 id="new-heading" className="flex items-center gap-2 text-2xl font-bold tracking-tight">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary/80">Just listed</p>
+              <h2 id="new-heading" className="mt-0.5 flex items-center gap-2 text-2xl font-bold tracking-tight">
                 <TrendingUp className="text-primary" size={22} /> Fresh arrivals
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">Just listed by our sellers.</p>
             </div>
-            <Button variant="ghost" className="hidden rounded-full text-primary sm:flex" onClick={() => navigate('catalog')}>
-              View all <ArrowRight size={15} className="ml-1" />
+            <Button
+              variant="ghost"
+              className="group hidden rounded-full text-primary sm:flex"
+              onClick={() => navigate('catalog')}
+            >
+              View all <ArrowRight size={15} className="ml-1 transition-transform duration-200 group-hover:translate-x-0.5" />
             </Button>
           </div>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">

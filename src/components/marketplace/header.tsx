@@ -253,8 +253,11 @@ export function Header() {
           <button
             onClick={() => navigate('catalog')}
             className={cn(
-              'flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent hover:text-foreground',
-              view === 'catalog' && !activeCategory ? 'bg-accent text-primary' : 'text-foreground/80'
+              'relative flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent hover:text-foreground',
+              'after:absolute after:-bottom-px after:left-3 after:right-3 after:h-0.5 after:origin-center after:rounded-full after:bg-primary after:transition-transform after:duration-300',
+              view === 'catalog' && !activeCategory
+                ? 'bg-accent text-primary after:scale-x-100'
+                : 'text-foreground/80 after:scale-x-0 hover:after:scale-x-75'
             )}
           >
             All Products
@@ -265,19 +268,30 @@ export function Header() {
               key={c.id}
               onClick={() => navigate('catalog', { category: c.slug })}
               className={cn(
-                'rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-accent hover:text-foreground',
+                'group relative rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-accent hover:text-foreground',
+                'after:absolute after:-bottom-px after:left-3 after:right-3 after:h-0.5 after:origin-center after:rounded-full after:bg-primary after:transition-transform after:duration-300',
                 view === 'catalog' && activeCategory === c.slug
-                  ? 'bg-accent font-medium text-primary'
-                  : 'text-foreground/70'
+                  ? 'bg-accent font-medium text-primary after:scale-x-100'
+                  : 'text-foreground/70 after:scale-x-0 hover:after:scale-x-75'
               )}
             >
               {c.name}
+              <span
+                className={cn(
+                  'ml-1.5 inline-block rounded-full px-1.5 py-px text-[10px] font-semibold leading-none tabular-nums transition-colors',
+                  view === 'catalog' && activeCategory === c.slug
+                    ? 'bg-primary/15 text-primary'
+                    : 'bg-muted text-muted-foreground/70 group-hover:bg-primary/10 group-hover:text-primary'
+                )}
+              >
+                {c.productCount}
+              </span>
             </button>
           ))}
           <span className="mx-1 h-4 w-px bg-border" />
           <button
             onClick={() => navigate('seller')}
-            className="rounded-md px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-accent"
+            className="relative rounded-md px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-accent"
           >
             Sell on Vendora
           </button>

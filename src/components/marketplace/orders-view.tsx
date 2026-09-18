@@ -53,6 +53,23 @@ function estDeliveryWindow(iso: string): { from: string; to: string; isPast: boo
   return { from: fmt(from), to: fmt(to), isPast: to.getTime() < Date.now() }
 }
 
+/**
+ * Per-step date label. Step 0 uses the REAL placed-at date; later steps get
+ * deterministic projections (+1d processing, +2d shipped, +4d delivered —
+ * midpoint of the 3–6 day window). Completed steps show an approximate mark,
+ * future steps an explicit estimate. No schema fields for step transitions
+ * exist (frozen this phase), so honesty markers keep this transparent.
+ */
+const STEP_OFFSET_DAYS = [0, 1, 2, 4]
+
+function stepDateLabel(iso: string, stepIdx: number, done: boolean): string {
+  const d = new Date(iso)
+  d.setDate(d.getDate() + STEP_OFFSET_DAYS[stepIdx])
+  const text = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  if (stepIdx === 0) return text
+  return done ? `~${text}` : `est. ${text}`
+}
+
 export function OrdersView() {
   const user = useMarketplace((s) => s.user)
   const openAuth = useMarketplace((s) => s.openAuth)
@@ -321,6 +338,25 @@ export function OrdersView() {
                             transition={{ duration: 0.3, delay: 0.1 + i * 0.09 }}
                           >
                             {step.label}
+                            <span
+                              className={cn(
+                                'mt-0.5 block text-[9px] font-normal tabular-nums leading-none sm:text-[10px]',
+                                i === 0
+                                  ? 'text-muted-foreground'
+                                  : done
+                                    ? 'text-muted-foreground/80'
+                                    : 'text-muted-foreground/50'
+                              )}
+                              title={
+                                i === 0
+                                  ? 'Date the order was placed'
+                                  : done
+                                    ? 'Approximate date (step transitions are not tracked)'
+                                    : 'Projected date'
+                              }
+                            >
+                              {stepDateLabel(order.createdAt, i, done)}
+                            </span>
                           </motion.span>
                         </div>
                       )

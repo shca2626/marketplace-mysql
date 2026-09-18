@@ -6,6 +6,7 @@ import {
   BadgeCheck,
   Check,
   ChevronRight,
+  Image as ImageIcon,
   LayoutDashboard,
   MessageCircleHeart,
   Package,
@@ -21,6 +22,7 @@ import type { ProductDTO, StoreCategoryDTO, StoreDTO } from '@/lib/types'
 import { formatDate, formatNumber, initials } from '@/lib/format'
 import { viewToHref } from '@/lib/routing'
 import { absoluteUrl, shareLink } from '@/lib/share'
+import { getStoreCover } from '@/lib/store-covers'
 import { ProductCard, ProductCardSkeleton } from './product-card'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -70,6 +72,9 @@ export function StoreView() {
   const [sort, setSort] = useState('popular')
   const [visible, setVisible] = useState(PAGE_SIZE)
   const [justShared, setJustShared] = useState(false)
+
+  // Cover picked by the seller (client-side, per-browser — schema frozen this phase)
+  const [cover] = useState(() => (sellerId ? getStoreCover(sellerId) : null))
 
   const storeName = store?.storeName ?? store?.name ?? 'Store'
 
@@ -143,17 +148,42 @@ export function StoreView() {
         transition={{ duration: 0.35 }}
       >
         <Card className="overflow-hidden gap-0 py-0">
-          {/* Cover */}
+          {/* Cover — seller's curated image, or the default warm gradient */}
           <div className="relative h-32 overflow-hidden bg-gradient-to-br from-primary/85 via-primary/60 to-amber-400/70 sm:h-40">
-            <div
-              className="absolute inset-0 opacity-25 mix-blend-overlay"
-              style={{
-                backgroundImage:
-                  'radial-gradient(circle at 20% 50%, rgba(255,255,255,0.5) 0, transparent 40%), radial-gradient(circle at 80% 20%, rgba(255,255,255,0.35) 0, transparent 45%)',
-              }}
-              aria-hidden
-            />
+            {cover ? (
+              <>
+                <img
+                  src={cover.url}
+                  alt={`${storeName} storefront cover — ${cover.label}`}
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+                {/* warm wash keeps the card on-brand over photos */}
+                <div
+                  className="absolute inset-0 bg-gradient-to-r from-primary/55 via-primary/20 to-amber-500/25 mix-blend-multiply"
+                  aria-hidden
+                />
+              </>
+            ) : (
+              <div
+                className="absolute inset-0 opacity-25 mix-blend-overlay"
+                style={{
+                  backgroundImage:
+                    'radial-gradient(circle at 20% 50%, rgba(255,255,255,0.5) 0, transparent 40%), radial-gradient(circle at 80% 20%, rgba(255,255,255,0.35) 0, transparent 45%)',
+                }}
+                aria-hidden
+              />
+            )}
             <Store className="absolute bottom-4 right-5 h-16 w-16 text-white/25" aria-hidden />
+            {isOwnStore && (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="absolute bottom-3 left-4 h-8 rounded-full bg-background/85 px-3 text-xs backdrop-blur transition-colors hover:bg-background"
+                onClick={() => navigate('seller', { sellerTab: 'overview' })}
+              >
+                <ImageIcon size={13} className="mr-1.5" /> Change cover
+              </Button>
+            )}
           </div>
 
           <div className="relative px-5 pb-5 sm:px-6">

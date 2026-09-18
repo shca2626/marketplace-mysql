@@ -4,7 +4,9 @@ import { useState } from 'react'
 import {
   ArrowRight,
   BadgeCheck,
+  Check,
   DollarSign,
+  Image as ImageIcon,
   LayoutDashboard,
   Loader2,
   Package,
@@ -23,6 +25,7 @@ import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
 import type { CategoryDTO, OrderDTO, ProductDTO, SellerStats } from '@/lib/types'
 import { formatDate, formatNumber, formatUSD, timeAgo } from '@/lib/format'
+import { STORE_COVERS, getStoreCover, setStoreCover } from '@/lib/store-covers'
 import { ProductFormDialog } from './product-form-dialog'
 import { StarRating } from './star-rating'
 import { Button } from '@/components/ui/button'
@@ -68,6 +71,31 @@ export function SellerView() {
   const [storeForm, setStoreForm] = useState({ storeName: '', storeBio: '' })
   const [upgrading, setUpgrading] = useState(false)
   const [activeTab, setActiveTab] = useState(params.sellerTab ?? 'overview')
+  // Storefront cover — client-side choice (localStorage; schema frozen this phase).
+  // Render-time keyed re-read when the signed-in seller changes (same pattern
+  // as the tab sync above — no effect cascade).
+  const [coverChoice, setCoverChoice] = useState<{ sellerKey: string | null; id: string | null }>({
+    sellerKey: null,
+    id: null,
+  })
+  const sellerKey = user?.id ?? null
+  if (coverChoice.sellerKey !== sellerKey) {
+    const cover = sellerKey ? getStoreCover(sellerKey) : null
+    setCoverChoice({ sellerKey, id: cover?.id ?? null })
+  }
+
+  const selectCover = (id: string | null) => {
+    if (!sellerKey) return
+    setStoreCover(sellerKey, id)
+    setCoverChoice((c) => ({ ...c, id }))
+    const label = id ? STORE_COVERS.find((c) => c.id === id)?.label : null
+    toast({
+      title: label ? `Cover set — ${label}` : 'Cover reset',
+      description: label
+        ? 'Your storefront hero now shows this image (saved on this device).'
+        : 'Your storefront is back to the default warm gradient.',
+    })
+  }
 
   // Sync tab when navigation params change while the view stays mounted
   if (params.sellerTab && params.sellerTab !== activeTab) {
@@ -379,6 +407,71 @@ export function SellerView() {
               </CardContent>
             </Card>
           )}
+
+          {/* Storefront cover picker (client-side — saved on this device) */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <ImageIcon size={16} className="text-primary" /> Storefront cover
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Pick the hero image shoppers see at the top of your store page
+              </p>
+            </CardHeader>
+            <CardContent>
+              <div
+                className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6"
+                role="radiogroup"
+                aria-label="Storefront cover image"
+              >
+                {STORE_COVERS.map((c) => {
+                  const selected = coverChoice.id === c.id
+                  return (
+                    <button
+                      key={c.id}
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => selectCover(c.id)}
+                      className={cn(
+                        'group relative aspect-[16/9] overflow-hidden rounded-xl border-2 transition-all duration-200',
+                        selected
+                          ? 'border-primary shadow-md shadow-primary/20'
+                          : 'border-transparent hover:border-primary/40 active:scale-[0.97]'
+                      )}
+                      title={c.label}
+                    >
+                      <img
+                        src={c.url}
+                        alt={c.label}
+                        loading="lazy"
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                      {selected && (
+                        <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
+                          <Check size={12} strokeWidth={3} />
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-[11px] text-muted-foreground">
+                  Saved on this device in the demo — a full rollout will store it on your seller profile.
+                </p>
+                {coverChoice.id && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 rounded-full text-xs"
+                    onClick={() => selectCover(null)}
+                  >
+                    Reset to gradient
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Chart */}
           <Card>

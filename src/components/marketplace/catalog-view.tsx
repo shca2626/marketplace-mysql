@@ -147,6 +147,10 @@ export function CatalogView() {
   }, [canLoadMore, loadMore])
 
   const hasFilters = Boolean(category || minPrice || maxPrice || params.query)
+  const activeFilterCount =
+    (category ? 1 : 0) +
+    (minPrice || maxPrice ? 1 : 0) +
+    (params.query ? 1 : 0)
 
   const clearFilters = () => {
     setCategory('')
@@ -304,12 +308,16 @@ export function CatalogView() {
         {/* Main */}
         <div className="min-w-0 flex-1">
           {/* Toolbar */}
-          <div className="mb-5 flex items-center justify-between gap-3">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
             <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
               <SheetTrigger asChild>
                 <Button variant="outline" size="sm" className="rounded-full lg:hidden">
                   <SlidersHorizontal size={14} className="mr-1.5" /> Filters
-                  {hasFilters && <Badge className="ml-1.5 h-4.5 min-w-4.5 rounded-full px-1 text-[10px]">•</Badge>}
+                  {activeFilterCount > 0 && (
+                    <Badge className="ml-1.5 h-5 min-w-5 justify-center rounded-full px-1.5 text-[10px] font-bold leading-none">
+                      {activeFilterCount}
+                    </Badge>
+                  )}
                 </Button>
               </SheetTrigger>
               <SheetContent side="left" className="w-80">
@@ -326,10 +334,14 @@ export function CatalogView() {
               </Button>
             )}
 
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex min-w-0 items-center gap-2">
               <span className="hidden text-xs text-muted-foreground sm:block">Sort by</span>
               <Select value={sort} onValueChange={(v) => { setSort(v); setPage(1) }}>
-                <SelectTrigger size="sm" className="h-9 w-44 rounded-full text-sm" aria-label="Sort products">
+                <SelectTrigger
+                  size="sm"
+                  className="h-9 w-32 rounded-full text-sm sm:w-44"
+                  aria-label="Sort products"
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
