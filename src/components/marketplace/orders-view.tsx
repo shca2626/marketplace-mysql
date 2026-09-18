@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Ban, Check, ClipboardList, PackageCheck, PackageOpen, Search, Star, Truck, X } from 'lucide-react'
+import { Ban, CalendarClock, Check, ClipboardList, PackageCheck, PackageOpen, Search, Star, Truck, X } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
@@ -38,6 +38,17 @@ const STATUS_COLORS: Record<string, string> = {
   SHIPPED: 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300',
   DELIVERED: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
   CANCELLED: 'bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400',
+}
+
+/** Estimated delivery window: 3–6 days after the order was placed. */
+function estDeliveryWindow(iso: string): { from: string; to: string; isPast: boolean } {
+  const placed = new Date(iso)
+  const from = new Date(placed)
+  from.setDate(from.getDate() + 3)
+  const to = new Date(placed)
+  to.setDate(to.getDate() + 6)
+  const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return { from: fmt(from), to: fmt(to), isPast: to.getTime() < Date.now() }
 }
 
 export function OrdersView() {
@@ -226,6 +237,20 @@ export function OrdersView() {
                       #${order.id.slice(-8).toUpperCase()}
                     </span>
                     <span className="text-xs text-muted-foreground">{formatDate(order.createdAt)}</span>
+                    {['PAID', 'PROCESSING', 'SHIPPED'].includes(order.status) && (
+                      (() => {
+                        const est = estDeliveryWindow(order.createdAt)
+                        return (
+                          <span
+                            className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary"
+                            title="Estimated delivery window — 3–6 days after purchase"
+                          >
+                            <CalendarClock size={12} className="shrink-0" />
+                            {est.isPast ? `Due since ${est.to}` : `Est. ${est.from} – ${est.to}`}
+                          </span>
+                        )
+                      })()
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-bold">{formatUSD(order.total)}</span>

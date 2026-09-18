@@ -10,7 +10,7 @@ import type { View, ViewParams } from '@/store/marketplace'
  *   /?view=catalog&q=headphones      → catalog search results
  *   /?view=product&id=<cuid>         → product detail
  *   /?view=store&id=<sellerId>       → seller public storefront
- *   /?view=cart | checkout | orders | favorites | account
+ *   /?view=cart | checkout | orders | favorites | account | admin
  *   /?view=seller&tab=orders         → seller dashboard tab
  */
 
@@ -25,6 +25,7 @@ const VIEWS = new Set<View>([
   'favorites',
   'seller',
   'account',
+  'admin',
 ])
 
 /** Serialize a view + params into a query string (no leading "?"). */

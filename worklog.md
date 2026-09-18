@@ -204,3 +204,36 @@ Stage Summary:
 - Files touched: orders-view.tsx, catalog-view.tsx, search-box.tsx, product-view.tsx, globals.css.
 - Still frozen: PLAN-1 architectural rebuild awaits user approval — do NOT start Phase 0 without it.
 - Next-round candidates (non-architectural): admin/platform analytics view (read-only), seller store cover-image picker, order timeline estimated-delivery dates, checkout form polish (auto-format phone/zip).
+
+---
+Task ID: CRON-R6 (webDevReview round 6 — admin analytics + checkout polish + auth register fix)
+Agent: Z.ai Code (orchestrator)
+Task: Scheduled QA round: agent-browser QA, fix defects, non-architectural features/styling only (PLAN-1 rebuild still frozen pending user approval)
+
+Work Log:
+- Read worklog; confirmed PLAN-1 freeze (no schema rewrites, no RFQ/offer architecture); dev server healthy (R3 setsid restart holding); lint clean; dev.log all-200
+- QA sweep (agent-browser + error collector): home, catalog infinite scroll, product detail, add-to-cart + badge + drawer, checkout auth-guard, coupon guard (WELCOME10 correctly rejected for non-first-order demo buyer), orders chips+search, seller dashboard, store view, dark mode (warm orange lab chroma 42.8), mobile 390px no overflow. ZERO bugs in R1-R5 features; zero JS console errors across the journey.
+- REAL DEFECT found & fixed — AUTH REGISTRATION DEAD-END: the auth modal supported login+register modes but NOTHING in the UI ever triggered register mode (no toggle link, no openAuth('register') callers) → new visitors could not create an account at all (earlier rounds' "registered test users" were done via direct API/store hacks). Fix: new `setAuthMode(mode)` store action (switches mode WITHOUT resetting afterAuth, so the post-login navigation intent survives) + footer toggle links in auth-modal ("New to Vendora? Create an account" ↔ "Already a member? Sign in"). E2E: opened modal from checkout guard → switched to register → created checkout-test@example.com → landed back on ?view=checkout intent preserved.
+- NEW FEATURE — admin analytics view (read-only, R5's suggested candidate; role column is free-text String so 'ADMIN' is a data value, NOT a schema change; public register API still only allows BUYER/SELLER):
+  - scripts/add-admin.ts — idempotent (creates/promotes admin@vendora.com / admin1234); run once via bun
+  - GET /api/admin/stats — session+ADMIN-guarded (401/403), pure read aggregation: totals (users/buyers/sellers/products/active/orders/revenue/AOV/reviews/newUsers7d), ordersByStatus (cancelled excluded from revenue), revenueByDay (14 days, order-level GMV), topSellers (GMV+units from live order items, product counts + review-weighted avg rating from product rows), topCategories (unitsSold+revenue+listing counts), recentOrders (8, buyer+itemCount+first item snapshot)
+  - admin-view.tsx — 6 KPI cards, revenue AreaChart (reuses seller chart pattern + orders in tooltip), stacked status-distribution bar + legend rows w/ icons+revenue, top sellers w/ rank badges + relative-revenue share bars (click → store view), top category cards (click → filtered catalog), recent orders list w/ status badges + timeAgo; signed-out prompt, non-admin 403 card, skeletons, Refresh button
+  - 'admin' view registered: View union (store), VIEWS set (routing → /?view=admin deep-linkable), VIEWS map (marketplace-app), header account-dropdown item "Platform analytics" (ADMIN role only, BarChart3 icon)
+  - E2E verified: deep-link boot; signed-out prompt; demo-buyer sees 403 card AND API returns 403; dropdown entry navigates; top-seller row → TechNest store; top-category card → ?view=catalog&category=fashion; refresh works; mobile 390px no overflow; VLM audits of KPI/chart/status/sellers/categories all pass (one false-positive "clipping" was mid-scroll under sticky header — re-audited clean)
+- NEW FEATURE — checkout form polish:
+  - as-you-type formatters: phone (555) 123-4567 (+1 prefix aware), card number 4-digit grouping max 16, expiry auto-slash MM/YY, CVC 3-4 digits, ZIP uppercase alphanumeric — all E2E-verified (4242424242424242 → "4242 4242 4242 4242", 1228 → "12/28", ab12 9z! → "AB12 9Z")
+  - demo card-details panel when card payment selected (icons inside inputs, inputMode/autoComplete attrs, animated reveal); "Autofill demo card" pill button (4242…, 12/28, 424); disclaimer reworded "card details are never stored"
+  - inline validation: field-level errors (destructive border + role=alert messages), submit → focus + scroll to first invalid + destructive toast; errors clear on edit; expiry sanity check rejects past dates ("01/20" → "This card looks expired")
+  - success screen shows payment line: "Paid by card •••• 4242" / "Paid with Vendora wallet"
+  - E2E: full order placed by new user (yoga mat $49 + $6.99 shipping) with card → success screen + paid-by-card + email banner; VLM audits of checkout + card panel pass; mobile no overflow
+- NEW FEATURE — estimated delivery on orders: CalendarClock chip on PAID/PROCESSING/SHIPPED orders — "Est. Sep 21 – Sep 24" (createdAt +3–6 days) or "Due since {date}" when window is past; DELIVERED/CANCELLED excluded; verified on new + demo buyer orders
+- Tooling lessons (for future rounds): Radix DropdownMenu/Sheet triggers do NOT open via synthetic el.click() or even agent-browser native click this session — dispatch PointerEvent('pointerdown', {bubbles:true, button:0}) instead; agent-browser eval shares page context (const re-declarations throw — wrap in IIFE); innerText returns CSS-uppercased text (case-insensitive checks); native form `required` blocks submit before React validation runs (custom validation catches format issues, not presence)
+- Test data note: NEW account checkout-test@example.com / checkout1234 (BUYER, 1 order — 1× GripPro Yoga Mat, paid by demo card). ADMIN account admin@vendora.com / admin1234. Demo + seller accounts unaffected.
+- Left browser neutral: logged out, localStorage cleared, cart 0, light mode. Lint clean; dev.log clean (all 200s, zero errors).
+
+Stage Summary:
+- Fixed: registration dead-end (register mode now reachable from UI with afterAuth intent preservation)
+- Shipped: read-only admin analytics view (API + view + routing + header entry), checkout input auto-formatting + demo card fields + inline validation + payment line on success, orders estimated-delivery chips
+- All non-architectural as required: zero schema changes (ADMIN is a data value in the existing String role column; register API still excludes it), one read-only admin endpoint, all other changes client-side
+- Still frozen: PLAN-1 architectural rebuild awaits user approval — do NOT start Phase 0 without it
+- Next-round candidates (non-architectural): seller store cover-image picker, product image upload (URL-based), toast/notification "inbox" for order events, catalog empty-state polish, seller Payouts summary card (read-only)

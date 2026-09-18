@@ -72,7 +72,7 @@ export function toSessionUser(user: {
     id: user.id,
     name: user.name,
     email: user.email,
-    role: user.role === 'SELLER' ? 'SELLER' : 'BUYER',
+    role: user.role === 'SELLER' ? 'SELLER' : user.role === 'ADMIN' ? 'ADMIN' : 'BUYER',
     image: user.image ?? null,
     storeName: user.storeName ?? null,
     storeBio: user.storeBio ?? null,

@@ -2,7 +2,21 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowLeft, BadgePercent, CheckCircle2, CreditCard, Loader2, Lock, MailCheck, MapPin, ShieldCheck, Ticket, X } from 'lucide-react'
+import {
+  ArrowLeft,
+  BadgePercent,
+  CalendarClock,
+  CheckCircle2,
+  CreditCard,
+  Loader2,
+  Lock,
+  MailCheck,
+  MapPin,
+  ShieldCheck,
+  Ticket,
+  Wand2,
+  X,
+} from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
 import type { OrderDTO } from '@/lib/types'
@@ -22,6 +36,55 @@ interface AppliedCoupon {
   code: string
   percentOff: number
   description: string
+}
+
+// ── As-you-type input formatters (display only) ──
+
+/** (555) 123-4567 — or +1 (555) 123-4567 when a leading 1/+1 is typed */
+function formatPhoneInput(raw: string): string {
+  const trimmed = raw.trim()
+  const allDigits = trimmed.replace(/\D/g, '').slice(0, 11)
+  let digits: string
+  let prefix = ''
+  if (allDigits.length === 11 && allDigits.startsWith('1')) {
+    prefix = '+1 '
+    digits = allDigits.slice(1)
+  } else if (/^\+1/.test(trimmed)) {
+    prefix = '+1 '
+    digits = trimmed.replace(/\D/g, '').slice(1, 11)
+  } else {
+    digits = allDigits.slice(0, 10)
+  }
+  const a = digits.slice(0, 3)
+  const b = digits.slice(3, 6)
+  const c = digits.slice(6)
+  let out = prefix
+  if (a) out += a.length === 3 ? `(${a}) ` : a
+  if (b) out += b.length === 3 ? `${b}-` : b
+  return out + c
+}
+
+/** 1234 5678 9012 3456 — digits grouped in fours, max 16 */
+function formatCardNumber(raw: string): string {
+  return raw
+    .replace(/\D/g, '')
+    .slice(0, 16)
+    .replace(/(\d{4})(?=\d)/g, '$1 ')
+}
+
+/** 02/29 → MM/YY with auto-slash, max 4 digits */
+function formatExpiry(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 4)
+  if (digits.length <= 2) return digits
+  return `${digits.slice(0, 2)}/${digits.slice(2)}`
+}
+
+/** Uppercase alphanumeric postal code (US ZIP / intl) */
+function formatZip(raw: string): string {
+  return raw
+    .toUpperCase()
+    .replace(/[^A-Z0-9 -]/g, '')
+    .slice(0, 10)
 }
 
 export function CheckoutView() {
@@ -48,6 +111,12 @@ export function CheckoutView() {
   const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null)
   const [couponError, setCouponError] = useState<string | null>(null)
   const [applyingCoupon, setApplyingCoupon] = useState(false)
+
+  // ── Payment state (demo card fields — display only, never stored) ──
+  const [payMethod, setPayMethod] = useState<'card' | 'wallet'>('card')
+  const [card, setCard] = useState({ number: '', expiry: '', cvc: '' })
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [paidWith, setPaidWith] = useState<{ method: 'card' | 'wallet'; last4?: string } | null>(null)
 
   const subtotal = cart.reduce((sum, i) => sum + i.price * i.quantity, 0)
   const freeShipping = subtotal >= FREE_SHIPPING_THRESHOLD
@@ -88,8 +157,73 @@ export function CheckoutView() {
     setCouponError(null)
   }
 
-  const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((f) => ({ ...f, [key]: e.target.value }))
+    setFieldErrors((errs) => {
+      if (!errs[key]) return errs
+      const next = { ...errs }
+      delete next[key]
+      return next
+    })
+  }
+
+  // Formatted variants — auto-format as the user types and clear errors on edit
+  const setPhone = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setForm((f) => ({ ...f, phone: formatPhoneInput(e.target.value) }))
+  }
+  const setZip = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setForm((f) => ({ ...f, zip: formatZip(e.target.value) }))
+    setFieldErrors((errs) => {
+      if (!errs.zip) return errs
+      const next = { ...errs }
+      delete next.zip
+      return next
+    })
+  }
+  const setCardField = (key: keyof typeof card, format: (v: string) => string) =>
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setCard((c) => ({ ...c, [key]: format(e.target.value) }))
+      setFieldErrors((errs) => {
+        if (!errs[key]) return errs
+        const next = { ...errs }
+        delete next[key]
+        return next
+      })
+    }
+
+  const fillDemoCard = () => {
+    setCard({ number: '4242 4242 4242 4242', expiry: '12/28', cvc: '424' })
+    setFieldErrors((errs) => {
+      const next = { ...errs }
+      delete next.cardNumber
+      delete next.cardExpiry
+      delete next.cardCvc
+      return next
+    })
+  }
+
+  /** Field-level validation; returns a map of field → message. */
+  const validateFields = (): Record<string, string> => {
+    const errs: Record<string, string> = {}
+    if (!form.fullName.trim()) errs.fullName = 'Enter the recipient name'
+    if (!form.address.trim()) errs.address = 'Enter a street address'
+    if (!form.city.trim()) errs.city = 'Enter a city'
+    if (!form.zip.trim()) errs.zip = 'Enter a ZIP / postal code'
+    else if (form.zip.trim().length < 3) errs.zip = 'That postal code looks too short'
+    if (!form.country.trim()) errs.country = 'Enter a country'
+    if (payMethod === 'card') {
+      if (card.number.replace(/\s/g, '').length !== 16) errs.cardNumber = 'Enter the 16-digit card number'
+      const m = card.expiry.match(/^(0[1-9]|1[0-2])\/(\d{2})$/)
+      if (!m) errs.cardExpiry = 'Use MM/YY'
+      else {
+        // expires at the END of the month shown
+        const exp = new Date(2000 + Number(m[2]), Number(m[1]), 1)
+        if (exp.getTime() <= Date.now()) errs.cardExpiry = 'This card looks expired'
+      }
+      if (!/^\d{3,4}$/.test(card.cvc)) errs.cardCvc = '3–4 digits'
+    }
+    return errs
+  }
 
   const placeOrder = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -98,10 +232,25 @@ export function CheckoutView() {
       return
     }
     if (cart.length === 0) return
-    if (!form.fullName || !form.address || !form.city || !form.zip) {
-      toast({ title: 'Missing information', description: 'Please fill in all shipping fields', variant: 'destructive' })
+    // Inline validation — mark invalid fields, focus the first one
+    const errs = validateFields()
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs)
+      const firstKey = Object.keys(errs)[0]
+      document.getElementById(firstKey)?.focus()
+      document.getElementById(firstKey)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      toast({
+        title: 'Check your details',
+        description: 'A few fields need attention before placing the order.',
+        variant: 'destructive',
+      })
       return
     }
+    setPaidWith(
+      payMethod === 'card'
+        ? { method: 'card', last4: card.number.replace(/\s/g, '').slice(-4) }
+        : { method: 'wallet' }
+    )
     setPlacing(true)
     try {
       const res = await fetch('/api/orders', {
@@ -207,6 +356,23 @@ export function CheckoutView() {
                   Shipping to {placedOrder.address}, {placedOrder.city}, {placedOrder.country} {placedOrder.zip}
                 </span>
               </div>
+              {paidWith && (
+                <div className="flex items-center gap-2 rounded-lg bg-muted/60 p-3 text-xs text-muted-foreground">
+                  {paidWith.method === 'card' ? (
+                    <>
+                      <CreditCard size={14} className="shrink-0" />
+                      <span>
+                        Paid by card <span className="font-mono font-semibold">•••• {paidWith.last4}</span>
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock size={14} className="shrink-0" />
+                      <span>Paid with Vendora wallet</span>
+                    </>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -258,29 +424,97 @@ export function CheckoutView() {
             <CardContent className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5 sm:col-span-2">
                 <Label htmlFor="fullName">Full name</Label>
-                <Input id="fullName" value={form.fullName} onChange={set('fullName')} placeholder="Jane Doe" required />
+                <Input
+                  id="fullName"
+                  value={form.fullName}
+                  onChange={set('fullName')}
+                  placeholder="Jane Doe"
+                  required
+                  aria-invalid={!!fieldErrors.fullName}
+                  className={cn('h-11 rounded-xl', fieldErrors.fullName && 'border-destructive focus-visible:ring-destructive')}
+                />
+                {fieldErrors.fullName && (
+                  <p className="text-xs font-medium text-destructive" role="alert">{fieldErrors.fullName}</p>
+                )}
               </div>
               <div className="space-y-1.5 sm:col-span-2">
                 <Label htmlFor="address">Street address</Label>
-                <Input id="address" value={form.address} onChange={set('address')} placeholder="123 Main Street, Apt 4" required />
+                <Input
+                  id="address"
+                  value={form.address}
+                  onChange={set('address')}
+                  placeholder="123 Main Street, Apt 4"
+                  required
+                  aria-invalid={!!fieldErrors.address}
+                  className={cn('h-11 rounded-xl', fieldErrors.address && 'border-destructive focus-visible:ring-destructive')}
+                />
+                {fieldErrors.address && (
+                  <p className="text-xs font-medium text-destructive" role="alert">{fieldErrors.address}</p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="city">City</Label>
-                <Input id="city" value={form.city} onChange={set('city')} placeholder="Portland" required />
+                <Input
+                  id="city"
+                  value={form.city}
+                  onChange={set('city')}
+                  placeholder="Portland"
+                  required
+                  aria-invalid={!!fieldErrors.city}
+                  className={cn('h-11 rounded-xl', fieldErrors.city && 'border-destructive focus-visible:ring-destructive')}
+                />
+                {fieldErrors.city && (
+                  <p className="text-xs font-medium text-destructive" role="alert">{fieldErrors.city}</p>
+                )}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="zip">ZIP code</Label>
-                <Input id="zip" value={form.zip} onChange={set('zip')} placeholder="97201" required />
+                <Label htmlFor="zip">
+                  ZIP code
+                  <span className="ml-1 text-[10px] font-normal text-muted-foreground">auto-formatted</span>
+                </Label>
+                <Input
+                  id="zip"
+                  value={form.zip}
+                  onChange={setZip}
+                  placeholder="97201"
+                  required
+                  aria-invalid={!!fieldErrors.zip}
+                  className={cn('h-11 rounded-xl uppercase', fieldErrors.zip && 'border-destructive focus-visible:ring-destructive')}
+                />
+                {fieldErrors.zip && (
+                  <p className="text-xs font-medium text-destructive" role="alert">{fieldErrors.zip}</p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="country">Country</Label>
-                <Input id="country" value={form.country} onChange={set('country')} required />
+                <Input
+                  id="country"
+                  value={form.country}
+                  onChange={set('country')}
+                  required
+                  aria-invalid={!!fieldErrors.country}
+                  className={cn('h-11 rounded-xl', fieldErrors.country && 'border-destructive focus-visible:ring-destructive')}
+                />
+                {fieldErrors.country && (
+                  <p className="text-xs font-medium text-destructive" role="alert">{fieldErrors.country}</p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="phone">
                   Phone <span className="text-xs text-muted-foreground">(optional)</span>
                 </Label>
-                <Input id="phone" value={form.phone} onChange={set('phone')} placeholder="+1 (555) 000-0000" />
+                <Input
+                  id="phone"
+                  value={form.phone}
+                  onChange={setPhone}
+                  placeholder="(555) 000-0000"
+                  inputMode="tel"
+                  aria-invalid={!!fieldErrors.phone}
+                  className="h-11 rounded-xl"
+                />
+                {fieldErrors.phone && (
+                  <p className="text-xs font-medium text-destructive" role="alert">{fieldErrors.phone}</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -292,7 +526,11 @@ export function CheckoutView() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <RadioGroup defaultValue="card" className="gap-3">
+              <RadioGroup
+                value={payMethod}
+                onValueChange={(v) => setPayMethod(v as 'card' | 'wallet')}
+                className="gap-3"
+              >
                 <Label
                   htmlFor="pay-card"
                   className="flex cursor-pointer items-center gap-3 rounded-xl border-2 p-4 transition-colors has-[[data-state=checked]]:border-primary"
@@ -317,8 +555,90 @@ export function CheckoutView() {
                   </div>
                 </Label>
               </RadioGroup>
+
+              {/* Card details — demo-only, formatted as-you-type, never stored */}
+              {payMethod === 'card' && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-4 space-y-4 rounded-xl border bg-muted/30 p-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Card details
+                    </p>
+                    <button
+                      type="button"
+                      onClick={fillDemoCard}
+                      className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/20"
+                    >
+                      <Wand2 size={12} /> Autofill demo card
+                    </button>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cardNumber">Card number</Label>
+                    <div className="relative">
+                      <CreditCard className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="cardNumber"
+                        value={card.number}
+                        onChange={setCardField('number', formatCardNumber)}
+                        placeholder="4242 4242 4242 4242"
+                        inputMode="numeric"
+                        autoComplete="cc-number"
+                        aria-invalid={!!fieldErrors.cardNumber}
+                        className={cn('h-11 rounded-xl pl-9 tabular-nums', fieldErrors.cardNumber && 'border-destructive focus-visible:ring-destructive')}
+                      />
+                    </div>
+                    {fieldErrors.cardNumber && (
+                      <p className="text-xs font-medium text-destructive" role="alert">{fieldErrors.cardNumber}</p>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="cardExpiry">Expiry</Label>
+                      <div className="relative">
+                        <CalendarClock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          id="cardExpiry"
+                          value={card.expiry}
+                          onChange={setCardField('expiry', formatExpiry)}
+                          placeholder="MM/YY"
+                          inputMode="numeric"
+                          autoComplete="cc-exp"
+                          aria-invalid={!!fieldErrors.cardExpiry}
+                          className={cn('h-11 rounded-xl pl-9 tabular-nums', fieldErrors.cardExpiry && 'border-destructive focus-visible:ring-destructive')}
+                        />
+                      </div>
+                      {fieldErrors.cardExpiry && (
+                        <p className="text-xs font-medium text-destructive" role="alert">{fieldErrors.cardExpiry}</p>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="cardCvc">CVC</Label>
+                      <div className="relative">
+                        <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          id="cardCvc"
+                          value={card.cvc}
+                          onChange={setCardField('cvc', (v) => v.replace(/\D/g, '').slice(0, 4))}
+                          placeholder="123"
+                          inputMode="numeric"
+                          autoComplete="cc-csc"
+                          aria-invalid={!!fieldErrors.cardCvc}
+                          className={cn('h-11 rounded-xl pl-9 tabular-nums', fieldErrors.cardCvc && 'border-destructive focus-visible:ring-destructive')}
+                        />
+                      </div>
+                      {fieldErrors.cardCvc && (
+                        <p className="text-xs font-medium text-destructive" role="alert">{fieldErrors.cardCvc}</p>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
               <p className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
-                <ShieldCheck size={13} /> This is a demo checkout — no real payment is processed.
+                <ShieldCheck size={13} /> This is a demo checkout — no real payment is processed and card details are
+                never stored.
               </p>
             </CardContent>
           </Card>

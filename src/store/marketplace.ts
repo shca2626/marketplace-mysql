@@ -14,6 +14,7 @@ export type View =
   | 'favorites'
   | 'seller'
   | 'account'
+  | 'admin'
 
 export interface ViewParams {
   productId?: string
@@ -48,6 +49,7 @@ interface MarketplaceState {
   setCartOpen: (open: boolean) => void
   openAuth: (mode?: 'login' | 'register', after?: { view: View; params?: ViewParams }) => void
   closeAuth: () => void
+  setAuthMode: (mode: 'login' | 'register') => void
   cartCount: () => number
   cartSubtotal: () => number
 }
@@ -146,6 +148,11 @@ export const useMarketplace = create<MarketplaceState>()(
         set({ authModalOpen: true, authMode: mode, afterAuth: after ?? null }),
 
       closeAuth: () => set({ authModalOpen: false, afterAuth: null }),
+
+      // Switch login ↔ register inside an already-open modal without losing
+      // the post-auth navigation intent (afterAuth) — fixes the onboarding
+      // dead-end where register mode was unreachable from the UI.
+      setAuthMode: (mode) => set({ authMode: mode }),
 
       cartCount: () => get().cart.reduce((sum, i) => sum + i.quantity, 0),
 

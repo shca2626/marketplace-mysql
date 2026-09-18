@@ -1,4 +1,4 @@
-export type Role = 'BUYER' | 'SELLER'
+export type Role = 'BUYER' | 'SELLER' | 'ADMIN'
 
 export interface SessionUser {
   id: string
@@ -131,4 +131,42 @@ export interface HomeFeed {
   newArrivals: ProductDTO[]
   categories: CategoryDTO[]
   stats: { productCount: number; sellerCount: number; reviewCount: number; orderCount: number }
+}
+
+// ── Admin analytics (read-only platform overview) ──
+export interface AdminStats {
+  totals: {
+    users: number
+    buyers: number
+    sellers: number
+    products: number
+    activeListings: number
+    orders: number
+    revenue: number
+    aov: number
+    reviews: number
+    newUsers7d: number
+  }
+  ordersByStatus: { status: string; count: number; revenue: number }[]
+  revenueByDay: { date: string; revenue: number; orders: number }[]
+  topSellers: {
+    id: string
+    name: string
+    storeName: string | null
+    revenue: number
+    unitsSold: number
+    products: number
+    rating: number
+  }[]
+  topCategories: { id: string; name: string; slug: string; unitsSold: number; revenue: number; products: number }[]
+  recentOrders: {
+    id: string
+    total: number
+    status: string
+    createdAt: string
+    buyer: { id: string; name: string }
+    itemCount: number
+    firstItemTitle: string | null
+    firstItemImage: string | null
+  }[]
 }

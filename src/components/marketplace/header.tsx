@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useTheme } from 'next-themes'
 import {
+  BarChart3,
   ChevronDown,
   Heart,
   LayoutDashboard,
@@ -217,6 +218,11 @@ export function Header() {
                 <DropdownMenuItem onClick={() => navigate('account')} className="cursor-pointer">
                   <Settings size={15} className="mr-2" /> Account
                 </DropdownMenuItem>
+                {(user.role === 'ADMIN') && (
+                  <DropdownMenuItem onClick={() => navigate('admin')} className="cursor-pointer">
+                    <BarChart3 size={15} className="mr-2" /> Platform analytics
+                  </DropdownMenuItem>
+                )}
                 {(user.role === 'SELLER' || true) && (
                   <DropdownMenuItem onClick={() => navigate('seller')} className="cursor-pointer">
                     <LayoutDashboard size={15} className="mr-2" />

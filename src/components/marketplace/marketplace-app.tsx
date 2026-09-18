@@ -18,6 +18,7 @@ import { OrdersView } from './orders-view'
 import { FavoritesView } from './favorites-view'
 import { SellerView } from './seller-view'
 import { AccountView } from './account-view'
+import { AdminView } from './admin-view'
 import { CartDrawer } from './cart-drawer'
 import { AuthModal } from './auth-modal'
 import { BackToTop } from './back-to-top'
@@ -33,6 +34,7 @@ const VIEWS: Record<View, () => React.ReactNode> = {
   favorites: () => <FavoritesView />,
   seller: () => <SellerView />,
   account: () => <AccountView />,
+  admin: () => <AdminView />,
 }
 
 export function MarketplaceApp() {

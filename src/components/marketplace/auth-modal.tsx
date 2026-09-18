@@ -22,6 +22,7 @@ export function AuthModal() {
   const open = useMarketplace((s) => s.authModalOpen)
   const mode = useMarketplace((s) => s.authMode)
   const closeAuth = useMarketplace((s) => s.closeAuth)
+  const setAuthMode = useMarketplace((s) => s.setAuthMode)
   const setUser = useMarketplace((s) => s.setUser)
   const navigate = useMarketplace((s) => s.navigate)
   const afterAuth = useMarketplace((s) => s.afterAuth)
@@ -195,6 +196,33 @@ export function AuthModal() {
             {loading && <Loader2 size={15} className="mr-1.5 animate-spin" />}
             {mode === 'login' ? 'Sign in' : 'Create account'}
           </Button>
+
+          {/* Login ↔ register switch (keeps the post-auth navigation intent) */}
+          <p className="text-center text-xs text-muted-foreground">
+            {mode === 'login' ? (
+              <>
+                New to Vendora?{' '}
+                <button
+                  type="button"
+                  onClick={() => setAuthMode('register')}
+                  className="font-semibold text-primary underline-offset-2 hover:underline"
+                >
+                  Create an account
+                </button>
+              </>
+            ) : (
+              <>
+                Already a member?{' '}
+                <button
+                  type="button"
+                  onClick={() => setAuthMode('login')}
+                  className="font-semibold text-primary underline-offset-2 hover:underline"
+                >
+                  Sign in
+                </button>
+              </>
+            )}
+          </p>
 
           <Separator />
 
