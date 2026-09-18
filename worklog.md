@@ -74,3 +74,19 @@ Stage Summary:
 - Demo accounts: buyer demo@vendora.com / demo1234 (now upgraded to seller "Rivera Goods Co." during QA, still can buy); sellers seller1..5@vendora.com / seller1234
 - Data: 27 products (incl. QA-created "Leather Desk Pad XL"), 14+1 orders, 77 reviews, 6 categories, 5 stores
 - Known minor items for next phase (suggestions): order cancellation, real Stripe test integration, product image upload (currently URL/sample picker), seller store public page, infinite scroll or more pagination polish, order email confirmation simulation, admin analytics
+
+---
+Task ID: PLAN-1 (constitution response — no code)
+Agent: Z.ai Code (orchestrator)
+Task: Respond to user's production-readiness constitution (B2B/B2C RFQ marketplace) with 5 text deliverables; NO CODE until approval
+
+Work Log:
+- Read worklog + project structure to ground gap analysis
+- Delivered 5 proposals in chat: (1) restatement of domain/invariants/anti-patterns, (2) domain model (User/Vendor/VendorMember/VendorType join, canonical Product + ProductIdentifier unique(type,value) anti-dup wall, ProductTranslation/ProductAttribute/ProductImage rows, CatalogProposal + merge, Offer unique(vendorId,productId), RFQ/RfqLine(typed lines)/Quote/QuoteRevision, Order per RFQ×vendor, Dispute, ModerationAction + normalized audit, monetization record tables incl. RevenueEvent ledger; full state machines for Vendor/Offer/CatalogProposal/RFQ/Quote/Order/Dispute), (3) module boundaries (shared-kernel/identity/vendors/catalog/offers/rfq/deals/moderation/monetization/discovery/back-office; modules own tables, interact via services + domain events), (4) ORM-layer isolation (Prisma Client Extension guarded client, AsyncLocalStorage ctx {userId, activeVendorId}, forced vendorId on reads/creates, VendorScopeViolation on cross-vendor writes, raw client import-restricted, cuid + composite uniques, buyer-side privacy same mechanism, dedicated Isolation Suite must stay green), (5) execution order Phase 0 kernel+isolation → 1 vendors+verification → 2 catalog → 3 offers+moderation → 4 RFQ Super-Cart → 5 deals+disputes → 6 monetization+discovery
+- Key decisions communicated: existing MVP schema structurally incompatible with constitution (seller-owned products, cart/checkout, seed data) → ground-up data-core rebuild salvaging theme/UI shell/auth mechanics; seed/demo data retired (dev-fixtures flag at most); Arabic/RTL-first i18n; catalog spans goods AND services (one Offer model, five category kinds)
+- Created webDevReview cron (every 15 min) per standing instruction
+
+Stage Summary:
+- STATUS: AWAITING USER APPROVAL of the five deliverables. ⚠️ DO NOT begin the architectural rebuild until the user approves/amends the proposals in chat.
+- Until approval, webDevReview rounds may ONLY: QA the live MVP with agent-browser, fix breakage/bugs in the existing MVP, and do non-architectural polish. NO schema rewrites, NO new transaction architecture.
+- Next step after approval: Phase 0 (guarded Prisma client + isolation suite + auth hardening + i18n/RTL shell).
