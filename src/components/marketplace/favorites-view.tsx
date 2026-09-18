@@ -27,8 +27,13 @@ export function FavoritesView() {
   if (!user) {
     return (
       <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
-        <Heart size={44} className="text-muted-foreground/40" />
-        <h1 className="mt-4 text-xl font-bold">Sign in to see your favorites</h1>
+        <div className="relative">
+          <div className="absolute inset-0 -z-10 scale-150 rounded-full bg-primary/10 blur-2xl" aria-hidden />
+          <div className="flex h-20 w-20 items-center justify-center rounded-full border bg-card shadow-sm">
+            <Heart size={32} className="text-primary/70" />
+          </div>
+        </div>
+        <h1 className="mt-5 text-xl font-bold">Sign in to see your favorites</h1>
         <p className="mt-1 text-sm text-muted-foreground">Save products you love for later.</p>
         <Button className="mt-6 rounded-xl" onClick={() => openAuth('login', { view: 'favorites' })}>
           Sign in
@@ -55,8 +60,13 @@ export function FavoritesView() {
           </div>
         ) : products.length === 0 ? (
           <Card className="flex flex-col items-center border-dashed py-16 text-center">
-            <Heart size={44} className="text-muted-foreground/40" />
-            <h2 className="mt-4 text-lg font-semibold">No favorites yet</h2>
+            <div className="relative">
+              <div className="absolute inset-0 -z-10 scale-150 rounded-full bg-primary/10 blur-2xl" aria-hidden />
+              <div className="flex h-20 w-20 items-center justify-center rounded-full border bg-card shadow-sm">
+                <Heart size={32} className="text-primary/70" />
+              </div>
+            </div>
+            <h2 className="mt-5 text-lg font-semibold">No favorites yet</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Tap the heart on any product to save it here.
             </p>

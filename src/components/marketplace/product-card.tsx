@@ -190,8 +190,8 @@ export function ProductCard({ product, index = 0 }: { product: ProductDTO; index
 export function ProductCardSkeleton() {
   return (
     <Card className="overflow-hidden gap-0 py-0">
-      <div className="aspect-square animate-pulse bg-muted" />
-      <div className="flex flex-col gap-2 p-3.5">
+      <div className="skeleton-shimmer aspect-square animate-pulse bg-muted" />
+      <div className="skeleton-shimmer flex flex-col gap-2 p-4">
         <div className="h-3 w-1/3 animate-pulse rounded bg-muted" />
         <div className="h-4 w-full animate-pulse rounded bg-muted" />
         <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />

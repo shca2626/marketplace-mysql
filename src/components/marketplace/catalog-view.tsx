@@ -379,15 +379,49 @@ export function CatalogView() {
               ))}
             </div>
           ) : products.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed py-20 text-center">
-              <PackageSearch size={44} className="text-muted-foreground/40" />
-              <h3 className="mt-4 text-lg font-semibold">No products found</h3>
+            <div className="flex flex-col items-center justify-center overflow-hidden rounded-2xl border border-dashed py-16 text-center">
+              <div className="relative">
+                <div className="absolute inset-0 -z-10 scale-150 rounded-full bg-primary/10 blur-2xl" aria-hidden />
+                <div className="flex h-20 w-20 items-center justify-center rounded-full border bg-card shadow-sm">
+                  <PackageSearch size={34} className="text-primary/70" />
+                </div>
+              </div>
+              <h3 className="mt-5 text-lg font-semibold">No products found</h3>
               <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                Try adjusting your filters or search for something else.
+                {params.query
+                  ? `Nothing matches “${params.query}” with these filters — try clearing them or search for something else.`
+                  : 'Try adjusting your filters or browse a category below.'}
               </p>
               <Button className="mt-5 rounded-full" onClick={clearFilters}>
                 Clear all filters
               </Button>
+              {categories.length > 0 && (
+                <div className="mt-7 w-full border-t bg-muted/30 px-6 py-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                    Popular categories
+                  </p>
+                  <div className="mt-3 flex flex-wrap justify-center gap-2">
+                    {categories.slice(0, 6).map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => {
+                          // Navigate (not just setCategory) so a stale search
+                          // query from the empty state is cleared too.
+                          if (params.query) navigate('catalog', { category: c.slug })
+                          else {
+                            setCategory(c.slug)
+                            setPage(1)
+                          }
+                        }}
+                        className="rounded-full border bg-card px-3.5 py-1.5 text-xs font-medium text-foreground/90 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:text-primary"
+                      >
+                        {c.name}
+                        <span className="ml-1.5 text-muted-foreground">{c.productCount}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <>

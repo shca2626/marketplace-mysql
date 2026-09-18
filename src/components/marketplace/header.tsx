@@ -24,6 +24,7 @@ import { useApi } from '@/hooks/use-api'
 import type { CategoryDTO } from '@/lib/types'
 import { initials } from '@/lib/format'
 import { SearchBox } from './search-box'
+import { NotificationsBell } from './notifications-bell'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -173,6 +174,8 @@ export function Header() {
           >
             <Heart size={19} />
           </Button>
+
+          <NotificationsBell />
 
           <Button
             variant="ghost"

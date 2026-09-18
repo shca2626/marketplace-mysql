@@ -1,6 +1,7 @@
 'use client'
 
-import { Minus, Plus, ShoppingCart, Trash2 } from 'lucide-react'
+import { BookmarkPlus, Minus, Plus, RotateCcw, ShoppingCart, Trash2 } from 'lucide-react'
+import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
 import { formatUSD } from '@/lib/format'
 import { Button } from '@/components/ui/button'
@@ -24,6 +25,10 @@ export function CartDrawer() {
   const cart = useMarketplace((s) => s.cart)
   const updateQuantity = useMarketplace((s) => s.updateQuantity)
   const removeFromCart = useMarketplace((s) => s.removeFromCart)
+  const savedForLater = useMarketplace((s) => s.savedForLater)
+  const saveForLater = useMarketplace((s) => s.saveForLater)
+  const moveToCart = useMarketplace((s) => s.moveToCart)
+  const removeFromSaved = useMarketplace((s) => s.removeFromSaved)
   const navigate = useMarketplace((s) => s.navigate)
   const user = useMarketplace((s) => s.user)
   const openAuth = useMarketplace((s) => s.openAuth)
@@ -55,7 +60,7 @@ export function CartDrawer() {
         </SheetHeader>
 
         {cart.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
+          <div className="flex flex-1 flex-col items-center justify-center gap-4 overflow-y-auto p-8 text-center">
             <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted">
               <ShoppingCart size={30} className="text-muted-foreground" />
             </div>
@@ -63,15 +68,34 @@ export function CartDrawer() {
               <p className="font-semibold">Your cart is empty</p>
               <p className="mt-1 text-sm text-muted-foreground">Looks like you haven’t added anything yet.</p>
             </div>
-            <Button
-              className="rounded-full"
-              onClick={() => {
-                setCartOpen(false)
-                navigate('catalog')
-              }}
-            >
-              Start shopping
-            </Button>
+            {savedForLater.length > 0 ? (
+              <Button
+                className="rounded-full"
+                onClick={() => {
+                  const res = moveToCart(savedForLater[0].productId)
+                  if (res.ok) toast({ title: 'Moved to cart', description: savedForLater[0].title })
+                  else
+                    toast({
+                      title: 'Cannot move to cart',
+                      description: res.message,
+                      variant: 'destructive',
+                    })
+                }}
+              >
+                <RotateCcw size={14} className="mr-1.5" />
+                Restore {savedForLater.length} saved item{savedForLater.length === 1 ? '' : 's'}
+              </Button>
+            ) : (
+              <Button
+                className="rounded-full"
+                onClick={() => {
+                  setCartOpen(false)
+                  navigate('catalog')
+                }}
+              >
+                Start shopping
+              </Button>
+            )}
           </div>
         ) : (
           <>
@@ -162,6 +186,15 @@ export function CartDrawer() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-primary"
+                            onClick={() => saveForLater(item.productId)}
+                            aria-label={`Save ${item.title} for later`}
+                          >
+                            <BookmarkPlus size={14} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             className="h-7 w-7 text-muted-foreground hover:text-destructive"
                             onClick={() => removeFromCart(item.productId)}
                             aria-label={`Remove ${item.title} from cart`}
@@ -174,6 +207,63 @@ export function CartDrawer() {
                   </li>
                 ))}
               </ul>
+
+              {/* Saved for later (parked items — excluded from subtotal/checkout) */}
+              {savedForLater.length > 0 && (
+                <div className="mt-6 rounded-2xl border border-dashed bg-muted/30 p-3.5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Saved for later · {savedForLater.length}
+                  </p>
+                  <ul className="mt-3 space-y-3">
+                    {savedForLater.map((item) => (
+                      <li key={item.productId} className="flex items-center gap-3">
+                        <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg border bg-muted">
+                          {item.image ? (
+                            <img src={item.image} alt={item.title} className="h-full w-full object-cover" />
+                          ) : (
+                            <span className="flex h-full items-center justify-center text-[10px] text-muted-foreground">
+                              —
+                            </span>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="line-clamp-1 text-xs font-medium leading-4">{item.title}</p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {formatUSD(item.price)} · qty {item.quantity}
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-7 w-7 rounded-lg"
+                          onClick={() => {
+                            const res = moveToCart(item.productId)
+                            if (!res.ok) {
+                              toast({
+                                title: 'Cannot move to cart',
+                                description: res.message,
+                                variant: 'destructive',
+                              })
+                            }
+                          }}
+                          aria-label={`Move ${item.title} back to cart`}
+                        >
+                          <RotateCcw size={13} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                          onClick={() => removeFromSaved(item.productId)}
+                          aria-label={`Remove ${item.title} from saved items`}
+                        >
+                          <Trash2 size={13} />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
 
             {/* Footer */}

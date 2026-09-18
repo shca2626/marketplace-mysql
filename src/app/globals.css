@@ -206,3 +206,34 @@ body {
   box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary) 14%, transparent);
 }
 
+
+/* ── Skeleton shimmer sweep ────────────────────────────────────────────
+   Adds a moving highlight over .animate-pulse blocks (product card
+   skeletons, dashboard placeholders) for a more premium loading feel. */
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.skeleton-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--foreground) 6%, transparent),
+    transparent
+  );
+  animation: shimmer-sweep 1.6s infinite;
+}
+@keyframes shimmer-sweep {
+  100% {
+    transform: translateX(100%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer::after {
+    animation: none;
+  }
+}

@@ -1,6 +1,7 @@
 'use client'
 
-import { Minus, Plus, ShoppingCart, Trash2 } from 'lucide-react'
+import { BookmarkPlus, Minus, Plus, RotateCcw, ShoppingCart, Trash2 } from 'lucide-react'
+import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
 import { formatUSD } from '@/lib/format'
 import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE } from '@/lib/pricing'
@@ -13,6 +14,10 @@ export function CartView() {
   const cart = useMarketplace((s) => s.cart)
   const updateQuantity = useMarketplace((s) => s.updateQuantity)
   const removeFromCart = useMarketplace((s) => s.removeFromCart)
+  const savedForLater = useMarketplace((s) => s.savedForLater)
+  const saveForLater = useMarketplace((s) => s.saveForLater)
+  const moveToCart = useMarketplace((s) => s.moveToCart)
+  const removeFromSaved = useMarketplace((s) => s.removeFromSaved)
   const navigate = useMarketplace((s) => s.navigate)
   const user = useMarketplace((s) => s.user)
   const openAuth = useMarketplace((s) => s.openAuth)
@@ -34,6 +39,62 @@ export function CartView() {
         <Button size="lg" className="mt-6 rounded-xl" onClick={() => navigate('catalog')}>
           Explore products
         </Button>
+
+        {/* Saved items survive an empty active cart — offer one-click restore */}
+        {savedForLater.length > 0 && (
+          <Card className="mt-10 w-full max-w-lg text-left">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">
+                Saved for later · {savedForLater.length}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {savedForLater.map((item) => (
+                <div key={item.productId} className="flex items-center gap-3">
+                  <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg border bg-muted">
+                    {item.image ? (
+                      <img src={item.image} alt={item.title} className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="flex h-full items-center justify-center text-[10px] text-muted-foreground">—</span>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="line-clamp-1 text-sm font-medium">{item.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatUSD(item.price)} · qty {item.quantity}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 rounded-full px-3 text-xs"
+                    onClick={() => {
+                      const res = moveToCart(item.productId)
+                      if (res.ok) toast({ title: 'Moved to cart', description: item.title })
+                      else
+                        toast({
+                          title: 'Cannot move to cart',
+                          description: res.message,
+                          variant: 'destructive',
+                        })
+                    }}
+                  >
+                    <RotateCcw size={12} className="mr-1" /> Move to cart
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                    onClick={() => removeFromSaved(item.productId)}
+                    aria-label={`Remove ${item.title} from saved items`}
+                  >
+                    <Trash2 size={14} />
+                  </Button>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
       </div>
     )
   }
@@ -83,15 +144,26 @@ export function CartView() {
                         )}
                         <p className="mt-1 text-sm text-muted-foreground">{formatUSD(item.price)} each</p>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
-                        onClick={() => removeFromCart(item.productId)}
-                        aria-label={`Remove ${item.title}`}
-                      >
-                        <Trash2 size={15} />
-                      </Button>
+                      <div className="flex shrink-0 items-center gap-0.5">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-primary"
+                          onClick={() => saveForLater(item.productId)}
+                          aria-label={`Save ${item.title} for later`}
+                        >
+                          <BookmarkPlus size={15} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => removeFromCart(item.productId)}
+                          aria-label={`Remove ${item.title}`}
+                        >
+                          <Trash2 size={15} />
+                        </Button>
+                      </div>
                     </div>
                     <div className="mt-auto flex items-center justify-between pt-2">
                       <div className="flex items-center gap-1">
@@ -131,6 +203,60 @@ export function CartView() {
               ))}
             </CardContent>
           </Card>
+
+          {/* Saved for later — parked items, excluded from this order */}
+          {savedForLater.length > 0 && (
+            <Card className="mt-6">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Saved for later · {savedForLater.length}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {savedForLater.map((item) => (
+                  <div key={item.productId} className="flex items-center gap-3">
+                    <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg border bg-muted">
+                      {item.image ? (
+                        <img src={item.image} alt={item.title} className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="flex h-full items-center justify-center text-[10px] text-muted-foreground">—</span>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="line-clamp-1 text-sm font-medium">{item.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatUSD(item.price)} · qty {item.quantity}
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 rounded-full px-3 text-xs"
+                      onClick={() => {
+                        const res = moveToCart(item.productId)
+                        if (res.ok) toast({ title: 'Moved to cart', description: item.title })
+                        else
+                          toast({
+                            title: 'Cannot move to cart',
+                            description: res.message,
+                            variant: 'destructive',
+                          })
+                      }}
+                    >
+                      <RotateCcw size={12} className="mr-1" /> Move to cart
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      onClick={() => removeFromSaved(item.productId)}
+                      aria-label={`Remove ${item.title} from saved items`}
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Summary */}
