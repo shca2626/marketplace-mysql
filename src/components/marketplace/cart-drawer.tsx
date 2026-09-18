@@ -14,8 +14,9 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 
-export const FREE_SHIPPING_THRESHOLD = 75
-export const SHIPPING_FEE = 6.99
+// Pricing rules live in lib/pricing (single source of truth, shared with the API).
+import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE } from '@/lib/pricing'
+export { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE }
 
 export function CartDrawer() {
   const open = useMarketplace((s) => s.cartOpen)

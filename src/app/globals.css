@@ -145,6 +145,12 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Hide the Next.js dev-tools indicator ("N" button) in development.
+   The element only exists in dev mode; production builds are unaffected. */
+nextjs-portal {
+  display: none;
+}
+
 body {
   text-rendering: optimizeLegibility;
 }

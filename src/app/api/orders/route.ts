@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/auth'
 import { serializeOrder } from '@/lib/serialize'
+import { computePricing, findCoupon } from '@/lib/pricing'
 
 const checkoutSchema = z.object({
   items: z
@@ -14,6 +15,7 @@ const checkoutSchema = z.object({
   country: z.string().min(2, 'Country is required').max(80),
   zip: z.string().min(3, 'ZIP code is required').max(20),
   phone: z.string().max(30).optional().nullable(),
+  couponCode: z.string().trim().max(24).optional().nullable(),
 })
 
 // POST /api/orders — checkout
@@ -30,7 +32,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       )
     }
-    const { items, ...shipping } = parsed.data
+    const { items, couponCode: rawCouponCode, ...shipping } = parsed.data
 
     // Deduplicate + validate stock
     const productIds = [...new Set(items.map((i) => i.productId))]
@@ -49,16 +51,43 @@ export async function POST(req: NextRequest) {
         )
     }
 
-    const total = items.reduce((sum, i) => {
+    const subtotal = items.reduce((sum, i) => {
       const p = productMap.get(i.productId)!
       return sum + p.price * i.quantity
     }, 0)
+
+    // ── Coupon validation (authoritative, re-checked server-side) ──
+    let coupon = null
+    if (rawCouponCode) {
+      coupon = findCoupon(rawCouponCode)
+      if (!coupon) {
+        return NextResponse.json({ error: 'Invalid coupon code' }, { status: 400 })
+      }
+      if (subtotal < coupon.minSubtotal) {
+        return NextResponse.json(
+          { error: `Coupon requires a minimum order of $${coupon.minSubtotal}` },
+          { status: 400 }
+        )
+      }
+      if (coupon.firstOrderOnly) {
+        const priorOrders = await db.order.count({ where: { buyerId: user.id } })
+        if (priorOrders > 0) {
+          return NextResponse.json(
+            { error: 'This coupon is only valid on your first order' },
+            { status: 400 }
+          )
+        }
+      }
+    }
+
+    // ── Server-authoritative pricing (matches lib/pricing used by the UI) ──
+    const pricing = computePricing(subtotal, coupon)
 
     const order = await db.$transaction(async (tx) => {
       const created = await tx.order.create({
         data: {
           buyerId: user.id,
-          total: Math.round(total * 100) / 100,
+          total: pricing.total,
           status: 'PAID',
           ...shipping,
           phone: shipping.phone ?? null,
@@ -99,7 +128,19 @@ export async function POST(req: NextRequest) {
       return created
     })
 
-    return NextResponse.json({ order: serializeOrder(order) }, { status: 201 })
+    return NextResponse.json(
+      {
+        order: serializeOrder(order),
+        pricing: {
+          subtotal: pricing.subtotal,
+          discount: pricing.discount,
+          shipping: pricing.shipping,
+          total: pricing.total,
+          couponCode: coupon?.code ?? null,
+        },
+      },
+      { status: 201 }
+    )
   } catch (err) {
     console.error('orders POST error', err)
     return NextResponse.json({ error: 'Checkout failed' }, { status: 500 })

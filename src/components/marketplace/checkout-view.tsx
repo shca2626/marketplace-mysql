@@ -2,12 +2,12 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowLeft, CheckCircle2, CreditCard, Lock, MapPin, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, BadgePercent, CheckCircle2, CreditCard, Loader2, Lock, MapPin, ShieldCheck, Ticket, X } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
 import type { OrderDTO } from '@/lib/types'
 import { formatUSD } from '@/lib/format'
-import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE } from './cart-drawer'
+import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE } from '@/lib/pricing'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -16,6 +16,13 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { cn } from '@/lib/utils'
+
+interface AppliedCoupon {
+  code: string
+  percentOff: number
+  description: string
+}
 
 export function CheckoutView() {
   const cart = useMarketplace((s) => s.cart)
@@ -34,10 +41,52 @@ export function CheckoutView() {
   })
   const [placing, setPlacing] = useState(false)
   const [placedOrder, setPlacedOrder] = useState<OrderDTO | null>(null)
+  const [placedPricing, setPlacedPricing] = useState<{ discount: number; couponCode: string | null } | null>(null)
+
+  // ── Coupon state ──
+  const [couponInput, setCouponInput] = useState('')
+  const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null)
+  const [couponError, setCouponError] = useState<string | null>(null)
+  const [applyingCoupon, setApplyingCoupon] = useState(false)
 
   const subtotal = cart.reduce((sum, i) => sum + i.price * i.quantity, 0)
   const freeShipping = subtotal >= FREE_SHIPPING_THRESHOLD
-  const total = subtotal + (freeShipping ? 0 : SHIPPING_FEE)
+  const discount = appliedCoupon
+    ? Math.round(subtotal * (appliedCoupon.percentOff / 100) * 100) / 100
+    : 0
+  const total = subtotal - discount + (freeShipping ? 0 : SHIPPING_FEE)
+
+  const applyCoupon = async () => {
+    const code = couponInput.trim()
+    if (!code) return
+    setApplyingCoupon(true)
+    setCouponError(null)
+    try {
+      const res = await fetch('/api/coupons/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, subtotal }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setAppliedCoupon(null)
+        setCouponError(json.error ?? 'Could not apply this code')
+        return
+      }
+      setAppliedCoupon(json.coupon)
+      setCouponInput('')
+      toast({ title: 'Coupon applied 🎟️', description: `${json.coupon.code} — ${json.coupon.description}` })
+    } catch {
+      setCouponError('Network error — please try again')
+    } finally {
+      setApplyingCoupon(false)
+    }
+  }
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null)
+    setCouponError(null)
+  }
 
   const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [key]: e.target.value }))
@@ -62,6 +111,7 @@ export function CheckoutView() {
           items: cart.map((i) => ({ productId: i.productId, quantity: i.quantity })),
           ...form,
           phone: form.phone || null,
+          couponCode: appliedCoupon?.code ?? null,
         }),
       })
       const json = await res.json()
@@ -70,6 +120,7 @@ export function CheckoutView() {
         return
       }
       setPlacedOrder(json.order)
+      setPlacedPricing(json.pricing ?? null)
       clearCart()
       toast({ title: 'Order placed! 🎉', description: 'A confirmation has been sent to your email' })
     } catch {
@@ -129,6 +180,12 @@ export function CheckoutView() {
                 <span>Total paid</span>
                 <span>{formatUSD(placedOrder.total)}</span>
               </div>
+              {placedPricing && placedPricing.discount > 0 && placedPricing.couponCode && (
+                <div className="flex items-center justify-center gap-1.5 rounded-lg bg-emerald-500/10 p-2.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                  <BadgePercent size={14} />
+                  You saved {formatUSD(placedPricing.discount)} with code {placedPricing.couponCode}
+                </div>
+              )}
               <div className="flex items-center gap-2 rounded-lg bg-muted/60 p-3 text-xs text-muted-foreground">
                 <MapPin size={14} className="shrink-0" />
                 <span>
@@ -283,6 +340,63 @@ export function CheckoutView() {
                 </ul>
               </ScrollArea>
               <Separator />
+              {/* Coupon input / applied state */}
+              {appliedCoupon ? (
+                <div className="flex items-center justify-between gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3.5 py-2.5">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">
+                      <Ticket size={14} />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-emerald-700 dark:text-emerald-300">
+                        {appliedCoupon.code} · −{appliedCoupon.percentOff}%
+                      </p>
+                      <p className="truncate text-xs text-emerald-600/80 dark:text-emerald-400/80">
+                        {appliedCoupon.description}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={removeCoupon}
+                    className="shrink-0 rounded-full p-1.5 text-emerald-700/70 transition hover:bg-emerald-500/15 hover:text-emerald-700 dark:text-emerald-300/70 dark:hover:text-emerald-300"
+                    aria-label="Remove coupon"
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Ticket className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={couponInput}
+                        onChange={(e) => {
+                          setCouponInput(e.target.value)
+                          setCouponError(null)
+                        }}
+                        placeholder="Promo code (try WELCOME10)"
+                        className="h-10 pl-9 uppercase placeholder:normal-case"
+                        aria-label="Promo code"
+                        maxLength={24}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-10 shrink-0 rounded-xl px-4"
+                      disabled={!couponInput.trim() || applyingCoupon}
+                      onClick={() => void applyCoupon()}
+                    >
+                      {applyingCoupon ? <Loader2 size={14} className="animate-spin" /> : 'Apply'}
+                    </Button>
+                  </div>
+                  {couponError && (
+                    <p className="mt-1.5 text-xs font-medium text-destructive">{couponError}</p>
+                  )}
+                </div>
+              )}
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between text-muted-foreground">
                   <span>Subtotal</span>
@@ -298,9 +412,19 @@ export function CheckoutView() {
                     )}
                   </span>
                 </div>
+                {discount > 0 && (
+                  <div className="flex justify-between text-muted-foreground">
+                    <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                      <BadgePercent size={13} /> {appliedCoupon?.code}
+                    </span>
+                    <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                      −{formatUSD(discount)}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between text-muted-foreground">
                   <span>Tax</span>
-                  <span>Calculated at pickup</span>
+                  <span className="font-medium text-foreground">Included</span>
                 </div>
                 <Separator />
                 <div className="flex justify-between text-lg font-bold">

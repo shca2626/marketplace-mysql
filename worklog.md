@@ -114,3 +114,27 @@ Stage Summary:
 - Files touched: next.config.ts, globals.css (touch only), src/store/marketplace.ts, src/app/api/products/route.ts, src/app/api/orders/[id]/route.ts, src/app/api/seller/stats/route.ts, orders-view.tsx, home-view.tsx, product-view.tsx, product-card.tsx, seller-view.tsx
 - Still frozen: PLAN-1 architectural rebuild awaits user approval — do NOT start Phase 0 without it
 - Known minor: devIndicators takes effect on next dev-server restart
+
+---
+Task ID: CRON-R2 (webDevReview round 2 — coupon system + billing integrity)
+Agent: Z.ai Code (orchestrator)
+Task: Scheduled QA round: fix advertised-but-missing WELCOME10 coupon + checkout pricing mismatch; non-architectural only (PLAN-1 still frozen)
+
+Work Log:
+- Read worklog; dev.log/lint clean; theme healthy (light oklch chroma 52.4 — no stale cache recurrence); dev overlay still present (server not restarted since config change)
+- QA sweep found TWO real defects: (1) announcement bar advertises "WELCOME10 for 10% off your first order" but NO coupon support existed anywhere (false advertising in UI); (2) BILLING MISMATCH — checkout button showed subtotal+shipping ($66.98) but POST /api/orders stored raw subtotal only (no shipping) → stored totals were wrong on every order placed to date
+- NEW src/lib/pricing.ts — single source of truth: FREE_SHIPPING_THRESHOLD/SHIPPING_FEE + COUPONS config (WELCOME10: 10%, firstOrderOnly, minSubtotal) + computePricing() shared by API (authoritative) and UI (preview)
+- NEW POST /api/coupons/validate — instant Apply feedback: checks code exists, min subtotal, firstOrderOnly via db.order.count (session required); display-only, order POST re-validates
+- POST /api/orders — now accepts couponCode, recomputes coupon+shipping server-side from DB prices, stores authoritative total, returns pricing breakdown; guard: invalid code 400 / not-first-order 400 / min subtotal 400
+- checkout-view — coupon input + Apply (loading spinner), applied state (emerald chip w/ Ticket icon, code, %, description, remove X), inline destructive error text, summary discount line (−$X), success screen "You saved $X with code WELCOME10" banner; Tax row reworded "Calculated at pickup"→"Included"
+- cart-drawer now imports + re-exports pricing constants from lib/pricing; cart-view switched import to lib/pricing (all display paths share one source)
+- globals.css: nextjs-portal { display:none } — hides dev-tools "N" indicator (dev-only element; CSS-verified hidden, belt+braces alongside devIndicators:false)
+- BUG during E2E: `...shipping` spread leaked couponCode into order.create → Prisma "Unknown argument" 500. Fixed by destructuring couponCode out of shipping. (Lesson: always destructure new optional fields before spreading into Prisma data.)
+- E2E evidence: fresh user (coupon-test@example.com) → Echo speaker $59.99 → checkout $66.98 ($59.99+$6.99) → WELCOME10 applied → Place order · $60.98 ($59.99−$6.00+$6.99) → success screen "You saved $6.00 with code WELCOME10" → DB total 60.98 PAID; second-order reuse rejected inline "This code is only valid on your first order"; server-side guard via direct API → 400 same message; FAKECODE → "That code doesn't exist — check the spelling"; no-coupon order regression: stored 28.99 = 22.00+6.99 shipping now INCLUDED (mismatch fixed); mobile 390px VLM-verified (input + error state intact, no overlap); lint clean; dev.log clean; logged out + storage cleared to neutral
+
+Stage Summary:
+- Fixed: advertised coupon now real (WELCOME10, first-order-enforced client+server), checkout button price == stored order total (shipping included both sides)
+- New: lib/pricing.ts shared module, /api/coupons/validate, checkout coupon UX (apply/remove/error/savings states)
+- Test data note: coupon-test@example.com has 2 orders; demo buyer unaffected; all coupon test orders placed under test account
+- Still frozen: PLAN-1 architectural rebuild awaits user approval — next round should NOT add new transactional surface; suggest: seller public store page (products API already supports sellerId) or order email simulation, pending user's return
+- Next-round candidates: seller store public page, order confirmation "email" simulation via toast/inbox, admin analytics view

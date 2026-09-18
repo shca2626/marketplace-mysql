@@ -3,7 +3,7 @@
 import { Minus, Plus, ShoppingCart, Trash2 } from 'lucide-react'
 import { useMarketplace } from '@/store/marketplace'
 import { formatUSD } from '@/lib/format'
-import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE } from './cart-drawer'
+import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE } from '@/lib/pricing'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
