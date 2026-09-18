@@ -4,18 +4,23 @@ import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   BadgeCheck,
+  Check,
   ChevronRight,
   LayoutDashboard,
   MessageCircleHeart,
   Package,
+  Share2,
   Star,
   Store,
   TrendingUp,
 } from 'lucide-react'
+import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
 import type { ProductDTO, StoreCategoryDTO, StoreDTO } from '@/lib/types'
 import { formatDate, formatNumber, initials } from '@/lib/format'
+import { viewToHref } from '@/lib/routing'
+import { absoluteUrl, shareLink } from '@/lib/share'
 import { ProductCard, ProductCardSkeleton } from './product-card'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -64,6 +69,24 @@ export function StoreView() {
   const [category, setCategory] = useState('')
   const [sort, setSort] = useState('popular')
   const [visible, setVisible] = useState(PAGE_SIZE)
+  const [justShared, setJustShared] = useState(false)
+
+  const storeName = store?.storeName ?? store?.name ?? 'Store'
+
+  const handleShareStore = async () => {
+    if (!sellerId) return
+    const url = absoluteUrl(viewToHref('store', { sellerId }))
+    const outcome = await shareLink(url, `${storeName} on Vendora`, `Discover ${storeName} on Vendora`)
+    if (outcome === 'shared') {
+      toast({ title: 'Thanks for spreading the word!', description: storeName })
+    } else if (outcome === 'copied') {
+      setJustShared(true)
+      setTimeout(() => setJustShared(false), 1800)
+      toast({ title: 'Link copied to clipboard', description: 'Share it anywhere you like' })
+    } else if (outcome === 'failed') {
+      toast({ title: 'Could not share', description: 'Copy failed — try again in a moment', variant: 'destructive' })
+    }
+  }
 
   // Reset local filters when switching stores while the view stays mounted
   // (render-time sync — same pattern as CatalogView, avoids effect cascades)
@@ -84,7 +107,6 @@ export function StoreView() {
   const { data: productsData, loading: productsLoading } = useApi<ProductsResponse>(productsQuery)
   const products = productsData?.items ?? []
   const isOwnStore = Boolean(user && store && user.id === store.id)
-
   /* ── 404 / error state ── */
   if (!sellerId || (profileError && !store)) {
     return (
@@ -102,8 +124,6 @@ export function StoreView() {
       </div>
     )
   }
-
-  const storeName = store?.storeName ?? store?.name ?? 'Store'
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
@@ -169,6 +189,20 @@ export function StoreView() {
                   onClick={() => navigate('seller')}
                 >
                   <LayoutDashboard size={15} className="mr-1.5" /> Manage your store
+                </Button>
+              )}
+              {sellerId && (
+                <Button
+                  variant="outline"
+                  className={cn(
+                    'rounded-xl bg-card/80 backdrop-blur transition-colors',
+                    justShared && 'border-emerald-500/60 text-emerald-600 dark:text-emerald-400'
+                  )}
+                  onClick={handleShareStore}
+                  aria-label="Share this store"
+                >
+                  {justShared ? <Check size={15} className="mr-1.5" /> : <Share2 size={15} className="mr-1.5" />}
+                  {justShared ? 'Copied!' : 'Share'}
                 </Button>
               )}
             </div>

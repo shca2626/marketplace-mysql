@@ -237,3 +237,29 @@ body {
     animation: none;
   }
 }
+
+/* ── Order timeline: current-step pulse ring ───────────────────────────
+   Draws attention to the "you are here" step in the order progress
+   timeline (orders-view.tsx). Uses color-mix for the same nested-oklch
+   reason as .search-glow above. */
+@keyframes step-pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 42%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 8px color-mix(in oklab, var(--primary) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 0%, transparent);
+  }
+}
+.step-pulse {
+  animation: step-pulse-ring 2.2s ease-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .step-pulse {
+    animation: none;
+  }
+}
+
+/* cache-bust r9: force recompile of globals (step-pulse delivery) */

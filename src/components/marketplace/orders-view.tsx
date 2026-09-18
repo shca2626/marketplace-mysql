@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { motion } from 'framer-motion'
 import { Ban, CalendarClock, Check, ClipboardList, PackageCheck, PackageOpen, ReceiptText, Search, Star, Truck, X } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
@@ -279,32 +280,48 @@ export function OrdersView() {
                   <div className="flex items-start">
                     {STATUS_STEPS.map((step, i) => {
                       const done = i <= currentIdx
+                      const active = i === currentIdx
                       return (
                         <div key={step.key} className="relative flex flex-1 flex-col items-center">
                           {i > 0 && (
-                            <span
+                            <motion.span
                               className={cn(
-                                'absolute right-1/2 top-4 -z-0 h-0.5 w-full',
+                                'absolute right-1/2 top-4 -z-0 h-0.5 w-full origin-left',
                                 i <= currentIdx ? 'bg-primary' : 'bg-border'
                               )}
+                              initial={{ scaleX: 0 }}
+                              animate={{ scaleX: 1 }}
+                              transition={{ duration: 0.45, delay: 0.15 + i * 0.09, ease: 'easeOut' }}
                             />
                           )}
-                          <span
+                          <motion.span
                             className={cn(
                               'z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 bg-background',
-                              done ? 'border-primary text-primary' : 'border-border text-muted-foreground/70'
+                              done ? 'border-primary text-primary' : 'border-border text-muted-foreground/70',
+                              active && 'step-pulse'
                             )}
+                            initial={{ scale: 0.4, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{
+                              type: 'spring',
+                              stiffness: 500,
+                              damping: 22,
+                              delay: i * 0.09,
+                            }}
                           >
                             {done && i < currentIdx ? <Check size={13} /> : <step.icon size={13} />}
-                          </span>
-                          <span
+                          </motion.span>
+                          <motion.span
                             className={cn(
                               'mt-1.5 text-center text-[10px] font-medium leading-tight sm:text-xs',
                               done ? 'text-foreground' : 'text-muted-foreground/70'
                             )}
+                            initial={{ opacity: 0, y: 4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.3, delay: 0.1 + i * 0.09 }}
                           >
                             {step.label}
-                          </span>
+                          </motion.span>
                         </div>
                       )
                     })}

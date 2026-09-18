@@ -6,6 +6,7 @@ import {
   CalendarClock,
   ClipboardList,
   DollarSign,
+  Download,
   Layers,
   Loader2,
   PackageCheck,
@@ -23,10 +24,19 @@ import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
 import type { AdminStats } from '@/lib/types'
 import { formatNumber, formatUSD, timeAgo } from '@/lib/format'
+import { downloadCsv, fileStamp, toCsv } from '@/lib/csv'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Area,
   AreaChart,
@@ -52,6 +62,77 @@ const STATUS_BADGE: Record<string, string> = {
   SHIPPED: 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300',
   DELIVERED: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
   CANCELLED: 'bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400',
+}
+
+/** Client-side CSV builders — all derived from the already-fetched stats payload. */
+function exportSummaryCsv(stats: AdminStats) {
+  const rows: Parameters<typeof toCsv>[0] = [
+    ['Vendora — Platform summary'],
+    ['Generated', new Date().toISOString()],
+    [],
+    ['Metric', 'Value'],
+    ['Total members', stats.totals.users],
+    ['Buyers', stats.totals.buyers],
+    ['Sellers', stats.totals.sellers],
+    ['New members (7d)', stats.totals.newUsers7d],
+    ['Products', stats.totals.products],
+    ['Active listings', stats.totals.activeListings],
+    ['Orders (all time)', stats.totals.orders],
+    ['Total GMV (USD)', stats.totals.revenue.toFixed(2)],
+    ['Average order value (USD)', stats.totals.aov.toFixed(2)],
+    ['Reviews', stats.totals.reviews],
+    [],
+    ['Orders by status'],
+    ['Status', 'Count', 'Revenue (USD)'],
+    ...stats.ordersByStatus.map((s) => [s.status, s.count, s.revenue.toFixed(2)]),
+    [],
+    ['Revenue by day (last 14 days)'],
+    ['Date', 'Orders', 'Revenue (USD)'],
+    ...stats.revenueByDay.map((d) => [d.date, d.orders, d.revenue.toFixed(2)]),
+    [],
+    ['Top sellers'],
+    ['Store', 'Seller', 'Revenue (USD)', 'Units sold', 'Listings', 'Avg rating'],
+    ...stats.topSellers.map((s) => [s.storeName ?? s.name, s.name, s.revenue.toFixed(2), s.unitsSold, s.products, s.rating.toFixed(2)]),
+    [],
+    ['Top categories'],
+    ['Category', 'Units sold', 'Revenue (USD)', 'Listings'],
+    ...stats.topCategories.map((c) => [c.name, c.unitsSold, c.revenue.toFixed(2), c.products]),
+    [],
+    ['Recent orders'],
+    ['Order', 'Buyer', 'Items', 'Total (USD)', 'Status', 'Placed'],
+    ...stats.recentOrders.map((o) => [`#${o.id.slice(-8).toUpperCase()}`, o.buyer.name, o.itemCount, o.total.toFixed(2), o.status, o.createdAt]),
+  ]
+  downloadCsv(`vendora-summary-${fileStamp()}.csv`, toCsv(rows))
+}
+
+function exportRevenueCsv(stats: AdminStats) {
+  downloadCsv(
+    `vendora-revenue-${fileStamp()}.csv`,
+    toCsv([
+      ['Date', 'Orders', 'Revenue (USD)'],
+      ...stats.revenueByDay.map((d) => [d.date, d.orders, d.revenue.toFixed(2)]),
+    ])
+  )
+}
+
+function exportSellersCsv(stats: AdminStats) {
+  downloadCsv(
+    `vendora-top-sellers-${fileStamp()}.csv`,
+    toCsv([
+      ['Store', 'Seller', 'Revenue (USD)', 'Units sold', 'Listings', 'Avg rating'],
+      ...stats.topSellers.map((s) => [s.storeName ?? s.name, s.name, s.revenue.toFixed(2), s.unitsSold, s.products, s.rating.toFixed(2)]),
+    ])
+  )
+}
+
+function exportOrdersCsv(stats: AdminStats) {
+  downloadCsv(
+    `vendora-recent-orders-${fileStamp()}.csv`,
+    toCsv([
+      ['Order', 'Buyer', 'Items', 'Total (USD)', 'Status', 'Placed'],
+      ...stats.recentOrders.map((o) => [`#${o.id.slice(-8).toUpperCase()}`, o.buyer.name, o.itemCount, o.total.toFixed(2), o.status, o.createdAt]),
+    ])
+  )
 }
 
 export function AdminView() {
@@ -118,10 +199,36 @@ export function AdminView() {
             Read-only marketplace overview · {user?.name}
           </p>
         </div>
-        <Button variant="outline" className="rounded-xl" onClick={() => void refetch()} disabled={loading}>
-          {loading ? <Loader2 size={15} className="mr-2 animate-spin" /> : <RefreshCw size={15} className="mr-2" />}
-          Refresh
-        </Button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Button variant="outline" className="rounded-xl" onClick={() => void refetch()} disabled={loading}>
+            {loading ? <Loader2 size={15} className="mr-2 animate-spin" /> : <RefreshCw size={15} className="mr-2" />}
+            Refresh
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="rounded-xl" disabled={!stats} aria-label="Export analytics as CSV">
+                <Download size={15} className="mr-2" />
+                Export CSV
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Choose a dataset</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => stats && exportSummaryCsv(stats)}>
+                <Layers size={15} className="mr-2 text-primary" /> Full summary (all sections)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => stats && exportRevenueCsv(stats)}>
+                <DollarSign size={15} className="mr-2 text-primary" /> Revenue by day
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => stats && exportSellersCsv(stats)}>
+                <Store size={15} className="mr-2 text-primary" /> Top sellers
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => stats && exportOrdersCsv(stats)}>
+                <ShoppingBag size={15} className="mr-2 text-primary" /> Recent orders
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {/* KPI cards */}

@@ -162,19 +162,19 @@ export function HomeView() {
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.05, duration: 0.3 }}
                 onClick={() => navigate('catalog', { category: c.slug })}
-                className="group flex flex-col items-center gap-2.5 rounded-2xl border bg-card p-5 text-center transition-all hover:-translate-y-1 hover:border-primary/40 hover:shadow-md"
+                className="group flex flex-col items-center gap-2.5 rounded-2xl border bg-card p-5 text-center transition-all duration-200 hover:-translate-y-1 hover:border-primary/40 hover:bg-primary/[0.03] hover:shadow-lg hover:shadow-primary/10 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-[0.97]"
               >
                 {c.coverImage && (
                   <img
                     src={c.coverImage}
                     alt=""
                     loading="lazy"
-                    className="h-11 w-11 rounded-xl object-cover shadow-sm transition-transform group-hover:scale-110"
+                    className="h-11 w-11 rounded-xl object-cover shadow-sm ring-1 ring-transparent transition-all duration-200 group-hover:scale-110 group-hover:ring-2 group-hover:ring-primary/25"
                   />
                 )}
                 <div>
-                  <p className="text-sm font-semibold leading-tight">{c.name}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{c.productCount} items</p>
+                  <p className="text-sm font-semibold leading-tight transition-colors group-hover:text-primary">{c.name}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground transition-colors group-hover:text-primary/70">{c.productCount} items</p>
                 </div>
               </motion.button>
             )

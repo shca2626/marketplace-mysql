@@ -4,9 +4,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   BadgeCheck,
+  Check,
   ChevronRight,
   Heart,
   RotateCcw,
+  Share2,
   ShieldCheck,
   ShoppingCart,
   Star,
@@ -23,6 +25,8 @@ import { discountPercent, formatDate, formatNumber, formatUSD, initials, timeAgo
 import { StarPicker } from './star-rating'
 import { QuantityInput } from './quantity-input'
 import { ProductCard } from './product-card'
+import { viewToHref } from '@/lib/routing'
+import { absoluteUrl, shareLink } from '@/lib/share'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
@@ -68,7 +72,13 @@ export function ProductView() {
   const [reviewComment, setReviewComment] = useState('')
   const [submittingReview, setSubmittingReview] = useState(false)
   const [showBuyBar, setShowBuyBar] = useState(false)
+  const [justShared, setJustShared] = useState(false)
+  const shareTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const buyActionsRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => () => {
+    if (shareTimer.current) clearTimeout(shareTimer.current)
+  }, [])
 
   // Mobile sticky buy bar: reveal once the main action buttons scroll out of view
   useEffect(() => {
@@ -145,6 +155,22 @@ export function ProductView() {
       window.dispatchEvent(new CustomEvent('favorites-changed'))
     } catch {
       toast({ title: 'Error', description: 'Network error', variant: 'destructive' })
+    }
+  }
+
+  const handleShare = async () => {
+    if (!product) return
+    const url = absoluteUrl(viewToHref('product', { productId: product.id }))
+    const outcome = await shareLink(url, product.title, `Check out ${product.title} on Vendora`)
+    if (outcome === 'shared') {
+      toast({ title: 'Thanks for spreading the word!', description: product.title })
+    } else if (outcome === 'copied') {
+      setJustShared(true)
+      if (shareTimer.current) clearTimeout(shareTimer.current)
+      shareTimer.current = setTimeout(() => setJustShared(false), 1800)
+      toast({ title: 'Link copied to clipboard', description: 'Share it anywhere you like' })
+    } else if (outcome === 'failed') {
+      toast({ title: 'Could not share', description: 'Copy failed — try again in a moment', variant: 'destructive' })
     }
   }
 
@@ -365,6 +391,18 @@ export function ProductView() {
                 size={19}
                 className={cn('transition-colors', product.favorited && 'fill-red-500 text-red-500')}
               />
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              className={cn(
+                'h-12 w-12 rounded-xl p-0 transition-colors',
+                justShared && 'border-emerald-500/60 text-emerald-600 dark:text-emerald-400'
+              )}
+              onClick={handleShare}
+              aria-label="Share this product"
+            >
+              {justShared ? <Check size={19} /> : <Share2 size={19} />}
             </Button>
           </div>
 
