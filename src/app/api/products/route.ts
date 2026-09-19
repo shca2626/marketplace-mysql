@@ -48,7 +48,8 @@ export async function GET(req: NextRequest) {
       include: productInclude,
     })
 
-    // Case-insensitive search across title/description/category/store (SQLite-safe, in-memory)
+    // Case-insensitive search across title/description/category/store
+    // (in-memory multi-term AND search; DB-level filtering is tracked as TD-03)
     if (q) {
       products = products.filter((p) => {
         const hay = `${p.title} ${p.description} ${p.category.name} ${p.seller.storeName ?? ''} ${p.seller.name}`.toLowerCase()

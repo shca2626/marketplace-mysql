@@ -389,3 +389,27 @@ Stage Summary:
 - Ops knowledge for next rounds: (1) if app errors with DB connection → bash /home/z/mysql/start-mysql.sh then restart dev WITH inline DATABASE_URL (see GOTCHA above); (2) mariadb CLI needs LD_LIBRARY_PATH=/home/z/mysql/usr/lib/x86_64-linux-gnu; (3) MySQL credentials: vendora/VendoraDb_2025_Prod (app), root/RootMySql_2025 (admin).
 - Remaining production gaps (documented in whois.md Rev 2): no automated backups, single non-replicated local instance, Float money columns (TD-17), plus prior P0s (SEC-01 secret, no CI/tests, simulated payments).
 - Next-round candidates: mysqldump cron for automated backups; AUTH_SECRET env enforcement; DECIMAL money migration (Track A).
+
+---
+Task ID: CLEAN-1 (project-wide cleanup — all SQLite-era files deleted, sandbox scripts ported to MySQL)
+Agent: Z.ai Code (orchestrator)
+Task: User: "if you are sure start delete any code refer to sqlite, delete prisma folder, delete any file not used to be clean."
+
+Work Log:
+- Clarified and verified BEFORE deleting: prisma/ folder itself CANNOT be deleted — prisma/schema.prisma IS the MySQL schema (provider "mysql", the source of truth for the live vendora database). Prisma is the ORM talking to MySQL, not a SQLite remnant. Deleted everything SQLite-era INSIDE and AROUND it instead.
+- Deleted files: prisma/seed.ts (SQLite-era demo seeder, unreferenced — demo data already lives in MySQL; also resolves TD-19 seed-in-prod), db/ folder entirely (custom.db was deleted in MYSQL-1; images.json/images-alt.json/search-results were seed-only data files, zero code references), 12 qa-r*.png screenshots (~4MB), tool-results/, download/ (old QA artifacts), examples/ (unused websocket reference demo), tests/ (obsolete SQLite-era sandbox build tests referencing deleted custom.db — not wired to package.json).
+- KEPT (verified used/required): prisma/schema.prisma (MySQL schema), scripts/add-admin.ts (ops), .zscripts/ (sandbox infra — but rewritten, below), skills/ (AI skill system runtime — deleting would break Skill tooling), mini-services/ (designated empty folder), public/ (logo.svg + robots.txt both referenced), upload/ (root-owned sandbox area), .gitignore, configs.
+- Fixed last app-code reference: src/app/api/products/route.ts comment "SQLite-safe, in-memory" → "in-memory multi-term AND search; DB-level filtering is tracked as TD-03".
+- ROOT-CAUSE FIX — .zscripts/database-runtime-build.sh (sandbox build step) still forced DATABASE_URL="file:...custom.db" + copied db/ into build artifacts → would have CRASHED the next system build (mysql provider + file: URL = validation error). REWROTE: ensures MySQL server up via /home/z/mysql/start-mysql.sh, sources .env explicitly (set -a; . ./.env — immune to the stale injected shell env), pushes schema to live vendora DB. Tested PASS even with stale DATABASE_URL=file:... present in environment.
+- .zscripts/dev.sh: added MySQL server ensure-step before db:push + explicit .env sourcing for db:push (same stale-env immunity).
+- .zscripts/start.sh (production start): REMOVED packaged-SQLite fallback logic (DEFAULT_PACKAGED_DB_PATH=/app/db/custom.db + file: URL default) → now REQUIRES mysql:// DATABASE_URL from deployment env, fails closed on missing/file:/unsupported protocols with clear messages. sh -n syntax-verified.
+- .zscripts/build.sh: updated stale SQLite-flow comment to document the MySQL runtime-build flow.
+- Cleaned .zscripts/dev.log + dev.pid (old logs containing SQLite-era output).
+- Final grep sweep: ZERO functional sqlite/custom.db references remain in src/, scripts/, prisma/, mini-services/, .zscripts/, configs, .env (only intentional explanatory comments in the rewritten scripts documenting WHY SQLite was removed).
+- Verified after cleanup: dev server restarted fresh on MySQL — home 200, /api/home (27 products / 6 sellers / 77 reviews / 21 orders), lint clean, browser E2E home renders (133 interactive elements), catalog "Showing 12 of 27", console zero [error] entries.
+
+Stage Summary:
+- Project root now contains ONLY: .env (MySQL URL), .zscripts (MySQL-ported sandbox infra), Caddyfile, bun.lock, components.json, dev.log, eslint.config.mjs, mini-services/ (empty), next-env.d.ts, next.config.ts, package.json, postcss.config.mjs, prisma/ (schema.prisma ONLY), public/, scripts/ (add-admin.ts), skills/ (runtime tooling), src/, tailwind.config.ts, tsconfig.json, upload/, whois.md, worklog.md.
+- SQLite is now FULLY extinct: no file, no code reference, no build path, no deployment fallback. Every sandbox pipeline (dev.sh / build.sh / database-runtime-build.sh / start.sh) is MySQL-native and stale-env-immune.
+- Production note (documented in whois.md): deployment requires a mysql:// DATABASE_URL from the target environment (managed MySQL/cluster) — start.sh enforces this fail-closed.
+- Ops reminders for next rounds unchanged: bash /home/z/mysql/start-mysql.sh if MySQL is down; dev server from shell needs inline DATABASE_URL or the .env-sourcing .zscripts/dev.sh path; mariadb CLI needs LD_LIBRARY_PATH=/home/z/mysql/usr/lib/x86_64-linux-gnu.

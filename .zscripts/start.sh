@@ -53,8 +53,28 @@ cd "$BUILD_DIR" || exit 1
 
 ls -lah
 
-DEFAULT_PACKAGED_DB_PATH="/app/db/custom.db"
-DEFAULT_PACKAGED_DATABASE_URL="file:$DEFAULT_PACKAGED_DB_PATH"
+# ── Database (MySQL) ──
+# REV 2: the platform runs EXCLUSIVELY on MySQL. There is no packaged
+# SQLite database anymore. A valid mysql:// DATABASE_URL must be
+# provided by the deployment environment (managed MySQL / cluster).
+if [ -z "${DATABASE_URL:-}" ]; then
+    echo "ERROR: DATABASE_URL is not set. The platform requires a MySQL connection string"
+    echo "   (e.g. mysql://user:pass@host:3306/vendora). SQLite support has been removed."
+    exit 1
+fi
+case "$DATABASE_URL" in
+    mysql://*)
+        echo "\U0001F5C4\uFE0F  Using MySQL database: $DATABASE_URL"
+        ;;
+    file:*)
+        echo "ERROR: SQLite DATABASE_URL (file:...) is no longer supported. Provide a mysql:// URL."
+        exit 1
+        ;;
+    *)
+        echo "ERROR: Unsupported DATABASE_URL protocol. Expected mysql:// — got: $DATABASE_URL"
+        exit 1
+        ;;
+esac
 
 # Python 依赖在构建阶段安装进部署产物，不复用 Sandbox 的 /home/z/.venv。
 # Next.js 及其启动的子进程都会继承这组路径。
@@ -75,19 +95,7 @@ if [ -f "./next-service-dist/server.js" ]; then
     export NODE_ENV=production
     export PORT="${PORT:-3000}"
     export HOSTNAME="${HOSTNAME:-0.0.0.0}"
-    export DATABASE_URL="${DATABASE_URL:-$DEFAULT_PACKAGED_DATABASE_URL}"
-
-    if [ "$DATABASE_URL" = "$DEFAULT_PACKAGED_DATABASE_URL" ]; then
-        if [ ! -f "$DEFAULT_PACKAGED_DB_PATH" ]; then
-            echo "❌ 未找到打包后的数据库文件 $DEFAULT_PACKAGED_DB_PATH"
-            echo "   为避免生产环境启动到空数据库，启动已终止"
-            exit 1
-        fi
-
-        echo "🗄️  当前使用打包数据库: $DEFAULT_PACKAGED_DB_PATH"
-    else
-        echo "🗄️  当前使用外部指定数据库: $DATABASE_URL"
-    fi
+    # DATABASE_URL (mysql://) was validated above - fail-closed, no silent empty DB
     
     # 后台启动 Next.js
     bun server.js &

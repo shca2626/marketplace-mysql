@@ -1,33 +1,37 @@
 #!/bin/bash
-
+# ─────────────────────────────────────────────────────────────────────
+# database-runtime-build.sh — prepare the database for a build.
+# REV 2 (MySQL): the platform runs EXCLUSIVELY on the MySQL server
+# (MariaDB 11.8.6, user-space install). The retired SQLite file
+# db/custom.db was deleted — there is no per-build DB copy anymore.
+# This script now: (1) ensures the MySQL server is up, (2) pushes the
+# Prisma schema to the live `vendora` database.
+# ─────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
 PROJECT_DIR="${PROJECT_DIR:-/home/z/my-project}"
-BUILD_DIR="${BUILD_DIR:?BUILD_DIR is required}"
-SOURCE_DB_DIR="$PROJECT_DIR/db"
-SOURCE_DB_PATH="$SOURCE_DB_DIR/custom.db"
-TARGET_DB_DIR="$BUILD_DIR/db"
-TARGET_DB_PATH="$TARGET_DB_DIR/custom.db"
+MYSQL_STARTER="/home/z/mysql/start-mysql.sh"
 
-mkdir -p "$TARGET_DB_DIR"
-
-if [ -f "$SOURCE_DB_PATH" ]; then
-    echo "🗄️  复制 Preview 数据库到构建产物..."
-    cp -a "$SOURCE_DB_DIR/." "$TARGET_DB_DIR/"
+# 1) Ensure the user-space MySQL server is running
+if [ -x "$MYSQL_STARTER" ]; then
+    bash "$MYSQL_STARTER"
+elif ss -tln 2>/dev/null | grep -q "127.0.0.1:3306"; then
+    echo "MySQL already running on 127.0.0.1:3306"
 else
-    echo "ℹ️  未找到 Preview 数据库 db/custom.db，将初始化空的生产数据库"
-fi
-
-echo "🗄️  同步构建产物中的数据库结构..."
-(
-    cd "$PROJECT_DIR"
-    DATABASE_URL="file:$TARGET_DB_PATH" bun run db:push
-)
-
-if [ ! -f "$TARGET_DB_PATH" ]; then
-    echo "❌ 数据库初始化命令执行成功，但未生成 $TARGET_DB_PATH"
+    echo "ERROR: MySQL server is not running and no start script found" >&2
     exit 1
 fi
 
-echo "✅ 构建产物数据库已准备完成"
-ls -lah "$TARGET_DB_DIR"
+# 2) Sync the Prisma schema to the live MySQL database.
+# Source the project .env explicitly so a stale inherited DATABASE_URL
+# (e.g. the retired SQLite URL) can never shadow the real one.
+echo "Pushing Prisma schema to MySQL database 'vendora'..."
+(
+    cd "$PROJECT_DIR"
+    set -a
+    [ -f .env ] && . ./.env
+    set +a
+    bun run db:push
+)
+
+echo "✅ MySQL database is ready"
