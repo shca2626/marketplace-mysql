@@ -3,44 +3,46 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
 model User {
   id        String     @id @default(cuid())
-  email     String     @unique
-  password  String
-  name      String
-  image     String?
-  role      String     @default("BUYER") // BUYER | SELLER
-  storeName String?
-  storeBio  String?
+  email     String     @unique @db.VarChar(255)
+  password  String     @db.VarChar(255)
+  name      String     @db.VarChar(255)
+  image     String?    @db.VarChar(512)
+  role      String     @default("BUYER") @db.VarChar(16) // BUYER | SELLER | ADMIN
+  storeName String?    @db.VarChar(120)
+  storeBio  String?    @db.Text
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   products  Product[]
   orders    Order[]
   reviews   Review[]
   favorites Favorite[]
+
+  @@index([role])
 }
 
 model Category {
   id       String    @id @default(cuid())
-  name     String
-  slug     String    @unique
-  icon      String? // lucide icon name
+  name     String    @db.VarChar(120)
+  slug     String    @unique @db.VarChar(120)
+  icon     String?   @db.VarChar(64)
   products Product[]
 }
 
 model Product {
   id             String     @id @default(cuid())
-  title          String
-  description    String
+  title          String     @db.VarChar(160)
+  description    String     @db.Text
   price          Float
   compareAtPrice Float?
-  images         String     @default("[]") // JSON string array of URLs
+  images         String     @default("[]") @db.Text // JSON string array of URLs
   categoryId     String
-  category        Category   @relation(fields: [categoryId], references: [id])
+  category       Category   @relation(fields: [categoryId], references: [id])
   sellerId       String
   seller         User       @relation(fields: [sellerId], references: [id])
   stock          Int        @default(10)
@@ -48,12 +50,17 @@ model Product {
   rating         Float      @default(0)
   reviewCount    Int        @default(0)
   featured       Boolean    @default(false)
-  status         String     @default("ACTIVE") // ACTIVE | DRAFT | ARCHIVED
+  status         String     @default("ACTIVE") @db.VarChar(16) // ACTIVE | DRAFT | ARCHIVED
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
   reviews        Review[]
   favorites      Favorite[]
   orderItems     OrderItem[]
+
+  @@index([categoryId])
+  @@index([sellerId, status])
+  @@index([status, soldCount])
+  @@index([featured])
 }
 
 model Order {
@@ -62,27 +69,34 @@ model Order {
   buyer     User        @relation(fields: [buyerId], references: [id])
   items     OrderItem[]
   total     Float
-  status    String      @default("PAID") // PAID | PROCESSING | SHIPPED | DELIVERED | CANCELLED
-  fullName  String
-  address   String
-  city      String
-  country   String
-  zip       String
-  phone     String?
+  status    String      @default("PAID") @db.VarChar(16) // PAID | PROCESSING | SHIPPED | DELIVERED | CANCELLED
+  fullName  String      @db.VarChar(120)
+  address   String      @db.VarChar(255)
+  city      String      @db.VarChar(120)
+  country   String      @db.VarChar(120)
+  zip       String      @db.VarChar(32)
+  phone     String?     @db.VarChar(40)
   createdAt DateTime    @default(now())
+
+  @@index([buyerId, createdAt])
+  @@index([status])
 }
 
 model OrderItem {
-  id        String  @id @default(cuid())
+  id        String   @id @default(cuid())
   orderId   String
-  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   productId String
-  product   Product @relation(fields: [productId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
   sellerId  String
   quantity  Int
   price     Float
-  title     String // snapshot of product title at purchase time
-  image     String? // snapshot of first product image
+  title     String   @db.VarChar(255) // snapshot of product title at purchase time
+  image     String?  @db.VarChar(512) // snapshot of first product image
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([sellerId])
 }
 
 model Review {
@@ -92,11 +106,12 @@ model Review {
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   rating    Int // 1..5
-  comment   String
-  verified  Boolean @default(false)
+  comment   String   @db.Text
+  verified  Boolean  @default(false)
   createdAt DateTime @default(now())
 
   @@unique([productId, userId])
+  @@index([userId])
 }
 
 model Favorite {
@@ -104,7 +119,7 @@ model Favorite {
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   productId String
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 
   @@unique([userId, productId])

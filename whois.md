@@ -2,7 +2,8 @@
 
 > **Document ID:** WHOIS-1 · **Type:** Systems Analysis & Software Engineering Audit
 > **Method:** Full static audit of every source file + live runtime inspection (agent-browser E2E, 10 documented QA rounds)
-> **Codebase audited:** `/home/z/my-project` — 15,733 lines of TypeScript/TSX across `src/`, 1 Prisma/SQLite database, 1 Caddy gateway
+> **Codebase audited:** `/home/z/my-project` — 15,733 lines of TypeScript/TSX across `src/`, 1 Prisma/**MySQL (MariaDB 11.8)** database `vendora`, 1 Caddy gateway
+> **Revision 2:** SQLite has been **fully removed** (database file deleted, provider switched, all data migrated and verified). The platform now runs **exclusively on MySQL**.
 > **Purpose:** Definitive A-to-Z record of what exists in code *today*, how it works, where it is weak, and what must change to reach the production-grade, modular, infinitely scalable platform you ordered from day 1. No aspiration is presented as fact; every claim below is traceable to a file path.
 
 ---
@@ -60,8 +61,9 @@
 └───────────────┬─────────────────────────────────────────────────────────────┘
                 │ Prisma Client (singleton via globalThis)
 ┌───────────────▼─────────────────────────────────────────────────────────────┐
-│  DATA LAYER — SQLite single file: db/custom.db (~143 KB, 7 models)           │
+│  DATA LAYER — MySQL (MariaDB 11.8.6) on 127.0.0.1:3306, database `vendora`     │
 │  User · Category · Product · Order · OrderItem · Review · Favorite           │
+│  utf8mb4 · Prisma-managed schema · 15 users / 27 products / 21 orders live   │
 └─────────────────────────────────────────────────────────────────────────────┘
                 │
 ┌───────────────▼─────────────────────────────────────────────────────────────┐
@@ -81,7 +83,7 @@ static URLs; no payment gateway, no email provider, no webhooks, no analytics).
 | Code audited | 100% of `src/` (66 files), `prisma/schema.prisma`, `next.config.ts`, `Caddyfile`, `package.json`, `scripts/add-admin.ts` |
 | Versions | Lockfile-exact ranges: next ^16.1.1, react ^19.0.0, prisma ^6.11.1, typescript ^5 (see §3.1) |
 | Runtime | Bun dev server (`next dev -p 3000`), inspected via live HTTP + agent-browser E2E |
-| Database | SQLite file, seeded demo data (3 sellers, ~27 products, orders, reviews, favorites, 1 admin) |
+| Database | MySQL (MariaDB 11.8.6) server on 127.0.0.1:3306, database `vendora` — all data migrated from the retired SQLite file and verified (15 users / 6 categories / 27 products / 20→21 orders / 77 reviews / 5 favorites; checkout + cancel transactions re-verified post-migration) |
 | Out of scope | `node_modules`, generated `.next/`, `examples/websocket` (reference demo, not wired), `tests/*-build.sh` (sandbox infra scripts, not application tests), `skills/` |
 | Known environment quirks | Dev server has died 3× over project life (restart procedure documented in worklog); intermittent dev-only HMR hydration warnings (investigated, not reproducible organically, no prod path) |
 
@@ -111,7 +113,7 @@ flowchart TB
     end
     subgraph Data["Data Layer"]
         P["Prisma Client 6\n(singleton)"]
-        SQLite[("SQLite\ndb/custom.db")]
+        MySQL[("MySQL / MariaDB 11.8\ndatabase: vendora")]
     end
     UI <--> ZS <--> LS
     UI -- "fetch JSON" --> R
@@ -120,7 +122,7 @@ flowchart TB
     FE --> UI
     API --> AUTH
     API --> BIZ
-    API --> P --> SQLite
+    API --> P --> MySQL
 ```
 
 **Verdict:** All logic — presentation, orchestration, validation, business rules, persistence — lives in one Next.js process. This is a **modular monolith only at file level** (clean folders: `api/*` per domain, `components/marketplace/*` per view, `lib/*` per concern); there are **no enforced module boundaries** (any route can import any lib and touch any table — see §6.3, TD-01).
@@ -145,9 +147,11 @@ flowchart TB
 ```
         ┌──────────┐   browse/search/buy    ┌──────────────┐   SQL (Prisma)   ┌────────────┐
         │  BUYER   │──────────────────────▶│              │─────────────────▶│            │
-        └──────────┘◀──────────────────────│   VENDORA    │◀─────────────────│   SQLite   │
-        ┌──────────┐   list/fulfill         │  Next.js 16  │                  │ custom.db  │
-        │  SELLER  │──────────────────────▶│  (monolith)  │                  │  (7 tables)│
+        └──────────┘◀──────────────────────│   VENDORA    │◀─────────────────│    MySQL   │
+        ┌──────────┐   list/fulfill         │  Next.js 16  │                  │ `vendora`  │
+        │  SELLER  │──────────────────────▶│  (monolith)  │                  │ @127.0.0.1  │
+                                            │              │                  │  :3306      │
+                                            │              │                  │ (7 tables)  │
         └──────────┘◀──────────────────────│              │                  └────────────┘
         ┌──────────┐   view analytics       │  Caddy :81   │
         │  ADMIN   │──────────────────────▶│  gateway     │
@@ -218,7 +222,7 @@ Client: clear cart → navigate orders → timeline renders (step dates after
 sequenceDiagram
     participant B as Buyer (Browser)
     participant API as POST /api/orders
-    participant DB as Prisma/SQLite
+    participant DB as Prisma/MySQL
     B->>API: items + shipping + couponCode
     API->>API: getSessionUser() — 401 if none
     API->>API: Zod parse — 400 on first violation
@@ -262,7 +266,7 @@ sequenceDiagram
 sequenceDiagram
     participant U as User
     participant L as POST /api/auth/login
-    participant DB as SQLite
+    participant DB as MySQL
     U->>L: {email, password}
     L->>DB: findUnique user by email
     L->>L: scrypt verify (timing-safe)
@@ -315,7 +319,7 @@ sequenceDiagram
 | @tanstack/react-query | ^5.82.0 | **Installed but unused** — all fetching is the custom `useApi` hook (TD-14) |
 | @tanstack/react-table | ^8.21.3 | Installed (shadcn table base) |
 | zod | ^4.0.2 | Request validation on every mutation endpoint |
-| prisma + @prisma/client | ^6.11.1 | ORM, SQLite provider |
+| prisma + @prisma/client | ^6.11.1 (CLI 6.19.2) | ORM, **MySQL provider** (MariaDB 11.8.6 server, user-space install at `/home/z/mysql`, datadir `/home/z/mysql-data`, app account `vendora`, port 3306) |
 | next-auth | ^4.24.11 | **Installed but NOT used** — custom auth in `lib/auth.ts` instead (TD-15) |
 | next-intl | ^4.3.4 | Installed, not wired (i18n absent) |
 | date-fns | ^4.1.0 | Date formatting |
@@ -336,7 +340,7 @@ sequenceDiagram
 | DNS / domains | None |
 | Secrets management | `.env` with single var `DATABASE_URL`; `AUTH_SECRET` **not set** → code falls back to hardcoded `'vendora-dev-secret'` (CRITICAL — see §7.1, SEC-01) |
 
-**Production gap:** no cloud topology exists. Scaling plan required: CDN in front of static assets, managed Postgres (replace SQLite), secrets vault, HTTPS enforced at edge.
+**Production gap:** no cloud topology exists. The MySQL server is a user-space MariaDB on the same host (no root was available) — for true production it must move to a managed MySQL/cluster with automated backups. Also required: CDN in front of static assets, secrets vault, HTTPS enforced at edge.
 
 ## 3.3 Containerization & Orchestration
 
@@ -357,7 +361,7 @@ sequenceDiagram
 
 ## 4.1 Entity-Relationship Diagram
 
-Source of truth: `prisma/schema.prisma` (SQLite provider, `db/custom.db`).
+Source of truth: `prisma/schema.prisma` (**MySQL provider**, `mysql://…@127.0.0.1:3306/vendora` in `.env`). Schema includes MySQL-native column typing (`@db.Text` for long fields, `@db.VarChar(n)` with real lengths) and hot-path indexes (Product[categoryId], Product[sellerId,status], Product[status,soldCount], Order[buyerId,createdAt], Order[status], OrderItem[orderId/productId/sellerId]).
 
 ```mermaid
 erDiagram
@@ -526,7 +530,7 @@ Covered in ERD; Review unique(productId,userId) = one review per user per produc
 
 ## 4.4 Data Retention & Archival Policies
 
-**None exist.** No backups, no purge jobs, no archival tier, no replication (SQLite single file — the database IS the SPOF). GDPR/DSR tooling absent (no export/erase account endpoints). **Production requirements:** nightly encrypted backups + point-in-time, retention policy per data class, anonymization for lapsed buyers, and a migration path off SQLite (see §8.1).
+**None exist.** No automated backups, no purge jobs, no archival tier, no replication (single local MySQL instance — still the SPOF until moved to a managed/replicated deployment). GDPR/DSR tooling absent (no export/erase account endpoints). **Production requirements:** nightly encrypted backups + point-in-time, retention policy per data class, anonymization for lapsed buyers, and a managed MySQL (or cluster) with replica failover.
 
 ---
 
@@ -669,9 +673,9 @@ Severity: 🔴 blocks production · 🟠 major · 🟡 moderate · 🔵 minor/co
 | TD-14 | 🟡 | Dead/unused dependencies | package.json | next-auth, next-intl, @tanstack/react-query, dnd-kit, MDX editor, react-markdown, syntax-highlighter, input-otp, react-table (unused by marketplace code) |
 | TD-15 | 🟡 | Custom auth instead of battle-tested lib | `lib/auth.ts` | Own crypto/session code = own risk; no rotation, lockout, MFA hooks |
 | TD-16 | 🟡 | No structured logging/audit trail | all routes | console.error only; no request IDs, no admin action log |
-| TD-17 | 🟡 | Float for money | Product.price, Order.total | SQLite+Prisma Float; cent-rounding applied ad hoc (`Math.round(x*100)/100`) — should be integer cents |
+| TD-17 | 🟡 | Float for money | Product.price, Order.total | MySQL DOUBLE columns; cent-rounding applied ad hoc (`Math.round(x*100)/100`) — should be DECIMAL(10,2) or integer cents (kept Float during the SQLite→MySQL migration to avoid breaking the codebase; scheduled for Track A) |
 | TD-18 | 🟡 | Single-route SPA limits SEO/SSR per view | `marketplace-app.tsx` | Product/store pages get client-rendered metadata only (root layout meta is static) |
-| TD-19 | 🔵 | Seed/demo data in production DB | db/custom.db | Demo sellers, orders, reviews coexist with any real data |
+| TD-19 | 🔵 | Demo data in production DB | MySQL `vendora` | Demo sellers, orders, reviews coexist with any real data |
 | TD-20 | 🔵 | Hero/sample image URLs third-party hosted | `lib/constants.ts` | Availability depends on external OSS; one hero has visible watermark |
 
 ## 6.4 Test Coverage Report
@@ -723,7 +727,7 @@ Severity: 🔴 blocks production · 🟠 major · 🟡 moderate · 🔵 minor/co
 | Bottleneck | Why it breaks | Where |
 |---|---|---|
 | In-memory catalog (TD-03) | Every `/api/products` call deserializes the whole table; O(N) search/sort per request; one process, one CPU | `api/products/route.ts` |
-| SQLite single-writer | Concurrent checkouts serialize on the file lock; write latency grows with connection contention | `db/custom.db` |
+| Single local MySQL instance (no replication) | Instance loss = outage; single-writer serializes concurrent writes under load | **P1** — managed MySQL / primary+replica, connection pooling |
 | No server cache | Home feed aggregates (counts, stats) recomputed per request | `api/home` |
 | Node single process | No clustering; one CPU core serves all requests; dev server already died 3× without supervision | ops |
 | Float money math (TD-17) | Correct today via rounding discipline, but fragile under new code paths | pricing |
@@ -739,7 +743,7 @@ Severity: 🔴 blocks production · 🟠 major · 🟡 moderate · 🔵 minor/co
 
 | SPOF / limit | Impact | Mitigation priority |
 |---|---|---|
-| `db/custom.db` SQLite file | Total data loss if corrupted; no replication; single-writer | **P0** — migrate to Postgres (Prisma makes this a provider + types change; Float→Decimal/Int-cents at the same time) |
+| Single local MySQL instance, no backups | Data-loss risk on host failure | **P0** — automated backups now; managed/replicated MySQL before real traffic |
 | Hardcoded auth secret (SEC-01) | Full account takeover by anyone with source knowledge | **P0** — env-enforced, no fallback |
 | Single Next process, no supervisor | 3 documented outages already | **P0** — process manager + health-check restart |
 | In-memory catalog query | ~10³–10⁴ product ceiling on responsiveness | **P1** — DB-level filtering (`where`+`orderBy`+`take/skip`), FTS or external search |
@@ -775,6 +779,6 @@ Two tracks must run **in parallel**: production-hardening of the current system 
 
 ## A-to-Z Verdict
 
-The system as built is a **coherent, honestly-guarded, transactionally-correct B2C marketplace of ~15.7k LOC** with genuinely strong spots (server-authoritative pricing, snapshot order items, transactional stock, typed DTO layer, clean lint). It is **not yet production-ready**: the P0 items (SEC-01 secret, SQLite SPOF, no backups/supervisor, no CI/tests, simulated payments) are disqualifying for real traffic, and the admin back-office is read-only telemetry rather than a management platform. The modular, everything-manageable, infinitely-scalable system you ordered requires Track A immediately and Track B (PLAN-1) on your approval — both roadmaps above are sequenced so no work is thrown away.
+The system as built is a **coherent, honestly-guarded, transactionally-correct B2C marketplace of ~15.7k LOC** with genuinely strong spots (server-authoritative pricing, snapshot order items, transactional stock, typed DTO layer, clean lint, and since Revision 2 a **real MySQL database with native column types and hot-path indexes — SQLite fully retired**). It is **not yet production-ready**: the P0 items (SEC-01 secret, no backups/replication on the MySQL instance, no supervisor, no CI/tests, simulated payments) are disqualifying for real traffic, and the admin back-office is read-only telemetry rather than a management platform. The modular, everything-manageable, infinitely-scalable system you ordered requires Track A immediately and Track B (PLAN-1) on your approval — both roadmaps above are sequenced so no work is thrown away.
 
 *End of document — WHOIS-1.*
