@@ -7,6 +7,15 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// VENDORA — unified commerce core (B2C + B2B + B2B2C)
+//
+// Foundation principle: the difference between B2C and B2B is DATA, not code
+// paths. One buyer graph (users + organizations + customer groups), one
+// pricing resolution pipeline (price lists), one negotiation primitive
+// (RFQ/Quote), one order pipeline with payment-term extensions.
+// ═══════════════════════════════════════════════════════════════════════════
+
 model User {
   id        String     @id @default(cuid())
   email     String     @unique @db.VarChar(255)
@@ -18,10 +27,15 @@ model User {
   storeBio  String?    @db.Text
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
-  products  Product[]
-  orders    Order[]
-  reviews   Review[]
-  favorites Favorite[]
+
+  products    Product[]
+  orders      Order[]
+  reviews     Review[]
+  favorites   Favorite[]
+  memberships OrganizationMember[]
+  groups      CustomerGroup[] @relation("UserCustomerGroups")
+  rfqs        Rfq[]
+  quotesIssued Quote[]        @relation("QuoteCreatedBy")
 
   @@index([role])
 }
@@ -38,7 +52,7 @@ model Product {
   id             String     @id @default(cuid())
   title          String     @db.VarChar(160)
   description    String     @db.Text
-  price          Float
+  price          Float // retail list price (fallback of the pricing pipeline)
   compareAtPrice Float?
   images         String     @default("[]") @db.Text // JSON string array of URLs
   categoryId     String
@@ -53,9 +67,13 @@ model Product {
   status         String     @default("ACTIVE") @db.VarChar(16) // ACTIVE | DRAFT | ARCHIVED
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
-  reviews        Review[]
-  favorites      Favorite[]
-  orderItems     OrderItem[]
+
+  reviews          Review[]
+  favorites        Favorite[]
+  orderItems       OrderItem[]
+  priceListEntries PriceListEntry[]
+  rfqLines         RfqLine[]
+  quoteLines       QuoteLine[]
 
   @@index([categoryId])
   @@index([sellerId, status])
@@ -78,8 +96,18 @@ model Order {
   phone     String?     @db.VarChar(40)
   createdAt DateTime    @default(now())
 
+  // ── B2B extensions (all optional so the B2C fast path is unchanged) ──
+  organizationId String? // purchasing organization (B2B context)
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  poNumber       String? @db.VarChar(40) // buyer purchase-order reference
+  costCenter     String? @db.VarChar(60)
+  paymentTerms   String? @db.VarChar(24) // e.g. NET-30; null = paid at checkout
+  sourceType     String? @db.VarChar(12) // CART | RFQ
+  sourceQuoteId  String? @unique // quote that produced this order
+
   @@index([buyerId, createdAt])
   @@index([status])
+  @@index([organizationId])
 }
 
 model OrderItem {
@@ -123,4 +151,248 @@ model Favorite {
   createdAt DateTime @default(now())
 
   @@unique([userId, productId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Party & account graph — the B2B identity foundation.
+// A "B2B buyer" is a User acting inside an Organization with a role, not a
+// separate user type. Organizations carry verification state, tax identity
+// and credit configuration; they map to CustomerGroups for pricing.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Organization {
+  id                 String    @id @default(cuid())
+  name               String    @db.VarChar(160)
+  slug               String    @unique @db.VarChar(180)
+  legalName          String?   @db.VarChar(200)
+  taxId              String?   @db.VarChar(60) // VAT / EIN
+  registrationNumber String?   @db.VarChar(60)
+  industry           String?   @db.VarChar(80)
+  website            String?   @db.VarChar(255)
+  billingAddress     Json?
+  status             String    @default("PENDING_VERIFICATION") @db.VarChar(24) // PENDING_VERIFICATION | ACTIVE | SUSPENDED | REJECTED
+  verifiedAt         DateTime?
+  creditTermsDays    Int       @default(0) // 0 = prepaid; 30 = NET-30 invoicing
+  creditLimit        Decimal   @default(0) @db.Decimal(12, 2)
+  notes              String?   @db.Text
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  members    OrganizationMember[]
+  priceLists PriceList[]
+  rfqs       Rfq[]
+  orders     Order[]
+  groups     CustomerGroup[] @relation("OrganizationCustomerGroups")
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model OrganizationMember {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  role           String       @default("BUYER") @db.VarChar(16) // OWNER | ADMIN | BUYER | APPROVER | VIEWER
+  jobTitle       String?      @db.VarChar(80)
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+}
+
+// Buyer segmentation that pricing and future promotions hang off. Works for
+// B2C segments (e.g. VIP retail) and B2B tiers (e.g. wholesale-tier-1).
+model CustomerGroup {
+  id          String         @id @default(cuid())
+  key         String         @unique @db.VarChar(60)
+  name        String         @db.VarChar(120)
+  description String?         @db.Text
+  priority    Int            @default(0) // higher wins when several groups apply
+  isDefault   Boolean        @default(false)
+  createdAt   DateTime       @default(now())
+  users       User[]         @relation("UserCustomerGroups")
+  organizations Organization[] @relation("OrganizationCustomerGroups")
+  priceLists  PriceList[]
+
+  @@index([isDefault])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pricing engine — price is RESOLVED, never just read.
+// Precedence: organization contract list > customer-group list > channel list
+// (future) > retail Product.price. Entries carry quantity-break ladders.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PriceList {
+  id              String    @id @default(cuid())
+  name            String    @db.VarChar(160)
+  description     String?   @db.Text
+  scope           String    @db.VarChar(16) // ORG | GROUP | CHANNEL
+  status          String    @default("ACTIVE") @db.VarChar(16) // ACTIVE | DRAFT | ARCHIVED
+  priority        Int       @default(0)
+  currency        String    @default("USD") @db.VarChar(3)
+  startsAt        DateTime?
+  endsAt          DateTime?
+  organizationId  String?
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customerGroupId String?
+  customerGroup   CustomerGroup? @relation(fields: [customerGroupId], references: [id], onDelete: Cascade)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  entries PriceListEntry[]
+
+  @@index([status, scope])
+  @@index([organizationId])
+  @@index([customerGroupId])
+}
+
+model PriceListEntry {
+  id          String     @id @default(cuid())
+  priceListId String
+  productId   String
+  minQuantity Int        @default(1) // ladder step: applies from this quantity up
+  unitPrice   Decimal     @db.Decimal(12, 2)
+  priceList   PriceList   @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+  product     Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([priceListId, productId, minQuantity])
+  @@index([productId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Negotiation engine — RFQ (request for quote) and Quote.
+// The B2B transaction primitive: multi-line requests, competing quotes with
+// validity windows, acceptance closes the RFQ. Quote → Order conversion is
+// prepared via Order.sourceQuoteId.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Rfq {
+  id             String    @id @default(cuid())
+  number         String    @unique @db.VarChar(32)
+  userId         String
+  organizationId String?
+  title          String?   @db.VarChar(160)
+  description    String?   @db.Text
+  status         String    @default("DRAFT") @db.VarChar(16) // DRAFT | SUBMITTED | UNDER_REVIEW | QUOTED | ACCEPTED | REJECTED | CANCELLED | EXPIRED | ORDERED
+  submittedAt    DateTime?
+  respondedAt    DateTime?
+  closedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  user           User          @relation(fields: [userId], references: [id])
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  lines  RfqLine[]
+  quotes Quote[]
+
+  @@index([userId, createdAt])
+  @@index([organizationId])
+  @@index([status, createdAt])
+}
+
+model RfqLine {
+  id          String    @id @default(cuid())
+  rfqId       String
+  productId   String? // null = open/free item ("250 units of something like this")
+  productName String    @db.VarChar(200) // snapshot title / free description
+  sku         String?   @db.VarChar(80)
+  quantity    Int
+  targetPrice Decimal?  @db.Decimal(12, 2) // buyer's target unit price (optional)
+  notes       String?   @db.Text
+  rfq         Rfq       @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  product     Product?  @relation(fields: [productId], references: [id])
+
+  quoteLines QuoteLine[]
+
+  @@index([rfqId])
+  @@index([productId])
+}
+
+model Quote {
+  id            String    @id @default(cuid())
+  number        String    @unique @db.VarChar(32)
+  rfqId         String
+  createdById   String // admin or seller who issued the quote
+  sellerId      String? // fulfilling seller (null = platform-facilitated)
+  status        String    @default("SENT") @db.VarChar(16) // DRAFT | SENT | ACCEPTED | DECLINED | EXPIRED | CONVERTED | WITHDRAWN
+  currency      String    @default("USD") @db.VarChar(3)
+  subtotal      Decimal   @db.Decimal(12, 2)
+  discountTotal Decimal   @default(0) @db.Decimal(12, 2)
+  shippingTotal Decimal   @default(0) @db.Decimal(12, 2)
+  taxTotal      Decimal   @default(0) @db.Decimal(12, 2)
+  total         Decimal   @db.Decimal(12, 2)
+  paymentTerms  String?   @db.VarChar(24) // e.g. NET-30
+  validUntil    DateTime?
+  notes         String?   @db.Text
+  sentAt        DateTime?
+  acceptedAt    DateTime?
+  declinedAt    DateTime?
+  convertedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  rfq           Rfq  @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  createdBy     User @relation("QuoteCreatedBy", fields: [createdById], references: [id])
+
+  lines QuoteLine[]
+
+  @@index([rfqId])
+  @@index([status])
+}
+
+model QuoteLine {
+  id        String   @id @default(cuid())
+  quoteId   String
+  rfqLineId String?
+  productId String
+  quantity  Int
+  unitPrice Decimal  @db.Decimal(12, 2)
+  quote     Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  rfqLine   RfqLine? @relation(fields: [rfqLineId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@index([quoteId])
+  @@index([productId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Platform substrate — audit trail, number sequences, dynamic coupons.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String? // loose FK: SYSTEM entries have no user
+  actorType  String   @db.VarChar(16) // USER | SELLER | ADMIN | SYSTEM
+  action     String   @db.VarChar(64) // e.g. ORG_VERIFIED, RFQ_SUBMITTED, PRICELIST_UPDATED
+  entityType String   @db.VarChar(48)
+  entityId   String?  @db.VarChar(64)
+  summary    String?  @db.Text
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@index([actorType, action])
+}
+
+model Sequence {
+  key   String @id @db.VarChar(32)
+  value Int    @default(0)
+}
+
+// Coupons moved from hardcoded constants to data (admin-managed).
+model Coupon {
+  id            String   @id @default(cuid())
+  code          String   @unique @db.VarChar(24)
+  description   String   @db.VarChar(160)
+  percentOff    Int
+  minSubtotal   Decimal  @default(0) @db.Decimal(10, 2)
+  firstOrderOnly Boolean @default(false)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([active])
 }

@@ -1,0 +1,819 @@
+     1→'use client'
+     2→
+     3→import { useState } from 'react'
+     4→import {
+     5→  ArrowRight,
+     6→  BadgeCheck,
+     7→  Check,
+     8→  DollarSign,
+     9→  Image as ImageIcon,
+    10→  LayoutDashboard,
+    11→  Loader2,
+    12→  Package,
+    13→  PackageSearch,
+    14→  Pencil,
+    15→  Plus,
+    16→  Star,
+    17→  Store,
+    18→  Trash2,
+    19→  TrendingUp,
+    20→  Truck,
+    21→  Wallet,
+    22→} from 'lucide-react'
+    23→import { toast } from '@/hooks/use-toast'
+    24→import { useMarketplace } from '@/store/marketplace'
+    25→import { useApi } from '@/hooks/use-api'
+    26→import type { CategoryDTO, OrderDTO, ProductDTO, SellerStats } from '@/lib/types'
+    27→import { formatDate, formatNumber, formatUSD, timeAgo } from '@/lib/format'
+    28→import { STORE_COVERS, getStoreCover, setStoreCover } from '@/lib/store-covers'
+    29→import { ProductFormDialog } from './product-form-dialog'
+    30→import { StarRating } from './star-rating'
+    31→import { Button } from '@/components/ui/button'
+    32→import { Badge } from '@/components/ui/badge'
+    33→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+    34→import { Input } from '@/components/ui/input'
+    35→import { Label } from '@/components/ui/label'
+    36→import { Skeleton } from '@/components/ui/skeleton'
+    37→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    38→import {
+    39→  AlertDialog,
+    40→  AlertDialogAction,
+    41→  AlertDialogCancel,
+    42→  AlertDialogContent,
+    43→  AlertDialogDescription,
+    44→  AlertDialogFooter,
+    45→  AlertDialogHeader,
+    46→  AlertDialogTitle,
+    47→  AlertDialogTrigger,
+    48→} from '@/components/ui/alert-dialog'
+    49→import {
+    50→  Area,
+    51→  AreaChart,
+    52→  CartesianGrid,
+    53→  ResponsiveContainer,
+    54→  Tooltip as ChartTooltip,
+    55→  XAxis,
+    56→  YAxis,
+    57→} from 'recharts'
+    58→import { cn } from '@/lib/utils'
+    59→
+    60→export function SellerView() {
+    61→  const user = useMarketplace((s) => s.user)
+    62→  const authChecked = useMarketplace((s) => s.authChecked)
+    63→  const setUser = useMarketplace((s) => s.setUser)
+    64→  const openAuth = useMarketplace((s) => s.openAuth)
+    65→  const navigate = useMarketplace((s) => s.navigate)
+    66→  const params = useMarketplace((s) => s.params)
+    67→
+    68→  const [formOpen, setFormOpen] = useState(false)
+    69→  const [editing, setEditing] = useState<ProductDTO | null>(null)
+    70→  const [deleting, setDeleting] = useState<string | null>(null)
+    71→  const [storeForm, setStoreForm] = useState({ storeName: '', storeBio: '' })
+    72→  const [upgrading, setUpgrading] = useState(false)
+    73→  const [activeTab, setActiveTab] = useState(params.sellerTab ?? 'overview')
+    74→  // Storefront cover — client-side choice (localStorage; schema frozen this phase).
+    75→  // Render-time keyed re-read when the signed-in seller changes (same pattern
+    76→  // as the tab sync above — no effect cascade).
+    77→  const [coverChoice, setCoverChoice] = useState<{ sellerKey: string | null; id: string | null }>({
+    78→    sellerKey: null,
+    79→    id: null,
+    80→  })
+    81→  const sellerKey = user?.id ?? null
+    82→  if (coverChoice.sellerKey !== sellerKey) {
+    83→    const cover = sellerKey ? getStoreCover(sellerKey) : null
+    84→    setCoverChoice({ sellerKey, id: cover?.id ?? null })
+    85→  }
+    86→
+    87→  const selectCover = (id: string | null) => {
+    88→    if (!sellerKey) return
+    89→    setStoreCover(sellerKey, id)
+    90→    setCoverChoice((c) => ({ ...c, id }))
+    91→    const label = id ? STORE_COVERS.find((c) => c.id === id)?.label : null
+    92→    toast({
+    93→      title: label ? `Cover set — ${label}` : 'Cover reset',
+    94→      description: label
+    95→        ? 'Your storefront hero now shows this image (saved on this device).'
+    96→        : 'Your storefront is back to the default warm gradient.',
+    97→    })
+    98→  }
+    99→
+   100→  // Sync tab when navigation params change while the view stays mounted
+   101→  if (params.sellerTab && params.sellerTab !== activeTab) {
+   102→    setActiveTab(params.sellerTab)
+   103→  }
+   104→
+   105→  const { data: catData } = useApi<{ categories: CategoryDTO[] }>('/api/categories')
+   106→  const categories = catData?.categories ?? []
+   107→
+   108→  const isSeller = user?.role === 'SELLER'
+   109→  const { data: statsData, loading: statsLoading, refetch: refetchStats } = useApi<{ stats: SellerStats }>(
+   110→    isSeller ? '/api/seller/stats' : null,
+   111→    { skip: !isSeller }
+   112→  )
+   113→  const {
+   114→    data: productsData,
+   115→    loading: productsLoading,
+   116→    refetch: refetchProducts,
+   117→  } = useApi<{ items: ProductDTO[] }>(isSeller ? '/api/products?mine=1&limit=48' : null, { skip: !isSeller })
+   118→  const {
+   119→    data: ordersData,
+   120→    loading: ordersLoading,
+   121→    refetch: refetchOrders,
+   122→  } = useApi<{ orders: OrderDTO[] }>(isSeller ? '/api/seller/orders' : null, { skip: !isSeller })
+   123→
+   124→  const stats = statsData?.stats
+   125→  const myProducts = productsData?.items ?? []
+   126→  const sellerOrders = ordersData?.orders ?? []
+   127→
+   128→  const refetchAll = () => {
+   129→    void refetchStats()
+   130→    void refetchProducts()
+   131→    void refetchOrders()
+   132→  }
+   133→
+   134→  const openCreate = () => {
+   135→    setEditing(null)
+   136→    setFormOpen(true)
+   137→  }
+   138→
+   139→  const openEdit = (product: ProductDTO) => {
+   140→    setEditing(product)
+   141→    setFormOpen(true)
+   142→  }
+   143→
+   144→  const handleDelete = async (product: ProductDTO) => {
+   145→    setDeleting(product.id)
+   146→    try {
+   147→      const res = await fetch(`/api/products/${product.id}`, { method: 'DELETE' })
+   148→      const json = await res.json()
+   149→      if (!res.ok) {
+   150→        toast({ title: 'Delete failed', description: json.error, variant: 'destructive' })
+   151→        return
+   152→      }
+   153→      toast({
+   154→        title: json.archived ? 'Product archived' : 'Product deleted',
+   155→        description: json.archived
+   156→          ? 'It has past orders, so we archived it instead of deleting.'
+   157→          : product.title,
+   158→      })
+   159→      refetchAll()
+   160→    } catch {
+   161→      toast({ title: 'Delete failed', description: 'Network error', variant: 'destructive' })
+   162→    } finally {
+   163→      setDeleting(null)
+   164→    }
+   165→  }
+   166→
+   167→  const advanceStatus = async (order: OrderDTO) => {
+   168→    const next = { PAID: 'PROCESSING', PROCESSING: 'SHIPPED', SHIPPED: 'DELIVERED' }[order.status]
+   169→    if (!next) return
+   170→    try {
+   171→      const res = await fetch(`/api/orders/${order.id}`, {
+   172→        method: 'PATCH',
+   173→        headers: { 'Content-Type': 'application/json' },
+   174→        body: JSON.stringify({ status: next }),
+   175→      })
+   176→      const json = await res.json()
+   177→      if (!res.ok) {
+   178→        toast({ title: 'Update failed', description: json.error, variant: 'destructive' })
+   179→        return
+   180→      }
+   181→      toast({ title: `Order marked as ${next}` })
+   182→      refetchAll()
+   183→    } catch {
+   184→      toast({ title: 'Update failed', description: 'Network error', variant: 'destructive' })
+   185→    }
+   186→  }
+   187→
+   188→  const becomeSeller = async (e: React.FormEvent) => {
+   189→    e.preventDefault()
+   190→    if (!user) return
+   191→    if (storeForm.storeName.trim().length < 2) {
+   192→      toast({ title: 'Store name too short', variant: 'destructive' })
+   193→      return
+   194→    }
+   195→    setUpgrading(true)
+   196→    try {
+   197→      const res = await fetch('/api/auth/become-seller', {
+   198→        method: 'POST',
+   199→        headers: { 'Content-Type': 'application/json' },
+   200→        body: JSON.stringify(storeForm),
+   201→      })
+   202→      const json = await res.json()
+   203→      if (!res.ok) {
+   204→        toast({ title: 'Upgrade failed', description: json.error, variant: 'destructive' })
+   205→        return
+   206→      }
+   207→      setUser(json.user)
+   208→      toast({ title: 'Welcome to Vendora Selling! 🎉', description: 'Your storefront is live.' })
+   209→    } catch {
+   210→      toast({ title: 'Upgrade failed', description: 'Network error', variant: 'destructive' })
+   211→    } finally {
+   212→      setUpgrading(false)
+   213→    }
+   214→  }
+   215→
+   216→  // ── Auth gate ──
+   217→  if (!authChecked) {
+   218→    return (
+   219→      <div className="mx-auto max-w-7xl px-4 py-16">
+   220→        <Skeleton className="mx-auto h-64 w-full max-w-xl rounded-2xl" />
+   221→      </div>
+   222→    )
+   223→  }
+   224→
+   225→  if (!user) {
+   226→    return (
+   227→      <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
+   228→        <Store size={44} className="text-muted-foreground/40" />
+   229→        <h1 className="mt-4 text-xl font-bold">Sign in to open your storefront</h1>
+   230→        <p className="mt-1 text-sm text-muted-foreground">Sell to thousands of shoppers on Vendora.</p>
+   231→        <Button className="mt-6 rounded-xl" onClick={() => openAuth('login', { view: 'seller' })}>
+   232→          Sign in
+   233→        </Button>
+   234→      </div>
+   235→    )
+   236→  }
+   237→
+   238→  // ── Buyer → become seller upsell ──
+   239→  if (!isSeller) {
+   240→    return (
+   241→      <div className="mx-auto max-w-2xl px-4 py-12">
+   242→        <Card className="overflow-hidden">
+   243→          <div className="bg-gradient-to-r from-orange-600 to-rose-500 px-8 py-10 text-white">
+   244→            <Store size={40} />
+   245→            <h1 className="mt-4 text-2xl font-extrabold">Turn your passion into a store</h1>
+   246→            <p className="mt-2 max-w-md text-sm leading-relaxed text-white/90">
+   247→              List products in minutes, manage orders and grow your brand — with only a 5% fee when you sell.
+   248→            </p>
+   249→          </div>
+   250→          <CardContent className="p-8">
+   251→            <form onSubmit={becomeSeller} className="space-y-4">
+   252→              <div className="space-y-1.5">
+   253→                <Label htmlFor="storeName">Store name</Label>
+   254→                <Input
+   255→                  id="storeName"
+   256→                  value={storeForm.storeName}
+   257→                  onChange={(e) => setStoreForm((f) => ({ ...f, storeName: e.target.value }))}
+   258→                  placeholder="e.g. Willow & Pine Ceramics"
+   259→                />
+   260→              </div>
+   261→              <div className="space-y-1.5">
+   262→                <Label htmlFor="storeBio">
+   263→                  Store bio <span className="text-xs text-muted-foreground">(optional)</span>
+   264→                </Label>
+   265→                <Input
+   266→                  id="storeBio"
+   267→                  value={storeForm.storeBio}
+   268→                  onChange={(e) => setStoreForm((f) => ({ ...f, storeBio: e.target.value }))}
+   269→                  placeholder="Tell shoppers what you make"
+   270→                />
+   271→              </div>
+   272→              <Button type="submit" size="lg" className="w-full rounded-xl" disabled={upgrading}>
+   273→                {upgrading && <Loader2 size={15} className="mr-2 animate-spin" />}
+   274→                Create my storefront
+   275→              </Button>
+   276→            </form>
+   277→          </CardContent>
+   278→        </Card>
+   279→      </div>
+   280→    )
+   281→  }
+   282→
+   283→  const chartData = (stats?.salesByDay ?? []).map((d) => ({
+   284→    ...d,
+   285→    label: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+   286→  }))
+   287→
+   288→  return (
+   289→    <div className="mx-auto max-w-7xl px-4 py-8">
+   290→      {/* Header */}
+   291→      <div className="flex flex-wrap items-center justify-between gap-4">
+   292→        <div>
+   293→          <div className="flex items-center gap-2">
+   294→            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{user.storeName}</h1>
+   295→            <BadgeCheck size={20} className="text-primary" />
+   296→          </div>
+   297→          <p className="mt-1 text-sm text-muted-foreground">Seller dashboard · {user.name}</p>
+   298→        </div>
+   299→        <Button className="rounded-xl" onClick={openCreate}>
+   300→          <Plus size={16} className="mr-1.5" /> Add product
+   301→        </Button>
+   302→      </div>
+   303→
+   304→      <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-8">
+   305→        <TabsList className="h-11 w-full justify-start gap-1 overflow-x-auto rounded-xl bg-muted/60 p-1 sm:w-auto">
+   306→          <TabsTrigger value="overview" className="gap-1.5 rounded-lg px-4 text-sm">
+   307→            <LayoutDashboard size={14} /> Overview
+   308→          </TabsTrigger>
+   309→          <TabsTrigger value="products" className="gap-1.5 rounded-lg px-4 text-sm">
+   310→            <Package size={14} /> Products <Badge variant="secondary" className="ml-1 rounded-full text-[10px]">{myProducts.length}</Badge>
+   311→          </TabsTrigger>
+   312→          <TabsTrigger value="orders" className="gap-1.5 rounded-lg px-4 text-sm">
+   313→            <Truck size={14} /> Orders
+   314→          </TabsTrigger>
+   315→        </TabsList>
+   316→
+   317→        {/* ── Overview tab ── */}
+   318→        <TabsContent value="overview" className="mt-6 space-y-6">
+   319→          {/* KPI cards */}
+   320→          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+   321→            {statsLoading || !stats
+   322→              ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)
+   323→              : [
+   324→                  { icon: DollarSign, label: 'Total revenue', value: formatUSD(stats.revenue), sub: 'from all orders' },
+   325→                  { icon: Package, label: 'Units sold', value: formatNumber(stats.totalSold), sub: 'across products' },
+   326→                  { icon: Star, label: 'Avg. rating', value: `${stats.avgRating.toFixed(1)} ★`, sub: 'buyer reviews' },
+   327→                  { icon: TrendingUp, label: 'Active listings', value: String(stats.activeListings), sub: `${stats.totalProducts} total` },
+   328→                ].map((kpi) => (
+   329→                  <Card key={kpi.label}>
+   330→                    <CardContent className="p-5">
+   331→                      <div className="flex items-center justify-between">
+   332→                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+   333→                          {kpi.label}
+   334→                        </p>
+   335→                        <kpi.icon size={16} className="text-primary" />
+   336→                      </div>
+   337→                      <p className="mt-2.5 text-2xl font-extrabold tabular-nums">{kpi.value}</p>
+   338→                      <p className="mt-0.5 text-xs text-muted-foreground">{kpi.sub}</p>
+   339→                    </CardContent>
+   340→                  </Card>
+   341→                ))}
+   342→          </div>
+   343→
+   344→          {/* Payouts summary (read-only, derived from order items) */}
+   345→          {statsLoading || !stats ? (
+   346→            <Skeleton className="h-44 rounded-2xl" />
+   347→          ) : (
+   348→            <Card>
+   349→              <CardHeader className="pb-3">
+   350→                <CardTitle className="flex items-center gap-2 text-base">
+   351→                  <Wallet size={16} className="text-primary" /> Payouts
+   352→                </CardTitle>
+   353→                <p className="text-xs text-muted-foreground">
+   354→                  Weekly payout runs every Friday · Vendora fee 8% of gross sales
+   355→                </p>
+   356→              </CardHeader>
+   357→              <CardContent>
+   358→                <div className="grid gap-3 sm:grid-cols-3">
+   359→                  <div className="rounded-xl border bg-muted/40 p-4">
+   360→                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+   361→                      Available now
+   362→                    </p>
+   363→                    <p className="mt-1 text-xl font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400">
+   364→                      {formatUSD(stats.payouts.availableBalance)}
+   365→                    </p>
+   366→                    <p className="mt-0.5 text-[11px] text-muted-foreground">from delivered orders</p>
+   367→                  </div>
+   368→                  <div className="rounded-xl border bg-muted/40 p-4">
+   369→                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+   370→                      In transit
+   371→                    </p>
+   372→                    <p className="mt-1 text-xl font-extrabold tabular-nums">
+   373→                      {formatUSD(stats.payouts.inTransitBalance)}
+   374→                    </p>
+   375→                    <p className="mt-0.5 text-[11px] text-muted-foreground">clears once orders deliver</p>
+   376→                  </div>
+   377→                  <div className="rounded-xl border bg-muted/40 p-4">
+   378→                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+   379→                      Next payout
+   380→                    </p>
+   381→                    <p className="mt-1 text-xl font-extrabold">
+   382→                      {new Date(stats.payouts.nextPayoutDate).toLocaleDateString('en-US', {
+   383→                        month: 'short',
+   384→                        day: 'numeric',
+   385→                      })}
+   386→                    </p>
+   387→                    <p className="mt-0.5 text-[11px] text-muted-foreground">Friday · weekly run</p>
+   388→                  </div>
+   389→                </div>
+   390→                <div className="mt-4 space-y-1.5 rounded-xl border p-4 text-sm">
+   391→                  <div className="flex justify-between text-muted-foreground">
+   392→                    <span>Gross sales (all time)</span>
+   393→                    <span className="tabular-nums">{formatUSD(stats.payouts.grossSales)}</span>
+   394→                  </div>
+   395→                  <div className="flex justify-between text-muted-foreground">
+   396→                    <span>Vendora fee (8%)</span>
+   397→                    <span className="tabular-nums">−{formatUSD(stats.payouts.platformFee)}</span>
+   398→                  </div>
+   399→                  <div className="flex justify-between border-t pt-1.5 font-bold">
+   400→                    <span>Net earnings</span>
+   401→                    <span className="tabular-nums">{formatUSD(stats.payouts.netEarnings)}</span>
+   402→                  </div>
+   403→                </div>
+   404→                <p className="mt-3 text-[11px] text-muted-foreground">
+   405→                  Payouts are simulated in this demo — no real money moves. Cancelled orders are excluded.
+   406→                </p>
+   407→              </CardContent>
+   408→            </Card>
+   409→          )}
+   410→
+   411→          {/* Storefront cover picker (client-side — saved on this device) */}
+   412→          <Card>
+   413→            <CardHeader className="pb-3">
+   414→              <CardTitle className="flex items-center gap-2 text-base">
+   415→                <ImageIcon size={16} className="text-primary" /> Storefront cover
+   416→              </CardTitle>
+   417→              <p className="text-xs text-muted-foreground">
+   418→                Pick the hero image shoppers see at the top of your store page
+   419→              </p>
+   420→            </CardHeader>
+   421→            <CardContent>
+   422→              <div
+   423→                className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6"
+   424→                role="radiogroup"
+   425→                aria-label="Storefront cover image"
+   426→              >
+   427→                {STORE_COVERS.map((c) => {
+   428→                  const selected = coverChoice.id === c.id
+   429→                  return (
+   430→                    <button
+   431→                      key={c.id}
+   432→                      role="radio"
+   433→                      aria-checked={selected}
+   434→                      onClick={() => selectCover(c.id)}
+   435→                      className={cn(
+   436→                        'group relative aspect-[16/9] overflow-hidden rounded-xl border-2 transition-all duration-200',
+   437→                        selected
+   438→                          ? 'border-primary shadow-md shadow-primary/20'
+   439→                          : 'border-transparent hover:border-primary/40 active:scale-[0.97]'
+   440→                      )}
+   441→                      title={c.label}
+   442→                    >
+   443→                      <img
+   444→                        src={c.url}
+   445→                        alt={c.label}
+   446→                        loading="lazy"
+   447→                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+   448→                      />
+   449→                      {selected && (
+   450→                        <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
+   451→                          <Check size={12} strokeWidth={3} />
+   452→                        </span>
+   453→                      )}
+   454→                    </button>
+   455→                  )
+   456→                })}
+   457→              </div>
+   458→              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+   459→                <p className="text-[11px] text-muted-foreground">
+   460→                  Saved on this device in the demo — a full rollout will store it on your seller profile.
+   461→                </p>
+   462→                {coverChoice.id && (
+   463→                  <Button
+   464→                    variant="outline"
+   465→                    size="sm"
+   466→                    className="h-8 rounded-full text-xs"
+   467→                    onClick={() => selectCover(null)}
+   468→                  >
+   469→                    Reset to gradient
+   470→                  </Button>
+   471→                )}
+   472→              </div>
+   473→            </CardContent>
+   474→          </Card>
+   475→
+   476→          {/* Chart */}
+   477→          <Card>
+   478→            <CardHeader className="pb-2">
+   479→              <CardTitle className="text-base">Revenue — last 14 days</CardTitle>
+   480→            </CardHeader>
+   481→            <CardContent className="pt-4">
+   482→              {statsLoading || !stats ? (
+   483→                <Skeleton className="h-64 w-full" />
+   484→              ) : (
+   485→                <div className="h-64">
+   486→                  <ResponsiveContainer width="100%" height="100%">
+   487→                    <AreaChart data={chartData} margin={{ top: 5, right: 10, left: -12, bottom: 0 }}>
+   488→                      <defs>
+   489→                        <linearGradient id="revGradient" x1="0" y1="0" x2="0" y2="1">
+   490→                          <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.35} />
+   491→                          <stop offset="100%" stopColor="var(--primary)" stopOpacity={0} />
+   492→                        </linearGradient>
+   493→                      </defs>
+   494→                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+   495→                      <XAxis
+   496→                        dataKey="label"
+   497→                        tick={{ fontSize: 11 }}
+   498→                        stroke="var(--muted-foreground)"
+   499→                        tickLine={false}
+   500→                        axisLine={false}
+   501→                        interval="preserveStartEnd"
+   502→                      />
+   503→                      <YAxis
+   504→                        tick={{ fontSize: 11 }}
+   505→                        stroke="var(--muted-foreground)"
+   506→                        tickLine={false}
+   507→                        axisLine={false}
+   508→                        tickFormatter={(v) => `$${v}`}
+   509→                      />
+   510→                      <ChartTooltip
+   511→                        contentStyle={{
+   512→                          borderRadius: 12,
+   513→                          border: '1px solid var(--border)',
+   514→                          background: 'var(--card)',
+   515→                          color: 'var(--foreground)',
+   516→                          fontSize: 12,
+   517→                        }}
+   518→                        formatter={(value: number | string) => [`$${value}`, 'Revenue']}
+   519→                      />
+   520→                      <Area
+   521→                        type="monotone"
+   522→                        dataKey="revenue"
+   523→                        stroke="var(--primary)"
+   524→                        strokeWidth={2.5}
+   525→                        fill="url(#revGradient)"
+   526→                      />
+   527→                    </AreaChart>
+   528→                  </ResponsiveContainer>
+   529→                </div>
+   530→              )}
+   531→            </CardContent>
+   532→          </Card>
+   533→
+   534→          <div className="grid gap-6 lg:grid-cols-2">
+   535→            {/* Top products */}
+   536→            <Card>
+   537→              <CardHeader className="pb-3">
+   538→                <CardTitle className="text-base">Top products</CardTitle>
+   539→              </CardHeader>
+   540→              <CardContent className="space-y-4">
+   541→                {statsLoading || !stats ? (
+   542→                  Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14" />)
+   543→                ) : stats.topProducts.length === 0 ? (
+   544→                  <p className="py-6 text-center text-sm text-muted-foreground">
+   545→                    No sales yet — your top sellers will appear here.
+   546→                  </p>
+   547→                ) : (
+   548→                  stats.topProducts.map((p, i) => (
+   549→                    <div key={p.id} className="flex items-center gap-3">
+   550→                      <span className="w-5 text-sm font-bold text-muted-foreground">{i + 1}</span>
+   551→                      <button
+   552→                        className="h-11 w-11 shrink-0 overflow-hidden rounded-lg border bg-muted"
+   553→                        onClick={() => navigate('product', { productId: p.id })}
+   554→                      >
+   555→                        {p.image && <img src={p.image} alt="" className="h-full w-full object-cover" />}
+   556→                      </button>
+   557→                      <div className="min-w-0 flex-1">
+   558→                        <p className="line-clamp-1 text-sm font-medium">{p.title}</p>
+   559→                        <p className="text-xs text-muted-foreground">{formatNumber(p.soldCount)} sold</p>
+   560→                      </div>
+   561→                      <span className="text-sm font-bold tabular-nums">{formatUSD(p.revenue)}</span>
+   562→                    </div>
+   563→                  ))
+   564→                )}
+   565→              </CardContent>
+   566→            </Card>
+   567→
+   568→            {/* Recent orders */}
+   569→            <Card>
+   570→              <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
+   571→                <CardTitle className="text-base">Recent orders</CardTitle>
+   572→                <Button variant="ghost" size="sm" className="h-7 rounded-full text-xs text-primary" onClick={() => navigate('seller', { sellerTab: 'orders' })}>
+   573→                  View all <ArrowRight size={13} className="ml-1" />
+   574→                </Button>
+   575→              </CardHeader>
+   576→              <CardContent className="space-y-3">
+   577→                {statsLoading || !stats ? (
+   578→                  Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14" />)
+   579→                ) : stats.recentOrders.length === 0 ? (
+   580→                  <p className="py-6 text-center text-sm text-muted-foreground">Orders will appear here.</p>
+   581→                ) : (
+   582→                  stats.recentOrders.map((o) => (
+   583→                    <div key={o.id} className="flex items-center gap-3 rounded-xl border p-3">
+   584→                      <div className="min-w-0 flex-1">
+   585→                        <p className="text-sm font-medium">{o.buyer?.name ?? 'Customer'}</p>
+   586→                        <p className="text-xs text-muted-foreground">
+   587→                          {o.itemCount} item(s) · {timeAgo(o.createdAt)}
+   588→                        </p>
+   589→                      </div>
+   590→                      <Badge variant="secondary" className="rounded-full text-[11px]">
+   591→                        {o.status}
+   592→                      </Badge>
+   593→                      <span className="text-sm font-bold tabular-nums">{formatUSD(o.total)}</span>
+   594→                    </div>
+   595→                  ))
+   596→                )}
+   597→              </CardContent>
+   598→            </Card>
+   599→          </div>
+   600→        </TabsContent>
+   601→
+   602→        {/* ── Products tab ── */}
+   603→        <TabsContent value="products" className="mt-6">
+   604→          <Card>
+   605→            <CardContent className="p-0">
+   606→              {productsLoading ? (
+   607→                <div className="space-y-3 p-5">
+   608→                  {Array.from({ length: 4 }).map((_, i) => (
+   609→                    <Skeleton key={i} className="h-16" />
+   610→                  ))}
+   611→                </div>
+   612→              ) : myProducts.length === 0 ? (
+   613→                <div className="flex flex-col items-center py-16 text-center">
+   614→                  <PackageSearch size={40} className="text-muted-foreground/40" />
+   615→                  <p className="mt-4 font-semibold">No products yet</p>
+   616→                  <p className="mt-1 text-sm text-muted-foreground">Publish your first listing to get started.</p>
+   617→                  <Button className="mt-5 rounded-full" onClick={openCreate}>
+   618→                    <Plus size={15} className="mr-1.5" /> Add product
+   619→                  </Button>
+   620→                </div>
+   621→              ) : (
+   622→                <div className="overflow-x-auto">
+   623→                  <table className="w-full text-sm">
+   624→                    <thead>
+   625→                      <tr className="border-b bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+   626→                        <th className="px-5 py-3 font-medium">Product</th>
+   627→                        <th className="px-3 py-3 text-center font-medium">Price</th>
+   628→                        <th className="px-3 py-3 text-center font-medium">Stock</th>
+   629→                        <th className="px-3 py-3 text-center font-medium">Sold</th>
+   630→                        <th className="px-3 py-3 text-center font-medium">Rating</th>
+   631→                        <th className="px-3 py-3 text-center font-medium">Status</th>
+   632→                        <th className="px-5 py-3 text-right font-medium">Actions</th>
+   633→                      </tr>
+   634→                    </thead>
+   635→                    <tbody>
+   636→                      {myProducts.map((p) => (
+   637→                        <tr key={p.id} className="border-b transition-colors last:border-0 hover:bg-muted/30">
+   638→                          <td className="max-w-72 px-5 py-3">
+   639→                            <div className="flex items-center gap-3">
+   640→                              <div className="h-11 w-11 shrink-0 overflow-hidden rounded-lg border bg-muted">
+   641→                                {p.images[0] && (
+   642→                                  <img src={p.images[0]} alt="" className="h-full w-full object-cover" />
+   643→                                )}
+   644→                              </div>
+   645→                              <button
+   646→                                className="line-clamp-2 text-left font-medium leading-4 hover:text-primary"
+   647→                                onClick={() => navigate('product', { productId: p.id })}
+   648→                              >
+   649→                                {p.title}
+   650→                              </button>
+   651→                            </div>
+   652→                          </td>
+   653→                          <td className="px-3 py-3 text-center font-semibold tabular-nums">{formatUSD(p.price)}</td>
+   654→                          <td className="px-3 py-3 text-center tabular-nums">
+   655→                            <span className={cn(p.stock === 0 ? 'font-bold text-destructive' : p.stock < 6 && 'font-semibold text-amber-600 dark:text-amber-400')}>
+   656→                              {p.stock}
+   657→                            </span>
+   658→                          </td>
+   659→                          <td className="px-3 py-3 text-center tabular-nums text-muted-foreground">{p.soldCount}</td>
+   660→                          <td className="px-3 py-3">
+   661→                            <div className="flex justify-center">
+   662→                              <StarRating value={p.rating} showValue count={p.reviewCount} />
+   663→                            </div>
+   664→                          </td>
+   665→                          <td className="px-3 py-3 text-center">
+   666→                            <Badge
+   667→                              variant="secondary"
+   668→                              className={cn(
+   669→                                'rounded-full text-[11px]',
+   670→                                p.status === 'ACTIVE' && 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+   671→                                p.status === 'ARCHIVED' && 'bg-muted text-muted-foreground'
+   672→                              )}
+   673→                            >
+   674→                              {p.status}
+   675→                            </Badge>
+   676→                          </td>
+   677→                          <td className="px-5 py-3">
+   678→                            <div className="flex justify-end gap-1">
+   679→                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(p)} aria-label={`Edit ${p.title}`}>
+   680→                                <Pencil size={14} />
+   681→                              </Button>
+   682→                              <AlertDialog>
+   683→                                <AlertDialogTrigger asChild>
+   684→                                  <Button
+   685→                                    variant="ghost"
+   686→                                    size="icon"
+   687→                                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+   688→                                    disabled={deleting === p.id}
+   689→                                    aria-label={`Delete ${p.title}`}
+   690→                                  >
+   691→                                    {deleting === p.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+   692→                                  </Button>
+   693→                                </AlertDialogTrigger>
+   694→                                <AlertDialogContent>
+   695→                                  <AlertDialogHeader>
+   696→                                    <AlertDialogTitle>Delete “{p.title}”?</AlertDialogTitle>
+   697→                                    <AlertDialogDescription>
+   698→                                      This permanently removes the listing. Products with past orders are archived
+   699→                                      instead, to preserve order history.
+   700→                                    </AlertDialogDescription>
+   701→                                  </AlertDialogHeader>
+   702→                                  <AlertDialogFooter>
+   703→                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+   704→                                    <AlertDialogAction
+   705→                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+   706→                                      onClick={() => handleDelete(p)}
+   707→                                    >
+   708→                                      Delete
+   709→                                    </AlertDialogAction>
+   710→                                  </AlertDialogFooter>
+   711→                                </AlertDialogContent>
+   712→                              </AlertDialog>
+   713→                            </div>
+   714→                          </td>
+   715→                        </tr>
+   716→                      ))}
+   717→                    </tbody>
+   718→                  </table>
+   719→                </div>
+   720→              )}
+   721→            </CardContent>
+   722→          </Card>
+   723→        </TabsContent>
+   724→
+   725→        {/* ── Orders tab ── */}
+   726→        <TabsContent value="orders" className="mt-6">
+   727→          {ordersLoading ? (
+   728→            <div className="space-y-4">
+   729→              {Array.from({ length: 3 }).map((_, i) => (
+   730→                <Skeleton key={i} className="h-40 rounded-2xl" />
+   731→              ))}
+   732→            </div>
+   733→          ) : sellerOrders.length === 0 ? (
+   734→            <Card className="flex flex-col items-center border-dashed py-16 text-center">
+   735→              <Truck size={40} className="text-muted-foreground/40" />
+   736→              <p className="mt-4 font-semibold">No orders yet</p>
+   737→              <p className="mt-1 text-sm text-muted-foreground">
+   738→                When shoppers buy your products, orders will show up here.
+   739→              </p>
+   740→            </Card>
+   741→          ) : (
+   742→            <div className="space-y-4">
+   743→              {sellerOrders.map((order) => {
+   744→                const myItems = order.items.filter((i) => i.mine)
+   745→                const myTotal = myItems.reduce((sum, i) => sum + i.price * i.quantity, 0)
+   746→                const next = { PAID: 'PROCESSING', PROCESSING: 'SHIPPED', SHIPPED: 'DELIVERED' }[order.status]
+   747→                return (
+   748→                  <Card key={order.id}>
+   749→                    <CardContent className="p-5">
+   750→                      <div className="flex flex-wrap items-center justify-between gap-3">
+   751→                        <div>
+   752→                          <p className="font-mono text-xs font-bold tracking-wide text-muted-foreground">
+   753→                            #${order.id.slice(-8).toUpperCase()}
+   754→                          </p>
+   755→                          <p className="mt-0.5 text-sm">
+   756→                            <span className="font-medium">{order.buyer?.name}</span>
+   757→                            <span className="text-muted-foreground"> · {formatDate(order.createdAt)}</span>
+   758→                          </p>
+   759→                        </div>
+   760→                        <div className="flex items-center gap-3">
+   761→                          <Badge
+   762→                            variant="secondary"
+   763→                            className={
+   764→                              order.status === 'CANCELLED'
+   765→                                ? 'rounded-full text-[11px] bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400'
+   766→                                : 'rounded-full text-[11px]'
+   767→                            }
+   768→                          >
+   769→                            {order.status}
+   770→                          </Badge>
+   771→                          <span className="text-sm font-bold tabular-nums">{formatUSD(myTotal)}</span>
+   772→                          {next && (
+   773→                            <Button size="sm" className="h-8 rounded-full text-xs" onClick={() => advanceStatus(order)}>
+   774→                              Mark as {next.toLowerCase()}
+   775→                            </Button>
+   776→                          )}
+   777→                        </div>
+   778→                      </div>
+   779→                      <div className="mt-4 space-y-2.5 border-t pt-4">
+   780→                        {myItems.map((item) => (
+   781→                          <div key={item.id} className="flex items-center gap-3">
+   782→                            <div className="h-11 w-11 shrink-0 overflow-hidden rounded-lg border bg-muted">
+   783→                              {item.image && <img src={item.image} alt="" className="h-full w-full object-cover" />}
+   784→                            </div>
+   785→                            <div className="min-w-0 flex-1">
+   786→                              <p className="line-clamp-1 text-sm font-medium">{item.title}</p>
+   787→                              <p className="text-xs text-muted-foreground">
+   788→                                Qty {item.quantity} · {formatUSD(item.price)} each
+   789→                              </p>
+   790→                            </div>
+   791→                            <span className="text-sm font-semibold tabular-nums">
+   792→                              {formatUSD(item.price * item.quantity)}
+   793→                            </span>
+   794→                          </div>
+   795→                        ))}
+   796→                      </div>
+   797→                      <p className="mt-4 border-t pt-3 text-xs text-muted-foreground">
+   798→                        Ship to: {order.fullName}, {order.address}, {order.city} {order.zip}, {order.country}
+   799→                      </p>
+   800→                    </CardContent>
+   801→                  </Card>
+   802→                )
+   803→              })}
+   804→            </div>
+   805→          )}
+   806→        </TabsContent>
+   807→      </Tabs>
+   808→
+   809→      <ProductFormDialog
+   810→        open={formOpen}
+   811→        onOpenChange={setFormOpen}
+   812→        categories={categories}
+   813→        editing={editing}
+   814→        onSaved={refetchAll}
+   815→      />
+   816→    </div>
+   817→  )
+   818→}
+   819→

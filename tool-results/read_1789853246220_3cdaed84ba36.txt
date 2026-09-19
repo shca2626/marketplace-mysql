@@ -1,0 +1,744 @@
+     1→'use client'
+     2→
+     3→import { useEffect, useMemo, useRef, useState } from 'react'
+     4→import { motion } from 'framer-motion'
+     5→import {
+     6→  BadgeCheck,
+     7→  Check,
+     8→  ChevronRight,
+     9→  Heart,
+    10→  RotateCcw,
+    11→  Share2,
+    12→  ShieldCheck,
+    13→  ShoppingCart,
+    14→  Star,
+    15→  Truck,
+    16→  X,
+    17→  Zap,
+    18→  ZoomIn,
+    19→} from 'lucide-react'
+    20→import { toast } from '@/hooks/use-toast'
+    21→import { useMarketplace } from '@/store/marketplace'
+    22→import { useApi } from '@/hooks/use-api'
+    23→import type { ProductDTO, ReviewDTO } from '@/lib/types'
+    24→import { discountPercent, formatDate, formatNumber, formatUSD, initials, timeAgo } from '@/lib/format'
+    25→import { StarPicker } from './star-rating'
+    26→import { QuantityInput } from './quantity-input'
+    27→import { ProductCard } from './product-card'
+    28→import { viewToHref } from '@/lib/routing'
+    29→import { absoluteUrl, shareLink } from '@/lib/share'
+    30→import { Button } from '@/components/ui/button'
+    31→import { Badge } from '@/components/ui/badge'
+    32→import { Card } from '@/components/ui/card'
+    33→import { Skeleton } from '@/components/ui/skeleton'
+    34→import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+    35→import { Separator } from '@/components/ui/separator'
+    36→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    37→import { Textarea } from '@/components/ui/textarea'
+    38→import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+    39→import { cn } from '@/lib/utils'
+    40→
+    41→interface ProductDetailResponse {
+    42→  product: ProductDTO
+    43→  reviews: ReviewDTO[]
+    44→  seller: {
+    45→    id: string
+    46→    name: string
+    47→    storeName: string | null
+    48→    storeBio: string | null
+    49→    memberSince: string
+    50→    activeListings: number
+    51→  } | null
+    52→  related: ProductDTO[]
+    53→}
+    54→
+    55→export function ProductView() {
+    56→  const productId = useMarketplace((s) => s.params.productId)
+    57→  const navigate = useMarketplace((s) => s.navigate)
+    58→  const addToCart = useMarketplace((s) => s.addToCart)
+    59→  const setCartOpen = useMarketplace((s) => s.setCartOpen)
+    60→  const user = useMarketplace((s) => s.user)
+    61→  const openAuth = useMarketplace((s) => s.openAuth)
+    62→  const trackView = useMarketplace((s) => s.trackView)
+    63→
+    64→  const { data, loading, setData } = useApi<ProductDetailResponse>(
+    65→    productId ? `/api/products/${productId}` : null
+    66→  )
+    67→
+    68→  const [activeImage, setActiveImage] = useState(0)
+    69→  const [lightboxOpen, setLightboxOpen] = useState(false)
+    70→  const [quantity, setQuantity] = useState(1)
+    71→  const [reviewRating, setReviewRating] = useState(5)
+    72→  const [reviewComment, setReviewComment] = useState('')
+    73→  const [submittingReview, setSubmittingReview] = useState(false)
+    74→  const [showBuyBar, setShowBuyBar] = useState(false)
+    75→  const [justShared, setJustShared] = useState(false)
+    76→  const shareTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+    77→  const buyActionsRef = useRef<HTMLDivElement>(null)
+    78→
+    79→  useEffect(() => () => {
+    80→    if (shareTimer.current) clearTimeout(shareTimer.current)
+    81→  }, [])
+    82→
+    83→  // Mobile sticky buy bar: reveal once the main action buttons scroll out of view
+    84→  useEffect(() => {
+    85→    const onScroll = () => {
+    86→      const el = buyActionsRef.current
+    87→      if (!el) return
+    88→      setShowBuyBar(el.getBoundingClientRect().bottom < 72)
+    89→    }
+    90→    window.addEventListener('scroll', onScroll, { passive: true })
+    91→    onScroll()
+    92→    return () => window.removeEventListener('scroll', onScroll)
+    93→  }, [productId, data])
+    94→
+    95→  // Reserve space at the document bottom on phones so the fixed bar never covers the footer
+    96→  useEffect(() => {
+    97→    document.body.classList.toggle('has-buy-bar', showBuyBar)
+    98→    return () => document.body.classList.remove('has-buy-bar')
+    99→  }, [showBuyBar])
+   100→
+   101→  const product = data?.product
+   102→
+   103→  // Record the visit for the "Recently viewed" row on home
+   104→  useEffect(() => {
+   105→    if (productId) trackView(productId)
+   106→  }, [productId, trackView])
+   107→
+   108→  const discount = useMemo(
+   109→    () => (product ? discountPercent(product.price, product.compareAtPrice) : null),
+   110→    [product]
+   111→  )
+   112→
+   113→  const handleAddToCart = (openDrawer = false) => {
+   114→    if (!product) return
+   115→    const res = addToCart(product, quantity)
+   116→    if (res.ok) {
+   117→      toast({ title: 'Added to cart', description: `${quantity} × ${product.title}` })
+   118→      if (openDrawer) setCartOpen(true)
+   119→    } else {
+   120→      toast({ title: 'Cannot add to cart', description: res.message, variant: 'destructive' })
+   121→    }
+   122→  }
+   123→
+   124→  const handleBuyNow = () => {
+   125→    if (!product) return
+   126→    const res = addToCart(product, quantity)
+   127→    if (res.ok) navigate('checkout')
+   128→    else toast({ title: 'Cannot add to cart', description: res.message, variant: 'destructive' })
+   129→  }
+   130→
+   131→  const handleFavorite = async () => {
+   132→    if (!product) return
+   133→    if (!user) {
+   134→      openAuth('login', { view: 'product', productId: product.id })
+   135→      return
+   136→    }
+   137→    try {
+   138→      const res = await fetch('/api/favorites', {
+   139→        method: 'POST',
+   140→        headers: { 'Content-Type': 'application/json' },
+   141→        body: JSON.stringify({ productId: product.id }),
+   142→      })
+   143→      const json = await res.json()
+   144→      if (!res.ok) {
+   145→        toast({ title: 'Error', description: json.error, variant: 'destructive' })
+   146→        return
+   147→      }
+   148→      setData(
+   149→        data ? { ...data, product: { ...product, favorited: json.favorited } } : data,
+   150→      )
+   151→      toast({
+   152→        title: json.favorited ? 'Saved to favorites' : 'Removed from favorites',
+   153→        description: product.title,
+   154→      })
+   155→      window.dispatchEvent(new CustomEvent('favorites-changed'))
+   156→    } catch {
+   157→      toast({ title: 'Error', description: 'Network error', variant: 'destructive' })
+   158→    }
+   159→  }
+   160→
+   161→  const handleShare = async () => {
+   162→    if (!product) return
+   163→    const url = absoluteUrl(viewToHref('product', { productId: product.id }))
+   164→    const outcome = await shareLink(url, product.title, `Check out ${product.title} on Vendora`)
+   165→    if (outcome === 'shared') {
+   166→      toast({ title: 'Thanks for spreading the word!', description: product.title })
+   167→    } else if (outcome === 'copied') {
+   168→      setJustShared(true)
+   169→      if (shareTimer.current) clearTimeout(shareTimer.current)
+   170→      shareTimer.current = setTimeout(() => setJustShared(false), 1800)
+   171→      toast({ title: 'Link copied to clipboard', description: 'Share it anywhere you like' })
+   172→    } else if (outcome === 'failed') {
+   173→      toast({ title: 'Could not share', description: 'Copy failed — try again in a moment', variant: 'destructive' })
+   174→    }
+   175→  }
+   176→
+   177→  const submitReview = async (e: React.FormEvent) => {
+   178→    e.preventDefault()
+   179→    if (!product) return
+   180→    if (!user) {
+   181→      openAuth('login', { view: 'product', productId: product.id })
+   182→      return
+   183→    }
+   184→    if (reviewComment.trim().length < 3) {
+   185→      toast({ title: 'Review too short', description: 'Please write at least a few words', variant: 'destructive' })
+   186→      return
+   187→    }
+   188→    setSubmittingReview(true)
+   189→    try {
+   190→      const res = await fetch('/api/reviews', {
+   191→        method: 'POST',
+   192→        headers: { 'Content-Type': 'application/json' },
+   193→        body: JSON.stringify({ productId: product.id, rating: reviewRating, comment: reviewComment.trim() }),
+   194→      })
+   195→      const json = await res.json()
+   196→      if (!res.ok) {
+   197→        toast({ title: 'Error', description: json.error, variant: 'destructive' })
+   198→        return
+   199→      }
+   200→      // Update local state: refresh from server
+   201→      const fresh = await fetch(`/api/products/${product.id}`, { cache: 'no-store' })
+   202→      if (fresh.ok) setData(await fresh.json())
+   203→      setReviewComment('')
+   204→      setReviewRating(5)
+   205→      toast({ title: 'Review submitted', description: 'Thanks for sharing your thoughts!' })
+   206→    } catch {
+   207→      toast({ title: 'Error', description: 'Network error', variant: 'destructive' })
+   208→    } finally {
+   209→      setSubmittingReview(false)
+   210→    }
+   211→  }
+   212→
+   213→  if (loading || !product) {
+   214→    return (
+   215→      <div className="mx-auto max-w-7xl px-4 py-8">
+   216→        <div className="grid gap-8 lg:grid-cols-2">
+   217→          <Skeleton className="aspect-square w-full rounded-2xl" />
+   218→          <div className="space-y-4">
+   219→            <Skeleton className="h-6 w-24" />
+   220→            <Skeleton className="h-10 w-3/4" />
+   221→            <Skeleton className="h-5 w-1/2" />
+   222→            <Skeleton className="h-8 w-32" />
+   223→            <Skeleton className="h-24 w-full" />
+   224→            <Skeleton className="h-12 w-full" />
+   225→          </div>
+   226→        </div>
+   227→      </div>
+   228→    )
+   229→  }
+   230→
+   231→  const ratingBuckets = [5, 4, 3, 2, 1].map((star) => ({
+   232→    star,
+   233→    count: data.reviews.filter((r) => r.rating === star).length,
+   234→  }))
+   235→  const totalReviews = data.reviews.length
+   236→  const myReview = user ? data.reviews.find((r) => r.user.id === user.id) : undefined
+   237→
+   238→  return (
+   239→    <div className="mx-auto max-w-7xl px-4 py-8">
+   240→      {/* Breadcrumb */}
+   241→      <nav className="mb-6 flex flex-wrap items-center gap-1 text-sm text-muted-foreground" aria-label="Breadcrumb">
+   242→        <button className="hover:text-primary" onClick={() => navigate('home')}>
+   243→          Home
+   244→        </button>
+   245→        <ChevronRight size={13} />
+   246→        <button className="hover:text-primary" onClick={() => navigate('catalog', { category: product.category.slug })}>
+   247→          {product.category.name}
+   248→        </button>
+   249→        <ChevronRight size={13} />
+   250→        <span className="line-clamp-1 max-w-64 font-medium text-foreground">{product.title}</span>
+   251→      </nav>
+   252→
+   253→      <div className="grid gap-10 lg:grid-cols-2">
+   254→        {/* ── Gallery ── */}
+   255→        <div>
+   256→          <motion.div
+   257→            key={activeImage}
+   258→            initial={{ opacity: 0.4, scale: 0.99 }}
+   259→            animate={{ opacity: 1, scale: 1 }}
+   260→            transition={{ duration: 0.25 }}
+   261→            className="group relative overflow-hidden rounded-2xl border bg-muted"
+   262→          >
+   263→            {product.images[activeImage] ? (
+   264→              <button
+   265→                className="block w-full cursor-zoom-in"
+   266→                onClick={() => setLightboxOpen(true)}
+   267→                aria-label="Enlarge image"
+   268→              >
+   269→                <img
+   270→                  src={product.images[activeImage]}
+   271→                  alt={`${product.title} — image ${activeImage + 1}`}
+   272→                  className="aspect-square w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+   273→                />
+   274→                <span className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-background/80 text-foreground opacity-0 shadow-sm backdrop-blur transition-opacity duration-200 group-hover:opacity-100">
+   275→                  <ZoomIn size={16} />
+   276→                </span>
+   277→              </button>
+   278→            ) : (
+   279→              <div className="flex aspect-square items-center justify-center text-muted-foreground">No image</div>
+   280→            )}
+   281→            {discount !== null && (
+   282→              <Badge className="absolute left-3 top-3 bg-red-500/95 text-sm font-bold text-white hover:bg-red-500">
+   283→                -{discount}%
+   284→              </Badge>
+   285→            )}
+   286→          </motion.div>
+   287→          {product.images.length > 1 && (
+   288→            <div className="mt-3 flex gap-2.5">
+   289→              {product.images.map((img, i) => (
+   290→                <button
+   291→                  key={i}
+   292→                  onClick={() => setActiveImage(i)}
+   293→                  className={cn(
+   294→                    'h-20 w-20 shrink-0 overflow-hidden rounded-xl border-2 transition-all',
+   295→                    i === activeImage ? 'border-primary' : 'border-transparent opacity-60 hover:opacity-100'
+   296→                  )}
+   297→                  aria-label={`Show image ${i + 1}`}
+   298→                >
+   299→                  <img src={img} alt="" className="h-full w-full object-cover" />
+   300→                </button>
+   301→              ))}
+   302→            </div>
+   303→          )}
+   304→        </div>
+   305→
+   306→        {/* ── Info ── */}
+   307→        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+   308→          <Badge variant="secondary" className="rounded-full text-xs font-medium">
+   309→            {product.category.name}
+   310→          </Badge>
+   311→          <h1 className="mt-3 text-2xl font-bold leading-snug tracking-tight sm:text-3xl">{product.title}</h1>
+   312→
+   313→          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+   314→            <div className="flex items-center gap-1.5">
+   315→              <Star size={15} className="fill-amber-400 text-amber-400" />
+   316→              <span className="font-semibold">{product.rating.toFixed(1)}</span>
+   317→              <button
+   318→                className="text-muted-foreground underline-offset-2 hover:underline"
+   319→                onClick={() => document.getElementById('reviews-tab')?.click()}
+   320→              >
+   321→                {product.reviewCount} reviews
+   322→              </button>
+   323→            </div>
+   324→            <span className="text-muted-foreground">·</span>
+   325→            <span className="text-muted-foreground">{formatNumber(product.soldCount)} sold</span>
+   326→          </div>
+   327→
+   328→          <div className="mt-5 flex items-end gap-3">
+   329→            <span className="text-4xl font-extrabold tracking-tight">{formatUSD(product.price)}</span>
+   330→            {product.compareAtPrice && (
+   331→              <span className="pb-1 text-lg text-muted-foreground line-through">
+   332→                {formatUSD(product.compareAtPrice)}
+   333→              </span>
+   334→            )}
+   335→            {discount !== null && (
+   336→              <Badge variant="destructive" className="mb-1.5">
+   337→                Save {discount}%
+   338→              </Badge>
+   339→            )}
+   340→          </div>
+   341→
+   342→          <p className="mt-4 leading-relaxed text-muted-foreground">{product.description}</p>
+   343→
+   344→          {/* Stock */}
+   345→          <div className="mt-5 flex items-center gap-2 text-sm">
+   346→            <span
+   347→              className={cn(
+   348→                'h-2 w-2 rounded-full',
+   349→                product.stock === 0 ? 'bg-destructive' : product.stock <= 5 ? 'bg-amber-500' : 'bg-emerald-500'
+   350→              )}
+   351→            />
+   352→            {product.stock === 0 ? (
+   353→              <span className="font-medium text-destructive">Out of stock</span>
+   354→            ) : product.stock <= 5 ? (
+   355→              <span className="font-medium text-amber-600 dark:text-amber-400">
+   356→                Selling fast — only {product.stock} left
+   357→              </span>
+   358→            ) : (
+   359→              <span className="text-muted-foreground">{product.stock} in stock</span>
+   360→            )}
+   361→          </div>
+   362→
+   363→          {/* Quantity + actions */}
+   364→          <div ref={buyActionsRef} className="mt-6 flex flex-wrap items-center gap-3">
+   365→            <QuantityInput value={quantity} onChange={setQuantity} max={Math.max(1, product.stock)} />
+   366→            <Button
+   367→              size="lg"
+   368→              className="h-12 flex-1 rounded-xl text-base sm:flex-none sm:px-8"
+   369→              disabled={product.stock === 0}
+   370→              onClick={() => handleAddToCart(false)}
+   371→            >
+   372→              <ShoppingCart size={17} className="mr-2" /> Add to cart
+   373→            </Button>
+   374→            <Button
+   375→              size="lg"
+   376→              variant="secondary"
+   377→              className="h-12 rounded-xl border text-base sm:px-8"
+   378→              disabled={product.stock === 0}
+   379→              onClick={handleBuyNow}
+   380→            >
+   381→              <Zap size={16} className="mr-2" /> Buy now
+   382→            </Button>
+   383→            <Button
+   384→              size="lg"
+   385→              variant="outline"
+   386→              className="h-12 w-12 rounded-xl p-0"
+   387→              onClick={handleFavorite}
+   388→              aria-label="Toggle favorite"
+   389→            >
+   390→              <Heart
+   391→                size={19}
+   392→                className={cn('transition-colors', product.favorited && 'fill-red-500 text-red-500')}
+   393→              />
+   394→            </Button>
+   395→            <Button
+   396→              size="lg"
+   397→              variant="outline"
+   398→              className={cn(
+   399→                'h-12 w-12 rounded-xl p-0 transition-colors',
+   400→                justShared && 'border-emerald-500/60 text-emerald-600 dark:text-emerald-400'
+   401→              )}
+   402→              onClick={handleShare}
+   403→              aria-label="Share this product"
+   404→            >
+   405→              {justShared ? <Check size={19} /> : <Share2 size={19} />}
+   406→            </Button>
+   407→          </div>
+   408→
+   409→          {/* Perks */}
+   410→          <div className="mt-7 grid grid-cols-3 gap-3">
+   411→            {[
+   412→              { icon: Truck, title: 'Fast shipping', text: 'Free over $75' },
+   413→              { icon: RotateCcw, title: 'Easy returns', text: 'Within 30 days' },
+   414→              { icon: ShieldCheck, title: 'Warranty', text: '1-year coverage' },
+   415→            ].map((perk) => (
+   416→              <div key={perk.title} className="rounded-xl border bg-card p-3.5 text-center">
+   417→                <perk.icon size={18} className="mx-auto text-primary" />
+   418→                <p className="mt-2 text-xs font-semibold leading-tight">{perk.title}</p>
+   419→                <p className="mt-0.5 text-[11px] text-muted-foreground">{perk.text}</p>
+   420→              </div>
+   421→            ))}
+   422→          </div>
+   423→
+   424→          {/* Seller card — links to the public storefront */}
+   425→          {data.seller && (
+   426→            <Card
+   427→              className="group mt-7 cursor-pointer p-5 transition-all hover:border-primary/40 hover:shadow-md"
+   428→              onClick={() => navigate('store', { sellerId: data.seller!.id })}
+   429→              role="link"
+   430→              aria-label={`Visit ${data.seller.storeName ?? data.seller.name} store`}
+   431→            >
+   432→              <div className="flex items-center gap-4">
+   433→                <Avatar className="h-13 w-13 border">
+   434→                  <AvatarFallback className="bg-primary/10 font-bold text-primary">
+   435→                    {initials(data.seller.storeName ?? data.seller.name)}
+   436→                  </AvatarFallback>
+   437→                </Avatar>
+   438→                <div className="min-w-0 flex-1">
+   439→                  <div className="flex items-center gap-1.5">
+   440→                    <p className="truncate font-semibold group-hover:text-primary">
+   441→                      {data.seller.storeName ?? data.seller.name}
+   442→                    </p>
+   443→                    <BadgeCheck size={15} className="shrink-0 text-primary" />
+   444→                  </div>
+   445→                  <p className="mt-0.5 text-xs text-muted-foreground">
+   446→                    Member since {formatDate(data.seller.memberSince)} · {data.seller.activeListings} listings
+   447→                  </p>
+   448→                  {data.seller.storeBio && (
+   449→                    <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+   450→                      {data.seller.storeBio}
+   451→                    </p>
+   452→                  )}
+   453→                </div>
+   454→                <span className="hidden shrink-0 items-center gap-1 text-xs font-semibold text-primary sm:flex">
+   455→                  View store
+   456→                  <ChevronRight size={14} className="transition-transform group-hover:translate-x-0.5" />
+   457→                </span>
+   458→              </div>
+   459→            </Card>
+   460→          )}
+   461→        </motion.div>
+   462→      </div>
+   463→
+   464→      {/* ── Image lightbox ── */}
+   465→      <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
+   466→        <DialogContent
+   467→          className="max-w-4xl overflow-hidden rounded-2xl border-none bg-background/95 p-0 shadow-2xl backdrop-blur sm:rounded-3xl [&>button]:hidden"
+   468→          onKeyDown={(e) => {
+   469→            if (e.key === 'ArrowRight' && activeImage < product.images.length - 1) setActiveImage(activeImage + 1)
+   470→            if (e.key === 'ArrowLeft' && activeImage > 0) setActiveImage(activeImage - 1)
+   471→          }}
+   472→        >
+   473→          <DialogTitle className="sr-only">{product.title} — image gallery</DialogTitle>
+   474→          <div className="relative">
+   475→            <img
+   476→              src={product.images[activeImage]}
+   477→              alt={`${product.title} — image ${activeImage + 1} enlarged`}
+   478→              className="max-h-[75vh] w-full object-contain"
+   479→            />
+   480→            <Button
+   481→              variant="secondary"
+   482→              size="icon"
+   483→              className="absolute right-3 top-3 h-10 w-10 rounded-full bg-background/80 shadow-md backdrop-blur"
+   484→              onClick={() => setLightboxOpen(false)}
+   485→              aria-label="Close image viewer"
+   486→            >
+   487→              <X size={18} />
+   488→            </Button>
+   489→            {product.images.length > 1 && (
+   490→              <>
+   491→                <Button
+   492→                  variant="secondary"
+   493→                  size="icon"
+   494→                  className="absolute left-3 top-1/2 h-11 w-11 -translate-y-1/2 rounded-full bg-background/80 shadow-md backdrop-blur transition-transform hover:scale-105 disabled:opacity-30"
+   495→                  disabled={activeImage === 0}
+   496→                  onClick={() => setActiveImage((i) => Math.max(0, i - 1))}
+   497→                  aria-label="Previous image"
+   498→                >
+   499→                  <ChevronRight size={20} className="rotate-180" />
+   500→                </Button>
+   501→                <Button
+   502→                  variant="secondary"
+   503→                  size="icon"
+   504→                  className="absolute right-3 top-1/2 h-11 w-11 -translate-y-1/2 rounded-full bg-background/80 shadow-md backdrop-blur transition-transform hover:scale-105 disabled:opacity-30"
+   505→                  disabled={activeImage === product.images.length - 1}
+   506→                  onClick={() => setActiveImage((i) => Math.min(product.images.length - 1, i + 1))}
+   507→                  aria-label="Next image"
+   508→                >
+   509→                  <ChevronRight size={20} />
+   510→                </Button>
+   511→                <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5 rounded-full bg-background/80 px-3 py-1.5 shadow-sm backdrop-blur">
+   512→                  {product.images.map((img, i) => (
+   513→                    <button
+   514→                      key={i}
+   515→                      onClick={() => setActiveImage(i)}
+   516→                      aria-label={`Show image ${i + 1}`}
+   517→                      className={cn(
+   518→                        'h-2 rounded-full transition-all',
+   519→                        i === activeImage ? 'w-6 bg-primary' : 'w-2 bg-muted-foreground/40 hover:bg-muted-foreground/70'
+   520→                      )}
+   521→                    />
+   522→                  ))}
+   523→                </div>
+   524→              </>
+   525→            )}
+   526→          </div>
+   527→        </DialogContent>
+   528→      </Dialog>
+   529→
+   530→      {/* ── Tabs: description / reviews ── */}
+   531→      <Tabs defaultValue="description" className="mt-14">
+   532→        <TabsList className="h-11 w-full justify-start gap-1 overflow-x-auto rounded-xl bg-muted/60 p-1 sm:w-auto">
+   533→          <TabsTrigger value="description" className="rounded-lg px-5 text-sm">
+   534→            Description
+   535→          </TabsTrigger>
+   536→          <TabsTrigger value="reviews" id="reviews-tab" className="rounded-lg px-5 text-sm">
+   537→            Reviews ({product.reviewCount})
+   538→          </TabsTrigger>
+   539→        </TabsList>
+   540→
+   541→        <TabsContent value="description" className="mt-6">
+   542→          <Card className="p-6">
+   543→            <h2 className="text-lg font-bold">About this item</h2>
+   544→            <p className="mt-3 leading-relaxed text-muted-foreground">{product.description}</p>
+   545→            <Separator className="my-5" />
+   546→            <div className="grid gap-3 text-sm sm:grid-cols-2">
+   547→              <div className="flex justify-between rounded-lg bg-muted/50 px-4 py-2.5">
+   548→                <span className="text-muted-foreground">Category</span>
+   549→                <span className="font-medium">{product.category.name}</span>
+   550→              </div>
+   551→              <div className="flex justify-between rounded-lg bg-muted/50 px-4 py-2.5">
+   552→                <span className="text-muted-foreground">Listed</span>
+   553→                <span className="font-medium">{formatDate(product.createdAt)}</span>
+   554→              </div>
+   555→              <div className="flex justify-between rounded-lg bg-muted/50 px-4 py-2.5">
+   556→                <span className="text-muted-foreground">Units sold</span>
+   557→                <span className="font-medium">{formatNumber(product.soldCount)}</span>
+   558→              </div>
+   559→              <div className="flex justify-between rounded-lg bg-muted/50 px-4 py-2.5">
+   560→                <span className="text-muted-foreground">Ships from</span>
+   561→                <span className="font-medium">Vendora fulfillment</span>
+   562→              </div>
+   563→            </div>
+   564→          </Card>
+   565→        </TabsContent>
+   566→
+   567→        <TabsContent value="reviews" className="mt-6">
+   568→          <div className="grid gap-6 lg:grid-cols-3">
+   569→            {/* Summary */}
+   570→            <Card className="h-fit p-6">
+   571→              <div className="flex items-end gap-2">
+   572→                <span className="text-5xl font-extrabold leading-none">{product.rating.toFixed(1)}</span>
+   573→                <div className="pb-1">
+   574→                  <div className="flex">
+   575→                    {[1, 2, 3, 4, 5].map((i) => (
+   576→                      <Star
+   577→                        key={i}
+   578→                        size={16}
+   579→                        className={
+   580→                          product.rating >= i - 0.25
+   581→                            ? 'fill-amber-400 text-amber-400'
+   582→                            : 'fill-muted text-muted-foreground/30'
+   583→                        }
+   584→                      />
+   585→                    ))}
+   586→                  </div>
+   587→                  <p className="mt-1 text-xs text-muted-foreground">{totalReviews} reviews</p>
+   588→                </div>
+   589→              </div>
+   590→              <div className="mt-5 space-y-2">
+   591→                {ratingBuckets.map((b) => (
+   592→                  <div key={b.star} className="flex items-center gap-2 text-xs">
+   593→                    <span className="w-7 shrink-0 text-muted-foreground">{b.star}★</span>
+   594→                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+   595→                      <div
+   596→                        className="h-full rounded-full bg-amber-400 transition-all"
+   597→                        style={{ width: `${totalReviews ? (b.count / totalReviews) * 100 : 0}%` }}
+   598→                      />
+   599→                    </div>
+   600→                    <span className="w-6 shrink-0 text-right text-muted-foreground">{b.count}</span>
+   601→                  </div>
+   602→                ))}
+   603→              </div>
+   604→
+   605→              <Separator className="my-5" />
+   606→
+   607→              {/* Review form */}
+   608→              <form onSubmit={submitReview} className="space-y-3">
+   609→                <p className="text-sm font-semibold">
+   610→                  {myReview ? 'Update your review' : 'Write a review'}
+   611→                </p>
+   612→                <StarPicker value={reviewRating} onChange={setReviewRating} size={22} />
+   613→                <Textarea
+   614→                  value={reviewComment}
+   615→                  onChange={(e) => setReviewComment(e.target.value)}
+   616→                  placeholder={
+   617→                    myReview
+   618→                      ? myReview.comment
+   619→                      : 'What did you like or dislike? How was the quality?'
+   620→                  }
+   621→                  className="min-h-24 text-sm"
+   622→                  aria-label="Your review"
+   623→                />
+   624→                <Button type="submit" className="w-full rounded-xl" disabled={submittingReview}>
+   625→                  {submittingReview ? 'Submitting…' : myReview ? 'Update review' : 'Submit review'}
+   626→                </Button>
+   627→                {!user && (
+   628→                  <p className="text-center text-xs text-muted-foreground">Sign in to leave a review</p>
+   629→                )}
+   630→              </form>
+   631→            </Card>
+   632→
+   633→            {/* Review list */}
+   634→            <div className="space-y-4 lg:col-span-2">
+   635→              {data.reviews.length === 0 ? (
+   636→                <Card className="flex flex-col items-center p-10 text-center">
+   637→                  <Star size={36} className="text-muted-foreground/40" />
+   638→                  <p className="mt-3 font-semibold">No reviews yet</p>
+   639→                  <p className="mt-1 text-sm text-muted-foreground">Be the first to review this product</p>
+   640→                </Card>
+   641→              ) : (
+   642→                data.reviews.map((review) => (
+   643→                  <Card key={review.id} className="p-5">
+   644→                    <div className="flex items-start gap-3">
+   645→                      <Avatar className="h-9 w-9">
+   646→                        <AvatarFallback className="bg-primary/10 text-xs font-bold text-primary">
+   647→                          {initials(review.user.name)}
+   648→                        </AvatarFallback>
+   649→                      </Avatar>
+   650→                      <div className="min-w-0 flex-1">
+   651→                        <div className="flex flex-wrap items-center gap-2">
+   652→                          <p className="text-sm font-semibold">{review.user.name}</p>
+   653→                          {review.verified && (
+   654→                            <Badge variant="secondary" className="h-5 gap-1 rounded-full px-2 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+   655→                              <BadgeCheck size={11} /> Verified purchase
+   656→                            </Badge>
+   657→                          )}
+   658→                        </div>
+   659→                        <div className="mt-1 flex items-center gap-2">
+   660→                          <div className="flex">
+   661→                            {[1, 2, 3, 4, 5].map((i) => (
+   662→                              <Star
+   663→                                key={i}
+   664→                                size={13}
+   665→                                className={
+   666→                                  review.rating >= i
+   667→                                    ? 'fill-amber-400 text-amber-400'
+   668→                                    : 'fill-muted text-muted-foreground/30'
+   669→                                }
+   670→                              />
+   671→                            ))}
+   672→                          </div>
+   673→                          <span className="text-xs text-muted-foreground">{timeAgo(review.createdAt)}</span>
+   674→                        </div>
+   675→                        <p className="mt-2.5 text-sm leading-relaxed text-foreground/90">{review.comment}</p>
+   676→                      </div>
+   677→                    </div>
+   678→                  </Card>
+   679→                ))
+   680→              )}
+   681→            </div>
+   682→          </div>
+   683→        </TabsContent>
+   684→      </Tabs>
+   685→
+   686→      {/* ── Related ── */}
+   687→      {data.related.length > 0 && (
+   688→        <section className="mt-16" aria-labelledby="related-heading">
+   689→          <h2 id="related-heading" className="mb-5 text-xl font-bold tracking-tight">
+   690→            You might also like
+   691→          </h2>
+   692→          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+   693→            {data.related.map((p, i) => (
+   694→              <ProductCard key={p.id} product={p} index={i} />
+   695→            ))}
+   696→          </div>
+   697→        </section>
+   698→      )}
+   699→
+   700→      {/* ── Mobile sticky buy bar (revealed after the action buttons scroll away) ── */}
+   701→      {showBuyBar && !lightboxOpen && (
+   702→        <motion.div
+   703→          initial={{ y: 88, opacity: 0 }}
+   704→          animate={{ y: 0, opacity: 1 }}
+   705→          transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+   706→          className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 shadow-[0_-4px_20px_rgb(0_0_0/0.06)] backdrop-blur sm:hidden"
+   707→          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+   708→          role="complementary"
+   709→          aria-label="Quick purchase bar"
+   710→        >
+   711→          <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2.5">
+   712→            <div className="min-w-0 flex-1">
+   713→              <p className="truncate text-[11px] leading-tight text-muted-foreground">{product.title}</p>
+   714→              <p className="mt-0.5 flex items-baseline gap-1.5 leading-tight">
+   715→                <span className="text-lg font-extrabold tracking-tight">{formatUSD(product.price)}</span>
+   716→                {product.compareAtPrice && (
+   717→                  <span className="text-xs font-normal text-muted-foreground line-through">
+   718→                    {formatUSD(product.compareAtPrice)}
+   719→                  </span>
+   720→                )}
+   721→              </p>
+   722→            </div>
+   723→            <Button
+   724→              className="h-11 shrink-0 rounded-xl px-5"
+   725→              disabled={product.stock === 0}
+   726→              onClick={() => handleAddToCart(false)}
+   727→            >
+   728→              <ShoppingCart size={16} className="mr-1.5" /> Add
+   729→            </Button>
+   730→            <Button
+   731→              variant="secondary"
+   732→              className="h-11 shrink-0 rounded-xl border px-5"
+   733→              disabled={product.stock === 0}
+   734→              onClick={handleBuyNow}
+   735→            >
+   736→              <Zap size={15} className="mr-1.5" /> Buy
+   737→            </Button>
+   738→          </div>
+   739→        </motion.div>
+   740→      )}
+   741→    </div>
+   742→  )
+   743→}
+   744→

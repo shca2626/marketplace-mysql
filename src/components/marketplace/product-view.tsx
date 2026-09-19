@@ -4,8 +4,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   BadgeCheck,
+  BadgePercent,
   Check,
   ChevronRight,
+  FileText,
   Heart,
   RotateCcw,
   Share2,
@@ -20,13 +22,14 @@ import {
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
-import type { ProductDTO, ReviewDTO } from '@/lib/types'
+import type { OrganizationDTO, ProductDTO, ResolvedPriceDTO, ReviewDTO } from '@/lib/types'
 import { discountPercent, formatDate, formatNumber, formatUSD, initials, timeAgo } from '@/lib/format'
 import { StarPicker } from './star-rating'
 import { QuantityInput } from './quantity-input'
 import { ProductCard } from './product-card'
 import { viewToHref } from '@/lib/routing'
 import { absoluteUrl, shareLink } from '@/lib/share'
+import { defaultActiveOrg, rememberActiveOrg, RFQ_PREFILL_KEY } from './b2b/b2b-shared'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
@@ -73,8 +76,67 @@ export function ProductView() {
   const [submittingReview, setSubmittingReview] = useState(false)
   const [showBuyBar, setShowBuyBar] = useState(false)
   const [justShared, setJustShared] = useState(false)
+  // B2B: active organization + contract price for the current quantity
+  const [activeOrg, setActiveOrg] = useState<{ id: string; name: string } | null>(null)
+  const [contract, setContract] = useState<ResolvedPriceDTO | null>(null)
   const shareTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const buyActionsRef = useRef<HTMLDivElement>(null)
+
+  // Discover the buyer's ACTIVE organization (needed for contract pricing).
+  // Retail-only buyers (no org / not ACTIVE) see the classic price unchanged.
+  useEffect(() => {
+    if (!user) {
+      setActiveOrg(null)
+      return
+    }
+    let cancelled = false
+    fetch('/api/organizations', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json: { organizations?: OrganizationDTO[] } | null) => {
+        if (cancelled || !json?.organizations?.length) return
+        const active = defaultActiveOrg(json.organizations)
+        if (active?.status === 'ACTIVE') {
+          rememberActiveOrg(active.id)
+          setActiveOrg({ id: active.id, name: active.name })
+        }
+      })
+      .catch(() => {
+        /* offline — stay retail */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [user])
+
+  // Re-resolve contract pricing whenever the product or quantity changes
+  useEffect(() => {
+    if (!user || !productId || !activeOrg) {
+      setContract(null)
+      return
+    }
+    let cancelled = false
+    const ctrl = new AbortController()
+    fetch('/api/pricing/resolve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: [{ productId, quantity }], organizationId: activeOrg.id }),
+      signal: ctrl.signal,
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json: { prices?: ResolvedPriceDTO[] } | null) => {
+        if (cancelled || !json?.prices?.length) return
+        const resolved = json.prices[0]
+        // RETAIL means no contract/group list applies — show the classic price
+        setContract(resolved.source === 'RETAIL' ? null : resolved)
+      })
+      .catch(() => {
+        /* aborted or offline — keep retail */
+      })
+    return () => {
+      cancelled = true
+      ctrl.abort()
+    }
+  }, [user, productId, quantity, activeOrg])
 
   useEffect(() => () => {
     if (shareTimer.current) clearTimeout(shareTimer.current)
@@ -128,10 +190,29 @@ export function ProductView() {
     else toast({ title: 'Cannot add to cart', description: res.message, variant: 'destructive' })
   }
 
+  // B2B handoff: prefill a new RFQ line and jump to the RFQ workspace.
+  // sessionStorage (not the store) carries the payload — see b2b/rfq-view.
+  const handleRequestQuote = () => {
+    if (!product) return
+    try {
+      window.sessionStorage.setItem(
+        RFQ_PREFILL_KEY,
+        JSON.stringify({ productId: product.id, title: product.title, price: product.price })
+      )
+    } catch {
+      /* storage unavailable — still navigate */
+    }
+    if (!user) {
+      openAuth('login', { view: 'rfqs' })
+      return
+    }
+    navigate('rfqs')
+  }
+
   const handleFavorite = async () => {
     if (!product) return
     if (!user) {
-      openAuth('login', { view: 'product', productId: product.id })
+      openAuth('login', { view: 'product', params: { productId: product.id } })
       return
     }
     try {
@@ -178,7 +259,7 @@ export function ProductView() {
     e.preventDefault()
     if (!product) return
     if (!user) {
-      openAuth('login', { view: 'product', productId: product.id })
+      openAuth('login', { view: 'product', params: { productId: product.id } })
       return
     }
     if (reviewComment.trim().length < 3) {
@@ -325,19 +406,59 @@ export function ProductView() {
             <span className="text-muted-foreground">{formatNumber(product.soldCount)} sold</span>
           </div>
 
-          <div className="mt-5 flex items-end gap-3">
-            <span className="text-4xl font-extrabold tracking-tight">{formatUSD(product.price)}</span>
-            {product.compareAtPrice && (
-              <span className="pb-1 text-lg text-muted-foreground line-through">
-                {formatUSD(product.compareAtPrice)}
-              </span>
-            )}
-            {discount !== null && (
-              <Badge variant="destructive" className="mb-1.5">
-                Save {discount}%
-              </Badge>
-            )}
-          </div>
+          {/* Price — contract pricing for verified businesses, retail otherwise */}
+          {contract ? (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25 }}
+              className="mt-5 rounded-2xl border border-primary/30 bg-primary/5 p-4"
+              data-testid="contract-price"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-primary">
+                  <BadgePercent size={13} /> Your price
+                </span>
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                  {contract.source === 'CONTRACT' ? 'Contract pricing' : 'Group pricing'}
+                </span>
+              </div>
+              <div className="mt-1.5 flex flex-wrap items-end gap-x-3 gap-y-1">
+                <span className="text-4xl font-extrabold tracking-tight" data-testid="contract-unit-price">
+                  {formatUSD(contract.unitPrice)}
+                </span>
+                <span className="pb-1 text-lg text-muted-foreground line-through">
+                  {formatUSD(contract.listPrice)}
+                </span>
+                {contract.savingsPercent > 0 && (
+                  <span
+                    className="mb-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                    data-testid="contract-savings"
+                  >
+                    Save {Math.round(contract.savingsPercent)}% vs retail
+                  </span>
+                )}
+              </div>
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                {contract.priceListName ? `${contract.priceListName} · ` : ''}at qty {quantity}
+                {activeOrg ? ` · for ${activeOrg.name}` : ''}
+              </p>
+            </motion.div>
+          ) : (
+            <div className="mt-5 flex items-end gap-3">
+              <span className="text-4xl font-extrabold tracking-tight">{formatUSD(product.price)}</span>
+              {product.compareAtPrice && (
+                <span className="pb-1 text-lg text-muted-foreground line-through">
+                  {formatUSD(product.compareAtPrice)}
+                </span>
+              )}
+              {discount !== null && (
+                <Badge variant="destructive" className="mb-1.5">
+                  Save {discount}%
+                </Badge>
+              )}
+            </div>
+          )}
 
           <p className="mt-4 leading-relaxed text-muted-foreground">{product.description}</p>
 
@@ -382,6 +503,14 @@ export function ProductView() {
             </Button>
             <Button
               size="lg"
+              variant="secondary"
+              className="h-12 flex-1 rounded-xl border text-base sm:flex-none sm:px-8"
+              onClick={handleRequestQuote}
+            >
+              <FileText size={16} className="mr-2" /> Request a quote
+            </Button>
+            <Button
+              size="lg"
               variant="outline"
               className="h-12 w-12 rounded-xl p-0"
               onClick={handleFavorite}
@@ -405,6 +534,18 @@ export function ProductView() {
               {justShared ? <Check size={19} /> : <Share2 size={19} />}
             </Button>
           </div>
+
+          {/* Bulk-buy hint under the actions */}
+          <p className="mt-3 text-xs text-muted-foreground">
+            Buying in bulk?{' '}
+            <button
+              onClick={handleRequestQuote}
+              className="font-semibold text-primary underline-offset-2 hover:underline"
+            >
+              Request a quote
+            </button>{' '}
+            for volume pricing, quantity breaks and NET payment terms.
+          </p>
 
           {/* Perks */}
           <div className="mt-7 grid grid-cols-3 gap-3">

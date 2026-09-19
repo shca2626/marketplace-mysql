@@ -145,6 +145,177 @@ export interface HomeFeed {
   stats: { productCount: number; sellerCount: number; reviewCount: number; orderCount: number }
 }
 
+// ── B2B foundation ─────────────────────────────────────────────────────────
+
+export type OrgRole = 'OWNER' | 'ADMIN' | 'BUYER' | 'APPROVER' | 'VIEWER'
+export type OrgStatus = 'PENDING_VERIFICATION' | 'ACTIVE' | 'SUSPENDED' | 'REJECTED'
+
+export interface OrganizationMemberDTO {
+  id: string
+  role: OrgRole
+  jobTitle?: string | null
+  user: { id: string; name: string; email: string }
+  createdAt: string
+}
+
+export interface CustomerGroupDTO {
+  id: string
+  key: string
+  name: string
+  description?: string | null
+  priority: number
+  isDefault: boolean
+  createdAt: string
+  _count?: { users: number; organizations: number; priceLists: number }
+}
+
+export interface OrganizationDTO {
+  id: string
+  name: string
+  slug: string
+  legalName?: string | null
+  taxId?: string | null
+  registrationNumber?: string | null
+  industry?: string | null
+  website?: string | null
+  status: OrgStatus
+  verifiedAt?: string | null
+  creditTermsDays: number
+  creditLimit: number
+  notes?: string | null
+  createdAt: string
+  memberCount?: number
+  myRole?: OrgRole
+  members?: OrganizationMemberDTO[]
+  groups?: CustomerGroupDTO[]
+}
+
+export interface PriceListEntryDTO {
+  id: string
+  productId: string
+  productTitle?: string
+  minQuantity: number
+  unitPrice: number
+}
+
+export interface PriceListDTO {
+  id: string
+  name: string
+  description?: string | null
+  scope: 'ORG' | 'GROUP' | 'CHANNEL'
+  status: 'ACTIVE' | 'DRAFT' | 'ARCHIVED'
+  priority: number
+  currency: string
+  startsAt?: string | null
+  endsAt?: string | null
+  organizationId?: string | null
+  organizationName?: string | null
+  customerGroupId?: string | null
+  customerGroupName?: string | null
+  entryCount?: number
+  createdAt: string
+  entries?: PriceListEntryDTO[]
+}
+
+export interface RfqLineDTO {
+  id: string
+  productId?: string | null
+  productName: string
+  sku?: string | null
+  quantity: number
+  targetPrice?: number | null
+  notes?: string | null
+  product?: { id: string; title: string; price: number; image?: string | null } | null
+}
+
+export interface QuoteLineDTO {
+  id: string
+  productId: string
+  productTitle?: string
+  image?: string | null
+  quantity: number
+  unitPrice: number
+  lineTotal: number
+}
+
+export interface QuoteDTO {
+  id: string
+  number: string
+  rfqId: string
+  status: string
+  currency: string
+  subtotal: number
+  discountTotal: number
+  shippingTotal: number
+  taxTotal: number
+  total: number
+  paymentTerms?: string | null
+  validUntil?: string | null
+  notes?: string | null
+  sentAt?: string | null
+  acceptedAt?: string | null
+  declinedAt?: string | null
+  createdAt: string
+  createdBy: { id: string; name: string }
+  sellerId?: string | null
+  lines: QuoteLineDTO[]
+}
+
+export interface RfqDTO {
+  id: string
+  number: string
+  status: string
+  title?: string | null
+  description?: string | null
+  organizationId?: string | null
+  organizationName?: string | null
+  requester: { id: string; name: string; email: string }
+  submittedAt?: string | null
+  respondedAt?: string | null
+  closedAt?: string | null
+  createdAt: string
+  lines: RfqLineDTO[]
+  quotes?: QuoteDTO[]
+  quoteCount?: number
+  lineCount?: number
+  totalQuantity?: number
+}
+
+export interface AuditLogDTO {
+  id: string
+  actorId?: string | null
+  actorType: string
+  action: string
+  entityType: string
+  entityId?: string | null
+  summary?: string | null
+  metadata?: unknown
+  createdAt: string
+}
+
+export interface ResolvedPriceDTO {
+  productId: string
+  quantity: number
+  unitPrice: number
+  listPrice: number
+  source: 'CONTRACT' | 'GROUP' | 'RETAIL'
+  priceListId?: string
+  priceListName?: string
+  savingsAmount: number
+  savingsPercent: number
+}
+
+export interface CouponDTO {
+  id: string
+  code: string
+  description: string
+  percentOff: number
+  minSubtotal: number
+  firstOrderOnly: boolean
+  active: boolean
+  createdAt: string
+}
+
 // ── Admin analytics (read-only platform overview) ──
 export interface AdminStats {
   totals: {

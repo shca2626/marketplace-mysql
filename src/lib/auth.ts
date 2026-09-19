@@ -3,7 +3,23 @@ import { cookies } from 'next/headers'
 import { db } from '@/lib/db'
 import type { SessionUser } from '@/lib/types'
 
-const SECRET = process.env.AUTH_SECRET || 'vendora-dev-secret'
+// SEC-01 hardening: never silently fall back to a known constant in production.
+// A missing/short AUTH_SECRET throws at module load (fail-fast) instead of
+// issuing session cookies signed with a publicly-known key.
+const DEV_FALLBACK_SECRET = 'vendora-dev-secret'
+function loadSecret(): string {
+  const secret = process.env.AUTH_SECRET
+  if (secret && secret.length >= 32) return secret
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      '[auth] FATAL: AUTH_SECRET is missing or too short (<32 chars). ' +
+        'Generate one with `openssl rand -hex 32` and set it in the environment. ' +
+        'Refusing to sign session cookies with a weak secret.'
+    )
+  }
+  return DEV_FALLBACK_SECRET
+}
+const SECRET = loadSecret()
 export const SESSION_COOKIE = 'vendora_session'
 const MAX_AGE = 60 * 60 * 24 * 30 // 30 days
 
@@ -85,7 +101,7 @@ export async function setSessionCookie(userId: string) {
   cookieStore.set(SESSION_COOKIE, createSessionToken(userId), {
     httpOnly: true,
     sameSite: 'lax',
-    secure: false,
+    secure: process.env.NODE_ENV === 'production', // SEC-02: secure cookies in production
     path: '/',
     maxAge: MAX_AGE,
   })

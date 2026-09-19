@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/auth'
-import { couponDiscount, findCoupon } from '@/lib/pricing'
+import { couponDiscount } from '@/lib/pricing'
+import { findActiveCoupon } from '@/server/modules/coupons/service'
 
 const validateSchema = z.object({
   code: z.string().trim().min(1).max(24),
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest) {
     }
     const { code, subtotal } = parsed.data
 
-    const coupon = findCoupon(code)
+    const coupon = await findActiveCoupon(code)
     if (!coupon) {
       return NextResponse.json({ error: 'That code doesn’t exist — check the spelling' }, { status: 404 })
     }

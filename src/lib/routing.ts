@@ -12,6 +12,7 @@ import type { View, ViewParams } from '@/store/marketplace'
  *   /?view=store&id=<sellerId>       → seller public storefront
  *   /?view=cart | checkout | orders | favorites | account | admin
  *   /?view=seller&tab=orders         → seller dashboard tab
+ *   /?view=rfqs | business           → B2B: requests for quote / business account
  */
 
 const VIEWS = new Set<View>([
@@ -26,6 +27,8 @@ const VIEWS = new Set<View>([
   'seller',
   'account',
   'admin',
+  'rfqs',
+  'business',
 ])
 
 /** Serialize a view + params into a query string (no leading "?"). */

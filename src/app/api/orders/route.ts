@@ -3,7 +3,8 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/auth'
 import { serializeOrder } from '@/lib/serialize'
-import { computePricing, findCoupon } from '@/lib/pricing'
+import { computePricing } from '@/lib/pricing'
+import { findActiveCoupon } from '@/server/modules/coupons/service'
 
 const checkoutSchema = z.object({
   items: z
@@ -59,7 +60,7 @@ export async function POST(req: NextRequest) {
     // ── Coupon validation (authoritative, re-checked server-side) ──
     let coupon = null
     if (rawCouponCode) {
-      coupon = findCoupon(rawCouponCode)
+      coupon = await findActiveCoupon(rawCouponCode)
       if (!coupon) {
         return NextResponse.json({ error: 'Invalid coupon code' }, { status: 400 })
       }

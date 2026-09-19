@@ -1,7 +1,8 @@
 // ── Platform pricing rules ──────────────────────────────────────────────
-// Single source of truth for shipping + coupon math, used by BOTH the API
-// (authoritative) and the UI (display-only preview). The server always
-// recomputes from DB prices at order time.
+// Pure math + constants shared by API (authoritative) and UI (display-only).
+// COUPONS ARE NO LONGER HARDCODED — they live in the Coupon table and are
+// managed from the admin panel. Server-side lookup:
+//   src/server/modules/coupons/service.ts → findActiveCoupon(code)
 
 export const FREE_SHIPPING_THRESHOLD = 75
 export const SHIPPING_FEE = 6.99
@@ -18,23 +19,6 @@ export interface Coupon {
   firstOrderOnly: boolean
   /** Minimum pre-discount subtotal required to use the coupon. */
   minSubtotal: number
-}
-
-// Advertised in the header announcement bar. Keep codes uppercase & exact.
-export const COUPONS: Record<string, Coupon> = {
-  WELCOME10: {
-    code: 'WELCOME10',
-    percentOff: 10,
-    description: '10% off your first order',
-    firstOrderOnly: true,
-    minSubtotal: 0,
-  },
-}
-
-export function findCoupon(rawCode: string): Coupon | null {
-  const code = rawCode.trim().toUpperCase()
-  if (!code) return null
-  return COUPONS[code] ?? null
 }
 
 export function couponDiscount(subtotal: number, coupon: Coupon): number {

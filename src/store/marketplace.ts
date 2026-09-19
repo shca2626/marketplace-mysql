@@ -15,6 +15,8 @@ export type View =
   | 'seller'
   | 'account'
   | 'admin'
+  | 'rfqs'
+  | 'business'
 
 export interface ViewParams {
   productId?: string

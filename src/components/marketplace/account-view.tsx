@@ -1,6 +1,6 @@
 'use client'
 
-import { AtSign, BadgeCheck, Heart, LayoutDashboard, Package, Settings, ShieldCheck, Store } from 'lucide-react'
+import { AtSign, BadgeCheck, Building2, Heart, LayoutDashboard, Package, Settings, ShieldCheck, Store } from 'lucide-react'
 import { useMarketplace } from '@/store/marketplace'
 import { formatDate, initials } from '@/lib/format'
 import { Button } from '@/components/ui/button'
@@ -90,6 +90,12 @@ export function AccountView() {
                     ? 'Manage listings, orders and stats'
                     : 'Open your own storefront in minutes',
                 onClick: () => navigate('seller'),
+              },
+              {
+                icon: Building2,
+                title: 'Business account',
+                text: 'Contract pricing, RFQs and your team',
+                onClick: () => navigate('business'),
               },
             ].map((link) => (
               <button

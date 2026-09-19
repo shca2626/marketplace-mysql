@@ -5,7 +5,9 @@ import Link from 'next/link'
 import { useTheme } from 'next-themes'
 import {
   BarChart3,
+  Building2,
   ChevronDown,
+  FileText,
   Heart,
   LayoutDashboard,
   LogIn,
@@ -215,8 +217,14 @@ export function Header() {
                 <DropdownMenuItem onClick={() => navigate('orders')} className="cursor-pointer">
                   <Package size={15} className="mr-2" /> My Orders
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('rfqs')} className="cursor-pointer">
+                  <FileText size={15} className="mr-2" /> Request for Quotes
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate('favorites')} className="cursor-pointer">
                   <Heart size={15} className="mr-2" /> Favorites
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('business')} className="cursor-pointer">
+                  <Building2 size={15} className="mr-2" /> Business Account
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate('account')} className="cursor-pointer">
                   <Settings size={15} className="mr-2" /> Account
