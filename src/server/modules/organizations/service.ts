@@ -58,6 +58,7 @@ function serializeOrg(
     id: org.id,
     name: org.name,
     slug: org.slug,
+    orgType: org.orgType,
     legalName: org.legalName,
     taxId: org.taxId,
     registrationNumber: org.registrationNumber,
@@ -319,6 +320,7 @@ export async function adminUpdateOrganization(
   adminId: string,
   input: {
     status?: string
+    orgType?: string
     creditTermsDays?: number
     creditLimit?: number
     approvalThreshold?: number | null
@@ -330,6 +332,12 @@ export async function adminUpdateOrganization(
   if (!org) throw new OrgServiceError('Organization not found', 404)
 
   const data: Record<string, unknown> = {}
+  if (input.orgType !== undefined) {
+    if (!['COMPANY', 'BANK', 'MFI', 'EWALLET'].includes(input.orgType)) {
+      throw new OrgServiceError('Invalid organization type')
+    }
+    data.orgType = input.orgType
+  }
   if (input.status !== undefined) {
     if (!(ORG_STATUSES as readonly string[]).includes(input.status)) {
       throw new OrgServiceError('Invalid status')

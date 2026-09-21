@@ -3,6 +3,7 @@ import { recordAudit } from '@/server/modules/audit/service'
 import { nextNumber } from '@/server/modules/sequences/service'
 import { needsApproval, createQuoteAcceptApprovalRequest } from '@/server/modules/approvals/service'
 import { emitNotification, emitNotifications, type EmitInput } from '@/server/modules/notifications/service'
+import { resolvePanel } from '@/server/modules/settings/service'
 import type { RfqDTO, QuoteDTO, RfqLineDTO, QuoteLineDTO, RfqMessageDTO } from '@/lib/types'
 
 /**
@@ -65,7 +66,15 @@ function serializeRfqLine(l: {
   quantity: number
   targetPrice: { toNumber(): number } | null
   notes: string | null
-  product: { id: string; title: string; price: number; images: string } | null
+  product: {
+    id: string
+    title: string
+    price: number
+    images: string
+    moq?: number | null
+    stock?: number
+    priceTiers?: string | null
+  } | null
 }): RfqLineDTO {
   return {
     id: l.id,
@@ -83,8 +92,30 @@ function serializeRfqLine(l: {
           title: l.product.title,
           price: l.product.price,
           image: firstImage(l.product.images),
+          moq: l.product.moq ?? null,
+          stock: l.product.stock,
+          priceTiers: parsePriceTiers(l.product.priceTiers),
         }
       : null,
+  }
+}
+
+/** Parse a product's stored quantity-break ladder (defensive). */
+function parsePriceTiers(raw: string | null | undefined): { from: number; to: number | null; price: number }[] | null {
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed) || parsed.length === 0) return null
+    return parsed
+      .filter(
+        (t): t is { from: number; to: number | null; price: number } =>
+          t && typeof t === 'object' &&
+          typeof (t as { from?: unknown }).from === 'number' &&
+          typeof (t as { price?: unknown }).price === 'number'
+      )
+      .sort((a, b) => a.from - b.from)
+  } catch {
+    return null
   }
 }
 
@@ -177,6 +208,8 @@ function serializeRfq(
     submittedAt: r.submittedAt?.toISOString() ?? null,
     respondedAt: r.respondedAt?.toISOString() ?? null,
     closedAt: r.closedAt?.toISOString() ?? null,
+    expiresAt: (r as { expiresAt?: Date | null }).expiresAt?.toISOString() ?? null,
+    extendedCount: (r as { extendedCount?: number }).extendedCount ?? 0,
     createdAt: r.createdAt.toISOString(),
     lines: r.lines.map(serializeRfqLine),
     quoteCount: r._count?.quotes,
@@ -195,12 +228,92 @@ const rfqInclude = {
 
 // ── Lifecycle sweep (lazy expiry — no cron needed) ──────────────────────────
 
+// ── Settings-aware helpers ──────────────────────────────────────────────────────
+
+/** Scope context for settings resolution: org → org type chain. */
+async function rfqSettingsCtx(organizationId: string | null) {
+  if (!organizationId) return {}
+  const org = await db.organization.findUnique({
+    where: { id: organizationId },
+    select: { orgType: true },
+  })
+  return org ? { orgId: organizationId, orgType: org.orgType } : { orgId: organizationId }
+}
+
+function startOfToday(): Date {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
 export async function expireStaleQuotes(): Promise<void> {
   const now = new Date()
+
+  // ── Quote validity lapsed ──
   await db.quote.updateMany({
     where: { status: 'SENT', validUntil: { lt: now } },
     data: { status: 'EXPIRED' },
   })
+
+  // ── RFQ deadline reached (expiry settings; grace period respected) ──
+  const expiry = await resolvePanel('rfqExpiry')
+  if (expiry.enabled && expiry.actionOnExpiry !== 'KEEP_OPEN') {
+    const graceMs = Number(expiry.graceHours) * 3_600_000
+    const due = await db.rfq.findMany({
+      where: {
+        status: { in: ['SUBMITTED', 'UNDER_REVIEW', 'QUOTED'] },
+        expiresAt: { not: null, lt: new Date(now.getTime() - graceMs) },
+      },
+      include: {
+        user: { select: { id: true } },
+        lines: { select: { product: { select: { sellerId: true } } } },
+        quotes: { select: { sellerId: true } },
+      },
+    })
+    for (const r of due) {
+      await db.rfq.update({
+        where: { id: r.id },
+        data: { status: 'EXPIRED', closedAt: now },
+      })
+      if (expiry.notifyBuyerOnExpiry) {
+        await emitNotification({
+          userId: r.user.id,
+          type: 'RFQ_STATUS',
+          title: `RFQ ${r.number} expired`,
+          body: 'The deadline passed without a deal. You can re-issue the request anytime.',
+          linkView: 'rfq',
+          linkId: r.id,
+        })
+      }
+      if (expiry.notifyUnresponded) {
+        const quoted = new Set(r.quotes.map((q) => q.sellerId).filter((x): x is string => !!x))
+        const unresponded = new Set<string>()
+        for (const l of r.lines) if (l.product?.sellerId) unresponded.add(l.product.sellerId)
+        for (const s of quoted) unresponded.delete(s)
+        await emitNotifications(
+          [...unresponded].map((sellerId) => ({
+            userId: sellerId,
+            type: 'RFQ_STATUS',
+            title: `RFQ ${r.number} expired`,
+            body: 'This request closed before you sent a quote.',
+            linkView: 'seller',
+            linkId: r.id,
+          }))
+        )
+      }
+    }
+  }
+
+  // ── Sent quotes older than the auto-expire window (cancellation settings) ──
+  const cancellation = await resolvePanel('cancellation')
+  if (cancellation.enabled) {
+    const cutoff = new Date(now.getTime() - Number(cancellation.autoExpireQuotesDays) * 86_400_000)
+    await db.quote.updateMany({
+      where: { status: 'SENT', sentAt: { lt: cutoff }, validUntil: null },
+      data: { status: 'EXPIRED' },
+    })
+  }
+
   // RFQs stuck in QUOTED whose quotes are ALL expired → EXPIRED
   const stale = await db.rfq.findMany({
     where: { status: 'QUOTED' },
@@ -210,7 +323,7 @@ export async function expireStaleQuotes(): Promise<void> {
     if (r.quotes.length > 0 && r.quotes.every((q) => q.status !== 'SENT' && q.status !== 'ACCEPTED')) {
       await db.rfq.update({
         where: { id: r.id },
-        data: { status: 'EXPIRED', closedAt: new Date() },
+        data: { status: 'EXPIRED', closedAt: now },
       })
     }
   }
@@ -230,7 +343,7 @@ export interface RfqLineInput {
 
 export async function createRfq(
   userId: string,
-  input: { title?: string | null; description?: string | null; organizationId?: string | null; lines: RfqLineInput[] }
+  input: { title?: string | null; description?: string | null; organizationId?: string | null; lines: RfqLineInput[]; expiresInDays?: number | null }
 ): Promise<RfqDTO> {
   if (!input.lines?.length) throw new RfqServiceError('An RFQ needs at least one line item')
 
@@ -243,6 +356,35 @@ export async function createRfq(
     })
     if (!membership) throw new RfqServiceError('You are not a member of that organization', 403)
     organizationId = input.organizationId
+  }
+
+  // ── Commercial-rule enforcement (scoped settings) ──
+  const ctx = await rfqSettingsCtx(organizationId)
+  const [spam, moq, expiryPanel] = await Promise.all([
+    resolvePanel('spamPrevention', ctx),
+    resolvePanel('moq', ctx),
+    resolvePanel('rfqExpiry', ctx),
+  ])
+
+  // Anti-spam: daily RFQ caps per buyer and per org
+  if (spam.enabled) {
+    const today = startOfToday()
+    const mineToday = await db.rfq.count({ where: { userId, createdAt: { gte: today } } })
+    if (mineToday >= Number(spam.maxRfqsBuyerDay)) {
+      throw new RfqServiceError(
+        `Daily limit reached — you have already created ${mineToday} RFQs today. Come back tomorrow.`,
+        429
+      )
+    }
+    if (organizationId) {
+      const orgToday = await db.rfq.count({ where: { organizationId, createdAt: { gte: today } } })
+      if (orgToday >= Number(spam.maxRfqsOrgDay)) {
+        throw new RfqServiceError(
+          `Your organization's daily RFQ limit (${spam.maxRfqsOrgDay}) is reached.`,
+          429
+        )
+      }
+    }
   }
 
   // Resolve products for snapshotting
@@ -271,6 +413,30 @@ export async function createRfq(
       if (!variant) throw new RfqServiceError('The selected variant does not exist for that product')
       if (!variant.isActive) throw new RfqServiceError('The selected variant is not available')
     }
+    // Minimum order quantity (product.moq × commercial rules)
+    if (line.productId) {
+      const p = productMap.get(line.productId)
+      if (p?.moq && line.quantity < p.moq) {
+        if (moq.enabled && moq.blockRfqBelow && moq.enforcementMode === 'BLOCK' && !moq.allowBelowRequest) {
+          throw new RfqServiceError(
+            `“${p.title}” has a minimum order quantity of ${p.moq} — increase the quantity to continue.`
+          )
+        }
+      }
+    }
+  }
+
+  // Expiry deadline: buyer override (when allowed) or the platform default
+  let expiresAt: Date | null = null
+  if (expiryPanel.enabled) {
+    let days = Number(expiryPanel.defaultDays)
+    if (input.expiresInDays != null) {
+      if (!expiryPanel.buyerOverride) {
+        throw new RfqServiceError('The deadline for requests is fixed by the platform', 403)
+      }
+      days = Math.min(Math.max(input.expiresInDays, Number(expiryPanel.minDays)), Number(expiryPanel.maxDays))
+    }
+    expiresAt = new Date(Date.now() + days * 86_400_000)
   }
 
   const number = await nextNumber('RFQ')
@@ -282,6 +448,7 @@ export async function createRfq(
       title: input.title?.trim() || null,
       description: input.description?.trim() || null,
       status: 'DRAFT',
+      expiresAt,
       lines: {
         create: input.lines.map((l) => {
           let variantName: string | null = null
@@ -367,6 +534,35 @@ export async function getRfq(rfqId: string, viewer: { id: string; role: string }
   if (!isOwner && !isAdmin && dto.quotes) {
     dto.quotes = dto.quotes.filter((q) => q.sellerId === viewer.id)
   }
+  // The buyer never sees quotes still in platform review (or review-rejected ones)
+  if (isOwner && !isAdmin && dto.quotes) {
+    dto.quotes = dto.quotes.filter((q) => q.status !== 'PENDING_REVIEW' && q.status !== 'REJECTED')
+  }
+  // Seller trust meta on quotes (rating shown to buyers per settings)
+  const ratingPanel = await resolvePanel('sellerRating')
+  if (dto.quotes?.length) {
+    const sellerIds = [...new Set(dto.quotes.map((q) => q.sellerId).filter((x): x is string => !!x))]
+    if (sellerIds.length) {
+      const [sellers, stats] = await Promise.all([
+        db.user.findMany({ where: { id: { in: sellerIds } }, select: { id: true, name: true, verifiedAt: true, createdAt: true } }),
+        db.product.groupBy({ by: ['sellerId'], where: { sellerId: { in: sellerIds }, status: 'ACTIVE' }, _avg: { rating: true }, _sum: { reviewCount: true } }),
+      ])
+      const statBySeller = new Map(stats.map((s) => [s.sellerId, s]))
+      for (const q of dto.quotes) {
+        if (!q.sellerId) continue
+        const seller = sellers.find((s) => s.id === q.sellerId)
+        if (!seller) continue
+        const stat = statBySeller.get(q.sellerId)
+        q.sellerMeta = {
+          name: seller.name,
+          verified: ratingPanel.showVerificationBadge ? !!seller.verifiedAt : undefined,
+          rating: ratingPanel.showStars ? Number((stat?._avg.rating ?? 0).toFixed(2)) || 0 : undefined,
+          reviewCount: ratingPanel.showReviewCount ? (stat?._sum.reviewCount ?? 0) : undefined,
+          memberSince: ratingPanel.showMemberSince ? seller.createdAt.toISOString() : undefined,
+        }
+      }
+    }
+  }
   return dto
 }
 
@@ -397,14 +593,24 @@ export async function rfqTransition(
 
   const now = new Date()
   const patch: Record<string, unknown> = { status: next }
-  if (action === 'SUBMIT') patch.submittedAt = now
+  if (action === 'SUBMIT') {
+    patch.submittedAt = now
+    // Default the deadline from expiry settings when the draft has none
+    if (!rfq.expiresAt) {
+      const expiryPanel = await resolvePanel('rfqExpiry', await rfqSettingsCtx(rfq.organizationId))
+      if (expiryPanel.enabled) {
+        patch.expiresAt = new Date(now.getTime() + Number(expiryPanel.defaultDays) * 86_400_000)
+      }
+    }
+  }
   if (action === 'REJECT' || action === 'CANCEL' || action === 'EXPIRE') patch.closedAt = now
 
   await db.rfq.update({ where: { id: rfqId }, data: patch })
 
   // ── Notifications ──
   if (action === 'SUBMIT') {
-    // Tell every seller whose catalog products this RFQ references
+    // Tell every seller whose catalog products this RFQ references — filtered
+    // and capped by the distribution settings (verification, rating, max sellers)
     const sellers = await db.rfqLine.findMany({
       where: { rfqId, productId: { not: null } },
       select: { product: { select: { sellerId: true, title: true } } },
@@ -414,14 +620,53 @@ export async function rfqTransition(
       if (!s.product) continue
       bySeller.set(s.product.sellerId, [...(bySeller.get(s.product.sellerId) ?? []), s.product.title])
     }
-    const emits: EmitInput[] = [...bySeller.entries()].map(([sellerId, titles]) => ({
-      userId: sellerId,
-      type: 'RFQ_SUBMITTED_SELLER',
-      title: `New quote request ${rfq.number}`,
-      body: `A buyer needs a quote including ${titles.slice(0, 2).join(', ')}${titles.length > 2 ? ` +${titles.length - 2} more` : ''}`,
-      linkView: 'seller',
-      linkId: rfqId,
-    }))
+
+    const distribution = await resolvePanel('distribution', await rfqSettingsCtx(rfq.organizationId))
+    let eligible = [...bySeller.keys()]
+    if (distribution.enabled && distribution.mode !== 'ALL_MATCHING') {
+      if (distribution.minVerification !== 'NONE' && distribution.minVerification !== 'EMAIL') {
+        // Email is always verified on this platform; KYC+ requires the stamp
+        const rows = await db.user.findMany({
+          where: { id: { in: eligible } },
+          select: { id: true, verifiedAt: true },
+        })
+        const verified = new Set(rows.filter((u) => u.verifiedAt).map((u) => u.id))
+        eligible = eligible.filter((id) => verified.has(id))
+      }
+      if (Number(distribution.minRating) > 0) {
+        const rows = await db.product.groupBy({
+          by: ['sellerId'],
+          where: { sellerId: { in: eligible }, status: 'ACTIVE' },
+          _avg: { rating: true },
+        })
+        const ratingBySeller = new Map(rows.map((r) => [r.sellerId, r._avg.rating ?? 0]))
+        eligible = eligible.filter((id) => (ratingBySeller.get(id) ?? 0) >= Number(distribution.minRating))
+      }
+      const cap = Number(distribution.maxSellers)
+      if (eligible.length > cap) {
+        // Rank by catalog rating (the dominant ranking signal available today)
+        const rows = await db.product.groupBy({
+          by: ['sellerId'],
+          where: { sellerId: { in: eligible }, status: 'ACTIVE' },
+          _avg: { rating: true },
+        })
+        const ratingBySeller = new Map(rows.map((r) => [r.sellerId, r._avg.rating ?? 0]))
+        eligible.sort((a, b) => (ratingBySeller.get(b) ?? 0) - (ratingBySeller.get(a) ?? 0))
+        eligible = eligible.slice(0, cap)
+      }
+    }
+
+    const emits: EmitInput[] = eligible.map((sellerId) => {
+      const titles = bySeller.get(sellerId) ?? []
+      return {
+        userId: sellerId,
+        type: 'RFQ_SUBMITTED_SELLER',
+        title: `New quote request ${rfq.number}`,
+        body: `A buyer needs a quote including ${titles.slice(0, 2).join(', ')}${titles.length > 2 ? ` +${titles.length - 2} more` : ''}`,
+        linkView: 'seller',
+        linkId: rfqId,
+      }
+    })
     await emitNotifications(emits)
   } else if (action === 'REVIEW' || action === 'REJECT') {
     await emitNotification({
@@ -511,6 +756,69 @@ export async function createQuote(
     throw new RfqServiceError('Validity date must be in the future')
   }
 
+  // ── Settings enforcement (scoped to the buyer's org chain) ──
+  const ctx = await rfqSettingsCtx(rfq.organizationId)
+  const [spam, routing, stockHold] = await Promise.all([
+    resolvePanel('spamPrevention', ctx),
+    resolvePanel('quoteRouting', ctx),
+    resolvePanel('stockHold', ctx),
+  ])
+
+  // Anti-spam: daily quote cap per seller
+  if (spam.enabled && sellerId) {
+    const mineToday = await db.quote.count({
+      where: { createdById: actor.id, createdAt: { gte: startOfToday() } },
+    })
+    if (mineToday >= Number(spam.maxQuotesSellerDay)) {
+      throw new RfqServiceError(
+        `Daily limit reached — you have already sent ${mineToday} quotes today. Come back tomorrow.`,
+        429
+      )
+    }
+  }
+
+  // Stock hold: block quoting on zero-stock products
+  if (stockHold.enabled && stockHold.blockQuotesZeroStock) {
+    const zero = input.lines.find((l) => (productMap.get(l.productId)?.stock ?? 1) <= 0)
+    if (zero) {
+      throw new RfqServiceError(
+        `“${productMap.get(zero.productId)!.title}” is out of stock — it cannot be quoted right now.`,
+        409
+      )
+    }
+  }
+
+  // Quote routing: does this quote need platform review before the buyer sees it?
+  let quoteStatus: 'SENT' | 'PENDING_REVIEW' = 'SENT'
+  if (routing.enabled && !isAdmin && routing.mode !== 'DIRECT') {
+    let needsReview = false
+    if (routing.mode === 'ALWAYS') needsReview = true
+    else if (routing.mode === 'THRESHOLD') {
+      // total is computed below — approximate with the line sum (discounts only lower it)
+      const gross = input.lines.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0)
+      needsReview = gross > Number(routing.thresholdAmount)
+    } else if (routing.mode === 'NEW_SELLERS') {
+      const sellerUser = sellerId
+        ? await db.user.findUnique({ where: { id: sellerId }, select: { createdAt: true } })
+        : null
+      needsReview = !sellerUser || Date.now() - sellerUser.createdAt.getTime() < 30 * 86_400_000
+    } else if (routing.mode === 'CATEGORY') {
+      const cats = new Set((routing.reviewCategories as string[]) ?? [])
+      needsReview = products.some((p) => cats.has(p.categoryId))
+    }
+    if (needsReview && sellerId) {
+      const sellerUser = await db.user.findUnique({ where: { id: sellerId }, select: { verifiedAt: true } })
+      if (routing.autoApproveVerified && sellerUser?.verifiedAt) needsReview = false
+      else if (routing.autoRejectUnverified && !sellerUser?.verifiedAt) {
+        throw new RfqServiceError(
+          'Your account is not verified yet — quotes cannot be submitted until verification completes.',
+          403
+        )
+      }
+    }
+    if (needsReview) quoteStatus = 'PENDING_REVIEW'
+  }
+
   const subtotal = input.lines.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0)
   const discountTotal = input.discountTotal ?? 0
   const shippingTotal = input.shippingTotal ?? 0
@@ -530,7 +838,7 @@ export async function createQuote(
         rfqId,
         createdById: actor.id,
         sellerId,
-        status: 'SENT',
+        status: quoteStatus,
         subtotal,
         discountTotal,
         shippingTotal,
@@ -539,7 +847,7 @@ export async function createQuote(
         paymentTerms: input.paymentTerms?.trim() || null,
         validUntil,
         notes: input.notes?.trim() || null,
-        sentAt: new Date(),
+        sentAt: quoteStatus === 'SENT' ? new Date() : null,
         lines: {
           create: input.lines.map((l) => ({
             rfqLineId: l.rfqLineId && rfqLineIds.has(l.rfqLineId) ? l.rfqLineId : null,
@@ -579,8 +887,32 @@ export async function createQuote(
     metadata: { rfqId, total },
   })
 
-  // Buyer learns a new offer arrived (skip the platform quoting itself)
-  if (rfq.userId !== actor.id) {
+  if (quoteStatus === 'PENDING_REVIEW') {
+    // The quote waits in the admin review queue — the buyer sees nothing yet
+    if (routing.notifyAdminOnQueue) {
+      const admins = await db.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })
+      await emitNotifications(
+        admins.map((a) => ({
+          userId: a.id,
+          type: 'RFQ_QUOTE_REVIEW',
+          title: `Quote ${number} awaits review`,
+          body: `$${total.toFixed(2)} from ${quote.createdBy.name || 'a seller'} on RFQ ${rfq.number} — approve to release it to the buyer.`,
+          linkView: 'admin',
+          linkId: rfqId,
+        }))
+      )
+    }
+    await recordAudit({
+      actorId: actor.id,
+      actorType: isAdmin ? 'ADMIN' : 'SELLER',
+      action: 'QUOTE_PENDING_REVIEW',
+      entityType: 'Quote',
+      entityId: quote.id,
+      summary: `Quote ${number} queued for platform review (total ${total.toFixed(2)})`,
+      metadata: { rfqId, total, mode: routing.mode },
+    })
+  } else if (rfq.userId !== actor.id) {
+    // Buyer learns a new offer arrived (skip the platform quoting itself)
     await emitNotification({
       userId: rfq.userId,
       type: 'RFQ_QUOTE_RECEIVED',
@@ -592,6 +924,82 @@ export async function createQuote(
   }
 
   return serializeQuote(quote as never)
+}
+
+// ── Quote routing review (admin releases or rejects a queued quote) ────
+
+export async function reviewQuote(
+  quoteId: string,
+  actor: { id: string; role: string },
+  decision: 'APPROVE' | 'REJECT',
+  note?: string
+): Promise<QuoteDTO> {
+  if (actor.role !== 'ADMIN') throw new RfqServiceError('Only platform admins can review quotes', 403)
+  const quote = await db.quote.findUnique({
+    where: { id: quoteId },
+    include: {
+      rfq: { select: { id: true, number: true, userId: true } },
+      createdBy: { select: { id: true, name: true } },
+      lines: { include: { product: true } },
+    },
+  })
+  if (!quote) throw new RfqServiceError('Quote not found', 404)
+  if (quote.status !== 'PENDING_REVIEW') {
+    throw new RfqServiceError(`Quote is ${quote.status.toLowerCase()} — nothing to review`, 409)
+  }
+
+  if (decision === 'APPROVE') {
+    await db.quote.update({ where: { id: quoteId }, data: { status: 'SENT', sentAt: new Date() } })
+    await recordAudit({
+      actorId: actor.id,
+      actorType: 'ADMIN',
+      action: 'QUOTE_APPROVED',
+      entityType: 'Quote',
+      entityId: quoteId,
+      summary: `Quote ${quote.number} released to the buyer after review`,
+      metadata: { rfqId: quote.rfqId, note: note ?? null },
+    })
+    await emitNotification({
+      userId: quote.rfq.userId,
+      type: 'RFQ_QUOTE_RECEIVED',
+      title: `Quote ${quote.number} received`,
+      body: `${quote.createdBy.name || 'A seller'} offered $${Number(quote.total).toFixed(2)}${quote.lines[0]?.product ? ` for ${quote.lines[0].product.title}` : ''}${quote.paymentTerms ? ` · ${quote.paymentTerms}` : ''}`,
+      linkView: 'rfq',
+      linkId: quote.rfqId,
+    })
+  } else {
+    await db.quote.update({ where: { id: quoteId }, data: { status: 'REJECTED' } })
+    await recordAudit({
+      actorId: actor.id,
+      actorType: 'ADMIN',
+      action: 'QUOTE_REJECTED',
+      entityType: 'Quote',
+      entityId: quoteId,
+      summary: `Quote ${quote.number} rejected in review`,
+      metadata: { rfqId: quote.rfqId, note: note ?? null },
+    })
+    if (quote.sellerId) {
+      await emitNotification({
+        userId: quote.sellerId,
+        type: 'RFQ_QUOTE_REJECTED',
+        title: `Quote ${quote.number} was not approved`,
+        body: note?.trim()
+          ? `Platform review declined your quote: ${note.trim()}`
+          : 'Platform review declined your quote. Review the request and try a revised offer.',
+        linkView: 'seller',
+        linkId: quote.rfqId,
+      })
+    }
+  }
+
+  const updated = await db.quote.findUniqueOrThrow({
+    where: { id: quoteId },
+    include: {
+      createdBy: { select: { id: true, name: true } },
+      lines: { include: { product: true } },
+    },
+  })
+  return serializeQuote(updated as never)
 }
 
 export async function respondToQuote(
@@ -735,7 +1143,22 @@ export async function adminListRfqs(filter?: {
   return rfqs.map((r) => serializeRfq(r as never, false))
 }
 
-// ── Seller inbox — RFQs that reference my catalog products ──────────────────
+/** Quotes filtered by status for the admin routing-review queue. */
+export async function adminListQuotes(status?: string): Promise<QuoteDTO[]> {
+  await expireStaleQuotes()
+  const quotes = await db.quote.findMany({
+    where: status ? { status } : undefined,
+    include: {
+      createdBy: { select: { id: true, name: true } },
+      lines: { include: { product: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+  })
+  return quotes.map((q) => serializeQuote(q as never))
+}
+
+// ── Seller inbox — RFQs that reference my catalog products ───────────────────
 
 export async function sellerRfqInbox(sellerId: string): Promise<RfqDTO[]> {
   await expireStaleQuotes()
@@ -823,6 +1246,20 @@ export async function postRfqMessage(
     throw new RfqServiceError(`This RFQ is ${rfq.status.toLowerCase()} — the thread is closed`, 409)
   }
 
+  // Anti-spam: messages per thread per day
+  const spam = await resolvePanel('spamPrevention')
+  if (spam.enabled) {
+    const todayOnThread = await db.rfqMessage.count({
+      where: { rfqId, createdAt: { gte: startOfToday() } },
+    })
+    if (todayOnThread >= Number(spam.maxMessagesThreadDay)) {
+      throw new RfqServiceError(
+        'This thread reached its daily message limit — continue tomorrow.',
+        429
+      )
+    }
+  }
+
   const message = await db.rfqMessage.create({
     data: { rfqId, authorId: actor.id, body: clean },
     include: { author: { select: { id: true, name: true, role: true } } },
@@ -878,6 +1315,13 @@ export async function withdrawQuote(
   if (!isAdmin && !isOwnSellerQuote) throw new RfqServiceError('Access denied', 403)
   if (quote.status !== 'SENT') {
     throw new RfqServiceError(`Quote is ${quote.status.toLowerCase()} — cannot withdraw`, 409)
+  }
+  // Cancellation settings may lock quotes once sent
+  if (!isAdmin) {
+    const cancellation = await resolvePanel('cancellation')
+    if (cancellation.enabled && cancellation.sellerWithdrawUntil === 'NEVER') {
+      throw new RfqServiceError('Quotes cannot be withdrawn once sent on this platform', 403)
+    }
   }
 
   await db.quote.update({ where: { id: quoteId }, data: { status: 'WITHDRAWN' } })

@@ -12,6 +12,7 @@ import {
   PackageCheck,
   PackageOpen,
   ShieldCheck,
+  ShieldQuestion,
   Truck,
   Undo2,
 } from 'lucide-react'
@@ -97,6 +98,14 @@ const NOTIF_META: Record<string, { icon: BellIcon; iconClass: string }> = {
   RFQ_QUOTE_WITHDRAWN: {
     icon: Undo2,
     iconClass: 'bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400',
+  },
+  RFQ_QUOTE_REVIEW: {
+    icon: ShieldQuestion,
+    iconClass: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+  },
+  RFQ_QUOTE_REJECTED: {
+    icon: Ban,
+    iconClass: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300',
   },
   RFQ_QUOTE_CONVERTED: {
     icon: PackageCheck,

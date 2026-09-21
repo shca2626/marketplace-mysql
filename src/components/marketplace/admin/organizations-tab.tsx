@@ -22,6 +22,13 @@ import { useApi } from '@/hooks/use-api'
 import type { CustomerGroupDTO, OrganizationDTO } from '@/lib/types'
 import { formatDate, formatUSD, initials, timeAgo } from '@/lib/format'
 import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -311,7 +318,7 @@ function OrgManageDialog({
 
   // Local edit state — re-initialized on every dialog open (seq) and every
   // fresh detail fetch (new object identity), the seller-view cover pattern.
-  const [form, setForm] = useState({ creditTermsDays: '30', creditLimit: '0', notes: '' })
+  const [form, setForm] = useState({ creditTermsDays: '30', creditLimit: '0', notes: '', orgType: 'COMPANY' })
   const [groupIds, setGroupIds] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState<string | null>(null)
   const [initializedFor, setInitializedFor] = useState<{ seq: number; org: OrganizationDTO } | null>(null)
@@ -321,6 +328,7 @@ function OrgManageDialog({
       creditTermsDays: String(org.creditTermsDays),
       creditLimit: String(org.creditLimit),
       notes: org.notes ?? '',
+      orgType: org.orgType ?? 'COMPANY',
     })
     setGroupIds(new Set((org.groups ?? []).map((g) => g.id)))
   }
@@ -366,6 +374,7 @@ function OrgManageDialog({
         creditTermsDays: terms,
         creditLimit: Math.round(limit * 100) / 100,
         notes: form.notes.trim() || null,
+        orgType: form.orgType,
       }),
     })
     setSaving(null)
@@ -499,6 +508,25 @@ function OrgManageDialog({
             <section aria-label="Commercial settings">
               <h3 className="mb-2 text-sm font-semibold">Commercial settings</h3>
               <div className="space-y-3 rounded-xl border p-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="org-type" className="text-xs">
+                    Organization type
+                  </Label>
+                  <Select value={form.orgType} onValueChange={(v) => setForm((f) => ({ ...f, orgType: v }))}>
+                    <SelectTrigger id="org-type" className="h-9" aria-label="Organization type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="COMPANY">Company</SelectItem>
+                      <SelectItem value="BANK">Bank</SelectItem>
+                      <SelectItem value="MFI">Micro-finance institution</SelectItem>
+                      <SelectItem value="EWALLET">E-wallet</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground">
+                    Scoped RFQ settings can target a whole organization type.
+                  </p>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="org-credit-terms" className="text-xs">

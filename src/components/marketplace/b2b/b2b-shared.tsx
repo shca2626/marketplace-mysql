@@ -73,6 +73,8 @@ export const RFQ_STATUS_MAP: BadgeMap = {
 
 export const QUOTE_STATUS_MAP: BadgeMap = {
   SENT: { label: 'Sent', badge: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' },
+  PENDING_REVIEW: { label: 'In platform review', badge: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' },
+  REJECTED: { label: 'Rejected', badge: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' },
   ACCEPTED: { label: 'Accepted', badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' },
   DECLINED: { label: 'Declined', badge: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' },
   EXPIRED: { label: 'Expired', badge: 'bg-stone-200 text-stone-600 dark:bg-stone-800 dark:text-stone-400' },
@@ -200,6 +202,8 @@ export interface PickedProduct {
   title: string
   price: number
   image?: string | null
+  moq?: number | null
+  stock?: number | null
   variants?: { id: string; name: string; price: number | null; stock: number }[]
 }
 
@@ -237,6 +241,8 @@ export function ProductPicker({
             title: string
             price: number
             images: string[]
+            moq?: number | null
+            stock?: number
             variants?: { id: string; name: string; price: number | null; stock: number; isActive: boolean }[]
           }[]
         }
@@ -247,6 +253,8 @@ export function ProductPicker({
             title: p.title,
             price: p.price,
             image: p.images?.[0] ?? null,
+            moq: p.moq ?? null,
+            stock: p.stock ?? null,
             variants: (p.variants ?? [])
               .filter((v) => v.isActive)
               .map((v) => ({ id: v.id, name: v.name, price: v.price, stock: v.stock })),

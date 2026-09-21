@@ -74,6 +74,8 @@ export const RFQ_STATUS_MAP: BadgeMap = {
 
 export const QUOTE_STATUS_MAP: BadgeMap = {
   SENT: { label: 'Sent', badge: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' },
+  PENDING_REVIEW: { label: 'In review', badge: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' },
+  REJECTED: { label: 'Rejected', badge: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' },
   ACCEPTED: { label: 'Accepted', badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' },
   DECLINED: { label: 'Declined', badge: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' },
   EXPIRED: { label: 'Expired', badge: 'bg-stone-200 text-stone-600 dark:bg-stone-800 dark:text-stone-400' },

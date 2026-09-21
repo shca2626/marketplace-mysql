@@ -158,6 +158,8 @@ export async function POST(req: NextRequest) {
           slug,
           metaTitle: d.metaTitle?.trim() || null,
           metaDescription: d.metaDescription?.trim() || null,
+          moq: d.moq ?? null,
+          priceTiers: d.priceTiers?.length ? JSON.stringify(d.priceTiers) : null,
         },
       })
       if (variants.length > 0) {

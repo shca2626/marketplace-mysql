@@ -6,6 +6,7 @@ import {
   Building2,
   FileText,
   ScrollText,
+  Settings2,
   ShieldAlert,
   ShieldCheck,
   Tags,
@@ -20,6 +21,36 @@ import { OrganizationsTab } from './admin/organizations-tab'
 import { OverviewTab } from './admin/overview-tab'
 import { PricingTab } from './admin/pricing-tab'
 import { RfqsTab } from './admin/rfqs-tab'
+import { AdminSettings } from './admin-settings'
+import { RfqSettings } from './admin/settings/rfq-settings'
+
+/**
+ * Settings workspace — two areas: the storefront designer (branding, theme,
+ * layout, hero slides) and the RFQ configuration cockpit (scoped panels with
+ * change history + rollback).
+ */
+function SettingsWorkspace() {
+  const [area, setArea] = useState<'rfq' | 'storefront'>('rfq')
+  return (
+    <div className="space-y-5">
+      <div className="inline-flex rounded-xl border bg-muted/50 p-1">
+        <button
+          className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${area === 'rfq' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+          onClick={() => setArea('rfq')}
+        >
+          RFQ settings
+        </button>
+        <button
+          className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${area === 'storefront' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+          onClick={() => setArea('storefront')}
+        >
+          Storefront
+        </button>
+      </div>
+      {area === 'rfq' ? <RfqSettings /> : <AdminSettings />}
+    </div>
+  )
+}
 
 /**
  * Admin Control Tower — full operations workspace for the platform owner.
@@ -97,6 +128,9 @@ export function AdminView() {
           <TabsTrigger value="coupons" className="gap-1.5 rounded-lg px-4 text-sm">
             <Ticket size={14} /> Coupons
           </TabsTrigger>
+          <TabsTrigger value="settings" className="gap-1.5 rounded-lg px-4 text-sm">
+            <Settings2 size={14} /> Settings
+          </TabsTrigger>
           <TabsTrigger value="audit" className="gap-1.5 rounded-lg px-4 text-sm">
             <ScrollText size={14} /> Audit log
           </TabsTrigger>
@@ -116,6 +150,9 @@ export function AdminView() {
         </TabsContent>
         <TabsContent value="coupons" className="mt-6">
           <CouponsTab />
+        </TabsContent>
+        <TabsContent value="settings" className="mt-6">
+          <SettingsWorkspace />
         </TabsContent>
         <TabsContent value="audit" className="mt-6">
           <AuditTab />

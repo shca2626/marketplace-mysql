@@ -21,6 +21,7 @@ const createRfqSchema = z.object({
   title: z.string().trim().max(160).optional().nullable(),
   description: z.string().trim().max(5000).optional().nullable(),
   organizationId: z.string().optional().nullable(),
+  expiresInDays: z.number().int().min(1).max(365).optional().nullable(),
   lines: z.array(lineSchema).min(1, 'Add at least one item').max(50),
 })
 

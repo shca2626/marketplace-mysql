@@ -115,5 +115,16 @@ export const productFormSchema = z.object({
   slug: z.string().max(180).optional().nullable(),
   metaTitle: z.string().max(150).optional().nullable(),
   metaDescription: z.string().max(320).optional().nullable(),
+  moq: z.number().int().min(1).max(1_000_000).optional().nullable(),
+  priceTiers: z
+    .array(
+      z.object({
+        from: z.number().int().min(1).max(1_000_000),
+        to: z.number().int().min(1).max(1_000_000).nullable(),
+        price: z.number().min(0.01).max(1_000_000),
+      })
+    )
+    .max(20, 'Too many price tiers (max 20)')
+    .optional(),
   variants: z.array(variantSchema).max(100, 'Too many variants (max 100)').optional(),
 })

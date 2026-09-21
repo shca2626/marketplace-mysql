@@ -21,7 +21,11 @@ import {
   Plus,
   Printer,
   Send,
+  ShieldCheck,
   ShoppingCart,
+  Star,
+  Timer,
+  TrendingDown,
   Trash2,
   X,
   XCircle,
@@ -269,6 +273,29 @@ const RFQ_STATUS_ORDER = [
   'EXPIRED',
 ]
 
+/** Deadline chip: “Expires in 3d” / “Last day” / nothing when open-ended. */
+function ExpiryChip({ expiresAt }: { expiresAt?: string | null }) {
+  if (!expiresAt) return null
+  const ms = new Date(expiresAt).getTime() - Date.now()
+  if (ms <= 0) return null
+  const days = Math.ceil(ms / 86_400_000)
+  const urgent = days <= 2
+  return (
+    <span
+      className={
+        'flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ' +
+        (urgent
+          ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
+          : 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-400')
+      }
+      title={new Date(expiresAt).toLocaleDateString()}
+    >
+      <Timer size={11} />
+      {days <= 1 ? 'Last day' : `${days}d left`}
+    </span>
+  )
+}
+
 function RfqListView({
   rfqs,
   loading,
@@ -408,6 +435,7 @@ function RfqListView({
                             {rfq.quoteCount} quote{(rfq.quoteCount ?? 0) === 1 ? '' : 's'}
                           </span>
                         )}
+                        <ExpiryChip expiresAt={rfq.expiresAt} />
                         <StatusBadge status={rfq.status} map={RFQ_STATUS_MAP} />
                       </div>
                     </div>
@@ -747,6 +775,7 @@ function RfqDetailView({
                     )}
                     {l.notes && <span className="block truncate">“{l.notes}”</span>}
                   </p>
+                  <LineCommercialHints line={l} />
                 </div>
               </div>
             ))}
@@ -813,6 +842,105 @@ function RfqDetailView({
 
 // ── Quote card ────────────────────────────────────────────────────────────────────
 
+/** Commercial hints on a requested line: tier ladder, MOQ, live stock (settings-driven). */
+function LineCommercialHints({
+  line,
+}: {
+  line: RfqDTO['lines'][number]
+}) {
+  const { data: config } = useApi<{
+    moq: { enabled: boolean; showToBuyer: boolean }
+    tiers: { buyerSeesTiers: boolean; showSavings: boolean }
+    stock: { showToBuyer: boolean; lowThreshold: number }
+  }>('/api/rfq-config')
+  const p = line.product
+  const tiers = config?.tiers?.buyerSeesTiers ? p?.priceTiers : null
+  const moq = config?.moq?.showToBuyer ? p?.moq : null
+  const showStock = config?.stock?.showToBuyer && p?.stock != null
+  if (!tiers?.length && !moq && !showStock) return null
+
+  const hit = tiers?.find((t) => line.quantity >= t.from && (t.to == null || line.quantity <= t.to))
+  const savings = hit && config?.tiers?.showSavings && p ? p.price - hit.price : null
+
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+      {moq ? (
+        <span className="rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+          MOQ {moq}
+          {line.quantity < moq ? ' — below minimum' : ''}
+        </span>
+      ) : null}
+      {showStock ? (
+        <span className={cn('font-medium', (p!.stock ?? 0) <= (config?.stock?.lowThreshold ?? 0) ? 'text-rose-600 dark:text-rose-400' : '')}>
+          {p!.stock} in stock
+        </span>
+      ) : null}
+      {tiers && tiers.length > 0 && (
+        <span className="flex flex-wrap items-center gap-1">
+          <TrendingDown size={11} />
+          {tiers.map((t, i) => (
+            <span
+              key={i}
+              className={cn(
+                'rounded-full px-1.5 py-0.5 tabular-nums',
+                hit && t === hit ? 'bg-primary/10 font-semibold text-primary' : 'bg-muted'
+              )}
+              title={`${t.from}–${t.to ?? '∞'} units → ${formatUSD(t.price)}/unit`}
+            >
+              {t.from}+ → {formatUSD(t.price)}
+            </span>
+          ))}
+          {savings != null && savings > 0 && (
+            <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+              saves {formatUSD(savings)}/unit at this qty
+            </span>
+          )}
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** Seller trust signals on a quote (settings-driven: stars, reviews, badge, since). */
+function SellerTrustChips({ quote }: { quote: QuoteDTO }) {
+  const { data: config } = useApi<{
+    rating: {
+      show: boolean
+      showStars: boolean
+      showReviewCount: boolean
+      showVerificationBadge: boolean
+      showMemberSince: boolean
+      minReviews: number
+    }
+  }>('/api/rfq-config')
+  const m = quote.sellerMeta
+  const rc = config?.rating
+  if (!m || !rc?.show) return null
+  const enoughReviews = (m.reviewCount ?? 0) >= (rc.minReviews ?? 0)
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      {rc.showStars && enoughReviews && (m.rating ?? 0) > 0 && (
+        <span className="flex items-center gap-0.5 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-300" title={`${m.rating} average catalog rating`}>
+          <Star size={10} className="fill-current" /> {m.rating!.toFixed(1)}
+        </span>
+      )}
+      {rc.showReviewCount && enoughReviews && (
+        <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] font-medium text-stone-600 dark:bg-stone-800 dark:text-stone-400">
+          {m.reviewCount} reviews
+        </span>
+      )}
+      {rc.showVerificationBadge && m.verified && (
+        <span className="flex items-center gap-0.5 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+          <ShieldCheck size={10} /> Verified
+        </span>
+      )}
+      {rc.showMemberSince && m.memberSince && (
+        <span className="text-[11px] text-muted-foreground">since {new Date(m.memberSince).getFullYear()}</span>
+      )}
+    </span>
+  )
+}
+
 function QuoteCard({
   quote,
   index,
@@ -861,6 +989,7 @@ function QuoteCard({
             <span className="text-xs text-muted-foreground">
               by {quote.createdBy?.name ?? 'Vendora'} · {quote.sentAt ? timeAgo(quote.sentAt) : timeAgo(quote.createdAt)}
             </span>
+            <SellerTrustChips quote={quote} />
           </div>
           <div className="flex items-center gap-2.5">
             {quote.validUntil && (
@@ -1385,6 +1514,11 @@ function RfqCreateView({
   navigate: (view: 'catalog', params?: { query?: string }) => void
 }) {
   const [saving, setSaving] = useState<'draft' | 'submit' | null>(null)
+  const [expiresInDays, setExpiresInDays] = useState('default')
+  const { data: config } = useApi<{
+    moq: { enabled: boolean; showToBuyer: boolean }
+    expiry: { enabled: boolean; defaultDays: number; minDays: number; maxDays: number; buyerOverride: boolean }
+  }>('/api/rfq-config')
 
   const updateLine = (key: number, patch: Partial<DraftLine>) =>
     setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)))
@@ -1416,6 +1550,7 @@ function RfqCreateView({
       title: title.trim() || null,
       description: description.trim() || null,
       organizationId: orgId || null,
+      expiresInDays: expiresInDays !== 'default' ? Number(expiresInDays) : null,
       lines: lines.map((l) => ({
         productId: l.kind === 'catalog' ? l.product!.id : null,
         productName: l.kind === 'open' ? l.productName.trim() : null,
@@ -1523,6 +1658,32 @@ function RfqCreateView({
                 </p>
               </div>
             )}
+            {config?.expiry?.enabled && (
+              <div className="space-y-1.5">
+                <Label htmlFor="rfq-expiry">Response deadline</Label>
+                <Select value={expiresInDays} onValueChange={setExpiresInDays} disabled={!config.expiry.buyerOverride}>
+                  <SelectTrigger id="rfq-expiry" className="h-10 rounded-xl" aria-label="Response deadline for this RFQ">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">
+                      Standard — {config.expiry.defaultDays} days
+                    </SelectItem>
+                    {config.expiry.buyerOverride &&
+                      [3, 7, 14, 21, 30, 60, 90]
+                        .filter((d) => d >= config.expiry.minDays && d <= config.expiry.maxDays)
+                        .map((d) => (
+                          <SelectItem key={d} value={String(d)}>
+                            {d} days
+                          </SelectItem>
+                        ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Requests close when the deadline passes — sellers are notified before it lapses.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -1599,6 +1760,11 @@ function RfqCreateView({
                               Retail {formatUSD(l.product.price)}/unit
                             </p>
                           </div>
+                          {config?.moq?.showToBuyer && l.product?.moq ? (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                              MOQ {l.product.moq}
+                            </span>
+                          ) : null}
                           <Button
                             type="button"
                             variant="ghost"
@@ -1609,6 +1775,11 @@ function RfqCreateView({
                             Change
                           </Button>
                         </div>
+                        {config?.moq?.showToBuyer && l.product?.moq && Number(l.quantity) < l.product.moq ? (
+                          <p className="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                            Below the {l.product.moq}-unit minimum — sellers may counter or decline.
+                          </p>
+                        ) : null}
                         {(l.product.variants?.length ?? 0) > 0 && (
                           <div className="space-y-1.5">
                             <Label htmlFor={`variant-${l.key}`}>

@@ -56,6 +56,8 @@ type ProductRaw = {
   slug?: string | null
   metaTitle?: string | null
   metaDescription?: string | null
+  moq?: number | null
+  priceTiers?: string | null
   variants?: ProductVariantRaw[]
 }
 
@@ -72,6 +74,8 @@ function parseJsonArray<T>(raw: string | null | undefined, guard: (x: unknown) =
 const isString = (x: unknown): x is string => typeof x === 'string'
 const isSpec = (x: unknown): x is { label: string; value: string } =>
   typeof x === 'object' && x !== null && typeof (x as { label?: unknown }).label === 'string' && typeof (x as { value?: unknown }).value === 'string'
+const isTier = (x: unknown): x is { from: number; to: number | null; price: number } =>
+  typeof x === 'object' && x !== null && typeof (x as { from?: unknown }).from === 'number' && typeof (x as { price?: unknown }).price === 'number' && ((x as { to?: unknown }).to === null || typeof (x as { to?: unknown }).to === 'number')
 
 function serializeVariant(v: ProductVariantRaw): ProductVariantDTO {
   let options: Record<string, string> = {}
@@ -143,6 +147,8 @@ export function serializeProduct(p: ProductRaw, favorited = false): ProductDTO {
     slug: p.slug ?? null,
     metaTitle: p.metaTitle ?? null,
     metaDescription: p.metaDescription ?? null,
+    moq: (p as { moq?: number | null }).moq ?? null,
+    priceTiers: parseJsonArray((p as { priceTiers?: string | null }).priceTiers, isTier),
     variants: (p.variants ?? []).map(serializeVariant),
   }
 }

@@ -65,6 +65,8 @@ export interface ProductDTO {
   widthCm?: number | null
   heightCm?: number | null
   processingDays?: number | null
+  moq?: number | null
+  priceTiers?: { from: number; to: number | null; price: number }[] | null
   freeShipping?: boolean
   shippingFee?: number | null
   shippingPolicy?: string | null
@@ -243,6 +245,7 @@ export interface OrganizationDTO {
   id: string
   name: string
   slug: string
+  orgType?: string | null
   legalName?: string | null
   taxId?: string | null
   registrationNumber?: string | null
@@ -299,7 +302,15 @@ export interface RfqLineDTO {
   quantity: number
   targetPrice?: number | null
   notes?: string | null
-  product?: { id: string; title: string; price: number; image?: string | null } | null
+  product?: {
+    id: string
+    title: string
+    price: number
+    image?: string | null
+    moq?: number | null
+    stock?: number
+    priceTiers?: { from: number; to: number | null; price: number }[] | null
+  } | null
 }
 
 export interface QuoteLineDTO {
@@ -312,6 +323,14 @@ export interface QuoteLineDTO {
   quantity: number
   unitPrice: number
   lineTotal: number
+}
+
+export interface QuoteSellerMeta {
+  name: string
+  verified?: boolean
+  rating?: number | null
+  reviewCount?: number
+  memberSince?: string | null
 }
 
 export interface QuoteDTO {
@@ -334,6 +353,7 @@ export interface QuoteDTO {
   createdAt: string
   createdBy: { id: string; name: string }
   sellerId?: string | null
+  sellerMeta?: QuoteSellerMeta | null
   lines: QuoteLineDTO[]
 }
 
@@ -349,6 +369,8 @@ export interface RfqDTO {
   submittedAt?: string | null
   respondedAt?: string | null
   closedAt?: string | null
+  expiresAt?: string | null
+  extendedCount?: number
   createdAt: string
   lines: RfqLineDTO[]
   quotes?: QuoteDTO[]

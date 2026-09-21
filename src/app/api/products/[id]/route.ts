@@ -136,6 +136,8 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
           slug,
           metaTitle: d.metaTitle?.trim() || null,
           metaDescription: d.metaDescription?.trim() || null,
+          moq: d.moq ?? null,
+          priceTiers: d.priceTiers?.length ? JSON.stringify(d.priceTiers) : null,
         },
       })
       // Replace-all strategy keeps the grid in the form as the single source of truth

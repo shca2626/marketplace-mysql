@@ -5,6 +5,7 @@ import { adminUpdateOrganization, OrgServiceError } from '@/server/modules/organ
 
 const updateSchema = z.object({
   status: z.enum(['PENDING_VERIFICATION', 'ACTIVE', 'SUSPENDED', 'REJECTED']).optional(),
+  orgType: z.enum(['COMPANY', 'BANK', 'MFI', 'EWALLET']).optional(),
   creditTermsDays: z.number().int().min(0).max(180).optional(),
   creditLimit: z.number().min(0).max(10_000_000).optional(),
   approvalThreshold: z.number().min(0).max(10_000_000).nullable().optional(),

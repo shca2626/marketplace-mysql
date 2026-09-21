@@ -40,6 +40,8 @@ model User {
   approvalsRequested ApprovalRequest[] @relation("ApprovalRequester")
   approvalsDecided   ApprovalRequest[] @relation("ApprovalDecider")
   notifications      Notification[]    @relation("Notifications")
+  verifiedAt         DateTime? // platform verification stamp (KYC-lite); enables routing auto-approve + distribution filters
+  settingChanges    SettingChange[]  @relation("SettingChangeUser")
 
   @@index([role])
 }
@@ -88,6 +90,8 @@ model Product {
   slug             String? @unique @db.VarChar(180) // SEO handle / future deep links
   metaTitle        String?  @db.VarChar(150)
   metaDescription  String?  @db.VarChar(320)
+  moq              Int?     // minimum order quantity enforced by RFQ commercial rules (null = none)
+  priceTiers       String?  @db.Text // JSON [{from,to,price}] quantity-break ladder applied in quotes
   status         String     @default("ACTIVE") @db.VarChar(16) // ACTIVE | DRAFT | ARCHIVED
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
@@ -209,6 +213,7 @@ model Organization {
   id                 String    @id @default(cuid())
   name               String    @db.VarChar(160)
   slug               String    @unique @db.VarChar(180)
+  orgType            String    @default("COMPANY") @db.VarChar(16) // COMPANY | BANK | MFI | EWALLET — settings scope key
   legalName          String?   @db.VarChar(200)
   taxId              String?   @db.VarChar(60) // VAT / EIN
   registrationNumber String?   @db.VarChar(60)
@@ -327,6 +332,8 @@ model Rfq {
   submittedAt    DateTime?
   respondedAt    DateTime?
   closedAt       DateTime?
+  expiresAt      DateTime? // RFQ deadline (expiry settings; null = no deadline)
+  extendedCount  Int       @default(0) // buyer extensions used against the max-extensions rule
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   user           User          @relation(fields: [userId], references: [id])
@@ -368,7 +375,7 @@ model Quote {
   rfqId         String
   createdById   String // admin or seller who issued the quote
   sellerId      String? // fulfilling seller (null = platform-facilitated)
-  status        String    @default("SENT") @db.VarChar(16) // DRAFT | SENT | ACCEPTED | DECLINED | EXPIRED | CONVERTED | WITHDRAWN
+  status        String    @default("SENT") @db.VarChar(16) // DRAFT | SENT | PENDING_REVIEW | ACCEPTED | DECLINED | REJECTED | EXPIRED | CONVERTED | WITHDRAWN
   currency      String    @default("USD") @db.VarChar(3)
   subtotal      Decimal   @db.Decimal(12, 2)
   discountTotal Decimal   @default(0) @db.Decimal(12, 2)
@@ -496,6 +503,72 @@ model AuditLog {
 model Sequence {
   key   String @id @db.VarChar(32)
   value Int    @default(0)
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Settings storage — platform key/value documents + scoped RFQ configuration
+// ═════════════════════════════════════════════════════════════════════════
+
+// Generic platform-level documents (storefront config today).
+model PlatformSetting {
+  key       String   @id @db.VarChar(64)
+  value     String   @db.Text // JSON document
+  updatedAt DateTime @updatedAt
+}
+
+// Hero banner slides (admin-managed, position-ordered).
+model BannerSlide {
+  id          String   @id @default(cuid())
+  eyebrow     String?  @db.VarChar(120)
+  title       String?  @db.VarChar(200)
+  subtitle    String?  @db.VarChar(400)
+  image       String   @db.VarChar(512)
+  ctaLabel    String?  @db.VarChar(80)
+  ctaView     String?  @db.VarChar(32)
+  ctaCategory String?  @db.VarChar(191)
+  position    Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([active, position])
+}
+
+// Scoped RFQ configuration — one row per (panel, scope). Scope precedence
+// (most specific wins): ORG/CATEGORY/REGION > ORG_TYPE > PLATFORM. scopeId is
+// "" at platform scope; otherwise the org/type/category/region identifier.
+model RfqSetting {
+  id          String   @id @default(cuid())
+  key         String   @db.VarChar(64) // panel key, e.g. "quoteRouting"
+  scopeType   String   @db.VarChar(16) // PLATFORM | ORG_TYPE | ORG | CATEGORY | REGION
+  scopeId     String   @default("") @db.VarChar(64)
+  value       String   @db.Text // JSON document of the panel's fields
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([key, scopeType, scopeId])
+  @@index([scopeType, scopeId])
+}
+
+// Append-only settings change log — every field mutation is a row; rollback
+// restores oldValue and is itself logged (rollbackOf chain). Deliberately NOT
+// FK-linked to RfqSetting so history survives override deletion.
+model SettingChange {
+  id           String     @id @default(cuid())
+  settingKey   String     @db.VarChar(64)
+  scopeType    String     @db.VarChar(16)
+  scopeId      String     @default("") @db.VarChar(64)
+  field        String     @db.VarChar(100) // field path within the panel
+  oldValue     String?    @db.Text
+  newValue     String?    @db.Text
+  userId       String
+  rollbackOfId String?    @db.VarChar(64) // set when this change reverts an earlier one
+  createdAt    DateTime   @default(now())
+
+  user        User         @relation("SettingChangeUser", fields: [userId], references: [id])
+
+  @@index([settingKey, scopeType, scopeId, createdAt])
 }
 
 // Coupons moved from hardcoded constants to data (admin-managed).

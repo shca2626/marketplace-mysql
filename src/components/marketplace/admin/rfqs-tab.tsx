@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import {
   Ban,
+  Check,
   Eye,
   FileText,
   Loader2,
@@ -11,6 +12,7 @@ import {
   SearchX,
   Send,
   ShieldAlert,
+  ShieldQuestion,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useApi } from '@/hooks/use-api'
@@ -91,6 +93,8 @@ export function RfqsTab() {
 
   return (
     <div className="space-y-5">
+      <QuoteReviewQueue onChanged={refetch} />
+
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <FilterChips
           options={STATUS_FILTERS.map((f) => ({
@@ -866,5 +870,137 @@ function IssueQuoteDialog({
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+
+// ── Quote routing review queue ────────────────────────────────────────────────
+
+/** Quotes held by routing rules, waiting for an admin decision. */
+function QuoteReviewQueue({ onChanged }: { onChanged: () => void }) {
+  const { data, refetch } = useApi<{ quotes: QuoteDTO[] }>('/api/admin/quotes?status=PENDING_REVIEW', {
+    pollMs: 60_000,
+  })
+  const pending = data?.quotes ?? []
+  const [acting, setActing] = useState<string | null>(null)
+  const [note, setNote] = useState('')
+  const [target, setTarget] = useState<{ id: string; number: string; decision: 'APPROVE' | 'REJECT' } | null>(null)
+
+  if (pending.length === 0) return null
+
+  const decide = async () => {
+    if (!target) return
+    setActing(target.id)
+    const res = await apiRequest(`/api/quotes/${target.id}/review`, {
+      method: 'POST',
+      body: JSON.stringify({ decision: target.decision, note: note.trim() || undefined }),
+    })
+    setActing(null)
+    setTarget(null)
+    setNote('')
+    if (!res.ok) {
+      toastApiError(res.error, 'Review failed')
+      return
+    }
+    toast({
+      title: target.decision === 'APPROVE' ? 'Quote released' : 'Quote declined',
+      description:
+        target.decision === 'APPROVE'
+          ? `${target.number} is now visible to the buyer.`
+          : `${target.number} was rejected — the seller has been notified.`,
+    })
+    refetch()
+    onChanged()
+  }
+
+  return (
+    <Card className="border-amber-500/40 bg-amber-500/5 shadow-sm">
+      <CardContent className="p-4 sm:p-5">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-400">
+            <ShieldQuestion size={17} />
+          </span>
+          <div>
+            <h3 className="text-sm font-bold tracking-tight">Quote review queue</h3>
+            <p className="text-xs text-muted-foreground">
+              {pending.length} quote{pending.length === 1 ? '' : 's'} held by routing rules — approve to release to the buyer, reject to decline.
+            </p>
+          </div>
+        </div>
+
+        <ul className="mt-4 space-y-2.5">
+          {pending.map((q) => (
+            <li key={q.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border bg-card px-3.5 py-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold">
+                  {q.number} · {formatUSD(q.total)}
+                  {q.paymentTerms ? <span className="ml-2 text-xs font-medium text-muted-foreground">{q.paymentTerms}</span> : null}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {q.createdBy.name} · {q.lines[0]?.productTitle ?? 'Quote'}{q.lines.length > 1 ? ` +${q.lines.length - 1} more` : ''} · {timeAgo(q.createdAt)}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  className="h-8 rounded-lg bg-emerald-600 text-xs hover:bg-emerald-700"
+                  disabled={acting === q.id}
+                  onClick={() => setTarget({ id: q.id, number: q.number, decision: 'APPROVE' })}
+                >
+                  <Check size={13} className="mr-1" /> Approve
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 rounded-lg border-destructive/40 text-xs text-destructive hover:bg-destructive/10"
+                  disabled={acting === q.id}
+                  onClick={() => setTarget({ id: q.id, number: q.number, decision: 'REJECT' })}
+                >
+                  <Ban size={13} className="mr-1" /> Reject
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+
+        <Dialog open={!!target} onOpenChange={(v) => !v && setTarget(null)}>
+          <DialogContent className="rounded-2xl sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>
+                {target?.decision === 'APPROVE' ? 'Release this quote?' : 'Decline this quote?'}
+              </DialogTitle>
+              <DialogDescription>
+                {target?.decision === 'APPROVE'
+                  ? `${target?.number} becomes visible to the buyer immediately.`
+                  : `${target?.number} is rejected and the seller is notified.`}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-1.5">
+              <Label htmlFor="review-note" className="text-xs text-muted-foreground">
+                Note {target?.decision === 'REJECT' ? '(sent to the seller)' : '(optional)'}
+              </Label>
+              <Textarea
+                id="review-note"
+                className="min-h-20 rounded-xl"
+                placeholder={target?.decision === 'REJECT' ? 'e.g. Price is above the category ceiling…' : 'e.g. Approved after price check…'}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="ghost" className="rounded-lg" onClick={() => setTarget(null)}>Cancel</Button>
+              <Button
+                className="rounded-lg"
+                disabled={!!acting}
+                onClick={() => void decide()}
+              >
+                {acting && <Loader2 size={14} className="mr-1.5 animate-spin" />}
+                {target?.decision === 'APPROVE' ? 'Release quote' : 'Reject quote'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </CardContent>
+    </Card>
   )
 }

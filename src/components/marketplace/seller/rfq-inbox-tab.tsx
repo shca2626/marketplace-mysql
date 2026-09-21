@@ -543,6 +543,17 @@ interface EditableLine {
 
 const PAYMENT_TERMS = ['Prepaid', 'NET-15', 'NET-30', 'NET-45', 'NET-60']
 
+/** Highest matching quantity tier for a quantity (bands: from ≤ qty ≤ to|null). */
+function matchingTierPrice(
+  tiers: { from: number; to: number | null; price: number }[] | null | undefined,
+  quantity: number
+): number | null {
+  if (!tiers || tiers.length === 0) return null
+  const q = Number(quantity) || 0
+  const hit = tiers.find((t) => q >= t.from && (t.to == null || q <= t.to))
+  return hit ? hit.price : null
+}
+
 function SellerQuoteDialog({
   rfq,
   myStockById,
@@ -566,7 +577,13 @@ function SellerQuoteDialog({
         variantName: l.variantName ?? null,
         image: l.product?.image ?? null,
         quantity: String(l.quantity),
-        unitPrice: (l.targetPrice ?? l.product?.price ?? 0).toFixed(2),
+        // Tier ladder wins when the quantity lands in a band (target → tier → base)
+        unitPrice: (
+          l.targetPrice ??
+          matchingTierPrice(l.product?.priceTiers, l.quantity) ??
+          l.product?.price ??
+          0
+        ).toFixed(2),
         stock: myStockById.get(l.productId!)?.stock ?? null,
         targetPrice: l.targetPrice ?? null,
       }))

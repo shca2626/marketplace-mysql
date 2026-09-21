@@ -153,6 +153,7 @@ interface ProductFormValues {
   slug: string
   metaTitle: string
   metaDescription: string
+  moq: string
 }
 
 const emptyForm: ProductFormValues = {
@@ -179,6 +180,7 @@ const emptyForm: ProductFormValues = {
   slug: '',
   metaTitle: '',
   metaDescription: '',
+  moq: '',
 }
 
 const uid = () => Math.random().toString(36).slice(2, 10)
@@ -211,6 +213,7 @@ export function ProductFormDialog({
   const [variantRows, setVariantRows] = useState<VariantRow[]>([])
   const [uploads, setUploads] = useState<UploadItem[]>([])
   const [dragOver, setDragOver] = useState(false)
+  const [tierRows, setTierRows] = useState<{ key: string; from: string; to: string; price: string }[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // ── Hydrate on open ────────────────────────────────────────────────────────
@@ -246,8 +249,17 @@ export function ProductFormDialog({
         slug: editing.slug ?? '',
         metaTitle: editing.metaTitle ?? '',
         metaDescription: editing.metaDescription ?? '',
+        moq: editing.moq != null ? String(editing.moq) : '',
       })
       setHighlights([...(editing.highlights ?? [])])
+      setTierRows(
+        (editing.priceTiers ?? []).map((t) => ({
+          key: uid(),
+          from: String(t.from),
+          to: t.to == null ? '' : String(t.to),
+          price: String(t.price),
+        }))
+      )
       setSpecs((editing.specs ?? []).map((s) => ({ id: uid(), label: s.label, value: s.value })))
       // Rebuild option definitions from the stored variants
       const variants = editing.variants ?? []
@@ -276,6 +288,7 @@ export function ProductFormDialog({
       )
     } else {
       setForm(emptyForm)
+      setTierRows([])
       setHighlights([])
       setSpecs([])
       setOptionDefs([])
@@ -553,6 +566,14 @@ export function ProductFormDialog({
         slug: form.slug.trim() || null,
         metaTitle: form.metaTitle.trim() || null,
         metaDescription: form.metaDescription.trim() || null,
+        moq: form.moq ? parseInt(form.moq, 10) : null,
+        priceTiers: tierRows
+          .filter((t) => t.from !== '' && t.price !== '')
+          .map((t) => ({
+            from: parseInt(t.from, 10),
+            to: t.to === '' ? null : parseInt(t.to, 10),
+            price: parseFloat(t.price),
+          })),
         variants: variantRows.map((v) => ({
           name: v.name,
           options: v.options,
@@ -720,6 +741,124 @@ export function ProductFormDialog({
                 <Input id="p-barcode" value={form.barcode} onChange={set('barcode')} maxLength={64} placeholder="e.g. 0123456789012" />
               </div>
             </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="p-moq">
+                  Min. order quantity <span className="text-xs text-muted-foreground">(opt.)</span>
+                </Label>
+                <Input
+                  id="p-moq"
+                  type="number"
+                  min="1"
+                  value={form.moq}
+                  onChange={set('moq')}
+                  placeholder="e.g. 10 — enforced on RFQ lines"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  RFQs below this quantity are flagged to sellers (or blocked, per platform rules).
+                </p>
+              </div>
+            </div>
+
+            {/* Quantity price tiers */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Quantity price tiers</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 rounded-lg text-xs"
+                  disabled={tierRows.length >= 10}
+                  onClick={() =>
+                    setTierRows((rows) => {
+                      const lastTo = rows.length ? rows[rows.length - 1].to : ''
+                      const from = lastTo !== '' ? String(parseInt(lastTo, 10) + 1) : '1'
+                      return [...rows, { key: uid(), from, to: '', price: '' }]
+                    })
+                  }
+                >
+                  <Plus size={12} className="mr-1" /> Add tier
+                </Button>
+              </div>
+              {tierRows.length === 0 ? (
+                <p className="rounded-xl border border-dashed px-3.5 py-3 text-xs text-muted-foreground">
+                  No tiers — every quantity pays the base price. Add rows like 1–99 → $5.00, 100+ → $4.50.
+                </p>
+              ) : (
+                <div className="overflow-hidden rounded-xl border">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b bg-muted/50 text-muted-foreground">
+                        <th className="px-2.5 py-2 font-semibold">From qty</th>
+                        <th className="px-2.5 py-2 font-semibold">To qty</th>
+                        <th className="px-2.5 py-2 font-semibold">Price / unit ($)</th>
+                        <th className="w-10" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tierRows.map((t, i) => (
+                        <tr key={t.key} className="border-b last:border-0">
+                          <td className="px-1.5 py-1.5">
+                            <Input
+                              type="number"
+                              min="1"
+                              className="h-8 rounded-lg"
+                              value={t.from}
+                              aria-label={`Tier ${i + 1} from quantity`}
+                              onChange={(e) =>
+                                setTierRows((rows) => rows.map((r, j) => (j === i ? { ...r, from: e.target.value } : r)))
+                              }
+                            />
+                          </td>
+                          <td className="px-1.5 py-1.5">
+                            <Input
+                              type="number"
+                              min="1"
+                              className="h-8 rounded-lg"
+                              placeholder="∞"
+                              value={t.to}
+                              aria-label={`Tier ${i + 1} to quantity`}
+                              onChange={(e) =>
+                                setTierRows((rows) => rows.map((r, j) => (j === i ? { ...r, to: e.target.value } : r)))
+                              }
+                            />
+                          </td>
+                          <td className="px-1.5 py-1.5">
+                            <Input
+                              type="number"
+                              min="0.01"
+                              step="0.01"
+                              className="h-8 rounded-lg"
+                              placeholder="4.50"
+                              value={t.price}
+                              aria-label={`Tier ${i + 1} price`}
+                              onChange={(e) =>
+                                setTierRows((rows) => rows.map((r, j) => (j === i ? { ...r, price: e.target.value } : r)))
+                              }
+                            />
+                          </td>
+                          <td className="px-1">
+                            <button
+                              type="button"
+                              aria-label="Remove tier"
+                              className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                              onClick={() => setTierRows((rows) => rows.filter((_, j) => j !== i))}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <p className="text-[11px] text-muted-foreground">
+                Buyers see the ladder on quotes; sellers’ quote composer auto-fills the matching tier.
+              </p>
+            </div>
+
             <p className="rounded-xl bg-muted/50 px-4 py-3 text-xs leading-relaxed text-muted-foreground">
               If you sell this product in multiple versions (size, color…), set the exact price and stock per
               combination in the <span className="font-semibold text-foreground">Variants</span> tab — variant
