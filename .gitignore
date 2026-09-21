@@ -52,3 +52,13 @@ prompt
 server.log
 # Skills directory
 /skills/
+
+# sandbox tooling artifacts (not app code)
+/tool-results/
+/.zscripts/
+/.seed-assets/
+/download/
+/tests/
+/qa-*.png
+db/custom.db
+db/search-results/

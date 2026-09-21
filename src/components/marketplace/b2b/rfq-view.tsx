@@ -14,10 +14,13 @@ import {
   Hourglass,
   Info,
   Loader2,
+  MapPin,
   MessageSquareText,
   PackageSearch,
   Plus,
+  Printer,
   Send,
+  ShoppingCart,
   Trash2,
   X,
   XCircle,
@@ -25,7 +28,7 @@ import {
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
-import type { OrganizationDTO, QuoteDTO, RfqDTO } from '@/lib/types'
+import type { ApprovalRequestDTO, OrganizationDTO, QuoteDTO, RfqDTO } from '@/lib/types'
 import { formatDate, formatUSD, timeAgo } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -47,6 +50,14 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -64,6 +75,7 @@ import {
   readRfqPrefill,
   rememberActiveOrg,
   RFQ_STATUS_MAP,
+  RfqThread,
   StatusBadge,
   validityLeft,
   type PickedProduct,
@@ -454,8 +466,17 @@ function RfqDetailView({
 }) {
   const navigate = useMarketplace((s) => s.navigate)
   const { data, loading, refetch } = useApi<{ rfq: RfqDTO }>(`/api/rfqs/${id}`)
+  const { data: approvalsData } = useApi<{ approvals: ApprovalRequestDTO[] }>('/api/approvals')
   const [acting, setActing] = useState<string | null>(null)
   const rfq = data?.rfq
+
+  // Quote acceptances routed to org approvers (B2B approval workflow)
+  const pendingApprovalQuoteIds = new Set(
+    (approvalsData?.approvals ?? [])
+      .filter((a) => a.type === 'QUOTE_ACCEPT' && a.status === 'PENDING')
+      .map((a) => a.quote?.id)
+      .filter((v): v is string => !!v)
+  )
 
   const transition = async (action: 'SUBMIT' | 'CANCEL') => {
     if (!rfq) return
@@ -486,12 +507,21 @@ function RfqDetailView({
 
   const respondToQuote = async (quoteId: string, action: 'ACCEPT' | 'DECLINE') => {
     setActing(quoteId)
-    const res = await apiRequest<{ quote: QuoteDTO }>(`/api/quotes/${quoteId}/${action.toLowerCase()}`, {
+    const res = await apiRequest<{ quote: QuoteDTO; pendingApproval?: boolean }>(`/api/quotes/${quoteId}/${action.toLowerCase()}`, {
       method: 'POST',
     })
     setActing(null)
     if (!res.ok) {
       toast({ title: 'Action failed', description: res.error, variant: 'destructive' })
+      return
+    }
+    if (res.data?.pendingApproval) {
+      toast({
+        title: 'Sent for approval 🕐',
+        description: 'Your organization must approve this acceptance before the deal closes — track it in Business account.',
+      })
+      void refetch()
+      onChanged()
       return
     }
     toast({
@@ -622,6 +652,24 @@ function RfqDetailView({
         </div>
       </div>
 
+      {/* Ordered banner */}
+      {rfq.status === 'ORDERED' && (
+        <div className="mt-4 flex flex-wrap items-center gap-2.5 rounded-xl border border-lime-300 bg-lime-50 px-4 py-3 dark:border-lime-900 dark:bg-lime-950/40">
+          <ShoppingCart size={16} className="text-lime-700 dark:text-lime-400" aria-hidden />
+          <p className="text-sm font-medium text-lime-800 dark:text-lime-300">
+            This request was converted to an order — check{' '}
+            <button
+              type="button"
+              onClick={() => navigate('orders')}
+              className="font-bold underline underline-offset-2"
+            >
+              My orders
+            </button>{' '}
+            for status and invoicing.
+          </p>
+        </div>
+      )}
+
       {/* Description */}
       {rfq.description && (
         <Card className="mt-6">
@@ -723,12 +771,21 @@ function RfqDetailView({
                 index={idx}
                 acting={acting === quote.id}
                 disabled={!hasOpenQuote || rfq.status === 'ACCEPTED' || rfq.status === 'CANCELLED'}
+                rfqStatus={rfq.status}
+                awaitingApproval={pendingApprovalQuoteIds.has(quote.id)}
                 onRespond={(a) => void respondToQuote(quote.id, a)}
               />
             ))}
           </div>
         )}
       </div>
+
+      {/* Negotiation thread */}
+      {rfq.status !== 'DRAFT' && (
+        <div className="mt-8">
+          <RfqThread rfqId={rfq.id} rfqStatus={rfq.status} title="Negotiation with sellers" />
+        </div>
+      )}
     </div>
   )
 }
@@ -740,16 +797,21 @@ function QuoteCard({
   index,
   acting,
   disabled,
+  rfqStatus,
+  awaitingApproval,
   onRespond,
 }: {
   quote: QuoteDTO
   index: number
   acting: boolean
   disabled: boolean
+  rfqStatus: string
+  awaitingApproval: boolean
   onRespond: (action: 'ACCEPT' | 'DECLINE') => void
 }) {
   const validity = validityLeft(quote.validUntil)
   const canRespond = quote.status === 'SENT' && !validity.expired && !disabled
+  const canConvert = quote.status === 'ACCEPTED' && rfqStatus === 'ACCEPTED'
 
   return (
     <motion.div
@@ -797,6 +859,7 @@ function QuoteCard({
               </span>
             )}
             <StatusBadge status={quote.status} map={QUOTE_STATUS_MAP} />
+            <QuotePrintDialog quote={quote} />
           </div>
         </div>
 
@@ -880,9 +943,18 @@ function QuoteCard({
           )}
 
           {/* Actions */}
+          {awaitingApproval && (
+            <div className="mt-5 flex items-center gap-2.5 rounded-xl border border-teal-500/40 bg-teal-500/10 px-4 py-3 text-sm text-teal-700 dark:text-teal-300">
+              <Hourglass size={15} className="shrink-0" />
+              <span>
+                <span className="font-semibold">Awaiting approval</span> — an approver in your organization
+                must clear this acceptance before the deal closes.
+              </span>
+            </div>
+          )}
           {canRespond && (
             <div className="mt-5 flex flex-wrap justify-end gap-2.5 border-t pt-4">
-            <AlertDialog>
+              <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button
                     variant="outline"
@@ -946,9 +1018,298 @@ function QuoteCard({
               </AlertDialog>
             </div>
           )}
+
+          {/* Convert accepted quote to a real order */}
+          {canConvert && (
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+              <p className="text-xs text-muted-foreground">
+                Deal closed — turn this quote into a trackable order with NET-terms invoicing.
+              </p>
+              <ConvertQuoteDialog quote={quote} />
+            </div>
+          )}
+          {quote.status === 'CONVERTED' && (
+            <div className="mt-5 flex items-center gap-2 rounded-xl border border-lime-300 bg-lime-50 px-4 py-2.5 text-xs font-medium text-lime-800 dark:border-lime-900 dark:bg-lime-950/40 dark:text-lime-300">
+              <Check size={13} aria-hidden /> Converted to order — see My orders for status and
+              invoicing.
+            </div>
+          )}
         </CardContent>
       </Card>
     </motion.div>
+  )
+}
+
+// ── Convert-to-order dialog ────────────────────────────────────────────────
+
+function ConvertQuoteDialog({ quote }: { quote: QuoteDTO }) {
+  const [open, setOpen] = useState(false)
+  const [converting, setConverting] = useState(false)
+  const [poNumber, setPoNumber] = useState('')
+  const [ship, setShip] = useState({
+    fullName: '',
+    address: '',
+    city: '',
+    country: '',
+    zip: '',
+    phone: '',
+  })
+  const navigate = useMarketplace((s) => s.navigate)
+
+  const convert = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (converting) return
+    setConverting(true)
+    const res = await apiRequest<{ order: { id: string } }>(`/api/quotes/${quote.id}/convert`, {
+      method: 'POST',
+      body: JSON.stringify({
+        poNumber: poNumber.trim() || null,
+        ...(ship.fullName.trim() ? { fullName: ship.fullName.trim() } : {}),
+        ...(ship.address.trim() ? { address: ship.address.trim() } : {}),
+        ...(ship.city.trim() ? { city: ship.city.trim() } : {}),
+        ...(ship.country.trim() ? { country: ship.country.trim() } : {}),
+        ...(ship.zip.trim() ? { zip: ship.zip.trim() } : {}),
+        ...(ship.phone.trim() ? { phone: ship.phone.trim() } : {}),
+      }),
+    })
+    setConverting(false)
+    if (!res.ok) {
+      toast({ title: 'Could not convert', description: res.error ?? 'Please try again', variant: 'destructive' })
+      return
+    }
+    setOpen(false)
+    toast({
+      title: 'Order placed!',
+      description: `${quote.number} became a trackable order — sellers are preparing your shipment.`,
+    })
+    navigate('orders')
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button className="rounded-xl">
+          <ShoppingCart size={15} className="mr-1.5" /> Convert to order
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Convert {quote.number} to an order</DialogTitle>
+          <DialogDescription>
+            {quote.lines.length} item{quote.lines.length === 1 ? '' : 's'} ·{' '}
+            <span className="font-semibold text-foreground">{formatUSD(quote.total)}</span> ·{' '}
+            {quote.paymentTerms ?? 'standard'} terms. Stock is reserved immediately.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={convert} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="cv-po" className="text-xs">
+              PO number <span className="text-muted-foreground">(optional — your purchase order reference)</span>
+            </Label>
+            <Input
+              id="cv-po"
+              value={poNumber}
+              onChange={(e) => setPoNumber(e.target.value)}
+              maxLength={40}
+              className="h-9 rounded-lg text-sm"
+              placeholder="e.g. PO-2026-0142"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="flex items-center gap-1 text-xs">
+              <MapPin size={11} /> Ship-to details{' '}
+              <span className="text-muted-foreground">(optional — falls back to your org / last order)</span>
+            </Label>
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                value={ship.fullName}
+                onChange={(e) => setShip((s) => ({ ...s, fullName: e.target.value }))}
+                className="h-9 rounded-lg text-sm"
+                placeholder="Full name"
+                aria-label="Full name"
+                maxLength={120}
+              />
+              <Input
+                value={ship.city}
+                onChange={(e) => setShip((s) => ({ ...s, city: e.target.value }))}
+                className="h-9 rounded-lg text-sm"
+                placeholder="City"
+                aria-label="City"
+                maxLength={120}
+              />
+              <Input
+                value={ship.address}
+                onChange={(e) => setShip((s) => ({ ...s, address: e.target.value }))}
+                className="col-span-2 h-9 rounded-lg text-sm"
+                placeholder="Street address"
+                aria-label="Street address"
+                maxLength={255}
+              />
+              <Input
+                value={ship.country}
+                onChange={(e) => setShip((s) => ({ ...s, country: e.target.value }))}
+                className="h-9 rounded-lg text-sm"
+                placeholder="Country"
+                aria-label="Country"
+                maxLength={120}
+              />
+              <Input
+                value={ship.zip}
+                onChange={(e) => setShip((s) => ({ ...s, zip: e.target.value }))}
+                className="h-9 rounded-lg text-sm"
+                placeholder="ZIP / postal code"
+                aria-label="ZIP or postal code"
+                maxLength={32}
+              />
+              <Input
+                value={ship.phone}
+                onChange={(e) => setShip((s) => ({ ...s, phone: e.target.value }))}
+                className="col-span-2 h-9 rounded-lg text-sm"
+                placeholder="Phone (optional)"
+                aria-label="Phone number"
+                maxLength={40}
+              />
+            </div>
+          </div>
+          <div className="rounded-xl border bg-muted/40 p-3 text-xs text-muted-foreground">
+            <p className="font-semibold text-foreground">What happens next</p>
+            <ul className="mt-1 list-inside list-disc space-y-0.5">
+              <li>A {quote.paymentTerms ?? 'standard'} invoice order is created in My orders</li>
+              <li>Stock is reserved and sellers see the order in their dashboard</li>
+              <li>This RFQ closes as <span className="font-semibold text-foreground">Ordered</span></li>
+            </ul>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" className="rounded-lg" onClick={() => setOpen(false)}>
+              Not now
+            </Button>
+            <Button type="submit" className="rounded-lg" disabled={converting}>
+              {converting ? (
+                <>
+                  <Loader2 size={14} className="mr-1 animate-spin" /> Converting…
+                </>
+              ) : (
+                <>
+                  <ShoppingCart size={14} className="mr-1" /> Place order
+                </>
+              )}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ── Quote print dialog ─────────────────────────────────────────────────────
+
+function QuotePrintDialog({ quote }: { quote: QuoteDTO }) {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 rounded-lg px-2 text-xs text-muted-foreground hover:text-primary"
+          aria-label={`Print or save quote ${quote.number}`}
+        >
+          <Printer size={13} />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[85vh] gap-0 overflow-y-auto p-0 sm:max-w-lg">
+        <DialogHeader className="no-print border-b p-5 pb-4">
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <FileText size={16} className="text-primary" /> Quote {quote.number}
+          </DialogTitle>
+          <DialogDescription>Printable offer — valid while the validity window lasts.</DialogDescription>
+        </DialogHeader>
+
+        <div className="print-area bg-card p-6 text-card-foreground">
+          <div className="flex items-start justify-between gap-4 border-b pb-5">
+            <div>
+              <p className="text-lg font-extrabold tracking-tight">
+                Vendora<span className="text-primary">.</span>
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">Multi-vendor marketplace — B2B quote</p>
+            </div>
+            <div className="text-right text-xs text-muted-foreground">
+              <p className="font-mono text-sm font-semibold text-foreground">{quote.number}</p>
+              <p className="mt-1">{formatDate(quote.sentAt ?? quote.createdAt)}</p>
+              <p className="mt-1 font-semibold">{quote.paymentTerms ?? 'Standard terms'}</p>
+            </div>
+          </div>
+
+          <table className="w-full border-b py-2 text-xs">
+            <thead>
+              <tr className="text-left text-[10px] uppercase tracking-wide text-muted-foreground">
+                <th className="py-3 font-semibold">Item</th>
+                <th className="py-3 text-center font-semibold">Qty</th>
+                <th className="py-3 text-right font-semibold">Unit</th>
+                <th className="py-3 text-right font-semibold">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {quote.lines.map((l) => (
+                <tr key={l.id} className="border-t border-dashed align-top">
+                  <td className="max-w-[220px] py-2.5 pr-2 font-medium leading-snug">
+                    {l.productTitle ?? 'Item'}
+                  </td>
+                  <td className="py-2.5 text-center tabular-nums">{l.quantity}</td>
+                  <td className="py-2.5 text-right tabular-nums">{formatUSD(l.unitPrice)}</td>
+                  <td className="py-2.5 text-right font-semibold tabular-nums">{formatUSD(l.lineTotal)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div className="space-y-1.5 border-b py-4 text-xs">
+            <div className="flex justify-between text-muted-foreground">
+              <span>Subtotal</span>
+              <span className="tabular-nums">{formatUSD(quote.subtotal)}</span>
+            </div>
+            {quote.discountTotal > 0 && (
+              <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
+                <span>Discount</span>
+                <span className="tabular-nums">−{formatUSD(quote.discountTotal)}</span>
+              </div>
+            )}
+            {quote.shippingTotal > 0 && (
+              <div className="flex justify-between text-muted-foreground">
+                <span>Shipping</span>
+                <span className="tabular-nums">{formatUSD(quote.shippingTotal)}</span>
+              </div>
+            )}
+            {quote.taxTotal > 0 && (
+              <div className="flex justify-between text-muted-foreground">
+                <span>Tax</span>
+                <span className="tabular-nums">{formatUSD(quote.taxTotal)}</span>
+              </div>
+            )}
+            <div className="flex justify-between border-t pt-2 text-sm font-bold">
+              <span>Quote total</span>
+              <span className="tabular-nums">{formatUSD(quote.total)}</span>
+            </div>
+          </div>
+
+          <div className="pt-4 text-[10px] leading-relaxed text-muted-foreground">
+            {quote.validUntil && (
+              <p className="font-semibold text-foreground">
+                Valid until {formatDate(quote.validUntil)}
+              </p>
+            )}
+            {quote.notes && <p className="mt-1 whitespace-pre-line">{quote.notes}</p>}
+            <p className="mt-2">Issued by {quote.createdBy?.name ?? 'Vendora'} · vendora.com</p>
+          </div>
+        </div>
+
+        <div className="no-print flex justify-end gap-2 border-t bg-muted/40 p-4">
+          <Button variant="outline" size="sm" className="rounded-full" onClick={() => window.print()}>
+            <Printer size={13} className="mr-1.5" /> Print / save as PDF
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 

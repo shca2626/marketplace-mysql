@@ -1,0 +1,50 @@
+import { randomBytes } from 'node:crypto'
+import { LocalDiskStorage } from './local-disk'
+import type { StorageAdapter } from './types'
+
+export { StorageError } from './types'
+export type { StorageAdapter, StoredFile } from './types'
+export { LocalDiskStorage } from './local-disk'
+
+// ── Adapter registry ────────────────────────────────────────────────
+// Driver selection is env-driven (STORAGE_DRIVER=local-disk). New drivers
+// (s3, r2, …) register here and implement StorageAdapter — call sites never
+// change. Single instance per process.
+
+const DRIVERS: Record<string, () => StorageAdapter> = {
+  'local-disk': () => new LocalDiskStorage(),
+}
+
+let instance: StorageAdapter | null = null
+
+export function getStorage(): StorageAdapter {
+  if (!instance) {
+    const driver = process.env.STORAGE_DRIVER || 'local-disk'
+    const factory = DRIVERS[driver]
+    if (!factory) throw new Error(`Unknown STORAGE_DRIVER "${driver}" (available: ${Object.keys(DRIVERS).join(', ')})`)
+    instance = factory()
+  }
+  return instance
+}
+
+// ── Key scheme ──────────────────────────────────────────────────────
+// Base key: "2026/09/{sha256[0..8]}-{6 random chars}" — date-bucketed for
+// browsability, content-prefixed for traceability, unique via random suffix.
+// Rendition files: "{base}.{role}.webp". Because keys never change content,
+// /api/media can serve them with immutable caching.
+
+export function buildAssetKeyBase(sha256Hex: string): string {
+  const now = new Date()
+  const yyyy = String(now.getFullYear())
+  const mm = String(now.getMonth() + 1).padStart(2, '0')
+  const sha8 = sha256Hex.slice(0, 8)
+  const rand = randomBytes(4).toString('base64url').replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).padEnd(6, 'x')
+  return `${yyyy}/${mm}/${sha8}-${rand}`
+}
+
+export function renditionKey(baseKey: string, role: string): string {
+  return `${baseKey}.${role}.webp`
+}
+
+export const MEDIA_ROLES = ['thumb', 'medium', 'large', 'full'] as const
+export type MediaRole = (typeof MEDIA_ROLES)[number]

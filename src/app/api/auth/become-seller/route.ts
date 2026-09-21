@@ -14,6 +14,14 @@ export async function POST(req: NextRequest) {
     const user = await getSessionUser()
     if (!user) return NextResponse.json({ error: 'Please sign in first' }, { status: 401 })
     if (user.role === 'SELLER') return NextResponse.json({ user: toSessionUser(user) })
+    // Admins must not lose their platform role through the storefront flow —
+    // this guard prevents the "admin downgraded to seller" regression.
+    if (user.role === 'ADMIN') {
+      return NextResponse.json(
+        { error: 'Admin accounts already have full marketplace access' },
+        { status: 403 }
+      )
+    }
 
     const body = await req.json()
     const parsed = schema.safeParse(body)

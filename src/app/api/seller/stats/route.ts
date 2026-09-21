@@ -21,7 +21,7 @@ export async function GET() {
           _avg: { rating: true },
         }),
         db.orderItem.findMany({
-          where: { sellerId: user.id, order: { status: { not: 'CANCELLED' } } },
+          where: { sellerId: user.id, order: { status: { notIn: ['CANCELLED', 'PENDING_APPROVAL'] } } },
           select: {
             price: true,
             quantity: true,

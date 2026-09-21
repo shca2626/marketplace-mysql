@@ -9,7 +9,9 @@ import {
   ChevronRight,
   FileText,
   Heart,
+  Package,
   RotateCcw,
+  Ruler,
   Share2,
   ShieldCheck,
   ShoppingCart,
@@ -55,6 +57,29 @@ interface ProductDetailResponse {
   related: ProductDTO[]
 }
 
+/** Convert a product video URL into an embeddable player (YouTube / Vimeo / direct file). */
+function videoEmbedFor(url?: string | null): { kind: 'iframe' | 'video'; src: string } | null {
+  if (!url) return null
+  try {
+    const u = new URL(url)
+    if (u.hostname === 'youtu.be')
+      return { kind: 'iframe', src: `https://www.youtube.com/embed/${u.pathname.slice(1)}` }
+    if (u.hostname.includes('youtube.com')) {
+      if (u.pathname.startsWith('/embed/')) return { kind: 'iframe', src: url }
+      const v = u.searchParams.get('v')
+      if (v) return { kind: 'iframe', src: `https://www.youtube.com/embed/${v}` }
+    }
+    if (u.hostname.includes('vimeo.com')) {
+      const id = u.pathname.replace(/\D/g, '')
+      if (id) return { kind: 'iframe', src: `https://player.vimeo.com/video/${id}` }
+    }
+    if (/\.(mp4|webm|ogg|mov)$/i.test(u.pathname)) return { kind: 'video', src: url }
+    return null
+  } catch {
+    return null
+  }
+}
+
 export function ProductView() {
   const productId = useMarketplace((s) => s.params.productId)
   const navigate = useMarketplace((s) => s.navigate)
@@ -79,6 +104,8 @@ export function ProductView() {
   // B2B: active organization + contract price for the current quantity
   const [activeOrg, setActiveOrg] = useState<{ id: string; name: string } | null>(null)
   const [contract, setContract] = useState<ResolvedPriceDTO | null>(null)
+  // Variants: currently selected combination (e.g. { Size: 'M', Color: 'Black' })
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({})
   const shareTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const buyActionsRef = useRef<HTMLDivElement>(null)
 
@@ -167,16 +194,85 @@ export function ProductView() {
     if (productId) trackView(productId)
   }, [productId, trackView])
 
-  const discount = useMemo(
-    () => (product ? discountPercent(product.price, product.compareAtPrice) : null),
+  // ── Variant machinery ────────────────────────────────────────────────────────
+  const activeVariants = useMemo(
+    () => (product?.variants ?? []).filter((v) => v.isActive),
     [product]
+  )
+
+  // Option groups in first-seen order (e.g. [{ name: 'Size', values: ['S','M'] }, …])
+  const variantGroups = useMemo(() => {
+    const groups: { name: string; values: string[] }[] = []
+    for (const v of activeVariants) {
+      for (const [name, val] of Object.entries(v.options)) {
+        let g = groups.find((x) => x.name === name)
+        if (!g) {
+          g = { name, values: [] }
+          groups.push(g)
+        }
+        if (!g.values.includes(val)) g.values.push(val)
+      }
+    }
+    return groups
+  }, [activeVariants])
+
+  // Default to the first variant's combination whenever the product changes
+  useEffect(() => {
+    const first = (data?.product?.variants ?? []).find((v) => v.isActive)
+    setSelectedOptions(first ? { ...first.options } : {})
+  }, [productId, data?.product?.id])
+
+  const selectedVariant = useMemo(() => {
+    if (!activeVariants.length || variantGroups.length === 0) return null
+    return (
+      activeVariants.find((v) =>
+        variantGroups.every((g) => v.options[g.name] === selectedOptions[g.name])
+      ) ?? null
+    )
+  }, [activeVariants, variantGroups, selectedOptions])
+
+  const effectivePrice = selectedVariant?.price ?? product?.price ?? 0
+  const effectiveCompareAt = selectedVariant?.compareAtPrice ?? product?.compareAtPrice ?? null
+  const effectiveStock = selectedVariant ? selectedVariant.stock : (product?.stock ?? 0)
+  const effectiveSku = selectedVariant?.sku ?? product?.sku ?? null
+  const videoEmbed = useMemo(() => videoEmbedFor(product?.videoUrl), [product?.videoUrl])
+
+  // SEO: keep the browser tab + meta description in sync with the seller's SEO fields
+  useEffect(() => {
+    if (!product) return
+    const prevTitle = document.title
+    document.title = product.metaTitle?.trim() || `${product.title} — Vendora`
+    const metaEl = document.querySelector<HTMLMetaElement>('meta[name="description"]')
+    const prevDesc = metaEl?.content ?? ''
+    const desc = product.metaDescription?.trim()
+    if (desc) {
+      if (metaEl) metaEl.content = desc
+      else {
+        const el = document.createElement('meta')
+        el.name = 'description'
+        el.content = desc
+        document.head.appendChild(el)
+      }
+    }
+    return () => {
+      document.title = prevTitle
+      if (metaEl && prevDesc) metaEl.content = prevDesc
+    }
+  }, [product])
+
+  const discount = useMemo(
+    () => (product ? discountPercent(effectivePrice, effectiveCompareAt) : null),
+    [product, effectivePrice, effectiveCompareAt]
   )
 
   const handleAddToCart = (openDrawer = false) => {
     if (!product) return
-    const res = addToCart(product, quantity)
+    const res = addToCart(product, quantity, selectedVariant)
     if (res.ok) {
-      toast({ title: 'Added to cart', description: `${quantity} × ${product.title}` })
+      toast({
+        title: 'Added to cart',
+        description: `${quantity} × ${product.title}${selectedVariant ? ` (${selectedVariant.name})` : ''}`,
+      })
       if (openDrawer) setCartOpen(true)
     } else {
       toast({ title: 'Cannot add to cart', description: res.message, variant: 'destructive' })
@@ -185,7 +281,7 @@ export function ProductView() {
 
   const handleBuyNow = () => {
     if (!product) return
-    const res = addToCart(product, quantity)
+    const res = addToCart(product, quantity, selectedVariant)
     if (res.ok) navigate('checkout')
     else toast({ title: 'Cannot add to cart', description: res.message, variant: 'destructive' })
   }
@@ -315,6 +411,25 @@ export function ProductView() {
   }))
   const totalReviews = data.reviews.length
   const myReview = user ? data.reviews.find((r) => r.user.id === user.id) : undefined
+  const hasVariantSelectionPending = variantGroups.length > 0 && !selectedVariant
+
+  // Seller-provided spec rows (Details tab) beyond the fixed marketplace rows
+  const detailRows: { label: string; value: string }[] = []
+  if (effectiveSku) detailRows.push({ label: 'SKU', value: effectiveSku })
+  if (product.materials) detailRows.push({ label: 'Materials', value: product.materials })
+  if (product.care) detailRows.push({ label: 'Care', value: product.care })
+  if (product.weightGrams) detailRows.push({ label: 'Weight', value: `${product.weightGrams} g` })
+  if (product.lengthCm || product.widthCm || product.heightCm) {
+    const dims = [product.lengthCm, product.widthCm, product.heightCm].filter((d) => d != null)
+    detailRows.push({ label: 'Dimensions (L×W×H)', value: `${dims.join(' × ')} cm` })
+  }
+  if (selectedVariant) detailRows.push({ label: 'Selected option', value: selectedVariant.name })
+
+  const hasShippingInfo =
+    product.processingDays != null ||
+    product.freeShipping ||
+    product.shippingFee != null ||
+    !!product.shippingPolicy
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
@@ -382,6 +497,26 @@ export function ProductView() {
               ))}
             </div>
           )}
+
+          {/* Seller-provided product video (Media tab) */}
+          {videoEmbed && (
+            <div className="mt-4 overflow-hidden rounded-2xl border bg-black">
+              {videoEmbed.kind === 'iframe' ? (
+                <iframe
+                  src={videoEmbed.src}
+                  title={`${product.title} — product video`}
+                  className="aspect-video w-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  loading="lazy"
+                />
+              ) : (
+                <video src={videoEmbed.src} controls preload="metadata" className="aspect-video w-full">
+                  <track kind="captions" />
+                </video>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ── Info ── */}
@@ -446,10 +581,10 @@ export function ProductView() {
             </motion.div>
           ) : (
             <div className="mt-5 flex items-end gap-3">
-              <span className="text-4xl font-extrabold tracking-tight">{formatUSD(product.price)}</span>
-              {product.compareAtPrice && (
+              <span className="text-4xl font-extrabold tracking-tight">{formatUSD(effectivePrice)}</span>
+              {effectiveCompareAt && (
                 <span className="pb-1 text-lg text-muted-foreground line-through">
-                  {formatUSD(product.compareAtPrice)}
+                  {formatUSD(effectiveCompareAt)}
                 </span>
               )}
               {discount !== null && (
@@ -462,32 +597,83 @@ export function ProductView() {
 
           <p className="mt-4 leading-relaxed text-muted-foreground">{product.description}</p>
 
+          {/* ── Variant selector (seller-defined options) ── */}
+          {variantGroups.length > 0 && (
+            <div className="mt-6 space-y-4">
+              {variantGroups.map((g) => (
+                <div key={g.name}>
+                  <p className="mb-2 text-sm font-semibold">
+                    {g.name}
+                    {selectedOptions[g.name] && (
+                      <span className="ml-1 font-normal text-muted-foreground">: {selectedOptions[g.name]}</span>
+                    )}
+                  </p>
+                  <div className="flex flex-wrap gap-2" role="group" aria-label={`Choose ${g.name}`}>
+                    {g.values.map((val) => {
+                      const active = selectedOptions[g.name] === val
+                      return (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => setSelectedOptions((s) => ({ ...s, [g.name]: val }))}
+                          className={cn(
+                            'h-9 min-w-11 rounded-lg border px-3 text-sm font-medium transition-colors',
+                            active
+                              ? 'border-primary bg-primary/10 text-primary'
+                              : 'border-border text-foreground hover:border-primary/50 hover:bg-muted/50',
+                            hasVariantSelectionPending && !active && 'opacity-60'
+                          )}
+                          aria-pressed={active}
+                        >
+                          {val}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+              {hasVariantSelectionPending && (
+                <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive">
+                  This combination is not available — pick another option.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Stock */}
-          <div className="mt-5 flex items-center gap-2 text-sm">
+          <div className="mt-5 flex flex-wrap items-center gap-2 text-sm">
             <span
               className={cn(
                 'h-2 w-2 rounded-full',
-                product.stock === 0 ? 'bg-destructive' : product.stock <= 5 ? 'bg-amber-500' : 'bg-emerald-500'
+                effectiveStock === 0 ? 'bg-destructive' : effectiveStock <= 5 ? 'bg-amber-500' : 'bg-emerald-500'
               )}
             />
-            {product.stock === 0 ? (
+            {effectiveStock === 0 ? (
               <span className="font-medium text-destructive">Out of stock</span>
-            ) : product.stock <= 5 ? (
+            ) : effectiveStock <= 5 ? (
               <span className="font-medium text-amber-600 dark:text-amber-400">
-                Selling fast — only {product.stock} left
+                Selling fast — only {effectiveStock} left
               </span>
             ) : (
-              <span className="text-muted-foreground">{product.stock} in stock</span>
+              <span className="text-muted-foreground">{effectiveStock} in stock</span>
+            )}
+            {effectiveSku && (
+              <>
+                <span className="text-muted-foreground">·</span>
+                <span className="text-muted-foreground">
+                  SKU <span className="font-mono text-xs">{effectiveSku}</span>
+                </span>
+              </>
             )}
           </div>
 
           {/* Quantity + actions */}
           <div ref={buyActionsRef} className="mt-6 flex flex-wrap items-center gap-3">
-            <QuantityInput value={quantity} onChange={setQuantity} max={Math.max(1, product.stock)} />
+            <QuantityInput value={quantity} onChange={setQuantity} max={Math.max(1, effectiveStock)} />
             <Button
               size="lg"
               className="h-12 flex-1 rounded-xl text-base sm:flex-none sm:px-8"
-              disabled={product.stock === 0}
+              disabled={effectiveStock === 0 || hasVariantSelectionPending}
               onClick={() => handleAddToCart(false)}
             >
               <ShoppingCart size={17} className="mr-2" /> Add to cart
@@ -496,7 +682,7 @@ export function ProductView() {
               size="lg"
               variant="secondary"
               className="h-12 rounded-xl border text-base sm:px-8"
-              disabled={product.stock === 0}
+              disabled={effectiveStock === 0 || hasVariantSelectionPending}
               onClick={handleBuyNow}
             >
               <Zap size={16} className="mr-2" /> Buy now
@@ -550,7 +736,11 @@ export function ProductView() {
           {/* Perks */}
           <div className="mt-7 grid grid-cols-3 gap-3">
             {[
-              { icon: Truck, title: 'Fast shipping', text: 'Free over $75' },
+              {
+                icon: Truck,
+                title: product.freeShipping ? 'Free shipping' : 'Fast shipping',
+                text: product.freeShipping ? 'On this item' : 'Free over $75',
+              },
               { icon: RotateCcw, title: 'Easy returns', text: 'Within 30 days' },
               { icon: ShieldCheck, title: 'Warranty', text: '1-year coverage' },
             ].map((perk) => (
@@ -683,26 +873,118 @@ export function ProductView() {
           <Card className="p-6">
             <h2 className="text-lg font-bold">About this item</h2>
             <p className="mt-3 leading-relaxed text-muted-foreground">{product.description}</p>
-            <Separator className="my-5" />
-            <div className="grid gap-3 text-sm sm:grid-cols-2">
-              <div className="flex justify-between rounded-lg bg-muted/50 px-4 py-2.5">
-                <span className="text-muted-foreground">Category</span>
-                <span className="font-medium">{product.category.name}</span>
-              </div>
-              <div className="flex justify-between rounded-lg bg-muted/50 px-4 py-2.5">
-                <span className="text-muted-foreground">Listed</span>
-                <span className="font-medium">{formatDate(product.createdAt)}</span>
-              </div>
-              <div className="flex justify-between rounded-lg bg-muted/50 px-4 py-2.5">
-                <span className="text-muted-foreground">Units sold</span>
-                <span className="font-medium">{formatNumber(product.soldCount)}</span>
-              </div>
-              <div className="flex justify-between rounded-lg bg-muted/50 px-4 py-2.5">
-                <span className="text-muted-foreground">Ships from</span>
-                <span className="font-medium">Vendora fulfillment</span>
-              </div>
-            </div>
+
+            {/* Seller-defined highlights (product form → Details tab) */}
+            {product.highlights && product.highlights.length > 0 && (
+              <>
+                <Separator className="my-5" />
+                <h3 className="text-sm font-bold">Highlights</h3>
+                <ul className="mt-3 space-y-2">
+                  {product.highlights.map((h, i) => (
+                    <li key={`${i}-${h.slice(0, 20)}`} className="flex items-start gap-2 text-sm text-muted-foreground">
+                      <Check size={15} className="mt-0.5 shrink-0 text-primary" />
+                      <span>{h}</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+
+            {/* Seller-defined specifications (product form → Details tab) */}
+            {(detailRows.length > 0 || (product.specs && product.specs.length > 0)) && (
+              <>
+                <Separator className="my-5" />
+                <h3 className="text-sm font-bold">Specifications</h3>
+                <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+                  <div className="flex justify-between rounded-lg bg-muted/50 px-4 py-2.5">
+                    <span className="text-muted-foreground">Category</span>
+                    <span className="font-medium">{product.category.name}</span>
+                  </div>
+                  <div className="flex justify-between rounded-lg bg-muted/50 px-4 py-2.5">
+                    <span className="text-muted-foreground">Listed</span>
+                    <span className="font-medium">{formatDate(product.createdAt)}</span>
+                  </div>
+                  <div className="flex justify-between rounded-lg bg-muted/50 px-4 py-2.5">
+                    <span className="text-muted-foreground">Units sold</span>
+                    <span className="font-medium">{formatNumber(product.soldCount)}</span>
+                  </div>
+                  <div className="flex justify-between rounded-lg bg-muted/50 px-4 py-2.5">
+                    <span className="text-muted-foreground">Ships from</span>
+                    <span className="font-medium">Vendora fulfillment</span>
+                  </div>
+                  {(product.specs ?? []).map((s, i) => (
+                    <div key={`${i}-${s.label}`} className="flex justify-between gap-4 rounded-lg bg-muted/50 px-4 py-2.5">
+                      <span className="shrink-0 text-muted-foreground">{s.label}</span>
+                      <span className="text-right font-medium">{s.value}</span>
+                    </div>
+                  ))}
+                  {detailRows.map((row) => (
+                    <div key={row.label} className="flex justify-between gap-4 rounded-lg bg-muted/50 px-4 py-2.5">
+                      <span className="shrink-0 text-muted-foreground">{row.label}</span>
+                      <span className="text-right font-medium">{row.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </Card>
+
+          {/* Shipping & fulfillment (product form → Shipping tab) */}
+          {hasShippingInfo && (
+            <Card className="mt-4 p-6">
+              <h2 className="flex items-center gap-2 text-lg font-bold">
+                <Truck size={18} className="text-primary" /> Shipping &amp; fulfillment
+              </h2>
+              <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                {product.processingDays != null && (
+                  <div className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-2.5">
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      <Package size={14} /> Processing time
+                    </span>
+                    <span className="font-medium">
+                      {product.processingDays} business {product.processingDays === 1 ? 'day' : 'days'}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-2.5">
+                  <span className="flex items-center gap-1.5 text-muted-foreground">
+                    <Truck size={14} /> Shipping cost
+                  </span>
+                  <span className="font-medium">
+                    {product.freeShipping
+                      ? 'Free shipping'
+                      : product.shippingFee != null
+                        ? `${formatUSD(product.shippingFee)} flat rate`
+                        : 'Calculated at checkout'}
+                  </span>
+                </div>
+                {(product.lengthCm || product.widthCm || product.heightCm || product.weightGrams) && (
+                  <div className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-2.5">
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      <Ruler size={14} /> Package
+                    </span>
+                    <span className="font-medium">
+                      {[
+                        product.weightGrams ? `${product.weightGrams} g` : null,
+                        [product.lengthCm, product.widthCm, product.heightCm].some((d) => d != null)
+                          ? `${[product.lengthCm, product.widthCm, product.heightCm]
+                              .map((d) => d ?? '—')
+                              .join(' × ')} cm`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </span>
+                  </div>
+                )}
+              </div>
+              {product.shippingPolicy && (
+                <p className="mt-4 rounded-lg bg-muted/30 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
+                  {product.shippingPolicy}
+                </p>
+              )}
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="reviews" className="mt-6">
@@ -851,19 +1133,22 @@ export function ProductView() {
         >
           <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2.5">
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[11px] leading-tight text-muted-foreground">{product.title}</p>
+              <p className="truncate text-[11px] leading-tight text-muted-foreground">
+                {product.title}
+                {selectedVariant ? ` · ${selectedVariant.name}` : ''}
+              </p>
               <p className="mt-0.5 flex items-baseline gap-1.5 leading-tight">
-                <span className="text-lg font-extrabold tracking-tight">{formatUSD(product.price)}</span>
-                {product.compareAtPrice && (
+                <span className="text-lg font-extrabold tracking-tight">{formatUSD(effectivePrice)}</span>
+                {effectiveCompareAt && (
                   <span className="text-xs font-normal text-muted-foreground line-through">
-                    {formatUSD(product.compareAtPrice)}
+                    {formatUSD(effectiveCompareAt)}
                   </span>
                 )}
               </p>
             </div>
             <Button
               className="h-11 shrink-0 rounded-xl px-5"
-              disabled={product.stock === 0}
+              disabled={effectiveStock === 0 || hasVariantSelectionPending}
               onClick={() => handleAddToCart(false)}
             >
               <ShoppingCart size={16} className="mr-1.5" /> Add
@@ -871,7 +1156,7 @@ export function ProductView() {
             <Button
               variant="secondary"
               className="h-11 shrink-0 rounded-xl border px-5"
-              disabled={product.stock === 0}
+              disabled={effectiveStock === 0 || hasVariantSelectionPending}
               onClick={handleBuyNow}
             >
               <Zap size={15} className="mr-1.5" /> Buy

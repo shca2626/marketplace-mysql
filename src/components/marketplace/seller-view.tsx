@@ -6,7 +6,9 @@ import {
   BadgeCheck,
   Check,
   DollarSign,
+  Hourglass,
   Image as ImageIcon,
+  Inbox,
   LayoutDashboard,
   Loader2,
   Package,
@@ -27,6 +29,7 @@ import type { CategoryDTO, OrderDTO, ProductDTO, SellerStats } from '@/lib/types
 import { formatDate, formatNumber, formatUSD, timeAgo } from '@/lib/format'
 import { STORE_COVERS, getStoreCover, setStoreCover } from '@/lib/store-covers'
 import { ProductFormDialog } from './product-form-dialog'
+import { SellerRfqInboxTab } from './seller/rfq-inbox-tab'
 import { StarRating } from './star-rating'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -311,6 +314,9 @@ export function SellerView() {
           </TabsTrigger>
           <TabsTrigger value="orders" className="gap-1.5 rounded-lg px-4 text-sm">
             <Truck size={14} /> Orders
+          </TabsTrigger>
+          <TabsTrigger value="rfqs" className="gap-1.5 rounded-lg px-4 text-sm">
+            <Inbox size={14} /> Quote requests
           </TabsTrigger>
         </TabsList>
 
@@ -722,6 +728,11 @@ export function SellerView() {
           </Card>
         </TabsContent>
 
+        {/* ── Seller RFQ inbox tab ── */}
+        <TabsContent value="rfqs" className="mt-6">
+          <SellerRfqInboxTab myProducts={myProducts} />
+        </TabsContent>
+
         {/* ── Orders tab ── */}
         <TabsContent value="orders" className="mt-6">
           {ordersLoading ? (
@@ -743,6 +754,7 @@ export function SellerView() {
               {sellerOrders.map((order) => {
                 const myItems = order.items.filter((i) => i.mine)
                 const myTotal = myItems.reduce((sum, i) => sum + i.price * i.quantity, 0)
+                const awaitingApproval = order.status === 'PENDING_APPROVAL'
                 const next = { PAID: 'PROCESSING', PROCESSING: 'SHIPPED', SHIPPED: 'DELIVERED' }[order.status]
                 return (
                   <Card key={order.id}>
@@ -763,10 +775,12 @@ export function SellerView() {
                             className={
                               order.status === 'CANCELLED'
                                 ? 'rounded-full text-[11px] bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400'
-                                : 'rounded-full text-[11px]'
+                                : awaitingApproval
+                                  ? 'rounded-full text-[11px] bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300'
+                                  : 'rounded-full text-[11px]'
                             }
                           >
-                            {order.status}
+                            {awaitingApproval ? 'AWAITING BUYER APPROVAL' : order.status}
                           </Badge>
                           <span className="text-sm font-bold tabular-nums">{formatUSD(myTotal)}</span>
                           {next && (
@@ -776,6 +790,12 @@ export function SellerView() {
                           )}
                         </div>
                       </div>
+                      {awaitingApproval && (
+                        <p className="mt-3 flex items-center gap-1.5 rounded-lg bg-teal-500/10 px-3 py-2 text-xs text-teal-700 dark:text-teal-300">
+                          <Hourglass size={13} className="shrink-0" />
+                          The buying company is approving this order internally — fulfillment unlocks once it clears.
+                        </p>
+                      )}
                       <div className="mt-4 space-y-2.5 border-t pt-4">
                         {myItems.map((item) => (
                           <div key={item.id} className="flex items-center gap-3">

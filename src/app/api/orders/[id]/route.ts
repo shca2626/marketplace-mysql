@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/auth'
 import { serializeOrder } from '@/lib/serialize'
+import { cancelApprovalForOrder } from '@/server/modules/approvals/service'
 
 const STATUS_FLOW = ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED']
 
@@ -47,15 +48,25 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
       if (order.buyerId !== user.id)
         return NextResponse.json({ error: 'Only the buyer can cancel this order' }, { status: 403 })
-      if (order.status !== 'PAID')
+      if (order.status !== 'PAID' && order.status !== 'PENDING_APPROVAL')
         return NextResponse.json(
           { error: 'This order can no longer be cancelled — it is already being processed' },
           { status: 400 }
         )
 
       const updated = await db.$transaction(async (tx) => {
+        // Withdraw any pending org approval for this order
+        await cancelApprovalForOrder(tx, id)
         // Restock every item and roll back sold counts
         for (const item of order.items) {
+          if (item.variantId) {
+            await tx.productVariant
+              .update({
+                where: { id: item.variantId },
+                data: { stock: { increment: item.quantity } },
+              })
+              .catch(() => undefined) // variant may have been deleted
+          }
           await tx.product.update({
             where: { id: item.productId },
             data: {
@@ -83,6 +94,12 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
     const isSeller = order.items.some((i) => i.sellerId === user.id)
     if (!isSeller) return NextResponse.json({ error: 'Only the seller can update fulfillment' }, { status: 403 })
+
+    if (order.status === 'PENDING_APPROVAL')
+      return NextResponse.json(
+        { error: 'This order is awaiting the buying company\'s approval — fulfillment unlocks once approved' },
+        { status: 400 }
+      )
 
     const currentIdx = STATUS_FLOW.indexOf(order.status)
     const nextIdx = STATUS_FLOW.indexOf(parsed.data.status)

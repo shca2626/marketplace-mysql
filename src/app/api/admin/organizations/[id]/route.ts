@@ -7,6 +7,7 @@ const updateSchema = z.object({
   status: z.enum(['PENDING_VERIFICATION', 'ACTIVE', 'SUSPENDED', 'REJECTED']).optional(),
   creditTermsDays: z.number().int().min(0).max(180).optional(),
   creditLimit: z.number().min(0).max(10_000_000).optional(),
+  approvalThreshold: z.number().min(0).max(10_000_000).nullable().optional(),
   notes: z.string().max(5000).nullable().optional(),
   groupIds: z.array(z.string()).optional(),
 })

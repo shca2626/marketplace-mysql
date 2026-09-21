@@ -1,7 +1,15 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import type { CartItem, ProductDTO, SessionUser } from '@/lib/types'
+import type { CartItem, ProductDTO, ProductVariantDTO, SessionUser } from '@/lib/types'
 import { parseLocation, viewToQuery } from '@/lib/routing'
+
+/**
+ * Cart lines are keyed by product AND variant: the same product in two
+ * combinations (e.g. different sizes) is two independent lines.
+ * Legacy persisted carts (no variantId) keep the plain productId key.
+ */
+export const cartLineKey = (productId: string, variantId?: string | null) =>
+  variantId ? `${productId}::${variantId}` : productId
 
 export type View =
   | 'home'
@@ -45,12 +53,12 @@ interface MarketplaceState {
   setAuthChecked: (v: boolean) => void
   trackView: (productId: string) => void
   clearRecentlyViewed: () => void
-  addToCart: (product: ProductDTO, quantity?: number) => { ok: boolean; message: string }
-  updateQuantity: (productId: string, quantity: number) => void
-  removeFromCart: (productId: string) => void
-  saveForLater: (productId: string) => void
-  moveToCart: (productId: string) => { ok: boolean; message: string }
-  removeFromSaved: (productId: string) => void
+  addToCart: (product: ProductDTO, quantity?: number, variant?: ProductVariantDTO | null) => { ok: boolean; message: string }
+  updateQuantity: (lineId: string, quantity: number) => void
+  removeFromCart: (lineId: string) => void
+  saveForLater: (lineId: string) => void
+  moveToCart: (lineId: string) => { ok: boolean; message: string }
+  removeFromSaved: (lineId: string) => void
   clearCart: () => void
   setCartOpen: (open: boolean) => void
   openAuth: (mode?: 'login' | 'register', after?: { view: View; params?: ViewParams }) => void
@@ -108,75 +116,81 @@ export const useMarketplace = create<MarketplaceState>()(
 
       clearRecentlyViewed: () => set({ recentlyViewed: [] }),
 
-      addToCart: (product, quantity = 1) => {
-        const existing = get().cart.find((i) => i.productId === product.id)
+      addToCart: (product, quantity = 1, variant = null) => {
+        const lineId = cartLineKey(product.id, variant?.id)
+        const stock = variant?.stock ?? product.stock
+        const price = variant?.price ?? product.price
+        const existing = get().cart.find((i) => cartLineKey(i.productId, i.variantId) === lineId)
         const currentQty = existing?.quantity ?? 0
         const nextQty = currentQty + quantity
-        if (nextQty > product.stock) {
-          return { ok: false, message: `Only ${product.stock} in stock` }
+        if (nextQty > stock) {
+          return { ok: false, message: `Only ${stock} in stock` }
         }
         if (existing) {
           set({
             cart: get().cart.map((i) =>
-              i.productId === product.id ? { ...i, quantity: nextQty, stock: product.stock } : i
+              cartLineKey(i.productId, i.variantId) === lineId ? { ...i, quantity: nextQty, stock } : i
             ),
           })
         } else {
           const item: CartItem = {
             productId: product.id,
             title: product.title,
-            price: product.price,
+            price,
             image: product.images[0] ?? null,
-            stock: product.stock,
+            stock,
             quantity: nextQty,
             sellerId: product.sellerId,
             sellerName: product.seller?.storeName ?? product.seller?.name ?? null,
+            variantId: variant?.id ?? null,
+            variantLabel: variant?.name ?? null,
+            sku: variant?.sku ?? product.sku ?? null,
           }
           set({ cart: [...get().cart, item] })
         }
         return { ok: true, message: 'Added to cart' }
       },
 
-      updateQuantity: (productId, quantity) =>
+      updateQuantity: (lineId, quantity) =>
         set({
           cart: get()
-            .cart.map((i) => (i.productId === productId ? { ...i, quantity } : i))
+            .cart.map((i) => (cartLineKey(i.productId, i.variantId) === lineId ? { ...i, quantity } : i))
             .filter((i) => i.quantity > 0),
         }),
 
-      removeFromCart: (productId) =>
-        set({ cart: get().cart.filter((i) => i.productId !== productId) }),
+      removeFromCart: (lineId) =>
+        set({ cart: get().cart.filter((i) => cartLineKey(i.productId, i.variantId) !== lineId) }),
 
       // ── Save for later: park an item outside the active cart (still persisted).
       // Shipping progress + checkout only ever see the active cart.
-      saveForLater: (productId) => {
-        const item = get().cart.find((i) => i.productId === productId)
+      saveForLater: (lineId) => {
+        const item = get().cart.find((i) => cartLineKey(i.productId, i.variantId) === lineId)
         if (!item) return
         set({
-          cart: get().cart.filter((i) => i.productId !== productId),
-          savedForLater: [item, ...get().savedForLater.filter((i) => i.productId !== productId)],
+          cart: get().cart.filter((i) => cartLineKey(i.productId, i.variantId) !== lineId),
+          savedForLater: [item, ...get().savedForLater.filter((i) => cartLineKey(i.productId, i.variantId) !== lineId)],
         })
       },
 
-      moveToCart: (productId) => {
-        const item = get().savedForLater.find((i) => i.productId === productId)
+      moveToCart: (lineId) => {
+        const item = get().savedForLater.find((i) => cartLineKey(i.productId, i.variantId) === lineId)
         if (!item) return { ok: false, message: 'Item not found' }
-        const existing = get().cart.find((i) => i.productId === productId)
+        const existing = get().cart.find((i) => cartLineKey(i.productId, i.variantId) === lineId)
         const nextQty = (existing?.quantity ?? 0) + item.quantity
         if (nextQty > item.stock) {
           return { ok: false, message: `Only ${item.stock} in stock` }
         }
         set({
-          savedForLater: get().savedForLater.filter((i) => i.productId !== productId),
+          savedForLater: get().savedForLater.filter((i) => cartLineKey(i.productId, i.variantId) !== lineId),
           cart: existing
-            ? get().cart.map((i) => (i.productId === productId ? { ...i, quantity: nextQty } : i))
+            ? get().cart.map((i) => (cartLineKey(i.productId, i.variantId) === lineId ? { ...i, quantity: nextQty } : i))
             : [...get().cart, item],
         })
         return { ok: true, message: 'Moved to cart' }
       },
 
-      removeFromSaved: (productId) =>
-        set({ savedForLater: get().savedForLater.filter((i) => i.productId !== productId) }),
+      removeFromSaved: (lineId) =>
+        set({ savedForLater: get().savedForLater.filter((i) => cartLineKey(i.productId, i.variantId) !== lineId) }),
 
       clearCart: () => set({ cart: [] }),
 

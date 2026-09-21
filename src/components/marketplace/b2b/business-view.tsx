@@ -38,6 +38,7 @@ import {
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { apiRequest, ORG_ROLE_MAP, ORG_STATUS_MAP, StatusBadge } from './b2b-shared'
+import { ApprovalsCard } from './approvals-card'
 
 // ── Register-form state ─────────────────────────────────────────────────────
 
@@ -402,6 +403,11 @@ export function BusinessView() {
           )}
 
           <OrgStatusCard org={detail} loading={detailLoading && !detailData} />
+
+          {/* Purchase-approval workflow (ACTIVE orgs) */}
+          {detail?.status === 'ACTIVE' && (
+            <ApprovalsCard org={detail} myRole={detail.myRole} onChanged={() => void refetchDetail()} />
+          )}
 
           {/* Members */}
           <Card>

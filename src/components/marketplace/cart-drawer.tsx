@@ -2,7 +2,7 @@
 
 import { BookmarkPlus, Minus, Plus, RotateCcw, ShoppingCart, Trash2 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
-import { useMarketplace } from '@/store/marketplace'
+import { cartLineKey, useMarketplace } from '@/store/marketplace'
 import { formatUSD } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -72,7 +72,7 @@ export function CartDrawer() {
               <Button
                 className="rounded-full"
                 onClick={() => {
-                  const res = moveToCart(savedForLater[0].productId)
+                  const res = moveToCart(cartLineKey(savedForLater[0].productId, savedForLater[0].variantId))
                   if (res.ok) toast({ title: 'Moved to cart', description: savedForLater[0].title })
                   else
                     toast({
@@ -141,6 +141,11 @@ export function CartDrawer() {
                     </button>
                     <div className="min-w-0 flex-1">
                       <p className="line-clamp-2 text-sm font-medium leading-5">{item.title}</p>
+                      {item.variantLabel && (
+                        <span className="mt-0.5 inline-block rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                          {item.variantLabel}
+                        </span>
+                      )}
                       {item.sellerName && (
                         <button
                           className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-primary"
@@ -160,7 +165,7 @@ export function CartDrawer() {
                             size="icon"
                             className="h-7 w-7 rounded-lg"
                             disabled={item.quantity <= 1}
-                            onClick={() => updateQuantity(item.productId, item.quantity - 1)}
+                            onClick={() => updateQuantity(cartLineKey(item.productId, item.variantId), item.quantity - 1)}
                             aria-label="Decrease quantity"
                           >
                             <Minus size={12} />
@@ -173,7 +178,7 @@ export function CartDrawer() {
                             size="icon"
                             className="h-7 w-7 rounded-lg"
                             disabled={item.quantity >= item.stock}
-                            onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                            onClick={() => updateQuantity(cartLineKey(item.productId, item.variantId), item.quantity + 1)}
                             aria-label="Increase quantity"
                           >
                             <Plus size={12} />
@@ -187,7 +192,7 @@ export function CartDrawer() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-muted-foreground hover:text-primary"
-                            onClick={() => saveForLater(item.productId)}
+                            onClick={() => saveForLater(cartLineKey(item.productId, item.variantId))}
                             aria-label={`Save ${item.title} for later`}
                           >
                             <BookmarkPlus size={14} />
@@ -196,7 +201,7 @@ export function CartDrawer() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                            onClick={() => removeFromCart(item.productId)}
+                            onClick={() => removeFromCart(cartLineKey(item.productId, item.variantId))}
                             aria-label={`Remove ${item.title} from cart`}
                           >
                             <Trash2 size={14} />
@@ -228,6 +233,11 @@ export function CartDrawer() {
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="line-clamp-1 text-xs font-medium leading-4">{item.title}</p>
+                          {item.variantLabel && (
+                            <span className="mt-0.5 inline-block rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                              {item.variantLabel}
+                            </span>
+                          )}
                           <p className="mt-0.5 text-xs text-muted-foreground">
                             {formatUSD(item.price)} · qty {item.quantity}
                           </p>
@@ -237,7 +247,7 @@ export function CartDrawer() {
                           size="icon"
                           className="h-7 w-7 rounded-lg"
                           onClick={() => {
-                            const res = moveToCart(item.productId)
+                            const res = moveToCart(cartLineKey(item.productId, item.variantId))
                             if (!res.ok) {
                               toast({
                                 title: 'Cannot move to cart',
@@ -254,7 +264,7 @@ export function CartDrawer() {
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                          onClick={() => removeFromSaved(item.productId)}
+                          onClick={() => removeFromSaved(cartLineKey(item.productId, item.variantId))}
                           aria-label={`Remove ${item.title} from saved items`}
                         >
                           <Trash2 size={13} />

@@ -20,6 +20,18 @@ export interface CategoryDTO {
   coverImage?: string | null
 }
 
+export interface ProductVariantDTO {
+  id: string
+  name: string
+  options: Record<string, string>
+  price: number | null // null = inherit product price
+  compareAtPrice: number | null
+  stock: number
+  sku: string | null
+  position: number
+  isActive: boolean
+}
+
 export interface ProductDTO {
   id: string
   title: string
@@ -39,6 +51,27 @@ export interface ProductDTO {
   status: string
   createdAt: string
   favorited?: boolean
+
+  // ── Commerce details (product form: Pricing / Details / Shipping / SEO) ──
+  sku?: string | null
+  barcode?: string | null
+  videoUrl?: string | null
+  highlights?: string[]
+  specs?: { label: string; value: string }[]
+  materials?: string | null
+  care?: string | null
+  weightGrams?: number | null
+  lengthCm?: number | null
+  widthCm?: number | null
+  heightCm?: number | null
+  processingDays?: number | null
+  freeShipping?: boolean
+  shippingFee?: number | null
+  shippingPolicy?: string | null
+  slug?: string | null
+  metaTitle?: string | null
+  metaDescription?: string | null
+  variants?: ProductVariantDTO[]
 }
 
 export interface ReviewDTO {
@@ -60,6 +93,8 @@ export interface OrderItemDTO {
   price: number
   quantity: number
   mine?: boolean
+  variantId?: string | null
+  variantName?: string | null
 }
 
 export interface OrderDTO {
@@ -86,6 +121,9 @@ export interface CartItem {
   quantity: number
   sellerId: string
   sellerName?: string | null
+  variantId?: string | null
+  variantLabel?: string | null
+  sku?: string | null
 }
 
 export interface StoreDTO {
@@ -158,6 +196,38 @@ export interface OrganizationMemberDTO {
   createdAt: string
 }
 
+/** B2B purchase-approval request (ORDER checkout or QUOTE_ACCEPT gated by the org threshold). */
+export interface ApprovalRequestDTO {
+  id: string
+  organizationId: string
+  type: 'ORDER' | 'QUOTE_ACCEPT'
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
+  amount: number
+  note?: string | null
+  decisionNote?: string | null
+  createdAt: string
+  decidedAt?: string | null
+  requester?: { id: string; name: string; email: string } | null
+  decidedBy?: { id: string; name: string; email: string } | null
+  order?: {
+    id: string
+    status: string
+    total: number
+    poNumber?: string | null
+    createdAt: string
+    items: { title: string; quantity: number; price: number; variantName?: string | null; image?: string | null }[]
+  } | null
+  quote?: {
+    id: string
+    number: string
+    total: number
+    paymentTerms?: string | null
+    validUntil?: string | null
+    status: string
+  } | null
+  rfqId?: string | null
+}
+
 export interface CustomerGroupDTO {
   id: string
   key: string
@@ -182,6 +252,8 @@ export interface OrganizationDTO {
   verifiedAt?: string | null
   creditTermsDays: number
   creditLimit: number
+  /** Orders/quote-accepts at or above this total placed by BUYER members need approval (null = off). */
+  approvalThreshold?: number | null
   notes?: string | null
   createdAt: string
   memberCount?: number
@@ -279,6 +351,17 @@ export interface RfqDTO {
   quoteCount?: number
   lineCount?: number
   totalQuantity?: number
+  // Seller-inbox extras (only set in /api/rfqs/inbox responses)
+  myQuoteCount?: number
+  myLineCount?: number
+}
+
+export interface RfqMessageDTO {
+  id: string
+  rfqId: string
+  author: { id: string; name: string; role: string }
+  body: string
+  createdAt: string
 }
 
 export interface AuditLogDTO {

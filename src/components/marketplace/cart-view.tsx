@@ -2,7 +2,7 @@
 
 import { BookmarkPlus, Minus, Plus, RotateCcw, ShoppingCart, Trash2 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
-import { useMarketplace } from '@/store/marketplace'
+import { cartLineKey, useMarketplace } from '@/store/marketplace'
 import { formatUSD } from '@/lib/format'
 import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE } from '@/lib/pricing'
 import { Button } from '@/components/ui/button'
@@ -60,6 +60,11 @@ export function CartView() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="line-clamp-1 text-sm font-medium">{item.title}</p>
+                    {item.variantLabel && (
+                      <span className="mt-0.5 inline-block rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        {item.variantLabel}
+                      </span>
+                    )}
                     <p className="text-xs text-muted-foreground">
                       {formatUSD(item.price)} · qty {item.quantity}
                     </p>
@@ -69,7 +74,7 @@ export function CartView() {
                     size="sm"
                     className="h-8 rounded-full px-3 text-xs"
                     onClick={() => {
-                      const res = moveToCart(item.productId)
+                      const res = moveToCart(cartLineKey(item.productId, item.variantId))
                       if (res.ok) toast({ title: 'Moved to cart', description: item.title })
                       else
                         toast({
@@ -85,7 +90,7 @@ export function CartView() {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                    onClick={() => removeFromSaved(item.productId)}
+                    onClick={() => removeFromSaved(cartLineKey(item.productId, item.variantId))}
                     aria-label={`Remove ${item.title} from saved items`}
                   >
                     <Trash2 size={14} />
@@ -133,6 +138,11 @@ export function CartView() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="line-clamp-2 font-medium leading-5">{item.title}</p>
+                        {item.variantLabel && (
+                          <span className="mt-1 inline-block rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                            {item.variantLabel}
+                          </span>
+                        )}
                         {item.sellerName && (
                           <button
                             className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-primary"
@@ -149,7 +159,7 @@ export function CartView() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-muted-foreground hover:text-primary"
-                          onClick={() => saveForLater(item.productId)}
+                          onClick={() => saveForLater(cartLineKey(item.productId, item.variantId))}
                           aria-label={`Save ${item.title} for later`}
                         >
                           <BookmarkPlus size={15} />
@@ -158,7 +168,7 @@ export function CartView() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          onClick={() => removeFromCart(item.productId)}
+                          onClick={() => removeFromCart(cartLineKey(item.productId, item.variantId))}
                           aria-label={`Remove ${item.title}`}
                         >
                           <Trash2 size={15} />
@@ -172,7 +182,7 @@ export function CartView() {
                           size="icon"
                           className="h-8 w-8 rounded-lg"
                           disabled={item.quantity <= 1}
-                          onClick={() => updateQuantity(item.productId, item.quantity - 1)}
+                          onClick={() => updateQuantity(cartLineKey(item.productId, item.variantId), item.quantity - 1)}
                           aria-label="Decrease quantity"
                         >
                           <Minus size={13} />
@@ -185,7 +195,7 @@ export function CartView() {
                           size="icon"
                           className="h-8 w-8 rounded-lg"
                           disabled={item.quantity >= item.stock}
-                          onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                          onClick={() => updateQuantity(cartLineKey(item.productId, item.variantId), item.quantity + 1)}
                           aria-label="Increase quantity"
                         >
                           <Plus size={13} />
@@ -222,6 +232,11 @@ export function CartView() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="line-clamp-1 text-sm font-medium">{item.title}</p>
+                    {item.variantLabel && (
+                      <span className="mt-0.5 inline-block rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        {item.variantLabel}
+                      </span>
+                    )}
                       <p className="text-xs text-muted-foreground">
                         {formatUSD(item.price)} · qty {item.quantity}
                       </p>
@@ -231,7 +246,7 @@ export function CartView() {
                       size="sm"
                       className="h-8 rounded-full px-3 text-xs"
                       onClick={() => {
-                        const res = moveToCart(item.productId)
+                        const res = moveToCart(cartLineKey(item.productId, item.variantId))
                         if (res.ok) toast({ title: 'Moved to cart', description: item.title })
                         else
                           toast({
@@ -247,7 +262,7 @@ export function CartView() {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                      onClick={() => removeFromSaved(item.productId)}
+                      onClick={() => removeFromSaved(cartLineKey(item.productId, item.variantId))}
                       aria-label={`Remove ${item.title} from saved items`}
                     >
                       <Trash2 size={14} />

@@ -1,0 +1,331 @@
+import { db } from '@/lib/db'
+import { recordAudit } from '@/server/modules/audit/service'
+
+/**
+ * APPROVALS — B2B purchase-approval workflow.
+ *
+ * When an organization sets an approvalThreshold, BUYER-role members trigger
+ * an approval request whenever they (a) place a cart order or (b) accept a
+ * quote whose total is at or above the threshold. The order/quote is held
+ * until an OWNER/ADMIN/APPROVER member decides. Requesters never self-approve.
+ */
+
+export class ApprovalServiceError extends Error {
+  status: number
+  constructor(message: string, status = 400) {
+    super(message)
+    this.status = status
+  }
+}
+
+const APPROVAL_ROLES = ['OWNER', 'ADMIN', 'APPROVER'] as const // members who can decide
+
+/** Resolve the viewer's membership in a specific organization. */
+export async function findMembership(userId: string, organizationId: string) {
+  return db.organizationMember.findUnique({
+    where: { organizationId_userId: { organizationId, userId } },
+    include: { organization: true },
+  })
+}
+
+/**
+ * Does this purchase need org approval? Rule: the org has a threshold, is
+ * ACTIVE, the member's role is BUYER, and the amount reaches the threshold.
+ * OWNER/ADMIN/APPROVER members bypass (they hold the budget).
+ */
+export function needsApproval(
+  org: { status: string; approvalThreshold: Date | number | string | null },
+  memberRole: string,
+  amount: number
+): boolean {
+  if (org.status !== 'ACTIVE') return false
+  if (memberRole !== 'BUYER') return false
+  const threshold = org.approvalThreshold === null ? null : Number(org.approvalThreshold)
+  if (threshold === null || threshold <= 0) return false
+  return amount >= threshold
+}
+
+type RequesterInfo = { id: string; name: string }
+
+/** Create the pending ORDER approval (called inside the checkout transaction). */
+export async function createOrderApprovalRequest(
+  tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
+  input: {
+    organizationId: string
+    orderId: string
+    requester: RequesterInfo
+    amount: number
+    note?: string | null
+  }
+) {
+  return tx.approvalRequest.create({
+    data: {
+      organizationId: input.organizationId,
+      type: 'ORDER',
+      orderId: input.orderId,
+      requesterId: input.requester.id,
+      amount: input.amount,
+      note: input.note?.slice(0, 500) ?? null,
+    },
+  })
+}
+
+/** Create the pending QUOTE_ACCEPT approval (quote stays SENT until approved). */
+export async function createQuoteAcceptApprovalRequest(input: {
+  organizationId: string
+  quoteId: string
+  rfqId: string
+  requester: RequesterInfo
+  amount: number
+}) {
+  const existing = await db.approvalRequest.findFirst({
+    where: { quoteId: input.quoteId, status: 'PENDING' },
+  })
+  if (existing) {
+    throw new ApprovalServiceError('This quote acceptance is already awaiting approval', 409)
+  }
+  const request = await db.approvalRequest.create({
+    data: {
+      organizationId: input.organizationId,
+      type: 'QUOTE_ACCEPT',
+      quoteId: input.quoteId,
+      rfqId: input.rfqId,
+      requesterId: input.requester.id,
+      amount: input.amount,
+    },
+  })
+  await recordAudit({
+    actorId: input.requester.id,
+    actorType: 'USER',
+    action: 'APPROVAL_REQUESTED',
+    entityType: 'ApprovalRequest',
+    entityId: request.id,
+    summary: `Quote acceptance routed for approval ($${input.amount.toFixed(2)})`,
+    metadata: { quoteId: input.quoteId, rfqId: input.rfqId, organizationId: input.organizationId },
+  })
+  return request
+}
+
+const approvalInclude = {
+  requester: { select: { id: true, name: true, email: true } },
+  decidedBy: { select: { id: true, name: true, email: true } },
+  order: { include: { items: true } },
+  quote: { select: { id: true, number: true, total: true, paymentTerms: true, validUntil: true, status: true } },
+} as const
+
+type ApprovalRaw = Awaited<ReturnType<typeof db.approvalRequest.findFirstOrThrow>>
+
+function serializeApproval(r: ApprovalRaw) {
+  const amount = Number(r.amount)
+  return {
+    id: r.id,
+    organizationId: r.organizationId,
+    type: r.type,
+    status: r.status,
+    amount,
+    note: r.note,
+    decisionNote: r.decisionNote,
+    createdAt: r.createdAt.toISOString(),
+    decidedAt: r.decidedAt ? r.decidedAt.toISOString() : null,
+    requester: r.requester ? { id: r.requester.id, name: r.requester.name, email: r.requester.email } : null,
+    decidedBy: r.decidedBy ? { id: r.decidedBy.id, name: r.decidedBy.name, email: r.decidedBy.email } : null,
+    order:
+      r.type === 'ORDER' && r.order
+        ? {
+            id: r.order.id,
+            status: r.order.status,
+            total: r.order.total,
+            poNumber: r.order.poNumber,
+            createdAt: r.order.createdAt.toISOString(),
+            items: r.order.items.map((i) => ({
+              title: i.title,
+              quantity: i.quantity,
+              price: i.price,
+              variantName: i.variantName,
+              image: i.image,
+            })),
+          }
+        : null,
+    quote:
+      r.type === 'QUOTE_ACCEPT' && r.quote
+        ? {
+            id: r.quote.id,
+            number: r.quote.number,
+            total: Number(r.quote.total),
+            paymentTerms: r.quote.paymentTerms,
+            validUntil: r.quote.validUntil ? r.quote.validUntil.toISOString() : null,
+            status: r.quote.status,
+          }
+        : null,
+    rfqId: r.rfqId,
+  }
+}
+
+export type ApprovalRequestDTO = ReturnType<typeof serializeApproval>
+
+/**
+ * List approvals for the viewer:
+ * - OWNER/ADMIN/APPROVER: their organization's queue (pending first, recent
+ *   decisions below for context).
+ * - BUYER/VIEWER: only their own requests (track status).
+ */
+export async function listApprovals(userId: string) {
+  const memberships = await db.organizationMember.findMany({
+    where: { userId },
+    include: { organization: { select: { id: true, name: true, approvalThreshold: true } } },
+  })
+  if (memberships.length === 0) return { approvals: [] as ApprovalRequestDTO[], canDecide: false, organizationId: null }
+
+  // One user belongs to at most a couple of orgs in practice; surface the one
+  // with an approval setup, else the first.
+  const org =
+    memberships.find((m) => m.organization.approvalThreshold !== null)?.organization ??
+    memberships[0].organization
+  const role = memberships.find((m) => m.organizationId === org.id)!.role
+  const canDecide = (APPROVAL_ROLES as readonly string[]).includes(role)
+
+  const where = canDecide ? { organizationId: org.id } : { organizationId: org.id, requesterId: userId }
+  const rows = await db.approvalRequest.findMany({
+    where,
+    orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+    take: 50,
+    include: approvalInclude,
+  })
+
+  return {
+    approvals: rows.map(serializeApproval),
+    canDecide,
+    organizationId: org.id,
+  }
+}
+
+/**
+ * Decide a pending approval (APPROVE or REJECT). The requester can never
+ * decide their own request. APPROVE releases the held order (→ PAID) or
+ * performs the quote acceptance; REJECT cancels the order (restock) or leaves
+ * the quote open.
+ */
+export async function decideApproval(
+  approvalId: string,
+  decider: { id: string; name: string },
+  action: 'APPROVE' | 'REJECT',
+  decisionNote?: string
+) {
+  const request = await db.approvalRequest.findUnique({
+    where: { id: approvalId },
+    include: { order: { include: { items: true } }, quote: true, organization: true },
+  })
+  if (!request) throw new ApprovalServiceError('Approval request not found', 404)
+  if (request.status !== 'PENDING')
+    throw new ApprovalServiceError(`This request was already ${request.status.toLowerCase()}`, 409)
+  if (request.requesterId === decider.id)
+    throw new ApprovalServiceError('You cannot approve your own request — ask another approver', 403)
+
+  const membership = await db.organizationMember.findUnique({
+    where: { organizationId_userId: { organizationId: request.organizationId, userId: decider.id } },
+  })
+  if (!membership || !(APPROVAL_ROLES as readonly string[]).includes(membership.role))
+    throw new ApprovalServiceError('Only organization owners, admins and approvers can decide', 403)
+
+  const now = new Date()
+  const amount = Number(request.amount)
+
+  if (action === 'APPROVE') {
+    if (request.type === 'ORDER') {
+      if (!request.order) throw new ApprovalServiceError('The linked order no longer exists', 409)
+      if (request.order.status !== 'PENDING_APPROVAL')
+        throw new ApprovalServiceError('The linked order is no longer awaiting approval', 409)
+      await db.$transaction(async (tx) => {
+        await tx.order.update({ where: { id: request.orderId! }, data: { status: 'PAID' } })
+        await tx.approvalRequest.update({
+          where: { id: approvalId },
+          data: { status: 'APPROVED', decidedById: decider.id, decidedAt: now, decisionNote: decisionNote?.slice(0, 500) ?? null },
+        })
+      })
+    } else {
+      // QUOTE_ACCEPT — perform the acceptance now (mirrors respondToQuote)
+      const quote = request.quote
+      if (!quote || quote.status !== 'SENT')
+        throw new ApprovalServiceError('The quote is no longer open — cannot accept', 409)
+      if (quote.validUntil && quote.validUntil.getTime() < Date.now())
+        throw new ApprovalServiceError('The quote has expired — request a revised offer', 409)
+      await db.$transaction(async (tx) => {
+        await tx.quote.update({
+          where: { id: quote.id },
+          data: { status: 'ACCEPTED', acceptedAt: now },
+        })
+        await tx.quote.updateMany({
+          where: { rfqId: quote.rfqId, status: 'SENT', id: { not: quote.id } },
+          data: { status: 'DECLINED', declinedAt: now },
+        })
+        await tx.rfq.update({ where: { id: quote.rfqId }, data: { status: 'ACCEPTED', closedAt: now } })
+        await tx.approvalRequest.update({
+          where: { id: approvalId },
+          data: { status: 'APPROVED', decidedById: decider.id, decidedAt: now, decisionNote: decisionNote?.slice(0, 500) ?? null },
+        })
+      })
+    }
+  } else {
+    // REJECT
+    if (request.type === 'ORDER' && request.order && request.order.status === 'PENDING_APPROVAL') {
+      await db.$transaction(async (tx) => {
+        // Restock every item and roll back sold counts (mirrors buyer cancel)
+        for (const item of request.order!.items) {
+          if (item.variantId) {
+            await tx.productVariant
+              .update({
+                where: { id: item.variantId },
+                data: { stock: { increment: item.quantity } },
+              })
+              .catch(() => undefined) // variant may have been deleted
+          }
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { increment: item.quantity }, soldCount: { decrement: item.quantity } },
+          })
+        }
+        await tx.order.update({ where: { id: request.orderId! }, data: { status: 'CANCELLED' } })
+        await tx.approvalRequest.update({
+          where: { id: approvalId },
+          data: { status: 'REJECTED', decidedById: decider.id, decidedAt: now, decisionNote: decisionNote?.slice(0, 500) ?? null },
+        })
+      })
+    } else {
+      // QUOTE_ACCEPT rejection: the quote simply stays open for the buyer.
+      await db.approvalRequest.update({
+        where: { id: approvalId },
+        data: { status: 'REJECTED', decidedById: decider.id, decidedAt: now, decisionNote: decisionNote?.slice(0, 500) ?? null },
+      })
+    }
+  }
+
+  await recordAudit({
+    actorId: decider.id,
+    actorType: 'USER',
+    action: action === 'APPROVE' ? 'APPROVAL_GRANTED' : 'APPROVAL_REJECTED',
+    entityType: 'ApprovalRequest',
+    entityId: approvalId,
+    summary:
+      action === 'APPROVE'
+        ? `Approved ${request.type === 'ORDER' ? 'order' : 'quote acceptance'} of $${amount.toFixed(2)}`
+        : `Rejected ${request.type === 'ORDER' ? 'order' : 'quote acceptance'} of $${amount.toFixed(2)}`,
+    metadata: { organizationId: request.organizationId, requesterId: request.requesterId },
+  })
+
+  const updated = await db.approvalRequest.findUniqueOrThrow({
+    where: { id: approvalId },
+    include: approvalInclude,
+  })
+  return serializeApproval(updated)
+}
+
+/** Withdraw/cancel a pending request (buyer escape hatch when they cancel the order). */
+export async function cancelApprovalForOrder(
+  tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
+  orderId: string
+) {
+  await tx.approvalRequest.updateMany({
+    where: { orderId, status: 'PENDING' },
+    data: { status: 'CANCELLED' },
+  })
+}

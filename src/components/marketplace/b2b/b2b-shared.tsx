@@ -1,9 +1,14 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Loader2, PackageSearch, Search } from 'lucide-react'
+import { Loader2, MessageSquareText, PackageSearch, Search, Send } from 'lucide-react'
+import { toast } from '@/hooks/use-toast'
+import type { RfqMessageDTO } from '@/lib/types'
+import { timeAgo } from '@/lib/format'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
 // ── API mutation helper ─────────────────────────────────────────────────────
@@ -324,5 +329,117 @@ export function EmptyState({
       {description && <p className="mt-1 max-w-sm text-xs text-muted-foreground">{description}</p>}
       {children && <div className="mt-4">{children}</div>}
     </div>
+  )
+}
+
+// ── RFQ negotiation thread (shared: buyer detail + seller inbox) ───────────
+
+export function RfqThread({
+  rfqId,
+  rfqStatus,
+  title = 'Negotiation',
+}: {
+  rfqId: string
+  rfqStatus: string
+  title?: string
+}) {
+  const [messages, setMessages] = useState<RfqMessageDTO[]>([])
+  const [loading, setLoading] = useState(true)
+  const [sending, setSending] = useState(false)
+  const [draft, setDraft] = useState('')
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  const threadClosed = ['CANCELLED', 'REJECTED', 'EXPIRED', 'ORDERED'].includes(rfqStatus)
+
+  useEffect(() => {
+    let alive = true
+    const load = async () => {
+      const res = await apiRequest<{ messages: RfqMessageDTO[] }>(`/api/rfqs/${rfqId}/messages`)
+      if (!alive) return
+      if (res.ok && res.data) setMessages(res.data.messages)
+      setLoading(false)
+    }
+    void load()
+    return () => {
+      alive = false
+    }
+  }, [rfqId])
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
+  }, [messages.length])
+
+  const send = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const clean = draft.trim()
+    if (!clean || sending) return
+    setSending(true)
+    const res = await apiRequest<{ message: RfqMessageDTO }>(`/api/rfqs/${rfqId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ body: clean }),
+    })
+    setSending(false)
+    if (!res.ok || !res.data) {
+      toast({ title: 'Could not send', description: res.error ?? 'Please try again', variant: 'destructive' })
+      return
+    }
+    setMessages((m) => [...m, res.data!.message])
+    setDraft('')
+  }
+
+  return (
+    <section aria-label="Negotiation thread">
+      <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
+        <MessageSquareText size={14} className="text-primary" /> {title}
+      </h3>
+      {loading ? (
+        <Skeleton className="h-40 w-full rounded-xl" />
+      ) : (
+        <div
+          ref={scrollRef}
+          className="max-h-64 space-y-2.5 overflow-y-auto rounded-xl border bg-muted/30 p-3"
+        >
+          {messages.length === 0 ? (
+            <p className="py-6 text-center text-xs text-muted-foreground">
+              No messages yet — ask about specs, deadlines or bulk terms.
+            </p>
+          ) : (
+            messages.map((m) => (
+              <div key={m.id} className="flex flex-col">
+                <p className="mb-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+                  <span className="font-semibold text-foreground">{m.author.name}</span>
+                  <span className="uppercase tracking-wide">
+                    {m.author.role === 'ADMIN' ? 'Platform' : m.author.role === 'BUYER' ? 'Buyer' : 'Seller'}
+                  </span>
+                  <span aria-hidden>·</span>
+                  <time dateTime={m.createdAt}>{timeAgo(m.createdAt)}</time>
+                </p>
+                <p className="w-fit max-w-[92%] whitespace-pre-line rounded-lg border bg-background px-3 py-2 text-sm leading-relaxed shadow-sm">
+                  {m.body}
+                </p>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+      {!threadClosed ? (
+        <form onSubmit={send} className="mt-2 flex gap-2">
+          <Input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Ask a question or share availability…"
+            maxLength={4000}
+            aria-label="Write a message"
+          />
+          <Button type="submit" size="icon" className="shrink-0 rounded-lg" disabled={sending || !draft.trim()}>
+            {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+          </Button>
+        </form>
+      ) : (
+        <p className="mt-2 text-center text-[11px] text-muted-foreground">
+          This RFQ is closed — the thread is read-only.
+        </p>
+      )}
+    </section>
   )
 }

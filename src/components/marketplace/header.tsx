@@ -234,7 +234,7 @@ export function Header() {
                     <BarChart3 size={15} className="mr-2" /> Platform analytics
                   </DropdownMenuItem>
                 )}
-                {(user.role === 'SELLER' || true) && (
+                {user.role !== 'ADMIN' && (
                   <DropdownMenuItem onClick={() => navigate('seller')} className="cursor-pointer">
                     <LayoutDashboard size={15} className="mr-2" />
                     {user.role === 'SELLER' ? 'Seller Dashboard' : 'Start Selling'}
@@ -297,12 +297,14 @@ export function Header() {
             </button>
           ))}
           <span className="mx-1 h-4 w-px bg-border" />
-          <button
-            onClick={() => navigate('seller')}
-            className="relative rounded-md px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-accent"
-          >
-            Sell on Vendora
-          </button>
+          {user?.role !== 'ADMIN' && (
+            <button
+              onClick={() => navigate('seller')}
+              className="relative rounded-md px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-accent"
+            >
+              Sell on Vendora
+            </button>
+          )}
         </div>
       </nav>
     </header>

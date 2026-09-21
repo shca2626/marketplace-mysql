@@ -1,0 +1,66 @@
+// In-memory sliding-window rate limiter (day-1 core infrastructure).
+// ─────────────────────────────────────────────────────────────────────
+// Keyed buckets (e.g. `login:1.2.3.4`, `upload:user_abc`) hold recent
+// timestamps; a request passes while fewer than `limit` fall inside `windowMs`.
+// Single-process by design (dev / single-node); the same signature maps 1:1
+// onto a Redis sorted-set implementation for horizontal scale later.
+//
+// Buckets are pruned lazily on access + every 5 minutes via an unref'd timer.
+
+const buckets = new Map<string, number[]>() // key → timestamps (ms)
+
+const GC_INTERVAL = 5 * 60 * 1000
+let gcTimer: ReturnType<typeof setInterval> | null = null
+
+export interface RateLimitResult {
+  ok: boolean
+  remaining: number
+  retryAfterSec: number // 0 when ok
+}
+
+export function rateLimit(key: string, limit: number, windowMs: number): RateLimitResult {
+  ensureGc()
+
+  const now = Date.now()
+  const windowStart = now - windowMs
+  const stamps = (buckets.get(key) ?? []).filter((t) => t > windowStart)
+
+  if (stamps.length >= limit) {
+    const retryAt = stamps[0] + windowMs // oldest hit leaves the window here
+    return { ok: false, remaining: 0, retryAfterSec: Math.max(1, Math.ceil((retryAt - now) / 1000)) }
+  }
+
+  stamps.push(now)
+  buckets.set(key, stamps)
+  return { ok: true, remaining: limit - stamps.length, retryAfterSec: 0 }
+}
+
+/** Reset a bucket (e.g. after a successful login, so honest users aren't locked out). */
+export function resetRateLimit(key: string) {
+  buckets.delete(key)
+}
+
+function ensureGc() {
+  if (gcTimer) return
+  gcTimer = setInterval(() => {
+    const now = Date.now()
+    let maxWindow = 0
+    for (const stamps of buckets.values()) maxWindow = Math.max(maxWindow, stamps.length)
+    // cheap universal prune: drop buckets whose every stamp is older than 1h
+    for (const [key, stamps] of buckets) {
+      if (stamps.every((t) => now - t > 3_600_000) && stamps.length > 0) buckets.delete(key)
+    }
+  }, GC_INTERVAL)
+  gcTimer.unref()
+}
+
+// ── Named policies (single source of truth) ──────────────────────────
+export const RATE_LIMITS = {
+  login: { limit: 10, windowMs: 10 * 60_000 }, // per IP — brute-force damping
+  register: { limit: 5, windowMs: 30 * 60_000 }, // per IP
+  upload: { limit: 30, windowMs: 10 * 60_000 }, // per user
+  productWrite: { limit: 60, windowMs: 10 * 60_000 }, // per user (create/update/delete/bulk)
+  review: { limit: 10, windowMs: 60 * 60_000 }, // per user
+  order: { limit: 20, windowMs: 10 * 60_000 }, // per user (checkout)
+  mediaRead: { limit: 600, windowMs: 60_000 }, // per IP — generous, responses are immutable
+} as const

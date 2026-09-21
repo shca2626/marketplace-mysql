@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Ban, CalendarClock, Check, ClipboardList, PackageCheck, PackageOpen, ReceiptText, Search, Star, Truck, X } from 'lucide-react'
+import { Ban, CalendarClock, Check, ClipboardList, Hourglass, PackageCheck, PackageOpen, ReceiptText, Search, Star, Truck, X } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
@@ -36,6 +36,7 @@ const STATUS_STEPS = [
 
 const STATUS_COLORS: Record<string, string> = {
   PAID: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+  PENDING_APPROVAL: 'bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300',
   PROCESSING: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
   SHIPPED: 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300',
   DELIVERED: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
@@ -113,7 +114,7 @@ export function OrdersView() {
   const statusCounts = useMemo(() => {
     const counts = new Map<string, number>()
     for (const o of orders) counts.set(o.status, (counts.get(o.status) ?? 0) + 1)
-    const order = ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED']
+    const order = ['PENDING_APPROVAL', 'PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED']
     return order.filter((s) => counts.has(s)).map((s) => ({ status: s, count: counts.get(s)! }))
   }, [orders])
 
@@ -274,13 +275,13 @@ export function OrdersView() {
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-bold">{formatUSD(order.total)}</span>
                     <Badge className={cn('rounded-full text-[11px] font-semibold', STATUS_COLORS[order.status])}>
-                      {order.status}
+                      {order.status === 'PENDING_APPROVAL' ? 'AWAITING APPROVAL' : order.status}
                     </Badge>
                   </div>
                 </button>
 
                 <CardContent className="space-y-5 p-5">
-                  {/* Progress timeline (or cancellation notice) */}
+                  {/* Progress timeline (or cancellation/approval notices) */}
                   {order.status === 'CANCELLED' ? (
                     <div className="flex items-center gap-3 rounded-xl border border-dashed bg-muted/40 px-4 py-3">
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
@@ -290,6 +291,19 @@ export function OrdersView() {
                         <p className="text-sm font-semibold">Order cancelled</p>
                         <p className="text-xs text-muted-foreground">
                           You cancelled this order before it was processed — items were returned to stock.
+                        </p>
+                      </div>
+                    </div>
+                  ) : order.status === 'PENDING_APPROVAL' ? (
+                    <div className="flex items-center gap-3 rounded-xl border border-dashed border-teal-500/40 bg-teal-500/5 px-4 py-3">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300">
+                        <Hourglass size={14} />
+                      </span>
+                      <div>
+                        <p className="text-sm font-semibold">Awaiting approval from your organization</p>
+                        <p className="text-xs text-muted-foreground">
+                          This order is on hold — an approver in your business needs to approve it before it is
+                          sent to the seller. You can still withdraw it below.
                         </p>
                       </div>
                     </div>
@@ -408,7 +422,7 @@ export function OrdersView() {
                       Ship to: {order.fullName}, {order.address}, {order.city} {order.zip}
                     </span>
                     <div className="flex items-center gap-2">
-                      {order.status === 'PAID' && (
+                      {(order.status === 'PAID' || order.status === 'PENDING_APPROVAL') && (
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button
@@ -418,15 +432,26 @@ export function OrdersView() {
                               className="h-7 rounded-full text-xs text-destructive hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
                             >
                               <Ban size={12} className="mr-1" />
-                              {cancellingId === order.id ? 'Cancelling…' : 'Cancel order'}
+                              {cancellingId === order.id
+                                ? 'Cancelling…'
+                                : order.status === 'PENDING_APPROVAL'
+                                  ? 'Withdraw request'
+                                  : 'Cancel order'}
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Cancel this order?</AlertDialogTitle>
+                              <AlertDialogTitle>
+                                {order.status === 'PENDING_APPROVAL'
+                                  ? 'Withdraw this order request?'
+                                  : 'Cancel this order?'}
+                              </AlertDialogTitle>
                               <AlertDialogDescription>
                                 Order #{order.id.slice(-8).toUpperCase()} ({formatUSD(order.total)}) will be
-                                cancelled and the items returned to stock. This can't be undone.
+                                {order.status === 'PENDING_APPROVAL'
+                                  ? ' withdrawn from the approval queue and the items returned to stock.'
+                                  : ' cancelled and the items returned to stock.'}{' '}
+                                This can't be undone.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>

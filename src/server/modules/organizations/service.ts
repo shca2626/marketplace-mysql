@@ -67,6 +67,7 @@ function serializeOrg(
     verifiedAt: org.verifiedAt?.toISOString() ?? null,
     creditTermsDays: org.creditTermsDays,
     creditLimit: org.creditLimit.toNumber(),
+    approvalThreshold: org.approvalThreshold === null ? null : org.approvalThreshold.toNumber(),
     notes: org.notes,
     createdAt: org.createdAt.toISOString(),
     memberCount: org._count?.members,
@@ -177,6 +178,56 @@ export async function getOrganization(
   return serializeOrg(org as never, membership?.role as OrgRole | undefined)
 }
 
+/**
+ * Self-service approval-policy update: OWNER/ADMIN members (or a platform
+ * admin) can set or clear the purchase-approval threshold for their org.
+ */
+export async function updateApprovalThreshold(
+  orgId: string,
+  userId: string,
+  isAdmin: boolean,
+  threshold: number | null
+): Promise<OrganizationDTO> {
+  const membership = await db.organizationMember.findUnique({
+    where: { organizationId_userId: { organizationId: orgId, userId } },
+  })
+  if (!membership && !isAdmin) throw new OrgServiceError('Access denied', 403)
+  if (!isAdmin && !['OWNER', 'ADMIN'].includes(membership!.role)) {
+    throw new OrgServiceError('Only organization owners and admins can change the approval policy', 403)
+  }
+  if (threshold !== null && (threshold < 0 || threshold > 10_000_000)) {
+    throw new OrgServiceError('Approval threshold out of range')
+  }
+
+  const updated = await db.organization.update({
+    where: { id: orgId },
+    data: { approvalThreshold: threshold },
+    include: {
+      members: {
+        include: { user: { select: { id: true, name: true, email: true } } },
+        orderBy: { createdAt: 'asc' },
+      },
+      groups: true,
+      _count: { select: { members: true } },
+    },
+  })
+
+  await recordAudit({
+    actorId: userId,
+    actorType: 'USER',
+    action: 'ORG_APPROVAL_POLICY',
+    entityType: 'Organization',
+    entityId: orgId,
+    summary:
+      threshold === null
+        ? `Purchase approvals disabled for "${updated.name}"`
+        : `Purchase approvals at $${threshold.toFixed(2)}+ for "${updated.name}"`,
+    metadata: { approvalThreshold: threshold },
+  })
+
+  return serializeOrg(updated as never, membership?.role as OrgRole | undefined)
+}
+
 export async function addOrganizationMember(
   orgId: string,
   actorUserId: string,
@@ -270,6 +321,7 @@ export async function adminUpdateOrganization(
     status?: string
     creditTermsDays?: number
     creditLimit?: number
+    approvalThreshold?: number | null
     notes?: string | null
     groupIds?: string[]
   }
@@ -300,6 +352,12 @@ export async function adminUpdateOrganization(
       throw new OrgServiceError('Credit limit out of range')
     }
     data.creditLimit = input.creditLimit
+  }
+  if (input.approvalThreshold !== undefined) {
+    if (input.approvalThreshold !== null && (input.approvalThreshold < 0 || input.approvalThreshold > 10_000_000)) {
+      throw new OrgServiceError('Approval threshold out of range')
+    }
+    data.approvalThreshold = input.approvalThreshold // null disables the approval workflow
   }
   if (input.notes !== undefined) data.notes = input.notes
   if (input.groupIds !== undefined) data.groups = { set: input.groupIds.map((id) => ({ id })) }

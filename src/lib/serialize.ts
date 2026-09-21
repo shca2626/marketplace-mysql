@@ -1,10 +1,23 @@
 import { db } from '@/lib/db'
-import type { CategoryDTO, OrderDTO, ProductDTO, ReviewDTO } from '@/lib/types'
+import type { CategoryDTO, OrderDTO, ProductDTO, ProductVariantDTO, ReviewDTO } from '@/lib/types'
 
 export const productInclude = {
   category: true,
   seller: { select: { id: true, name: true, storeName: true } },
+  variants: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
 } as const
+
+export type ProductVariantRaw = {
+  id: string
+  name: string
+  options: string
+  price: number | null
+  compareAtPrice: number | null
+  stock: number
+  sku: string | null
+  position: number
+  isActive: boolean
+}
 
 type ProductRaw = {
   id: string
@@ -24,6 +37,65 @@ type ProductRaw = {
   featured: boolean
   status: string
   createdAt: Date
+  // Commerce details (all optional — older rows / partial selects)
+  sku?: string | null
+  barcode?: string | null
+  videoUrl?: string | null
+  highlights?: string | null
+  specs?: string | null
+  materials?: string | null
+  care?: string | null
+  weightGrams?: number | null
+  lengthCm?: number | null
+  widthCm?: number | null
+  heightCm?: number | null
+  processingDays?: number | null
+  freeShipping?: boolean
+  shippingFee?: number | null
+  shippingPolicy?: string | null
+  slug?: string | null
+  metaTitle?: string | null
+  metaDescription?: string | null
+  variants?: ProductVariantRaw[]
+}
+
+function parseJsonArray<T>(raw: string | null | undefined, guard: (x: unknown) => x is T): T[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter(guard) : []
+  } catch {
+    return []
+  }
+}
+
+const isString = (x: unknown): x is string => typeof x === 'string'
+const isSpec = (x: unknown): x is { label: string; value: string } =>
+  typeof x === 'object' && x !== null && typeof (x as { label?: unknown }).label === 'string' && typeof (x as { value?: unknown }).value === 'string'
+
+function serializeVariant(v: ProductVariantRaw): ProductVariantDTO {
+  let options: Record<string, string> = {}
+  try {
+    const parsed = JSON.parse(v.options || '{}')
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      options = Object.fromEntries(
+        Object.entries(parsed as Record<string, unknown>).filter(([, val]) => typeof val === 'string') as [string, string][]
+      )
+    }
+  } catch {
+    options = {}
+  }
+  return {
+    id: v.id,
+    name: v.name,
+    options,
+    price: v.price,
+    compareAtPrice: v.compareAtPrice,
+    stock: v.stock,
+    sku: v.sku,
+    position: v.position,
+    isActive: v.isActive,
+  }
 }
 
 export function serializeProduct(p: ProductRaw, favorited = false): ProductDTO {
@@ -53,6 +125,25 @@ export function serializeProduct(p: ProductRaw, favorited = false): ProductDTO {
     status: p.status,
     createdAt: p.createdAt.toISOString(),
     favorited,
+    sku: p.sku ?? null,
+    barcode: p.barcode ?? null,
+    videoUrl: p.videoUrl ?? null,
+    highlights: parseJsonArray(p.highlights, isString),
+    specs: parseJsonArray(p.specs, isSpec),
+    materials: p.materials ?? null,
+    care: p.care ?? null,
+    weightGrams: p.weightGrams ?? null,
+    lengthCm: p.lengthCm ?? null,
+    widthCm: p.widthCm ?? null,
+    heightCm: p.heightCm ?? null,
+    processingDays: p.processingDays ?? null,
+    freeShipping: p.freeShipping ?? false,
+    shippingFee: p.shippingFee ?? null,
+    shippingPolicy: p.shippingPolicy ?? null,
+    slug: p.slug ?? null,
+    metaTitle: p.metaTitle ?? null,
+    metaDescription: p.metaDescription ?? null,
+    variants: (p.variants ?? []).map(serializeVariant),
   }
 }
 
@@ -97,6 +188,8 @@ export function serializeOrder(
       image?: string | null
       price: number
       quantity: number
+      variantId?: string | null
+      variantName?: string | null
     }[]
   },
   sellerId?: string

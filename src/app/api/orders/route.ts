@@ -5,10 +5,17 @@ import { getSessionUser } from '@/lib/auth'
 import { serializeOrder } from '@/lib/serialize'
 import { computePricing } from '@/lib/pricing'
 import { findActiveCoupon } from '@/server/modules/coupons/service'
+import { needsApproval, createOrderApprovalRequest } from '@/server/modules/approvals/service'
 
 const checkoutSchema = z.object({
   items: z
-    .array(z.object({ productId: z.string(), quantity: z.number().int().min(1).max(99) }))
+    .array(
+      z.object({
+        productId: z.string(),
+        quantity: z.number().int().min(1).max(99),
+        variantId: z.string().optional().nullable(), // purchased ProductVariant, if any
+      })
+    )
     .min(1, 'Your cart is empty'),
   fullName: z.string().min(2, 'Full name is required').max(80),
   address: z.string().min(5, 'Address is required').max(200),
@@ -35,26 +42,53 @@ export async function POST(req: NextRequest) {
     }
     const { items, couponCode: rawCouponCode, ...shipping } = parsed.data
 
-    // Deduplicate + validate stock
+    // Deduplicate + validate stock (product-level and, when selected, variant-level)
     const productIds = [...new Set(items.map((i) => i.productId))]
     const products = await db.product.findMany({ where: { id: { in: productIds } } })
     const productMap = new Map(products.map((p) => [p.id, p]))
+
+    const variantIds = [...new Set(items.map((i) => i.variantId).filter((v): v is string => !!v))]
+    const variantRows = variantIds.length
+      ? await db.productVariant.findMany({ where: { id: { in: variantIds } } })
+      : []
+    const variantMap = new Map(variantRows.map((v) => [v.id, v]))
+
+    // Resolve the authoritative unit price per cart line (variant price overrides retail)
+    const linePrice = (item: (typeof items)[number]): number | null => {
+      if (!item.variantId) return null
+      const v = variantMap.get(item.variantId)
+      return v && v.productId === item.productId ? (v.price ?? null) : null
+    }
 
     for (const item of items) {
       const p = productMap.get(item.productId)
       if (!p) return NextResponse.json({ error: 'A product in your cart no longer exists' }, { status: 400 })
       if (p.status !== 'ACTIVE')
         return NextResponse.json({ error: `"${p.title}" is no longer available` }, { status: 400 })
-      if (p.stock < item.quantity)
+      if (item.variantId) {
+        const v = variantMap.get(item.variantId)
+        if (!v || v.productId !== item.productId || !v.isActive)
+          return NextResponse.json(
+            { error: `The selected option for "${p.title}" is no longer available` },
+            { status: 400 }
+          )
+        if (v.stock < item.quantity)
+          return NextResponse.json(
+            { error: `Only ${v.stock} left in stock for "${p.title}" (${v.name})` },
+            { status: 400 }
+          )
+      } else if (p.stock < item.quantity) {
         return NextResponse.json(
           { error: `Only ${p.stock} left in stock for "${p.title}"` },
           { status: 400 }
         )
+      }
     }
 
     const subtotal = items.reduce((sum, i) => {
       const p = productMap.get(i.productId)!
-      return sum + p.price * i.quantity
+      const unit = linePrice(i) ?? p.price
+      return sum + unit * i.quantity
     }, 0)
 
     // ── Coupon validation (authoritative, re-checked server-side) ──
@@ -84,12 +118,23 @@ export async function POST(req: NextRequest) {
     // ── Server-authoritative pricing (matches lib/pricing used by the UI) ──
     const pricing = computePricing(subtotal, coupon)
 
+    // ── B2B context: attach the buyer's active organization, and route the
+    // order for approval when a BUYER-role member reaches the org threshold ──
+    const membership = await db.organizationMember.findFirst({
+      where: { userId: user.id, organization: { status: 'ACTIVE' } },
+      include: { organization: true },
+    })
+    const orgId = membership?.organizationId ?? null
+    const routeForApproval =
+      !!membership && needsApproval(membership.organization, membership.role, pricing.total)
+
     const order = await db.$transaction(async (tx) => {
       const created = await tx.order.create({
         data: {
           buyerId: user.id,
           total: pricing.total,
-          status: 'PAID',
+          status: routeForApproval ? 'PENDING_APPROVAL' : 'PAID',
+          organizationId: orgId,
           ...shipping,
           phone: shipping.phone ?? null,
           items: {
@@ -102,13 +147,16 @@ export async function POST(req: NextRequest) {
               } catch {
                 image = null
               }
+              const variant = i.variantId ? variantMap.get(i.variantId) : undefined
               return {
                 productId: p.id,
                 sellerId: p.sellerId,
                 quantity: i.quantity,
-                price: p.price,
+                price: linePrice(i) ?? p.price,
                 title: p.title,
                 image,
+                variantId: variant?.id ?? null,
+                variantName: variant?.name ?? null,
               }
             }),
           },
@@ -118,6 +166,13 @@ export async function POST(req: NextRequest) {
 
       for (const i of items) {
         const p = productMap.get(i.productId)!
+        // Variant stock is authoritative per combination; product.stock tracks the total
+        if (i.variantId && variantMap.has(i.variantId)) {
+          await tx.productVariant.update({
+            where: { id: i.variantId },
+            data: { stock: { decrement: i.quantity } },
+          })
+        }
         await tx.product.update({
           where: { id: p.id },
           data: {
@@ -126,12 +181,22 @@ export async function POST(req: NextRequest) {
           },
         })
       }
+
+      if (routeForApproval) {
+        await createOrderApprovalRequest(tx, {
+          organizationId: orgId!,
+          orderId: created.id,
+          requester: { id: user.id, name: user.name },
+          amount: pricing.total,
+        })
+      }
       return created
     })
 
     return NextResponse.json(
       {
         order: serializeOrder(order),
+        pendingApproval: routeForApproval,
         pricing: {
           subtotal: pricing.subtotal,
           discount: pricing.discount,

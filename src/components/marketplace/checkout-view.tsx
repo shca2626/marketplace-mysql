@@ -8,6 +8,7 @@ import {
   CalendarClock,
   CheckCircle2,
   CreditCard,
+  Hourglass,
   Loader2,
   Lock,
   MailCheck,
@@ -104,6 +105,7 @@ export function CheckoutView() {
   })
   const [placing, setPlacing] = useState(false)
   const [placedOrder, setPlacedOrder] = useState<OrderDTO | null>(null)
+  const [placedPendingApproval, setPlacedPendingApproval] = useState(false)
   const [placedPricing, setPlacedPricing] = useState<{ discount: number; couponCode: string | null } | null>(null)
 
   // ── Coupon state ──
@@ -257,7 +259,11 @@ export function CheckoutView() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items: cart.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+          items: cart.map((i) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+            variantId: i.variantId ?? null,
+          })),
           ...form,
           phone: form.phone || null,
           couponCode: appliedCoupon?.code ?? null,
@@ -270,8 +276,16 @@ export function CheckoutView() {
       }
       setPlacedOrder(json.order)
       setPlacedPricing(json.pricing ?? null)
+      setPlacedPendingApproval(!!json.pendingApproval)
       clearCart()
-      toast({ title: 'Order placed! 🎉', description: 'A confirmation has been sent to your email' })
+      toast(
+        json.pendingApproval
+          ? {
+              title: 'Sent for approval 🕐',
+              description: 'Your organization must approve this order before it reaches the seller.',
+            }
+          : { title: 'Order placed! 🎉', description: 'A confirmation has been sent to your email' }
+      )
     } catch {
       toast({ title: 'Checkout failed', description: 'Network error — please try again', variant: 'destructive' })
     } finally {
@@ -293,15 +307,32 @@ export function CheckoutView() {
             animate={{ scale: 1 }}
             transition={{ type: 'spring', delay: 0.15, stiffness: 200 }}
           >
-            <CheckCircle2 size={72} className="text-emerald-500" />
+            {placedPendingApproval ? (
+              <div className="flex h-[72px] w-[72px] items-center justify-center rounded-full border-2 border-teal-500/40 bg-teal-500/10">
+                <Hourglass size={36} className="text-teal-600 dark:text-teal-400" />
+              </div>
+            ) : (
+              <CheckCircle2 size={72} className="text-emerald-500" />
+            )}
           </motion.div>
-          <h1 className="mt-6 text-3xl font-extrabold tracking-tight">Order confirmed!</h1>
+          <h1 className="mt-6 text-3xl font-extrabold tracking-tight">
+            {placedPendingApproval ? 'Sent for approval' : 'Order confirmed!'}
+          </h1>
           <p className="mt-2 text-muted-foreground">
-            Thanks, {placedOrder.fullName.split(' ')[0]}! Your order has been placed and is being processed.
+            {placedPendingApproval ? (
+              <>
+                Thanks, {placedOrder.fullName.split(' ')[0]}! Your order is on hold until an approver in your
+                organization clears it — we&apos;ll move it to the seller the moment it&apos;s approved.
+              </>
+            ) : (
+              <>
+                Thanks, {placedOrder.fullName.split(' ')[0]}! Your order has been placed and is being processed.
+              </>
+            )}
           </p>
 
           {/* Simulated confirmation email */}
-          {user?.email && (
+          {user?.email && !placedPendingApproval && (
             <motion.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
@@ -322,7 +353,15 @@ export function CheckoutView() {
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">Order number</p>
                   <p className="font-mono text-sm font-bold">{placedOrder.id.slice(-8).toUpperCase()}</p>
                 </div>
-                <Badge className="bg-emerald-500 hover:bg-emerald-500">{placedOrder.status}</Badge>
+                <Badge
+                  className={
+                    placedPendingApproval
+                      ? 'bg-teal-500 hover:bg-teal-500'
+                      : 'bg-emerald-500 hover:bg-emerald-500'
+                  }
+                >
+                  {placedPendingApproval ? 'AWAITING APPROVAL' : placedOrder.status}
+                </Badge>
               </div>
               <Separator />
               <ul className="space-y-3">
@@ -333,7 +372,10 @@ export function CheckoutView() {
                     </div>
                     <div className="min-w-0 flex-1 text-left">
                       <p className="line-clamp-1 text-sm font-medium">{item.title}</p>
-                      <p className="text-xs text-muted-foreground">Qty {item.quantity}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Qty {item.quantity}
+                        {item.variantName ? ` · ${item.variantName}` : ''}
+                      </p>
                     </div>
                     <span className="text-sm font-semibold">{formatUSD(item.price * item.quantity)}</span>
                   </li>
@@ -341,7 +383,7 @@ export function CheckoutView() {
               </ul>
               <Separator />
               <div className="flex justify-between text-base font-bold">
-                <span>Total paid</span>
+                <span>{placedPendingApproval ? 'Order total' : 'Total paid'}</span>
                 <span>{formatUSD(placedOrder.total)}</span>
               </div>
               {placedPricing && placedPricing.discount > 0 && placedPricing.couponCode && (
@@ -672,6 +714,11 @@ export function CheckoutView() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="line-clamp-2 text-xs font-medium leading-4">{item.title}</p>
+                        {item.variantLabel && (
+                          <span className="mt-0.5 inline-block rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                            {item.variantLabel}
+                          </span>
+                        )}
                       </div>
                       <span className="text-xs font-bold tabular-nums">
                         {formatUSD(item.price * item.quantity)}
