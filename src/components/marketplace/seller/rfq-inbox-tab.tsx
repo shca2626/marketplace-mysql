@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import {
   ArrowRight,
   Clock3,
+  FileDown,
   FileText,
   Inbox,
   Loader2,
@@ -338,8 +339,16 @@ function SellerRfqDetailDialog({
                         )}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">
-                          {l.product?.title ?? l.productName}
+                        <p className="flex flex-wrap items-center gap-1.5 truncate text-sm font-medium">
+                          <span className="truncate">{l.product?.title ?? l.productName}</span>
+                          {l.variantName && (
+                            <Badge
+                              variant="outline"
+                              className="shrink-0 rounded-full border-primary/40 px-1.5 text-[10px] text-primary"
+                            >
+                              {l.variantName}
+                            </Badge>
+                          )}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           Qty {l.quantity}
@@ -459,6 +468,16 @@ function SellerQuoteCard({ quote, onChanged }: { quote: QuoteDTO; onChanged: () 
         </div>
         <div className="flex items-center gap-2.5">
           <p className="text-sm font-bold tabular-nums">{formatUSD(quote.total)}</p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1 rounded-lg px-2 text-xs text-muted-foreground"
+            onClick={() => window.open(`/api/quotes/${quote.id}/pdf`, '_blank', 'noopener')}
+            aria-label={`Download quote ${quote.number} as PDF`}
+          >
+            <FileDown size={12} /> PDF
+          </Button>
           {quote.status === 'SENT' && (
             <Button
               type="button"
@@ -514,6 +533,7 @@ interface EditableLine {
   rfqLineId: string
   productId: string
   productTitle: string
+  variantName?: string | null
   image?: string | null
   quantity: string
   unitPrice: string
@@ -543,6 +563,7 @@ function SellerQuoteDialog({
         rfqLineId: l.id,
         productId: l.productId!,
         productTitle: l.product?.title ?? l.productName,
+        variantName: l.variantName ?? null,
         image: l.product?.image ?? null,
         quantity: String(l.quantity),
         unitPrice: (l.targetPrice ?? l.product?.price ?? 0).toFixed(2),
@@ -677,7 +698,17 @@ function SellerQuoteDialog({
                     )}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{l.productTitle}</p>
+                    <p className="flex flex-wrap items-center gap-1.5 truncate text-sm font-medium">
+                      <span className="truncate">{l.productTitle}</span>
+                      {l.variantName && (
+                        <Badge
+                          variant="outline"
+                          className="shrink-0 rounded-full border-primary/40 px-1.5 text-[10px] text-primary"
+                        >
+                          {l.variantName}
+                        </Badge>
+                      )}
+                    </p>
                     <p className="text-[11px] text-muted-foreground">
                       {formatUSD(Number(l.unitPrice) || 0)} × {l.quantity || 0} ={' '}
                       <span className="font-semibold text-foreground">

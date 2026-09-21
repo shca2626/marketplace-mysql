@@ -9,6 +9,7 @@ import {
   Check,
   ChevronRight,
   Clock,
+  FileDown,
   FileText,
   Handshake,
   Hourglass,
@@ -89,6 +90,7 @@ interface DraftLine {
   key: number
   kind: 'catalog' | 'open'
   product: PickedProduct | null
+  variantId: string | null
   productName: string
   quantity: string
   targetPrice: string
@@ -100,6 +102,7 @@ const newDraftLine = (): DraftLine => ({
   key: lineKeySeq++,
   kind: 'catalog',
   product: null,
+  variantId: null,
   productName: '',
   quantity: '1',
   targetPrice: '',
@@ -112,6 +115,7 @@ export function RfqView() {
   const user = useMarketplace((s) => s.user)
   const openAuth = useMarketplace((s) => s.openAuth)
   const navigate = useMarketplace((s) => s.navigate)
+  const viewParams = useMarketplace((s) => s.params)
 
   const [mode, setMode] = useState<Mode>({ type: 'list' })
   const [listVersion, setListVersion] = useState(0) // bump to refetch the list after mutations
@@ -126,6 +130,17 @@ export function RfqView() {
   useEffect(() => {
     if (listVersion > 0) void refetchList()
   }, [listVersion, refetchList])
+
+  // Deep link: / with params.rfqId (notification bell, handoffs) opens the
+  // detail directly. Consumed once — navigating back shows the list.
+  const deepLinkConsumed = useRef<string | null>(null)
+  useEffect(() => {
+    const target = viewParams.rfqId
+    if (!user || !target || deepLinkConsumed.current === target) return
+    deepLinkConsumed.current = target
+    setMode({ type: 'detail', id: target })
+    navigate('rfqs', {})
+  }, [user, viewParams.rfqId, navigate])
 
   const rfqs = useMemo(() => listData?.rfqs ?? [], [listData])
 
@@ -163,6 +178,7 @@ export function RfqView() {
         key: lineKeySeq++,
         kind: 'catalog',
         product: { id: prefill.productId, title: prefill.title, price: prefill.price, image: null },
+        variantId: null,
         productName: '',
         quantity: '1',
         targetPrice: '',
@@ -711,6 +727,11 @@ function RfqDetailView({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="truncate text-sm font-semibold">{l.productName}</p>
+                    {l.variantName && (
+                      <Badge variant="outline" className="rounded-full border-primary/40 px-2 text-[10px] text-primary">
+                        {l.variantName}
+                      </Badge>
+                    )}
                     {!l.productId && (
                       <Badge variant="secondary" className="rounded-full px-2 text-[10px]">
                         Open item
@@ -859,6 +880,17 @@ function QuoteCard({
               </span>
             )}
             <StatusBadge status={quote.status} map={QUOTE_STATUS_MAP} />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1 rounded-full px-2.5 text-xs text-muted-foreground"
+              onClick={() => {
+                window.open(`/api/quotes/${quote.id}/pdf`, '_blank', 'noopener')
+              }}
+              aria-label={`Download quote ${quote.number} as PDF`}
+            >
+              <FileDown size={13} /> PDF
+            </Button>
             <QuotePrintDialog quote={quote} />
           </div>
         </div>
@@ -889,6 +921,11 @@ function QuoteCard({
                         </span>
                         <span className="min-w-0">
                           <span className="block truncate font-medium">{l.productTitle ?? 'Item'}</span>
+                          {l.variantName && (
+                            <span className="mt-0.5 block truncate text-[11px] text-primary">
+                              {l.variantName}
+                            </span>
+                          )}
                         </span>
                       </div>
                     </td>
@@ -1254,6 +1291,11 @@ function QuotePrintDialog({ quote }: { quote: QuoteDTO }) {
                 <tr key={l.id} className="border-t border-dashed align-top">
                   <td className="max-w-[220px] py-2.5 pr-2 font-medium leading-snug">
                     {l.productTitle ?? 'Item'}
+                    {l.variantName && (
+                      <span className="mt-0.5 block text-[10px] font-normal text-muted-foreground">
+                        {l.variantName}
+                      </span>
+                    )}
                   </td>
                   <td className="py-2.5 text-center tabular-nums">{l.quantity}</td>
                   <td className="py-2.5 text-right tabular-nums">{formatUSD(l.unitPrice)}</td>
@@ -1377,6 +1419,7 @@ function RfqCreateView({
       lines: lines.map((l) => ({
         productId: l.kind === 'catalog' ? l.product!.id : null,
         productName: l.kind === 'open' ? l.productName.trim() : null,
+        variantId: l.kind === 'catalog' ? l.variantId : null,
         quantity: Number(l.quantity),
         targetPrice: l.targetPrice.trim() ? Number(l.targetPrice) : null,
         notes: l.notes.trim() || null,
@@ -1541,29 +1584,66 @@ function RfqCreateView({
 
                   {l.kind === 'catalog' ? (
                     l.product ? (
-                      <div className="mt-3 flex items-center gap-3 rounded-xl border bg-background px-3.5 py-2.5">
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted">
-                          {l.product.image ? (
-                            <img src={l.product.image} alt="" className="h-full w-full object-cover" loading="lazy" />
-                          ) : (
-                            <PackageSearch size={15} className="text-muted-foreground" />
-                          )}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold">{l.product.title}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Retail {formatUSD(l.product.price)}/unit
-                          </p>
+                      <div className="mt-3 space-y-2">
+                        <div className="flex items-center gap-3 rounded-xl border bg-background px-3.5 py-2.5">
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted">
+                            {l.product.image ? (
+                              <img src={l.product.image} alt="" className="h-full w-full object-cover" loading="lazy" />
+                            ) : (
+                              <PackageSearch size={15} className="text-muted-foreground" />
+                            )}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold">{l.product.title}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Retail {formatUSD(l.product.price)}/unit
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 rounded-lg text-xs text-muted-foreground"
+                            onClick={() => updateLine(l.key, { product: null, variantId: null })}
+                          >
+                            Change
+                          </Button>
                         </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 rounded-lg text-xs text-muted-foreground"
-                          onClick={() => updateLine(l.key, { product: null })}
-                        >
-                          Change
-                        </Button>
+                        {(l.product.variants?.length ?? 0) > 0 && (
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`variant-${l.key}`}>
+                              Variant{' '}
+                              <span className="font-normal text-muted-foreground">
+                                (optional — leave open to let sellers propose one)
+                              </span>
+                            </Label>
+                            <Select
+                              value={l.variantId ?? 'any'}
+                              onValueChange={(v) => updateLine(l.key, { variantId: v === 'any' ? null : v })}
+                            >
+                              <SelectTrigger
+                                id={`variant-${l.key}`}
+                                className="h-9 rounded-xl"
+                                aria-label={`Variant for line ${l.key}`}
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="any">Any variant — sellers pick</SelectItem>
+                                {l.product.variants!.map((v) => (
+                                  <SelectItem key={v.id} value={v.id}>
+                                    {v.name}
+                                    <span className="ml-1.5 text-xs text-muted-foreground">
+                                      {v.price != null ? `${formatUSD(v.price)}/unit` : 'base price'}
+                                      {' · '}
+                                      {v.stock} in stock
+                                    </span>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="mt-3">

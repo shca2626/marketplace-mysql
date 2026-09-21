@@ -294,6 +294,8 @@ export interface RfqLineDTO {
   productId?: string | null
   productName: string
   sku?: string | null
+  variantId?: string | null
+  variantName?: string | null
   quantity: number
   targetPrice?: number | null
   notes?: string | null
@@ -303,6 +305,8 @@ export interface RfqLineDTO {
 export interface QuoteLineDTO {
   id: string
   productId: string
+  variantId?: string | null
+  variantName?: string | null
   productTitle?: string
   image?: string | null
   quantity: number
@@ -361,6 +365,17 @@ export interface RfqMessageDTO {
   rfqId: string
   author: { id: string; name: string; role: string }
   body: string
+  createdAt: string
+}
+
+export interface NotificationDTO {
+  id: string
+  type: string
+  title: string
+  body: string | null
+  linkView: string
+  linkId: string | null
+  readAt: string | null
   createdAt: string
 }
 

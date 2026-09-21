@@ -32,6 +32,8 @@ export interface ViewParams {
   query?: string
   sellerId?: string
   sellerTab?: string
+  rfqId?: string
+  quoteId?: string
 }
 
 interface MarketplaceState {

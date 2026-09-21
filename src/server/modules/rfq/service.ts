@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { recordAudit } from '@/server/modules/audit/service'
 import { nextNumber } from '@/server/modules/sequences/service'
 import { needsApproval, createQuoteAcceptApprovalRequest } from '@/server/modules/approvals/service'
+import { emitNotification, emitNotifications, type EmitInput } from '@/server/modules/notifications/service'
 import type { RfqDTO, QuoteDTO, RfqLineDTO, QuoteLineDTO, RfqMessageDTO } from '@/lib/types'
 
 /**
@@ -59,6 +60,8 @@ function serializeRfqLine(l: {
   productId: string | null
   productName: string
   sku: string | null
+  variantId?: string | null
+  variantName?: string | null
   quantity: number
   targetPrice: { toNumber(): number } | null
   notes: string | null
@@ -69,6 +72,8 @@ function serializeRfqLine(l: {
     productId: l.productId,
     productName: l.productName,
     sku: l.sku,
+    variantId: l.variantId ?? null,
+    variantName: l.variantName ?? null,
     quantity: l.quantity,
     targetPrice: l.targetPrice ? l.targetPrice.toNumber() : null,
     notes: l.notes,
@@ -106,6 +111,8 @@ function serializeQuote(q: {
   lines: {
     id: string
     productId: string
+    variantId?: string | null
+    variantName?: string | null
     quantity: number
     unitPrice: { toNumber(): number }
     product: { title: string; images: string } | null
@@ -136,6 +143,8 @@ function serializeQuote(q: {
       return {
         id: l.id,
         productId: l.productId,
+        variantId: l.variantId ?? null,
+        variantName: l.variantName ?? null,
         productTitle: l.product?.title,
         image: l.product ? firstImage(l.product.images) : null,
         quantity: l.quantity,
@@ -213,6 +222,7 @@ export interface RfqLineInput {
   productId?: string | null
   productName?: string | null
   sku?: string | null
+  variantId?: string | null
   quantity: number
   targetPrice?: number | null
   notes?: string | null
@@ -238,7 +248,7 @@ export async function createRfq(
   // Resolve products for snapshotting
   const productIds = input.lines.map((l) => l.productId).filter((x): x is string => !!x)
   const products = productIds.length
-    ? await db.product.findMany({ where: { id: { in: productIds } } })
+    ? await db.product.findMany({ where: { id: { in: productIds } }, include: { variants: true } })
     : []
   const productMap = new Map(products.map((p) => [p.id, p]))
 
@@ -255,6 +265,12 @@ export async function createRfq(
     if (line.targetPrice !== undefined && line.targetPrice !== null && line.targetPrice < 0) {
       throw new RfqServiceError('Target price cannot be negative')
     }
+    // Variant must belong to the referenced product and be active
+    if (line.variantId && line.productId) {
+      const variant = productMap.get(line.productId)?.variants.find((v) => v.id === line.variantId)
+      if (!variant) throw new RfqServiceError('The selected variant does not exist for that product')
+      if (!variant.isActive) throw new RfqServiceError('The selected variant is not available')
+    }
   }
 
   const number = await nextNumber('RFQ')
@@ -267,16 +283,25 @@ export async function createRfq(
       description: input.description?.trim() || null,
       status: 'DRAFT',
       lines: {
-        create: input.lines.map((l) => ({
-          productId: l.productId ?? null,
-          productName: l.productId
-            ? (productMap.get(l.productId)?.title ?? l.productName ?? 'Product')
-            : (l.productName as string),
-          sku: l.sku ?? null,
-          quantity: l.quantity,
-          targetPrice: l.targetPrice ?? null,
-          notes: l.notes ?? null,
-        })),
+        create: input.lines.map((l) => {
+          let variantName: string | null = null
+          if (l.variantId && l.productId) {
+            const v = productMap.get(l.productId)?.variants.find((x) => x.id === l.variantId)
+            variantName = v ? v.name : null
+          }
+          return {
+            productId: l.productId ?? null,
+            productName: l.productId
+              ? (productMap.get(l.productId)?.title ?? l.productName ?? 'Product')
+              : (l.productName as string),
+            sku: l.sku ?? null,
+            variantId: l.variantId ?? null,
+            variantName,
+            quantity: l.quantity,
+            targetPrice: l.targetPrice ?? null,
+            notes: l.notes ?? null,
+          }
+        }),
       },
     },
     include: { ...rfqInclude, _count: { select: { quotes: true } } },
@@ -377,6 +402,41 @@ export async function rfqTransition(
 
   await db.rfq.update({ where: { id: rfqId }, data: patch })
 
+  // ── Notifications ──
+  if (action === 'SUBMIT') {
+    // Tell every seller whose catalog products this RFQ references
+    const sellers = await db.rfqLine.findMany({
+      where: { rfqId, productId: { not: null } },
+      select: { product: { select: { sellerId: true, title: true } } },
+    })
+    const bySeller = new Map<string, string[]>()
+    for (const s of sellers) {
+      if (!s.product) continue
+      bySeller.set(s.product.sellerId, [...(bySeller.get(s.product.sellerId) ?? []), s.product.title])
+    }
+    const emits: EmitInput[] = [...bySeller.entries()].map(([sellerId, titles]) => ({
+      userId: sellerId,
+      type: 'RFQ_SUBMITTED_SELLER',
+      title: `New quote request ${rfq.number}`,
+      body: `A buyer needs a quote including ${titles.slice(0, 2).join(', ')}${titles.length > 2 ? ` +${titles.length - 2} more` : ''}`,
+      linkView: 'seller',
+      linkId: rfqId,
+    }))
+    await emitNotifications(emits)
+  } else if (action === 'REVIEW' || action === 'REJECT') {
+    await emitNotification({
+      userId: rfq.userId,
+      type: 'RFQ_STATUS',
+      title: `RFQ ${rfq.number} is ${next === 'UNDER_REVIEW' ? 'under review' : next.toLowerCase()}`,
+      body:
+        next === 'UNDER_REVIEW'
+          ? 'Our team is reviewing your request before routing it to sellers.'
+          : 'Your request was not accepted for quoting.',
+      linkView: 'rfq',
+      linkId: rfqId,
+    })
+  }
+
   await recordAudit({
     actorId: actor.id,
     actorType: isAdmin ? 'ADMIN' : 'USER',
@@ -460,6 +520,8 @@ export async function createQuote(
 
   const number = await nextNumber('QTE')
   const rfqLineIds = new Set(rfq.lines.map((l) => l.id))
+  // Variant snapshot: mirror the referenced RFQ line's variant (server truth)
+  const variantByLine = new Map(rfq.lines.map((l) => [l.id, { variantId: l.variantId ?? null, variantName: l.variantName ?? null }]))
 
   const quote = await db.$transaction(async (tx) => {
     const created = await tx.quote.create({
@@ -482,6 +544,12 @@ export async function createQuote(
           create: input.lines.map((l) => ({
             rfqLineId: l.rfqLineId && rfqLineIds.has(l.rfqLineId) ? l.rfqLineId : null,
             productId: l.productId,
+            variantId: l.rfqLineId && rfqLineIds.has(l.rfqLineId)
+              ? variantByLine.get(l.rfqLineId)!.variantId
+              : null,
+            variantName: l.rfqLineId && rfqLineIds.has(l.rfqLineId)
+              ? variantByLine.get(l.rfqLineId)!.variantName
+              : null,
             quantity: l.quantity,
             unitPrice: l.unitPrice,
           })),
@@ -511,6 +579,18 @@ export async function createQuote(
     metadata: { rfqId, total },
   })
 
+  // Buyer learns a new offer arrived (skip the platform quoting itself)
+  if (rfq.userId !== actor.id) {
+    await emitNotification({
+      userId: rfq.userId,
+      type: 'RFQ_QUOTE_RECEIVED',
+      title: `Quote ${number} received`,
+      body: `${isAdmin ? 'Vendora' : (quote.createdBy.name || 'A seller')} offered $${total.toFixed(2)}${quote.lines[0]?.product ? ` for ${quote.lines[0].product.title}` : ''}${input.paymentTerms ? ` · ${input.paymentTerms}` : ''}`,
+      linkView: 'rfq',
+      linkId: rfqId,
+    })
+  }
+
   return serializeQuote(quote as never)
 }
 
@@ -521,7 +601,11 @@ export async function respondToQuote(
 ): Promise<{ quote: QuoteDTO; rfq: RfqDTO; pendingApproval?: boolean }> {
   const quote = await db.quote.findUnique({
     where: { id: quoteId },
-    include: { rfq: true, lines: { include: { product: true } } },
+    include: {
+      rfq: true,
+      lines: { include: { product: true } },
+      createdBy: { select: { id: true, name: true } },
+    },
   })
   if (!quote) throw new RfqServiceError('Quote not found', 404)
   if (quote.rfq.userId !== userId) throw new RfqServiceError('Access denied', 403)
@@ -595,6 +679,25 @@ export async function respondToQuote(
     summary: `Quote ${quote.number} ${action.toLowerCase()}${action === 'ACCEPT' ? 'ed' : 'd'} by buyer`,
     metadata: { rfqId: quote.rfqId },
   })
+
+  // Tell the issuing seller (or platform facilitator) the outcome
+  const quoteRecipient = quote.sellerId ?? quote.createdBy.id
+  if (quoteRecipient !== userId) {
+    await emitNotification({
+      userId: quoteRecipient,
+      type: action === 'ACCEPT' ? 'RFQ_QUOTE_ACCEPTED' : 'RFQ_QUOTE_DECLINED',
+      title:
+        action === 'ACCEPT'
+          ? `Quote ${quote.number} accepted`
+          : `Quote ${quote.number} declined`,
+      body:
+        action === 'ACCEPT'
+          ? `The buyer accepted your offer of $${Number(quote.total).toFixed(2)} — convert it to an order when ready.`
+          : `The buyer declined your offer of $${Number(quote.total).toFixed(2)}.`,
+      linkView: 'rfq',
+      linkId: quote.rfqId,
+    })
+  }
 
   const updatedQuote = await db.quote.findUniqueOrThrow({
     where: { id: quoteId },
@@ -724,6 +827,35 @@ export async function postRfqMessage(
     data: { rfqId, authorId: actor.id, body: clean },
     include: { author: { select: { id: true, name: true, role: true } } },
   })
+
+  // Notify the other thread participants: requester + involved/line sellers
+  const meta = await db.rfq.findUnique({
+    where: { id: rfqId },
+    select: {
+      userId: true,
+      number: true,
+      lines: { select: { product: { select: { sellerId: true } } } },
+      quotes: { select: { sellerId: true } },
+    },
+  })
+  if (meta) {
+    const recipients = new Set<string>([meta.userId])
+    for (const l of meta.lines) if (l.product?.sellerId) recipients.add(l.product.sellerId)
+    for (const q of meta.quotes) if (q.sellerId) recipients.add(q.sellerId)
+    recipients.delete(actor.id)
+    const preview = clean.length > 120 ? `${clean.slice(0, 120)}…` : clean
+    await emitNotifications(
+      [...recipients].map((uid) => ({
+        userId: uid,
+        type: 'RFQ_MESSAGE',
+        title: `New message on ${meta.number}`,
+        body: `${message.author.name}: ${preview}`,
+        linkView: 'rfq',
+        linkId: rfqId,
+      }))
+    )
+  }
+
   return {
     id: message.id,
     rfqId: message.rfqId,
@@ -758,6 +890,18 @@ export async function withdrawQuote(
     summary: `Quote ${quote.number} withdrawn`,
     metadata: { rfqId: quote.rfqId },
   })
+
+  // The buyer should know the offer is off the table
+  if (quote.rfq.userId !== actor.id) {
+    await emitNotification({
+      userId: quote.rfq.userId,
+      type: 'RFQ_QUOTE_WITHDRAWN',
+      title: `Quote ${quote.number} withdrawn`,
+      body: 'The seller pulled this offer. Other quotes on the request remain open.',
+      linkView: 'rfq',
+      linkId: quote.rfqId,
+    })
+  }
 
   const updated = await db.quote.findUniqueOrThrow({
     where: { id: quoteId },
@@ -825,7 +969,8 @@ export async function convertQuoteToOrder(
     throw new RfqServiceError('This RFQ has already been converted to an order', 409)
   }
 
-  // Stock re-check (acceptance may predate stock changes)
+  // Stock re-check (acceptance may predate stock changes). Variant lines check
+  // the variant's own stock; product-level lines check the product stock.
   const needed = new Map<string, number>()
   for (const l of quote.lines) needed.set(l.productId, (needed.get(l.productId) ?? 0) + l.quantity)
   for (const [productId, qty] of needed) {
@@ -835,6 +980,25 @@ export async function convertQuoteToOrder(
         `Not enough stock for "${p.title}" — ${p.stock} available, ${qty} needed. Request a revised quote.`,
         409
       )
+    }
+  }
+  const neededVariants = new Map<string, number>()
+  for (const l of quote.lines) {
+    if (l.variantId) neededVariants.set(l.variantId, (neededVariants.get(l.variantId) ?? 0) + l.quantity)
+  }
+  if (neededVariants.size > 0) {
+    const variants = await db.productVariant.findMany({
+      where: { id: { in: [...neededVariants.keys()] } },
+      include: { product: { select: { title: true } } },
+    })
+    for (const v of variants) {
+      const need = neededVariants.get(v.id)!
+      if (v.stock < need) {
+        throw new RfqServiceError(
+          `Not enough stock for "${v.product.title} (${v.name})" — ${v.stock} available, ${need} needed. Request a revised quote.`,
+          409
+        )
+      }
     }
   }
 
@@ -905,9 +1069,11 @@ export async function convertQuoteToOrder(
           create: quote.lines.map((l) => ({
             productId: l.productId,
             sellerId: l.product.sellerId,
+            variantId: l.variantId ?? null,
+            variantName: l.variantName ?? null,
             quantity: l.quantity,
             price: l.unitPrice.toNumber(),
-            title: l.product.title,
+            title: l.variantName ? `${l.product.title} — ${l.variantName}` : l.product.title,
             image: firstImage(l.product.images),
           })),
         },
@@ -920,6 +1086,11 @@ export async function convertQuoteToOrder(
         where: { id: productId },
         data: { stock: { decrement: qty }, soldCount: { increment: qty } },
       })
+    }
+    for (const [variantId, qty] of neededVariants) {
+      await tx.productVariant
+        .update({ where: { id: variantId }, data: { stock: { decrement: qty } } })
+        .catch(() => undefined) // variant deleted mid-flight — product stock already covers it
     }
 
     await tx.quote.update({
@@ -943,6 +1114,19 @@ export async function convertQuoteToOrder(
     summary: `Quote ${quote.number} converted to order (${quote.total.toNumber().toFixed(2)} USD)`,
     metadata: { rfqId: quote.rfqId, orderId: order.id },
   })
+
+  // Tell the issuing seller the deal closed with a real order
+  const quoteRecipient = quote.sellerId ?? quote.createdById
+  if (quoteRecipient !== viewer.id) {
+    await emitNotification({
+      userId: quoteRecipient,
+      type: 'RFQ_QUOTE_CONVERTED',
+      title: `Quote ${quote.number} became an order`,
+      body: `PO ${order.poNumber ?? '—'} · $${order.total.toFixed(2)}${quote.paymentTerms ? ` · ${quote.paymentTerms}` : ''} — see it in your dashboard.`,
+      linkView: 'seller',
+      linkId: order.id,
+    })
+  }
 
   const updatedQuote = await db.quote.findUniqueOrThrow({
     where: { id: quoteId },

@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { recordAudit } from '@/server/modules/audit/service'
+import { emitNotification, emitNotifications, type EmitInput } from '@/server/modules/notifications/service'
 
 /**
  * APPROVALS — B2B purchase-approval workflow.
@@ -47,6 +48,28 @@ export function needsApproval(
 
 type RequesterInfo = { id: string; name: string }
 
+/** Notify the org's approvers (minus the requester) that a purchase awaits them. */
+async function notifyApprovers(
+  organizationId: string,
+  requesterId: string,
+  input: { type: 'order' | 'quote'; title: string; body: string; linkView: 'business'; linkId?: string | null }
+) {
+  const approvers = await db.organizationMember.findMany({
+    where: { organizationId, role: { in: [...APPROVAL_ROLES] }, userId: { not: requesterId } },
+    select: { userId: true },
+  })
+  await emitNotifications(
+    approvers.map((a) => ({
+      userId: a.userId,
+      type: 'APPROVAL_REQUESTED',
+      title: input.title,
+      body: input.body,
+      linkView: input.linkView,
+      linkId: input.linkId ?? null,
+    }))
+  )
+}
+
 /** Create the pending ORDER approval (called inside the checkout transaction). */
 export async function createOrderApprovalRequest(
   tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
@@ -67,6 +90,23 @@ export async function createOrderApprovalRequest(
       amount: input.amount,
       note: input.note?.slice(0, 500) ?? null,
     },
+  })
+}
+
+/** Post-commit bell event for a held order (call after the checkout tx succeeds). */
+export async function notifyOrderApprovalRequested(input: {
+  organizationId: string
+  requesterId: string
+  requesterName: string
+  amount: number
+  itemCount: number
+}) {
+  await notifyApprovers(input.organizationId, input.requesterId, {
+    type: 'order',
+    title: 'Order needs approval',
+    body: `${input.requesterName} placed a $${input.amount.toFixed(2)} order (${input.itemCount} item${input.itemCount === 1 ? '' : 's'}) awaiting your decision.`,
+    linkView: 'business',
+    linkId: null,
   })
 }
 
@@ -102,6 +142,13 @@ export async function createQuoteAcceptApprovalRequest(input: {
     entityId: request.id,
     summary: `Quote acceptance routed for approval ($${input.amount.toFixed(2)})`,
     metadata: { quoteId: input.quoteId, rfqId: input.rfqId, organizationId: input.organizationId },
+  })
+  await notifyApprovers(input.organizationId, input.requester.id, {
+    type: 'quote',
+    title: `Quote acceptance needs approval`,
+    body: `${input.requester.name} wants to accept a $${input.amount.toFixed(2)} quote — your decision releases the deal.`,
+    linkView: 'business',
+    linkId: input.rfqId,
   })
   return request
 }
@@ -311,6 +358,43 @@ export async function decideApproval(
         : `Rejected ${request.type === 'ORDER' ? 'order' : 'quote acceptance'} of $${amount.toFixed(2)}`,
     metadata: { organizationId: request.organizationId, requesterId: request.requesterId },
   })
+
+  // ── Bell events ──
+  await emitNotification({
+    userId: request.requesterId,
+    type: 'APPROVAL_DECIDED',
+    title:
+      action === 'APPROVE'
+        ? request.type === 'ORDER'
+          ? 'Your order was approved'
+          : 'Your quote acceptance was approved'
+        : request.type === 'ORDER'
+          ? 'Your order was rejected'
+          : 'Your quote acceptance was rejected',
+    body: `${decider.name} ${action === 'APPROVE' ? 'approved' : 'rejected'} the $${amount.toFixed(2)} ${request.type === 'ORDER' ? 'order' : 'quote acceptance'}${decisionNote ? ` — “${decisionNote.slice(0, 160)}”` : '.'}`,
+    linkView: request.type === 'ORDER' ? 'orders' : 'rfq',
+    linkId: request.type === 'ORDER' ? request.orderId : request.rfqId,
+  })
+  if (action === 'APPROVE' && request.type === 'QUOTE_ACCEPT' && request.quote) {
+    // The issuing seller finally learns the acceptance went through
+    const quote = await db.quote.findUnique({
+      where: { id: request.quoteId! },
+      select: { sellerId: true, createdById: true, number: true, rfqId: true },
+    })
+    if (quote) {
+      const sellerRecipient = quote.sellerId ?? quote.createdById
+      if (sellerRecipient !== decider.id) {
+        await emitNotification({
+          userId: sellerRecipient,
+          type: 'RFQ_QUOTE_ACCEPTED',
+          title: `Quote ${quote.number} accepted`,
+          body: `The buyer's approver signed off on $${amount.toFixed(2)} — convert it to an order when ready.`,
+          linkView: 'rfq',
+          linkId: quote.rfqId,
+        })
+      }
+    }
+  }
 
   const updated = await db.approvalRequest.findUniqueOrThrow({
     where: { id: approvalId },

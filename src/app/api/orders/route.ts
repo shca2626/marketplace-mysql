@@ -5,7 +5,7 @@ import { getSessionUser } from '@/lib/auth'
 import { serializeOrder } from '@/lib/serialize'
 import { computePricing } from '@/lib/pricing'
 import { findActiveCoupon } from '@/server/modules/coupons/service'
-import { needsApproval, createOrderApprovalRequest } from '@/server/modules/approvals/service'
+import { needsApproval, createOrderApprovalRequest, notifyOrderApprovalRequested } from '@/server/modules/approvals/service'
 
 const checkoutSchema = z.object({
   items: z
@@ -192,6 +192,17 @@ export async function POST(req: NextRequest) {
       }
       return created
     })
+
+    // Bell event for the org's approvers (after the tx commits — no ghost pings on rollback)
+    if (routeForApproval) {
+      await notifyOrderApprovalRequested({
+        organizationId: orgId!,
+        requesterId: user.id,
+        requesterName: user.name,
+        amount: pricing.total,
+        itemCount: order.items.length,
+      })
+    }
 
     return NextResponse.json(
       {

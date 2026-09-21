@@ -200,6 +200,7 @@ export interface PickedProduct {
   title: string
   price: number
   image?: string | null
+  variants?: { id: string; name: string; price: number | null; stock: number }[]
 }
 
 export function ProductPicker({
@@ -230,7 +231,15 @@ export function ProductPicker({
           signal: ctrl.signal,
         })
         if (!res.ok) return
-        const json = (await res.json()) as { items?: { id: string; title: string; price: number; images: string[] }[] }
+        const json = (await res.json()) as {
+          items?: {
+            id: string
+            title: string
+            price: number
+            images: string[]
+            variants?: { id: string; name: string; price: number | null; stock: number; isActive: boolean }[]
+          }[]
+        }
         setResult({
           query: active,
           items: (json.items ?? []).map((p) => ({
@@ -238,6 +247,9 @@ export function ProductPicker({
             title: p.title,
             price: p.price,
             image: p.images?.[0] ?? null,
+            variants: (p.variants ?? [])
+              .filter((v) => v.isActive)
+              .map((v) => ({ id: v.id, name: v.name, price: v.price, stock: v.stock })),
           })),
         })
       } catch {
@@ -347,26 +359,56 @@ export function RfqThread({
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [draft, setDraft] = useState('')
+  const [fresh, setFresh] = useState<{ rfqId: string; count: number }>({ rfqId: '', count: 0 })
   const scrollRef = useRef<HTMLDivElement>(null)
+  const knownIds = useRef<Set<string>>(new Set())
+  const userAtBottom = useRef(true)
 
   const threadClosed = ['CANCELLED', 'REJECTED', 'EXPIRED', 'ORDERED'].includes(rfqStatus)
+  const POLL_MS = 12_000
 
   useEffect(() => {
     let alive = true
+    knownIds.current = new Set()
+    const apply = (list: RfqMessageDTO[]) => {
+      if (!alive) return
+      const isFirstLoad = knownIds.current.size === 0
+      const newOnes = list.filter((m) => !knownIds.current.has(m.id))
+      for (const m of list) knownIds.current.add(m.id)
+      // Only messages that arrive AFTER the initial load count as "new";
+      // the rfqId key resets the counter when the thread component is reused.
+      if (!isFirstLoad && newOnes.length > 0) {
+        setFresh((prev) =>
+          prev.rfqId === rfqId
+            ? { rfqId, count: prev.count + newOnes.length }
+            : { rfqId, count: newOnes.length }
+        )
+      }
+      setMessages(list)
+      setLoading(false)
+    }
     const load = async () => {
       const res = await apiRequest<{ messages: RfqMessageDTO[] }>(`/api/rfqs/${rfqId}/messages`)
       if (!alive) return
-      if (res.ok && res.data) setMessages(res.data.messages)
-      setLoading(false)
+      if (res.ok && res.data) apply(res.data.messages)
     }
     void load()
+    // Live thread: poll while the RFQ is open and the tab is visible
+    const timer = setInterval(() => {
+      if (!threadClosed && typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        void load()
+      }
+    }, POLL_MS)
     return () => {
       alive = false
+      clearInterval(timer)
     }
-  }, [rfqId])
+  }, [rfqId, threadClosed])
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
+    if (userAtBottom.current) {
+      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
+    }
   }, [messages.length])
 
   const send = async (e: React.FormEvent) => {
@@ -383,6 +425,7 @@ export function RfqThread({
       toast({ title: 'Could not send', description: res.error ?? 'Please try again', variant: 'destructive' })
       return
     }
+    knownIds.current.add(res.data.message.id)
     setMessages((m) => [...m, res.data!.message])
     setDraft('')
   }
@@ -391,12 +434,30 @@ export function RfqThread({
     <section aria-label="Negotiation thread">
       <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
         <MessageSquareText size={14} className="text-primary" /> {title}
+        {!threadClosed && (
+          <span className="ml-1 inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+            <span className="relative flex h-1.5 w-1.5" aria-hidden>
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            </span>
+            live
+            {fresh.rfqId === rfqId && fresh.count > 0 && (
+              <span className="ml-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-primary">
+                {fresh.count} new
+              </span>
+            )}
+          </span>
+        )}
       </h3>
       {loading ? (
         <Skeleton className="h-40 w-full rounded-xl" />
       ) : (
         <div
           ref={scrollRef}
+          onScroll={(e) => {
+            const el = e.currentTarget
+            userAtBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40
+          }}
           className="max-h-64 space-y-2.5 overflow-y-auto rounded-xl border bg-muted/30 p-3"
         >
           {messages.length === 0 ? (

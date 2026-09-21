@@ -39,6 +39,7 @@ model User {
   rfqMessages RfqMessage[]    @relation("RfqMessages")
   approvalsRequested ApprovalRequest[] @relation("ApprovalRequester")
   approvalsDecided   ApprovalRequest[] @relation("ApprovalDecider")
+  notifications      Notification[]    @relation("Notifications")
 
   @@index([role])
 }
@@ -346,6 +347,8 @@ model RfqLine {
   productId   String? // null = open/free item ("250 units of something like this")
   productName String    @db.VarChar(200) // snapshot title / free description
   sku         String?   @db.VarChar(80)
+  variantId   String?   @db.VarChar(64) // referenced catalog variant (optional)
+  variantName String?   @db.VarChar(160) // snapshot "Color: Black / Bundle: Duo"
   quantity    Int
   targetPrice Decimal?  @db.Decimal(12, 2) // buyer's target unit price (optional)
   notes       String?   @db.Text
@@ -356,6 +359,7 @@ model RfqLine {
 
   @@index([rfqId])
   @@index([productId])
+  @@index([variantId])
 }
 
 model Quote {
@@ -420,18 +424,39 @@ model ApprovalRequest {
 }
 
 model QuoteLine {
-  id        String   @id @default(cuid())
-  quoteId   String
-  rfqLineId String?
-  productId String
-  quantity  Int
-  unitPrice Decimal  @db.Decimal(12, 2)
-  quote     Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
-  rfqLine   RfqLine? @relation(fields: [rfqLineId], references: [id])
-  product   Product @relation(fields: [productId], references: [id])
+  id          String   @id @default(cuid())
+  quoteId     String
+  rfqLineId   String?
+  productId   String
+  variantId   String?  @db.VarChar(64) // quoted variant (mirrors the RFQ line)
+  variantName String?   @db.VarChar(160) // snapshot at quote time
+  quantity    Int
+  unitPrice   Decimal  @db.Decimal(12, 2)
+  quote       Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  rfqLine     RfqLine? @relation(fields: [rfqLineId], references: [id])
+  product     Product @relation(fields: [productId], references: [id])
 
   @@index([quoteId])
   @@index([productId])
+}
+
+// ── Server-side notification feed (RFQ / approval / message events) ─────────
+// Order events stay derived client-side (NotificationsBell); this table
+// covers everything the order list can't see.
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String    @db.VarChar(32) // RFQ_SUBMITTED_SELLER | RFQ_QUOTE_RECEIVED | RFQ_QUOTE_ACCEPTED | RFQ_QUOTE_DECLINED | RFQ_QUOTE_WITHDRAWN | RFQ_QUOTE_CONVERTED | RFQ_STATUS | RFQ_MESSAGE | APPROVAL_REQUESTED | APPROVAL_DECIDED
+  title     String    @db.VarChar(160)
+  body      String?   @db.VarChar(400)
+  linkView  String    @db.VarChar(32) // SPA destination: rfq | orders | business | seller
+  linkId    String?   @db.VarChar(64) // rfqId / orderId / approval context id
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation("Notifications", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
 }
 
 // Negotiation thread on an RFQ — buyer ↔ admin ↔ involved sellers Q&A.

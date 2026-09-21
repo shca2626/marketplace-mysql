@@ -8,6 +8,7 @@ const lineSchema = z
     productId: z.string().optional().nullable(),
     productName: z.string().trim().max(200).optional().nullable(),
     sku: z.string().trim().max(80).optional().nullable(),
+    variantId: z.string().optional().nullable(),
     quantity: z.number().int().min(1, 'Quantity must be at least 1').max(1_000_000),
     targetPrice: z.number().min(0).max(1_000_000).optional().nullable(),
     notes: z.string().trim().max(2000).optional().nullable(),
