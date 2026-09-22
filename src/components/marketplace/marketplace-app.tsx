@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { ThemeProvider } from 'next-themes'
 import { useMarketplace, type View } from '@/store/marketplace'
 import type { SessionUser } from '@/lib/types'
+import type { StorefrontSettings, BannerSlideDTO } from '@/lib/settings/schema'
 import { parseLocation } from '@/lib/routing'
 import { Header } from './header'
 import { Footer } from './footer'
@@ -46,6 +47,7 @@ export function MarketplaceApp() {
   const setUser = useMarketplace((s) => s.setUser)
   const setAuthChecked = useMarketplace((s) => s.setAuthChecked)
   const applyLocation = useMarketplace((s) => s.applyLocation)
+  const applySettings = useMarketplace((s) => s.applySettings)
 
   // Restore persisted cart (after hydration to avoid SSR mismatch) and session.
   // Deep-link boot: honor ?view=… params from the URL on first paint,
@@ -68,11 +70,26 @@ export function MarketplaceApp() {
       }
     }
     void restore()
+    // Storefront configuration (branding, hero slides, sample images) —
+    // fetched once at boot so the home page renders the configured slider.
+    const loadSettings = async () => {
+      try {
+        const res = await fetch('/api/settings', { cache: 'no-store' })
+        if (!res.ok) return
+        const json = (await res.json()) as { settings?: StorefrontSettings; slides?: BannerSlideDTO[] }
+        if (!cancelled && (json.settings || json.slides)) {
+          applySettings({ settings: json.settings, slides: json.slides })
+        }
+      } catch {
+        // keep defaults
+      }
+    }
+    void loadSettings()
     return () => {
       cancelled = true
       window.removeEventListener('popstate', onPopState)
     }
-  }, [setUser, setAuthChecked, applyLocation])
+  }, [setUser, setAuthChecked, applyLocation, applySettings])
 
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>

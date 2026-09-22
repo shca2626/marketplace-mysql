@@ -7,12 +7,14 @@ import { resolvePanel } from '@/server/modules/settings/service'
 
 export async function GET() {
   try {
-    const [moq, tiers, stockHold, rating, expiry] = await Promise.all([
+    const [moq, tiers, stockHold, rating, expiry, disputes, recurring] = await Promise.all([
       resolvePanel('moq'),
       resolvePanel('tieredPricing'),
       resolvePanel('stockHold'),
       resolvePanel('sellerRating'),
       resolvePanel('rfqExpiry'),
+      resolvePanel('disputes'),
+      resolvePanel('recurring'),
     ])
     return NextResponse.json({
       moq: { enabled: moq.enabled, showToBuyer: moq.showToBuyer, displayStyle: moq.displayStyle },
@@ -32,6 +34,19 @@ export async function GET() {
         minDays: expiry.minDays,
         maxDays: expiry.maxDays,
         buyerOverride: expiry.buyerOverride,
+      },
+      disputes: {
+        enabled: disputes.enabled,
+        windowDays: disputes.windowDays,
+        reasons: (disputes.reasons ?? []) as string[],
+        buyerCancelOwn: disputes.buyerCancelOwn,
+        sellerResponseDays: disputes.sellerResponseDays,
+        showDisputeCount: rating.show && rating.showDisputeCount,
+      },
+      recurring: {
+        enabled: recurring.enabled,
+        patterns: (recurring.patterns ?? []) as string[],
+        buyerSkipCycle: recurring.buyerSkipCycle,
       },
     })
   } catch (err) {

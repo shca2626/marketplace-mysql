@@ -2,13 +2,19 @@
 
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Ban, CalendarClock, Check, ClipboardList, Hourglass, PackageCheck, PackageOpen, ReceiptText, Search, Star, Truck, X } from 'lucide-react'
+import { Ban, CalendarClock, Check, ClipboardList, Hourglass, PackageCheck, PackageOpen, ReceiptText, Scale, Search, Star, Truck, X } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
-import type { OrderDTO } from '@/lib/types'
+import type { DisputeDTO, OrderDTO } from '@/lib/types'
 import { formatDate, formatUSD } from '@/lib/format'
 import { InvoiceDialog } from './invoice-dialog'
+import {
+  DisputeCard,
+  DisputeDetailDialog,
+  RaiseDisputeDialog,
+  type DisputesPublicConfig,
+} from './b2b/disputes'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -78,6 +84,23 @@ export function OrdersView() {
   const { data, loading, refetch } = useApi<{ orders: OrderDTO[] }>(user ? '/api/orders' : null, {
     skip: !user,
   })
+  // Disputes the buyer raised (order cards show their live status)
+  const { data: disputesData, refetch: refetchDisputes } = useApi<{ raised: DisputeDTO[] }>(
+    user ? '/api/disputes' : null,
+    { skip: !user }
+  )
+  const { data: rfqConfig } = useApi<{ disputes?: DisputesPublicConfig }>(
+    user ? '/api/rfq-config' : null,
+    { skip: !user }
+  )
+  const [disputeDetail, setDisputeDetail] = useState<DisputeDTO | null>(null)
+  const [showAllDisputes, setShowAllDisputes] = useState(false)
+  const disputes = disputesData?.raised ?? []
+  const disputesConfig = rfqConfig?.disputes ?? null
+  const openDisputeByOrder = useMemo(
+    () => new Map(disputes.filter((d) => ['OPEN', 'SELLER_RESPONDED', 'ESCALATED'].includes(d.status)).map((d) => [d.orderId, d])),
+    [disputes]
+  )
   const [expanded, setExpanded] = useState<string | null>(null)
   const [cancellingId, setCancellingId] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>('ALL')
@@ -159,6 +182,33 @@ export function OrdersView() {
     <div className="mx-auto max-w-4xl px-4 py-8">
       <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">My orders</h1>
       <p className="mt-1 text-sm text-muted-foreground">Track and review your purchases.</p>
+
+      {/* Open disputes (buyer raised) — always visible while any are live */}
+      {disputes.length > 0 && (
+        <div className="mt-5 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-muted-foreground">
+              <Scale size={14} className="text-rose-600" /> Disputes
+              <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+                {disputes.filter((d) => ['OPEN', 'SELLER_RESPONDED', 'ESCALATED'].includes(d.status)).length} open
+              </span>
+            </h2>
+            {disputes.length > 2 && (
+              <button
+                className="text-xs font-medium text-primary hover:underline"
+                onClick={() => setShowAllDisputes((v) => !v)}
+              >
+                {showAllDisputes ? 'Show less' : `View all (${disputes.length})`}
+              </button>
+            )}
+          </div>
+          <div className="max-h-96 space-y-3 overflow-y-auto pr-1">
+            {(showAllDisputes ? disputes : disputes.slice(0, 2)).map((d) => (
+              <DisputeCard key={d.id} dispute={d} onOpen={setDisputeDetail} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Status filter chips + search */}
       {!loading && orders.length > 0 && (
@@ -257,6 +307,14 @@ export function OrdersView() {
                       #${order.id.slice(-8).toUpperCase()}
                     </span>
                     <span className="text-xs text-muted-foreground">{formatDate(order.createdAt)}</span>
+                    {openDisputeByOrder.has(order.id) && (
+                      <span
+                        className="flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-[11px] font-semibold text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+                        title="This order has an open dispute"
+                      >
+                        <Scale size={12} className="shrink-0" /> Dispute
+                      </span>
+                    )}
                     {['PAID', 'PROCESSING', 'SHIPPED'].includes(order.status) && (
                       (() => {
                         const est = estDeliveryWindow(order.createdAt)
@@ -472,6 +530,33 @@ export function OrdersView() {
                           Invoice
                         </Button>
                       </InvoiceDialog>
+                      {disputesConfig?.enabled &&
+                        order.status !== 'CANCELLED' &&
+                        !openDisputeByOrder.has(order.id) && (
+                          <RaiseDisputeDialog
+                            order={order}
+                            config={disputesConfig}
+                            onCreated={() => void refetchDisputes()}
+                          >
+                            {(open) => (
+                              <Button variant="outline" size="sm" className="h-7 rounded-full text-xs" onClick={open}>
+                                <Scale size={12} className="mr-1" />
+                                Dispute
+                              </Button>
+                            )}
+                          </RaiseDisputeDialog>
+                        )}
+                      {openDisputeByOrder.has(order.id) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 rounded-full border-rose-300 text-xs text-rose-700 hover:bg-rose-50 hover:text-rose-800 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950"
+                          onClick={() => setDisputeDetail(openDisputeByOrder.get(order.id) ?? null)}
+                        >
+                          <Scale size={12} className="mr-1" />
+                          View dispute
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -492,6 +577,20 @@ export function OrdersView() {
           })
         )}
       </div>
+
+      {/* Dispute detail (opened from any dispute card / order chip) */}
+      {disputeDetail && (
+        <DisputeDetailDialog
+          dispute={disputeDetail}
+          autoOpen
+          onChanged={(d) => {
+            setDisputeDetail(d)
+            void refetchDisputes()
+          }}
+        >
+          {() => <span />}
+        </DisputeDetailDialog>
+      )}
     </div>
   )
 }

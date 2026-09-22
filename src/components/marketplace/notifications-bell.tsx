@@ -4,6 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Ban,
   Bell,
+  CalendarCheck,
+  CalendarClock,
+  CalendarX,
   CheckCheck,
   ClipboardList,
   FileText,
@@ -11,6 +14,7 @@ import {
   MessageSquareText,
   PackageCheck,
   PackageOpen,
+  Scale,
   ShieldCheck,
   ShieldQuestion,
   Truck,
@@ -126,6 +130,26 @@ const NOTIF_META: Record<string, { icon: BellIcon; iconClass: string }> = {
   APPROVAL_DECIDED: {
     icon: ShieldCheck,
     iconClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+  },
+  RFQ_DISPUTE: {
+    icon: ShieldQuestion,
+    iconClass: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300',
+  },
+  RFQ_DISPUTE_STATUS: {
+    icon: Scale,
+    iconClass: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+  },
+  RECURRING_PREVIEW: {
+    icon: CalendarClock,
+    iconClass: 'bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300',
+  },
+  RECURRING_PUBLISHED: {
+    icon: CalendarCheck,
+    iconClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+  },
+  RECURRING_PAUSED: {
+    icon: CalendarX,
+    iconClass: 'bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400',
   },
 }
 const FALLBACK_META = {
@@ -276,11 +300,20 @@ export function NotificationsBell() {
         case 'seller':
           navigate('seller')
           break
+        case 'disputes':
+          // Sellers land on their dashboard's dispute tab; buyers on orders
+          navigate(user?.role === 'SELLER' ? 'seller' : 'orders', {
+            disputeId: item.n.linkId ?? undefined,
+          })
+          break
+        case 'admin':
+          navigate('admin')
+          break
         default:
           navigate('orders')
       }
     },
-    [navigate, markServerRead]
+    [navigate, markServerRead, user?.role]
   )
 
   const markRead = useCallback((key: string) => {

@@ -20,6 +20,7 @@ import {
   PackageSearch,
   Plus,
   Printer,
+  Repeat,
   Send,
   ShieldCheck,
   ShoppingCart,
@@ -85,6 +86,7 @@ import {
   validityLeft,
   type PickedProduct,
 } from './b2b-shared'
+import { RecurringField, RecurringSchedulesCard, type RecurringPublicConfig } from './recurring'
 
 type Mode = { type: 'list' } | { type: 'detail'; id: string } | { type: 'create' }
 
@@ -220,6 +222,7 @@ export function RfqView() {
           loading={listLoading}
           onOpen={(id) => setMode({ type: 'detail', id })}
           onCreate={() => setMode({ type: 'create' })}
+          focusScheduleId={viewParams.scheduleId ?? null}
         />
       )}
 
@@ -301,11 +304,13 @@ function RfqListView({
   loading,
   onOpen,
   onCreate,
+  focusScheduleId,
 }: {
   rfqs: RfqDTO[]
   loading: boolean
   onOpen: (id: string) => void
   onCreate: () => void
+  focusScheduleId?: string | null
 }) {
   const [statusFilter, setStatusFilter] = useState('ALL')
 
@@ -322,6 +327,8 @@ function RfqListView({
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
+      <RecurringSchedulesCard focusId={focusScheduleId} />
+
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Requests for quote</h1>
@@ -624,6 +631,14 @@ function RfqDetailView({
           <div className="flex flex-wrap items-center gap-2.5">
             <h1 className="font-mono text-xl font-bold tracking-tight sm:text-2xl">{rfq.number}</h1>
             <StatusBadge status={rfq.status} map={RFQ_STATUS_MAP} />
+            {rfq.sourceRecurringId && (
+              <span
+                className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary"
+                title="Spawned automatically by a standing schedule"
+              >
+                <Repeat size={11} className="shrink-0" /> Recurring run
+              </span>
+            )}
           </div>
           <p className="mt-1.5 text-sm text-muted-foreground">
             Created {formatDate(rfq.createdAt)}
@@ -1515,9 +1530,12 @@ function RfqCreateView({
 }) {
   const [saving, setSaving] = useState<'draft' | 'submit' | null>(null)
   const [expiresInDays, setExpiresInDays] = useState('default')
+  const [repeat, setRepeat] = useState('none')
+  const [repeatCustomDays, setRepeatCustomDays] = useState('30')
   const { data: config } = useApi<{
     moq: { enabled: boolean; showToBuyer: boolean }
     expiry: { enabled: boolean; defaultDays: number; minDays: number; maxDays: number; buyerOverride: boolean }
+    recurring: RecurringPublicConfig
   }>('/api/rfq-config')
 
   const updateLine = (key: number, patch: Partial<DraftLine>) =>
@@ -1590,6 +1608,30 @@ function RfqCreateView({
         title: 'Draft saved',
         description: `${rfq.number} is waiting — submit it whenever you're ready.`,
       })
+    }
+    // Standing schedule (recurring settings): the first run went out above;
+    // the schedule re-publishes the same lines every cycle.
+    if (repeat !== 'none') {
+      const freq = repeat as 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'CUSTOM'
+      const scheduled = await apiRequest<{ schedule: { id: string } }>('/api/recurring-rfqs', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: title.trim() || null,
+          description: description.trim() || null,
+          organizationId: orgId || null,
+          frequency: freq,
+          intervalDays: freq === 'CUSTOM' ? Number(repeatCustomDays) || null : null,
+          lines: payload.lines,
+        }),
+      })
+      if (scheduled.ok) {
+        toast({
+          title: 'Standing schedule created',
+          description: 'This request will re-publish automatically each cycle — manage it from your RFQ list.',
+        })
+      } else {
+        toast({ title: 'Schedule not created', description: scheduled.error, variant: 'destructive' })
+      }
     }
     setSaving(null)
     onDone(rfq.id)
@@ -1684,6 +1726,13 @@ function RfqCreateView({
                 </p>
               </div>
             )}
+            <RecurringField
+              config={config?.recurring ?? null}
+              value={repeat}
+              onChange={setRepeat}
+              customDays={repeatCustomDays}
+              onCustomDaysChange={setRepeatCustomDays}
+            />
           </CardContent>
         </Card>
 

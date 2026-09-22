@@ -4,6 +4,7 @@ import { nextNumber } from '@/server/modules/sequences/service'
 import { needsApproval, createQuoteAcceptApprovalRequest } from '@/server/modules/approvals/service'
 import { emitNotification, emitNotifications, type EmitInput } from '@/server/modules/notifications/service'
 import { resolvePanel } from '@/server/modules/settings/service'
+import { openDisputeCountBySeller, lostDisputeCountBySeller } from './disputes'
 import type { RfqDTO, QuoteDTO, RfqLineDTO, QuoteLineDTO, RfqMessageDTO } from '@/lib/types'
 
 /**
@@ -210,6 +211,7 @@ function serializeRfq(
     closedAt: r.closedAt?.toISOString() ?? null,
     expiresAt: (r as { expiresAt?: Date | null }).expiresAt?.toISOString() ?? null,
     extendedCount: (r as { extendedCount?: number }).extendedCount ?? 0,
+    sourceRecurringId: (r as { sourceRecurringId?: string | null }).sourceRecurringId ?? null,
     createdAt: r.createdAt.toISOString(),
     lines: r.lines.map(serializeRfqLine),
     quoteCount: r._count?.quotes,
@@ -231,7 +233,7 @@ const rfqInclude = {
 // ── Settings-aware helpers ──────────────────────────────────────────────────────
 
 /** Scope context for settings resolution: org → org type chain. */
-async function rfqSettingsCtx(organizationId: string | null) {
+export async function rfqSettingsCtx(organizationId: string | null) {
   if (!organizationId) return {}
   const org = await db.organization.findUnique({
     where: { id: organizationId },
@@ -244,6 +246,101 @@ function startOfToday(): Date {
   const d = new Date()
   d.setHours(0, 0, 0, 0)
   return d
+}
+
+// ── Distribution filter (shared by buyer SUBMIT and recurring spawns) ─────
+
+export interface DistributionResult {
+  eligible: string[]
+  titlesBySeller: Map<string, string[]>
+}
+
+/**
+ * Which sellers should learn about this RFQ — settings-filtered (verification,
+ * rating, dispute exclusion, cap). Used by rfqTransition(SUBMIT) and by the
+ * recurring spawn engine (which can further restrict to stored recipients).
+ */
+export async function computeEligibleSellers(
+  rfqId: string,
+  organizationId: string | null
+): Promise<DistributionResult> {
+  const sellers = await db.rfqLine.findMany({
+    where: { rfqId, productId: { not: null } },
+    select: { product: { select: { sellerId: true, title: true } } },
+  })
+  const titlesBySeller = new Map<string, string[]>()
+  for (const s of sellers) {
+    if (!s.product) continue
+    titlesBySeller.set(s.product.sellerId, [...(titlesBySeller.get(s.product.sellerId) ?? []), s.product.title])
+  }
+
+  const distribution = await resolvePanel('distribution', await rfqSettingsCtx(organizationId))
+  let eligible = [...titlesBySeller.keys()]
+  // NOTE: this panel has no separate `enabled` toggle — the mode IS the switch
+  // ('ALL_MATCHING' = every referenced seller, no filters). An earlier gate on
+  // a non-existent distribution.enabled silently disabled every filter below.
+  if (distribution.mode && distribution.mode !== 'ALL_MATCHING') {
+    if (distribution.minVerification !== 'NONE' && distribution.minVerification !== 'EMAIL') {
+      // Email is always verified on this platform; KYC+ requires the stamp
+      const rows = await db.user.findMany({
+        where: { id: { in: eligible } },
+        select: { id: true, verifiedAt: true },
+      })
+      const verified = new Set(rows.filter((u) => u.verifiedAt).map((u) => u.id))
+      eligible = eligible.filter((id) => verified.has(id))
+    }
+    if (Number(distribution.minRating) > 0) {
+      const rows = await db.product.groupBy({
+        by: ['sellerId'],
+        where: { sellerId: { in: eligible }, status: 'ACTIVE' },
+        _avg: { rating: true },
+      })
+      const ratingBySeller = new Map(rows.map((r) => [r.sellerId, r._avg.rating ?? 0]))
+      eligible = eligible.filter((id) => (ratingBySeller.get(id) ?? 0) >= Number(distribution.minRating))
+    }
+    // Dispute Resolution × Distribution: sellers with open disputes drop out
+    if (distribution.excludeDisputed && eligible.length) {
+      const disputed = await openDisputeCountBySeller(eligible)
+      eligible = eligible.filter((id) => !disputed.has(id))
+    }
+    const cap = Number(distribution.maxSellers)
+    if (eligible.length > cap) {
+      // Rank by catalog rating (the dominant ranking signal available today)
+      const rows = await db.product.groupBy({
+        by: ['sellerId'],
+        where: { sellerId: { in: eligible }, status: 'ACTIVE' },
+        _avg: { rating: true },
+      })
+      const ratingBySeller = new Map(rows.map((r) => [r.sellerId, r._avg.rating ?? 0]))
+      eligible.sort((a, b) => (ratingBySeller.get(b) ?? 0) - (ratingBySeller.get(a) ?? 0))
+      eligible = eligible.slice(0, cap)
+    }
+  }
+  return { eligible, titlesBySeller }
+}
+
+// ── Lazy background engine nudges ─────────────────────────────────────────
+
+/**
+ * Fire-and-forget nudge of the recurring spawn engine and the dispute
+ * escalation sweep — called from the same read paths as expireStaleQuotes.
+ * Guarded so concurrent list reads only run one sweep at a time.
+ */
+let sweepsInFlight = false
+export async function nudgeBackgroundSweeps(): Promise<void> {
+  if (sweepsInFlight) return
+  sweepsInFlight = true
+  try {
+    const [{ processDueSchedules }, { sweepDisputes }] = await Promise.all([
+      import('./recurring'),
+      import('./disputes'),
+    ])
+    await Promise.allSettled([processDueSchedules(), sweepDisputes()])
+  } catch {
+    // best-effort — reads must never fail because a sweep hiccupped
+  } finally {
+    sweepsInFlight = false
+  }
 }
 
 export async function expireStaleQuotes(): Promise<void> {
@@ -489,6 +586,7 @@ export async function createRfq(
 
 export async function listMyRfqs(userId: string, organizationId?: string | null): Promise<RfqDTO[]> {
   await expireStaleQuotes()
+  await nudgeBackgroundSweeps()
   const rfqs = await db.rfq.findMany({
     where: {
       userId,
@@ -502,6 +600,7 @@ export async function listMyRfqs(userId: string, organizationId?: string | null)
 
 export async function getRfq(rfqId: string, viewer: { id: string; role: string }): Promise<RfqDTO> {
   await expireStaleQuotes()
+  await nudgeBackgroundSweeps()
   const rfq = await db.rfq.findUnique({
     where: { id: rfqId },
     include: {
@@ -540,12 +639,19 @@ export async function getRfq(rfqId: string, viewer: { id: string; role: string }
   }
   // Seller trust meta on quotes (rating shown to buyers per settings)
   const ratingPanel = await resolvePanel('sellerRating')
+  const disputesPanel = await resolvePanel('disputes')
   if (dto.quotes?.length) {
     const sellerIds = [...new Set(dto.quotes.map((q) => q.sellerId).filter((x): x is string => !!x))]
     if (sellerIds.length) {
-      const [sellers, stats] = await Promise.all([
+      const [sellers, stats, openDisputes, lostDisputes] = await Promise.all([
         db.user.findMany({ where: { id: { in: sellerIds } }, select: { id: true, name: true, verifiedAt: true, createdAt: true } }),
         db.product.groupBy({ by: ['sellerId'], where: { sellerId: { in: sellerIds }, status: 'ACTIVE' }, _avg: { rating: true }, _sum: { reviewCount: true } }),
+        disputesPanel.showDisputeCount || disputesPanel.affectsSellerRating
+          ? openDisputeCountBySeller(sellerIds)
+          : Promise.resolve(new Map<string, number>()),
+        disputesPanel.affectsSellerRating
+          ? lostDisputeCountBySeller(sellerIds)
+          : Promise.resolve(new Map<string, number>()),
       ])
       const statBySeller = new Map(stats.map((s) => [s.sellerId, s]))
       for (const q of dto.quotes) {
@@ -553,12 +659,20 @@ export async function getRfq(rfqId: string, viewer: { id: string; role: string }
         const seller = sellers.find((s) => s.id === q.sellerId)
         if (!seller) continue
         const stat = statBySeller.get(q.sellerId)
+        // Dispute penalty: each dispute resolved against the seller shaves
+        // 0.25 off the displayed rating (floor 0) when the setting is on.
+        const lost = lostDisputes.get(q.sellerId) ?? 0
+        const baseRating = Number((stat?._avg.rating ?? 0).toFixed(2)) || 0
+        const displayedRating = disputesPanel.affectsSellerRating
+          ? Math.max(0, Math.round((baseRating - lost * 0.25) * 100) / 100)
+          : baseRating
         q.sellerMeta = {
           name: seller.name,
           verified: ratingPanel.showVerificationBadge ? !!seller.verifiedAt : undefined,
-          rating: ratingPanel.showStars ? Number((stat?._avg.rating ?? 0).toFixed(2)) || 0 : undefined,
+          rating: ratingPanel.showStars ? displayedRating : undefined,
           reviewCount: ratingPanel.showReviewCount ? (stat?._sum.reviewCount ?? 0) : undefined,
           memberSince: ratingPanel.showMemberSince ? seller.createdAt.toISOString() : undefined,
+          disputeCount: ratingPanel.showDisputeCount ? (openDisputes.get(q.sellerId) ?? 0) : undefined,
         }
       }
     }
@@ -603,61 +717,18 @@ export async function rfqTransition(
       }
     }
   }
-  if (action === 'REJECT' || action === 'CANCEL' || action === 'EXPIRE') patch.closedAt = now
+  if (action === 'REJECT' || action === 'CANCEL') patch.closedAt = now
 
   await db.rfq.update({ where: { id: rfqId }, data: patch })
 
   // ── Notifications ──
   if (action === 'SUBMIT') {
     // Tell every seller whose catalog products this RFQ references — filtered
-    // and capped by the distribution settings (verification, rating, max sellers)
-    const sellers = await db.rfqLine.findMany({
-      where: { rfqId, productId: { not: null } },
-      select: { product: { select: { sellerId: true, title: true } } },
-    })
-    const bySeller = new Map<string, string[]>()
-    for (const s of sellers) {
-      if (!s.product) continue
-      bySeller.set(s.product.sellerId, [...(bySeller.get(s.product.sellerId) ?? []), s.product.title])
-    }
-
-    const distribution = await resolvePanel('distribution', await rfqSettingsCtx(rfq.organizationId))
-    let eligible = [...bySeller.keys()]
-    if (distribution.enabled && distribution.mode !== 'ALL_MATCHING') {
-      if (distribution.minVerification !== 'NONE' && distribution.minVerification !== 'EMAIL') {
-        // Email is always verified on this platform; KYC+ requires the stamp
-        const rows = await db.user.findMany({
-          where: { id: { in: eligible } },
-          select: { id: true, verifiedAt: true },
-        })
-        const verified = new Set(rows.filter((u) => u.verifiedAt).map((u) => u.id))
-        eligible = eligible.filter((id) => verified.has(id))
-      }
-      if (Number(distribution.minRating) > 0) {
-        const rows = await db.product.groupBy({
-          by: ['sellerId'],
-          where: { sellerId: { in: eligible }, status: 'ACTIVE' },
-          _avg: { rating: true },
-        })
-        const ratingBySeller = new Map(rows.map((r) => [r.sellerId, r._avg.rating ?? 0]))
-        eligible = eligible.filter((id) => (ratingBySeller.get(id) ?? 0) >= Number(distribution.minRating))
-      }
-      const cap = Number(distribution.maxSellers)
-      if (eligible.length > cap) {
-        // Rank by catalog rating (the dominant ranking signal available today)
-        const rows = await db.product.groupBy({
-          by: ['sellerId'],
-          where: { sellerId: { in: eligible }, status: 'ACTIVE' },
-          _avg: { rating: true },
-        })
-        const ratingBySeller = new Map(rows.map((r) => [r.sellerId, r._avg.rating ?? 0]))
-        eligible.sort((a, b) => (ratingBySeller.get(b) ?? 0) - (ratingBySeller.get(a) ?? 0))
-        eligible = eligible.slice(0, cap)
-      }
-    }
+    // and capped by the distribution settings (verification, rating, disputes, max sellers)
+    const { eligible, titlesBySeller } = await computeEligibleSellers(rfqId, rfq.organizationId)
 
     const emits: EmitInput[] = eligible.map((sellerId) => {
-      const titles = bySeller.get(sellerId) ?? []
+      const titles = titlesBySeller.get(sellerId) ?? []
       return {
         userId: sellerId,
         type: 'RFQ_SUBMITTED_SELLER',
@@ -817,6 +888,13 @@ export async function createQuote(
       }
     }
     if (needsReview) quoteStatus = 'PENDING_REVIEW'
+  }
+
+  // Recurring RFQs: quotes on an auto-approved schedule skip the review queue
+  // (recurring.autoApprove — the schedule itself is the buyer's pre-vetting).
+  if (quoteStatus === 'PENDING_REVIEW' && rfq.sourceRecurringId) {
+    const recurring = await resolvePanel('recurring', ctx)
+    if (recurring.enabled && recurring.autoApprove) quoteStatus = 'SENT'
   }
 
   const subtotal = input.lines.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0)
@@ -1037,7 +1115,19 @@ export async function respondToQuote(
       where: { userId, organization: { status: 'ACTIVE' } },
       include: { organization: true },
     })
-    if (membership && needsApproval(membership.organization, membership.role, Number(quote.total))) {
+    if (
+      membership &&
+      needsApproval(
+        {
+          status: membership.organization.status,
+          approvalThreshold: membership.organization.approvalThreshold
+            ? Number(membership.organization.approvalThreshold)
+            : null,
+        },
+        membership.role,
+        Number(quote.total)
+      )
+    ) {
       const requester = await db.user.findUnique({ where: { id: userId }, select: { id: true, name: true } })
       await createQuoteAcceptApprovalRequest({
         organizationId: membership.organizationId,
@@ -1122,6 +1212,7 @@ export async function adminListRfqs(filter?: {
   search?: string
 }): Promise<RfqDTO[]> {
   await expireStaleQuotes()
+  await nudgeBackgroundSweeps()
   const rfqs = await db.rfq.findMany({
     where: {
       ...(filter?.status ? { status: filter.status } : {}),
@@ -1146,6 +1237,7 @@ export async function adminListRfqs(filter?: {
 /** Quotes filtered by status for the admin routing-review queue. */
 export async function adminListQuotes(status?: string): Promise<QuoteDTO[]> {
   await expireStaleQuotes()
+  await nudgeBackgroundSweeps()
   const quotes = await db.quote.findMany({
     where: status ? { status } : undefined,
     include: {
@@ -1162,6 +1254,7 @@ export async function adminListQuotes(status?: string): Promise<QuoteDTO[]> {
 
 export async function sellerRfqInbox(sellerId: string): Promise<RfqDTO[]> {
   await expireStaleQuotes()
+  await nudgeBackgroundSweeps()
   const rfqs = await db.rfq.findMany({
     where: {
       status: { in: ['SUBMITTED', 'UNDER_REVIEW', 'QUOTED'] },

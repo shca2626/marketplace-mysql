@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/auth'
 import { serializeOrder } from '@/lib/serialize'
 import { computePricing } from '@/lib/pricing'
-import { findActiveCoupon } from '@/server/modules/coupons/service'
+import { findActiveCoupon, type ActiveCoupon } from '@/server/modules/coupons/service'
 import { needsApproval, createOrderApprovalRequest, notifyOrderApprovalRequested } from '@/server/modules/approvals/service'
 
 const checkoutSchema = z.object({
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
     }, 0)
 
     // ── Coupon validation (authoritative, re-checked server-side) ──
-    let coupon = null
+    let coupon: ActiveCoupon | null = null
     if (rawCouponCode) {
       coupon = await findActiveCoupon(rawCouponCode)
       if (!coupon) {
@@ -126,7 +126,17 @@ export async function POST(req: NextRequest) {
     })
     const orgId = membership?.organizationId ?? null
     const routeForApproval =
-      !!membership && needsApproval(membership.organization, membership.role, pricing.total)
+      !!membership &&
+      needsApproval(
+        {
+          status: membership.organization.status,
+          approvalThreshold: membership.organization.approvalThreshold
+            ? Number(membership.organization.approvalThreshold)
+            : null,
+        },
+        membership.role,
+        pricing.total
+      )
 
     const order = await db.$transaction(async (tx) => {
       const created = await tx.order.create({

@@ -331,6 +331,7 @@ export interface QuoteSellerMeta {
   rating?: number | null
   reviewCount?: number
   memberSince?: string | null
+  disputeCount?: number // open disputes against this seller (sellerRating.showDisputeCount)
 }
 
 export interface QuoteDTO {
@@ -371,6 +372,7 @@ export interface RfqDTO {
   closedAt?: string | null
   expiresAt?: string | null
   extendedCount?: number
+  sourceRecurringId?: string | null // set when spawned by a recurring schedule
   createdAt: string
   lines: RfqLineDTO[]
   quotes?: QuoteDTO[]
@@ -387,6 +389,66 @@ export interface RfqMessageDTO {
   rfqId: string
   author: { id: string; name: string; role: string }
   body: string
+  createdAt: string
+}
+
+// ── Media library (uploads) ──
+export interface MediaAssetDTO {
+  id: string
+  originalName: string
+  mime: string
+  size: number
+  width?: number | null
+  height?: number | null
+  url: string
+  urls: { thumb: string; medium: string; large: string; full: string }
+  createdAt: string
+}
+
+// ── Disputes (settings: Dispute Resolution panel) ──
+export interface DisputeDTO {
+  id: string
+  number: string
+  orderId: string
+  orderNumber: string // poNumber or short id fallback
+  rfqId?: string | null
+  reason: string
+  description: string
+  amount?: number | null
+  status: string // OPEN | SELLER_RESPONDED | ESCALATED | RESOLVED | CLOSED | CANCELLED
+  sellerResponse?: string | null
+  sellerRespondedAt?: string | null
+  escalateAt?: string | null
+  outcome?: string | null
+  resolutionNote?: string | null
+  resolvedAt?: string | null
+  closedAt?: string | null
+  createdAt: string
+  buyer: { id: string; name: string }
+  seller: { id: string; name: string; storeName: string | null }
+  resolvedBy?: { id: string; name: string } | null
+  orderTotal: number
+  itemCount: number
+}
+
+// ── Recurring RFQ schedules (settings: Recurring RFQs panel) ──
+export interface RecurringScheduleDTO {
+  id: string
+  title?: string | null
+  description?: string | null
+  frequency: string // WEEKLY | BIWEEKLY | MONTHLY | QUARTERLY | CUSTOM
+  intervalDays: number
+  active: boolean
+  pausedUntil?: string | null
+  nextRunAt: string
+  lastRunAt?: string | null
+  emptyCycles: number
+  runCount: number
+  lastRfqId?: string | null
+  lastRfqNumber?: string | null
+  lineCount: number
+  totalQuantity: number
+  recipientCount: number
   createdAt: string
 }
 

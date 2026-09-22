@@ -22,15 +22,22 @@ export type NotificationType =
   | 'RFQ_QUOTE_CONVERTED' // seller: accepted quote turned into an order
   | 'RFQ_STATUS' // buyer: RFQ moved (under review / rejected / expired)
   | 'RFQ_MESSAGE' // thread participant: new message
+  | 'RFQ_QUOTE_REVIEW' // admin: a quote is held in the routing review queue
+  | 'RFQ_QUOTE_REJECTED' // seller: platform review declined the quote
   | 'APPROVAL_REQUESTED' // org approvers: purchase needs approval
   | 'APPROVAL_DECIDED' // requester: your purchase was approved/rerejected
+  | 'RFQ_DISPUTE' // seller: a buyer raised a dispute on your order
+  | 'RFQ_DISPUTE_STATUS' // buyer: your dispute moved (responded / resolved / escalated)
+  | 'RECURRING_PREVIEW' // buyer: your recurring RFQ publishes soon
+  | 'RECURRING_PUBLISHED' // buyer: a recurring run was published
+  | 'RECURRING_PAUSED' // buyer: schedule auto-paused (empty cycles) or skipped
 
 export interface EmitInput {
   userId: string
   type: NotificationType
   title: string
   body?: string | null
-  linkView: 'rfq' | 'orders' | 'business' | 'seller'
+  linkView: 'rfq' | 'orders' | 'business' | 'seller' | 'disputes' | 'admin'
   linkId?: string | null
 }
 

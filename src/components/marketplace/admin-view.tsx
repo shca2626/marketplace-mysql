@@ -7,6 +7,7 @@ import {
   FileText,
   ScrollText,
   Settings2,
+  Scale,
   ShieldAlert,
   ShieldCheck,
   Tags,
@@ -21,6 +22,7 @@ import { OrganizationsTab } from './admin/organizations-tab'
 import { OverviewTab } from './admin/overview-tab'
 import { PricingTab } from './admin/pricing-tab'
 import { RfqsTab } from './admin/rfqs-tab'
+import { DisputesTab } from './admin/disputes-tab'
 import { AdminSettings } from './admin-settings'
 import { RfqSettings } from './admin/settings/rfq-settings'
 
@@ -125,6 +127,9 @@ export function AdminView() {
           <TabsTrigger value="rfqs" className="gap-1.5 rounded-lg px-4 text-sm">
             <FileText size={14} /> RFQs
           </TabsTrigger>
+          <TabsTrigger value="disputes" className="gap-1.5 rounded-lg px-4 text-sm">
+            <Scale size={14} /> Disputes
+          </TabsTrigger>
           <TabsTrigger value="coupons" className="gap-1.5 rounded-lg px-4 text-sm">
             <Ticket size={14} /> Coupons
           </TabsTrigger>
@@ -147,6 +152,9 @@ export function AdminView() {
         </TabsContent>
         <TabsContent value="rfqs" className="mt-6">
           <RfqsTab />
+        </TabsContent>
+        <TabsContent value="disputes" className="mt-6">
+          <DisputesTab />
         </TabsContent>
         <TabsContent value="coupons" className="mt-6">
           <CouponsTab />

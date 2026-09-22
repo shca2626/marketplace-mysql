@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { CartItem, ProductDTO, ProductVariantDTO, SessionUser } from '@/lib/types'
+import type { StorefrontSettings, BannerSlideDTO } from '@/lib/settings/schema'
+import { DEFAULT_STOREFRONT_SETTINGS } from '@/lib/settings/schema'
 import { parseLocation, viewToQuery } from '@/lib/routing'
 
 /**
@@ -34,6 +36,13 @@ export interface ViewParams {
   sellerTab?: string
   rfqId?: string
   quoteId?: string
+  disputeId?: string // seller dashboard: open a specific dispute
+  scheduleId?: string // buyer RFQ view: open a specific recurring schedule
+}
+
+export interface ApplySettingsPayload {
+  settings?: StorefrontSettings
+  slides?: BannerSlideDTO[]
 }
 
 interface MarketplaceState {
@@ -48,9 +57,12 @@ interface MarketplaceState {
   authMode: 'login' | 'register'
   afterAuth: { view: View; params?: ViewParams } | null
   recentlyViewed: string[]
+  settings: StorefrontSettings // live storefront configuration (boot + admin saves)
+  slides: BannerSlideDTO[] // active hero slides (boot + admin saves)
 
   navigate: (view: View, params?: ViewParams) => void
   applyLocation: (location?: { view: View; params?: ViewParams }) => void
+  applySettings: (payload: ApplySettingsPayload) => void
   setUser: (user: SessionUser | null) => void
   setAuthChecked: (v: boolean) => void
   trackView: (productId: string) => void
@@ -84,6 +96,8 @@ export const useMarketplace = create<MarketplaceState>()(
       authMode: 'login',
       afterAuth: null,
       recentlyViewed: [],
+      settings: structuredClone(DEFAULT_STOREFRONT_SETTINGS),
+      slides: [],
 
       navigate: (view, params = {}) => {
         set({ view, params, cartOpen: false })
@@ -107,6 +121,14 @@ export const useMarketplace = create<MarketplaceState>()(
 
       setUser: (user) => set({ user }),
       setAuthChecked: (v) => set({ authChecked: v }),
+
+      // Live storefront configuration — applied at boot (/api/settings) and
+      // after every admin settings save; never persisted (server is truth).
+      applySettings: (payload) =>
+        set({
+          ...(payload.settings ? { settings: payload.settings } : {}),
+          ...(payload.slides ? { slides: payload.slides } : {}),
+        }),
 
       trackView: (productId) =>
         set((state) => ({

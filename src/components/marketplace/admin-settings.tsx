@@ -98,10 +98,16 @@ export function AdminSettings() {
         const json = (await res.json()) as { slides: BannerSlideDTO[] }
         setSlides(json.slides)
       }
+      // Keep the live storefront (hero slider) in sync with the new slide set
+      const publicRes = await fetch('/api/settings', { cache: 'no-store' })
+      if (publicRes.ok) {
+        const json = (await publicRes.json()) as { slides?: BannerSlideDTO[] }
+        if (json.slides) applySettings({ slides: json.slides })
+      }
     } finally {
       setSlidesLoading(false)
     }
-  }, [])
+  }, [applySettings])
 
   // ── draft helpers ──
   const update = useCallback(

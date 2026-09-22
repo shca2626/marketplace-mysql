@@ -173,7 +173,7 @@ export function CatalogView() {
           className="gap-1"
         >
           {[
-            { value: 'all', id: 'cat-all', name: 'All categories', count: categories.reduce((s, c) => s + c.productCount, 0) },
+            { value: 'all', id: 'cat-all', name: 'All categories', count: categories.reduce((s, c) => s + (c.productCount ?? 0), 0) },
             ...categories.map((c) => ({ value: c.slug, id: `cat-${c.slug}`, name: c.name, count: c.productCount })),
           ].map((row) => {
             const selected = (category || 'all') === row.value

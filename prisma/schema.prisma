@@ -42,6 +42,11 @@ model User {
   notifications      Notification[]    @relation("Notifications")
   verifiedAt         DateTime? // platform verification stamp (KYC-lite); enables routing auto-approve + distribution filters
   settingChanges    SettingChange[]  @relation("SettingChangeUser")
+  disputesRaised    Dispute[]   @relation("DisputeRaisedBy")
+  disputesAgainst   Dispute[]   @relation("DisputeSeller")
+  disputesResolved  Dispute[]   @relation("DisputeResolver")
+  recurringSchedules RecurringRfq[]
+  mediaAssets      MediaAsset[] @relation("MediaAssets")
 
   @@index([role])
 }
@@ -134,6 +139,7 @@ model Order {
   sourceType     String? @db.VarChar(12) // CART | RFQ
   sourceQuoteId  String? @unique // quote that produced this order
   approvalRequest ApprovalRequest?
+  disputes Dispute[]
 
   @@index([buyerId, createdAt])
   @@index([status])
@@ -171,6 +177,7 @@ model ProductVariant {
   sku            String?  @db.VarChar(64)
   position       Int      @default(0)
   isActive       Boolean  @default(true)
+  image          String?  @db.VarChar(512) // uploaded-media variant image URL
   createdAt      DateTime @default(now())
 
   @@index([productId, isActive])
@@ -334,6 +341,7 @@ model Rfq {
   closedAt       DateTime?
   expiresAt      DateTime? // RFQ deadline (expiry settings; null = no deadline)
   extendedCount  Int       @default(0) // buyer extensions used against the max-extensions rule
+  sourceRecurringId String? @db.VarChar(64) // loose FK: the RecurringRfq schedule that spawned this run
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   user           User          @relation(fields: [userId], references: [id])
@@ -478,6 +486,100 @@ model RfqMessage {
   author    User     @relation("RfqMessages", fields: [authorId], references: [id])
 
   @@index([rfqId, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Media library — uploaded images deduplicated by content hash (sha256) and
+// processed into webp renditions by the storage pipeline. Product.images
+// references the medium rendition URL; deletes are reference-checked.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model MediaAsset {
+  id            String   @id @default(cuid())
+  key           String   @unique @db.VarChar(180) // storage base key (no extension)
+  originalName  String   @db.VarChar(255)
+  mime          String   @db.VarChar(64)
+  size          Int
+  width         Int?
+  height        Int?
+  sha256        String   @unique @db.VarChar(64)
+  variants      String?  @db.Text // JSON {thumb,medium,large,full} storage keys
+  uploadedById   String
+  uploadedBy    User     @relation("MediaAssets", fields: [uploadedById], references: [id])
+  createdAt     DateTime @default(now())
+
+  @@index([uploadedById, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dispute resolution (settings: Dispute Resolution panel) — buyer raises a
+// dispute on a delivered/in-flight order against a specific seller; admins
+// mediate and record an outcome. Escalation, response windows and outcome
+// effects (rating penalty / verification loss) are enforced by the settings.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Dispute {
+  id              String    @id @default(cuid())
+  number          String    @unique @db.VarChar(32) // DSP-2026-000001
+  orderId         String
+  order           Order     @relation(fields: [orderId], references: [id])
+  raisedById      String // buyer (or admin acting for them)
+  raisedBy        User      @relation("DisputeRaisedBy", fields: [raisedById], references: [id])
+  sellerId        String // the disputed seller
+  seller          User      @relation("DisputeSeller", fields: [sellerId], references: [id])
+  rfqId           String?   @db.VarChar(64) // loose FK: RFQ context when the order came from a quote
+  reason          String    @db.VarChar(32) // NOT_AS_DESCRIBED | DAMAGED | LATE_DELIVERY | WRONG_QUANTITY | QUALITY_ISSUE | PAYMENT_NOT_RECEIVED | OTHER
+  description     String    @db.Text
+  amount          Decimal?  @db.Decimal(12, 2) // claimed amount (partial resolution support)
+  status          String    @default("OPEN") @db.VarChar(16) // OPEN | SELLER_RESPONDED | ESCALATED | RESOLVED | CLOSED | CANCELLED
+  sellerResponse  String?   @db.Text
+  sellerRespondedAt DateTime?
+  escalateAt      DateTime? // autoEscalateDays deadline while unresolved
+  outcome         String?   @db.VarChar(24) // FULL_REFUND | PARTIAL_REFUND | REPLACEMENT | REPAIR | NO_ACTION | SELLER_PENALTY
+  resolutionNote   String?  @db.Text
+  resolvedById    String?
+  resolvedBy      User?     @relation("DisputeResolver", fields: [resolvedById], references: [id])
+  resolvedAt      DateTime?
+  closedAt        DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([status, createdAt])
+  @@index([raisedById])
+  @@index([sellerId])
+  @@index([orderId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Recurring RFQ schedules (settings: Recurring RFQs panel) — standing purchase
+// requests that re-publish each cycle. The spawn engine (lazy sweep, like
+// expiry) clones the line snapshot into a fresh RFQ when nextRunAt is due.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model RecurringRfq {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id])
+  organizationId   String?   @db.VarChar(64) // loose FK: org context for settings resolution
+  title            String?   @db.VarChar(160)
+  description      String?   @db.Text
+  frequency        String    @db.VarChar(16) // WEEKLY | BIWEEKLY | MONTHLY | QUARTERLY | CUSTOM
+  intervalDays     Int       @default(0) // CUSTOM: every N days
+  lines            String    @db.Text // JSON snapshot of line inputs [{productId, variantId, productName, quantity, targetPrice, notes}]
+  recipientIds     String?   @db.Text // JSON array of seller ids (keepSameRecipients)
+  active           Boolean   @default(true)
+  pausedUntil      DateTime?
+  lastRunAt        DateTime?
+  nextRunAt        DateTime
+  previewNotifiedAt DateTime? // notifyBeforeHours heads-up sent flag
+  emptyCycles      Int       @default(0) // consecutive spawned runs with zero quotes
+  runCount         Int       @default(0)
+  lastRfqId        String?   @db.VarChar(64)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([active, nextRunAt])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

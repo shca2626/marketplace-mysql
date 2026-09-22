@@ -38,7 +38,10 @@ export LD_LIBRARY_PATH=/home/z/mysql/usr/lib:/home/z/mysql/usr/lib/x86_64-linux-
 # 3) Start + secure
 bash /home/z/mysql/start-mysql.sh
 sleep 4
-M="/home/z/mysql/usr/bin/mariadb -u root -S /home/z/mysql/mysql.sock"
+# NOTE: after SET PASSWORD on root, every subsequent call MUST pass -p
+# (the 2025-09 runbook bug: without it the user-creation step silently fails
+#  and db:push dies with P1000 auth failure).
+M="/home/z/mysql/usr/bin/mariadb -u root -pRootMySql_2025 -S /home/z/mysql/mysql.sock"
 $M -e "SET PASSWORD FOR 'root'@'localhost' = PASSWORD('RootMySql_2025');"
 $M -e "CREATE DATABASE IF NOT EXISTS vendora CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
        CREATE USER IF NOT EXISTS 'vendora'@'127.0.0.1' IDENTIFIED BY 'VendoraDb_2025_Prod';

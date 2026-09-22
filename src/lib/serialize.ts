@@ -1,11 +1,12 @@
 import { db } from '@/lib/db'
+import type { Prisma } from '@prisma/client'
 import type { CategoryDTO, OrderDTO, ProductDTO, ProductVariantDTO, ReviewDTO } from '@/lib/types'
 
-export const productInclude = {
+export const productInclude: Prisma.ProductInclude = {
   category: true,
   seller: { select: { id: true, name: true, storeName: true } },
   variants: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
-} as const
+}
 
 export type ProductVariantRaw = {
   id: string

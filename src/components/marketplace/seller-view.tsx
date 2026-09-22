@@ -15,6 +15,7 @@ import {
   PackageSearch,
   Pencil,
   Plus,
+  Scale,
   Star,
   Store,
   Trash2,
@@ -30,6 +31,7 @@ import { formatDate, formatNumber, formatUSD, timeAgo } from '@/lib/format'
 import { STORE_COVERS, getStoreCover, setStoreCover } from '@/lib/store-covers'
 import { ProductFormDialog } from './product-form-dialog'
 import { SellerRfqInboxTab } from './seller/rfq-inbox-tab'
+import { SellerDisputesTab } from './seller/disputes-tab'
 import { StarRating } from './star-rating'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -103,6 +105,10 @@ export function SellerView() {
   // Sync tab when navigation params change while the view stays mounted
   if (params.sellerTab && params.sellerTab !== activeTab) {
     setActiveTab(params.sellerTab)
+  }
+  // Bell deep-link: a dispute notification opens the disputes tab directly
+  if (params.disputeId && activeTab !== 'disputes') {
+    setActiveTab('disputes')
   }
 
   const { data: catData } = useApi<{ categories: CategoryDTO[] }>('/api/categories')
@@ -317,6 +323,9 @@ export function SellerView() {
           </TabsTrigger>
           <TabsTrigger value="rfqs" className="gap-1.5 rounded-lg px-4 text-sm">
             <Inbox size={14} /> Quote requests
+          </TabsTrigger>
+          <TabsTrigger value="disputes" className="gap-1.5 rounded-lg px-4 text-sm">
+            <Scale size={14} /> Disputes
           </TabsTrigger>
         </TabsList>
 
@@ -731,6 +740,11 @@ export function SellerView() {
         {/* ── Seller RFQ inbox tab ── */}
         <TabsContent value="rfqs" className="mt-6">
           <SellerRfqInboxTab myProducts={myProducts} />
+        </TabsContent>
+
+        {/* ── Disputes tab ── */}
+        <TabsContent value="disputes" className="mt-6">
+          <SellerDisputesTab focusId={params.disputeId ?? null} />
         </TabsContent>
 
         {/* ── Orders tab ── */}

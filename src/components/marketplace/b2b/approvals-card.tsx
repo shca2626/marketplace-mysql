@@ -170,7 +170,7 @@ export function ApprovalsCard({
 
   const savePolicy = async (clear: boolean) => {
     const parsed = clear ? null : Number.parseFloat(thresholdInput)
-    if (!clear && (Number.isNaN(parsed) || parsed < 0)) {
+    if (!clear && (parsed === null || Number.isNaN(parsed) || parsed < 0)) {
       toast({ title: 'Invalid threshold', description: 'Enter a dollar amount of 0 or more', variant: 'destructive' })
       return
     }
