@@ -815,3 +815,24 @@ Stage Summary:
 - Mobile catalog cards fixed — Add-to-cart is full-width and always inside the card.
 - The 3-same-products-from-3-sellers RFQ line test passes end-to-end, and the UI now surfaces the seller everywhere the buyer needs it (picker rows, line chips, detail badges, quote headers).
 - Deviations: none functional; RecurringSchedulesCard moved below the RFQ list; OverridesCard moved under the form (both desktop + mobile).
+
+---
+Task ID: AUDIT-R1
+Agent: main agent (Z.ai Code, orchestrator)
+Task: Platform-owner deployment audit — read the actual code and answer 16 questions with file:line evidence: operating model (multi-tenant vs single marketplace), vendor self-registration, unified storefront, vendor product management, platform-owner control surface, self-hosting requirements, and deployment gaps.
+
+Work Log:
+- Read in full/at length: prisma/schema.prisma (690 lines, MySQL provider), src/lib/auth.ts, src/server/guards.ts, src/app/api/auth/register + become-seller, src/app/api/products (list/create/[id]/bulk/export), src/app/api/home, src/app/api/sellers/[id], src/app/api/orders, src/app/api/seller/{orders,stats}, src/app/api/admin/* tree (21 requireAdmin routes inventoried), src/app/api/organizations, src/app/api/uploads, src/app/api/settings, src/lib/{storage,cache,rate-limit,settings}, src/components/dashboards/nav-config.ts, admin-view.tsx, marketplace-app.tsx, auth-modal.tsx, scripts/{add-admin,seed-b2b,seed-demo}.ts, next.config.ts, Caddyfile, .env.
+- Search-verified absences: NO Tenant model, NO src/lib/permissions.ts, NO admin users/sellers route, NO admin orders route, NO User.status field, NO test files (zero matches for *.test/*.*spec*/__tests__/vitest/jest/playwright; package.json has no test script), NO Dockerfile/docker-compose/README.
+- LIVE DEFECT CONFIRMED: src/lib/storage/index.ts:2 imports './local-disk' which does not exist on disk (lost in an earlier host reset, never committed) → GET /api/media/* returns 500 (module-not-found compiled into the route) and POST /api/uploads is broken the same way. bun -e import test reproduces: "Cannot find module './local-disk'". The media pipeline needs a LocalDiskStorage implementation restored (interface: src/lib/storage/types.ts:16-36; storage root storage/uploads, year-bucketed keys).
+- LATENT DEFECT CONFIRMED: src/app/api/products/bulk/route.ts (import action) writes columns that do not exist in the current Prisma schema (brand, condition, tags, attributes, minOrderQty, maxPerOrder, warrantyMonths, handlingDays, shippingNote, weightKg, variant priceDelta — schema.prisma has none of them; they come from src/lib/catalog/validation.ts:172-202) → bulk CSV import would throw Prisma validation errors at runtime. Single-product CRUD unaffected (uses productFormSchema from server/modules/products/service.ts).
+- Started dev server (was down), verified / = 200.
+- Recreated the 15-min webDevReview watchdog cron (new job 406961) — both prior jobs (406787, 406925) were auto-disabled by exec limits.
+
+Stage Summary:
+- VERDICT for the owner: Vendora is a SINGLE unified marketplace by construction (no tenant key anywhere; User.role BUYER|SELLER|ADMIN; Product.sellerId→User; all catalog/home queries are global with status=ACTIVE only) — exactly the operating model the owner wants, and vendor self-registration exists and is instant (POST /api/auth/register role=SELLER, or POST /api/auth/become-seller; no approval gate).
+- Vendor product management is correctly owner-scoped (PUT/DELETE 403 unless sellerId===user.id; bulk operations re-filter to owned ids).
+- Platform-owner control is PARTIAL: full analytics/RFQ/disputes/settings/orgs yes; but no vendor directory, no vendor suspend (User has no status; only dispute outcomes clear verifiedAt), no admin edit of a vendor's product (strict owner check), no all-orders view (only recent 8 in stats), and checkout is a mock (orders born 'PAID', no payment gateway).
+- Self-hosting: MySQL only, 3 env vars (DATABASE_URL, AUTH_SECRET ≥32 chars, optional STORAGE_DRIVER=local-disk), standalone build supported; but no Dockerfile/compose/guide, media pipeline broken (missing local-disk.ts), bulk import schema-stale.
+- Top 3 risks: (1) broken media module (file missing), (2) single-node in-memory cache/rate-limiter + in-memory full-catalog search (products route loads every row then filters in JS — TD-03), (3) no vendor lifecycle controls + mock payments.
+- Recommended next-phase order: restore local-disk.ts + fix bulk schema (P0), then admin vendor-management module (P1), then payment integration (P2).
