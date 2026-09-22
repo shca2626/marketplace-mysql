@@ -20,6 +20,9 @@ export async function POST(req: NextRequest) {
   if (user.role !== 'SELLER' && user.role !== 'ADMIN') {
     return NextResponse.json({ error: 'Only sellers can upload media' }, { status: 403 })
   }
+  if (user.role === 'SELLER' && user.status === 'SUSPENDED') {
+    return NextResponse.json({ error: 'Your vendor account is suspended' }, { status: 403 })
+  }
 
   const limited = enforceRateLimit(req, 'upload', RATE_LIMITS.upload, user.id)
   if (limited) return limited

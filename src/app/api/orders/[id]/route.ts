@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/auth'
 import { serializeOrder } from '@/lib/serialize'
 import { cancelApprovalForOrder } from '@/server/modules/approvals/service'
+import { cancelPaymentForOrder } from '@/server/modules/payments/service'
 
 const STATUS_FLOW = ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED']
 
@@ -16,13 +17,14 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
     const order = await db.order.findUnique({
       where: { id },
-      include: { items: true, buyer: { select: { id: true, name: true, email: true } } },
+      include: { items: true, payment: true, buyer: { select: { id: true, name: true, email: true } } },
     })
     if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
 
     const isBuyer = order.buyerId === user.id
     const isSeller = order.items.some((i) => i.sellerId === user.id)
-    if (!isBuyer && !isSeller)
+    const isAdmin = user.role === 'ADMIN'
+    if (!isBuyer && !isSeller && !isAdmin)
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     return NextResponse.json({ order: serializeOrder(order, isSeller && !isBuyer ? user.id : undefined) })
@@ -48,15 +50,16 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
       if (order.buyerId !== user.id)
         return NextResponse.json({ error: 'Only the buyer can cancel this order' }, { status: 403 })
-      if (order.status !== 'PAID' && order.status !== 'PENDING_APPROVAL')
+      if (order.status !== 'PAID' && order.status !== 'PENDING_APPROVAL' && order.status !== 'PENDING_PAYMENT')
         return NextResponse.json(
           { error: 'This order can no longer be cancelled — it is already being processed' },
           { status: 400 }
         )
 
       const updated = await db.$transaction(async (tx) => {
-        // Withdraw any pending org approval for this order
+        // Withdraw any pending org approval + void the pending payment
         await cancelApprovalForOrder(tx, id)
+        await cancelPaymentForOrder(tx, id)
         // Restock every item and roll back sold counts
         for (const item of order.items) {
           if (item.variantId) {
@@ -78,7 +81,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         return tx.order.update({
           where: { id },
           data: { status: 'CANCELLED' },
-          include: { items: true, buyer: { select: { id: true, name: true, email: true } } },
+          include: { items: true, payment: true, buyer: { select: { id: true, name: true, email: true } } },
         })
       })
 
@@ -93,11 +96,18 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
 
     const isSeller = order.items.some((i) => i.sellerId === user.id)
-    if (!isSeller) return NextResponse.json({ error: 'Only the seller can update fulfillment' }, { status: 403 })
+    const isAdmin = user.role === 'ADMIN'
+    if (!isSeller && !isAdmin) return NextResponse.json({ error: 'Only the seller can update fulfillment' }, { status: 403 })
 
     if (order.status === 'PENDING_APPROVAL')
       return NextResponse.json(
         { error: 'This order is awaiting the buying company\'s approval — fulfillment unlocks once approved' },
+        { status: 400 }
+      )
+
+    if (order.status === 'PENDING_PAYMENT')
+      return NextResponse.json(
+        { error: 'This order is awaiting payment — fulfillment unlocks once the payment is confirmed' },
         { status: 400 }
       )
 
@@ -113,7 +123,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const updated = await db.order.update({
       where: { id },
       data: { status: parsed.data.status },
-      include: { items: true, buyer: { select: { id: true, name: true, email: true } } },
+      include: { items: true, payment: true, buyer: { select: { id: true, name: true, email: true } } },
     })
 
     return NextResponse.json({ order: serializeOrder(updated, user.id) })

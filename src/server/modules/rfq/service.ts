@@ -4,6 +4,7 @@ import { nextNumber } from '@/server/modules/sequences/service'
 import { needsApproval, createQuoteAcceptApprovalRequest } from '@/server/modules/approvals/service'
 import { emitNotification, emitNotifications, type EmitInput } from '@/server/modules/notifications/service'
 import { resolvePanel } from '@/server/modules/settings/service'
+import { ensurePayment } from '@/server/modules/payments/service'
 import { openDisputeCountBySeller, lostDisputeCountBySeller } from './disputes'
 import type { RfqDTO, QuoteDTO, RfqLineDTO, QuoteLineDTO, RfqMessageDTO } from '@/lib/types'
 
@@ -1640,6 +1641,16 @@ export async function convertQuoteToOrder(
     await tx.rfq.update({
       where: { id: quote.rfqId },
       data: { status: 'ORDERED', closedAt: new Date() },
+    })
+
+    // B2B money tracking: the converted order runs on NET terms — record an
+    // INVOICE payment with the due date so the payments console can chase it.
+    await ensurePayment(tx, {
+      orderId: created.id,
+      amount: quote.total.toNumber(),
+      method: 'INVOICE',
+      paymentTerms: quote.paymentTerms,
+      orderRef: input.poNumber?.trim().slice(0, 40) || created.id.slice(-8).toUpperCase(),
     })
 
     return created

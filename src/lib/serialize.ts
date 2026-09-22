@@ -186,7 +186,19 @@ export function serializeOrder(
     zip: string
     phone?: string | null
     createdAt: Date
+    paymentTerms?: string | null
+    poNumber?: string | null
+    sourceType?: string | null
     buyer?: { id: string; name: string; email: string }
+    payment?: {
+      method: string
+      status: string
+      reference?: string | null
+      instructions?: string | null
+      dueAt?: Date | null
+      paidAt?: Date | null
+      amount?: unknown
+    } | null
     items: {
       id: string
       productId: string
@@ -212,6 +224,19 @@ export function serializeOrder(
     zip: o.zip,
     phone: o.phone ?? null,
     createdAt: o.createdAt.toISOString(),
+    paymentTerms: o.paymentTerms ?? null,
+    poNumber: o.poNumber ?? null,
+    sourceType: o.sourceType ?? null,
+    payment: o.payment
+      ? {
+          method: o.payment.method,
+          status: o.payment.status,
+          reference: o.payment.reference ?? null,
+          instructions: o.payment.instructions ?? null,
+          dueAt: o.payment.dueAt?.toISOString() ?? null,
+          paidAt: o.payment.paidAt?.toISOString() ?? null,
+        }
+      : null,
     buyer: o.buyer,
     items: o.items.map((i) => ({ ...i, mine: sellerId ? i.sellerId === sellerId : undefined })),
   }

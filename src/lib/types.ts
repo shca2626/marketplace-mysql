@@ -99,6 +99,15 @@ export interface OrderItemDTO {
   variantName?: string | null
 }
 
+export interface OrderPaymentDTO {
+  method: string
+  status: string
+  reference: string | null
+  instructions: string | null
+  dueAt: string | null
+  paidAt: string | null
+}
+
 export interface OrderDTO {
   id: string
   total: number
@@ -110,6 +119,10 @@ export interface OrderDTO {
   zip: string
   phone?: string | null
   createdAt: string
+  paymentTerms?: string | null
+  poNumber?: string | null
+  sourceType?: string | null
+  payment?: OrderPaymentDTO | null
   buyer?: { id: string; name: string; email: string }
   items: OrderItemDTO[]
 }

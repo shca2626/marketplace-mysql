@@ -128,3 +128,86 @@ export const productFormSchema = z.object({
     .optional(),
   variants: z.array(variantSchema).max(100, 'Too many variants (max 100)').optional(),
 })
+
+import type { Prisma } from '@prisma/client'
+import { productInclude } from '@/lib/serialize'
+
+/**
+ * Shared product creation (POST /api/products + bulk import).
+ * Validates nothing itself — callers parse with productFormSchema first.
+ * Returns the created row with the standard list include.
+ */
+export async function createProduct(
+  sellerId: string,
+  d: z.infer<typeof productFormSchema>
+) {
+  const status = d.status ?? 'ACTIVE'
+  if (status === 'ACTIVE' && d.images.length === 0) {
+    throw Object.assign(new Error('Add at least one image before publishing (or save as draft)'), { status: 400 })
+  }
+
+  // With variants, per-combo stock is authoritative → product.stock is their sum
+  const variants = d.variants ?? []
+  const stock = variants.length ? variants.reduce((s, v) => s + v.stock, 0) : d.stock
+  const slug = await ensureUniqueSlug(d.slug?.trim() || slugify(d.title))
+
+  return db.$transaction(async (tx) => {
+    const created = await tx.product.create({
+      data: {
+        title: d.title.trim(),
+        description: d.description.trim(),
+        price: d.price,
+        compareAtPrice: d.compareAtPrice ?? null,
+        images: JSON.stringify(d.images),
+        categoryId: d.categoryId,
+        sellerId,
+        stock,
+        status,
+        sku: d.sku?.trim() || null,
+        barcode: d.barcode?.trim() || null,
+        videoUrl: d.videoUrl?.trim() || null,
+        highlights: d.highlights?.length ? JSON.stringify(d.highlights) : null,
+        specs: d.specs?.length ? JSON.stringify(d.specs) : null,
+        materials: d.materials?.trim() || null,
+        care: d.care?.trim() || null,
+        weightGrams: d.weightGrams ?? null,
+        lengthCm: d.lengthCm ?? null,
+        widthCm: d.widthCm ?? null,
+        heightCm: d.heightCm ?? null,
+        processingDays: d.processingDays ?? null,
+        freeShipping: d.freeShipping ?? false,
+        shippingFee: d.freeShipping ? null : (d.shippingFee ?? null),
+        shippingPolicy: d.shippingPolicy?.trim() || null,
+        slug,
+        metaTitle: d.metaTitle?.trim() || null,
+        metaDescription: d.metaDescription?.trim() || null,
+        moq: d.moq ?? null,
+        priceTiers: d.priceTiers?.length ? JSON.stringify(d.priceTiers) : null,
+      },
+    })
+    if (variants.length > 0) {
+      await tx.productVariant.createMany({
+        data: variants.map((v, i) => ({
+          productId: created.id,
+          name: v.name,
+          options: JSON.stringify(v.options ?? {}),
+          price: v.price ?? null,
+          compareAtPrice: v.compareAtPrice ?? null,
+          stock: v.stock,
+          sku: v.sku?.trim() || null,
+          position: i,
+          isActive: v.isActive ?? true,
+        })),
+      })
+    }
+    return tx.product.findUnique({ where: { id: created.id }, include: productInclude })
+  })
+}
+
+/** Validate a create payload through the shared form schema (bulk import path). */
+export function parseProductForm(body: unknown) {
+  return productFormSchema.safeParse(body)
+}
+
+// keep Prisma type import used for future typed tx helpers
+export type ProductTx = Prisma.TransactionClient

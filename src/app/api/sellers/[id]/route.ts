@@ -11,7 +11,7 @@ export async function GET(
     const { id } = await params
 
     const seller = await db.user.findFirst({
-      where: { id, role: 'SELLER' },
+      where: { id, role: 'SELLER', status: 'ACTIVE' },
       select: {
         id: true,
         name: true,

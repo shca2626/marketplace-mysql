@@ -7,8 +7,10 @@ import {
   BadgePercent,
   CalendarClock,
   CheckCircle2,
+  Copy,
   CreditCard,
   Hourglass,
+  Landmark,
   Loader2,
   Lock,
   MailCheck,
@@ -19,9 +21,10 @@ import {
   X,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
+import { useApi } from '@/hooks/use-api'
 import { useMarketplace } from '@/store/marketplace'
 import type { OrderDTO } from '@/lib/types'
-import { formatUSD } from '@/lib/format'
+import { formatDate, formatUSD } from '@/lib/format'
 import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE } from '@/lib/pricing'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -106,6 +109,13 @@ export function CheckoutView() {
   const [placing, setPlacing] = useState(false)
   const [placedOrder, setPlacedOrder] = useState<OrderDTO | null>(null)
   const [placedPendingApproval, setPlacedPendingApproval] = useState(false)
+  const [placedPendingPayment, setPlacedPendingPayment] = useState(false)
+  const [placedPayment, setPlacedPayment] = useState<{
+    method: string
+    status: string
+    instructions: string | null
+    dueAt: string | null
+  } | null>(null)
   const [placedPricing, setPlacedPricing] = useState<{ discount: number; couponCode: string | null } | null>(null)
 
   // ── Coupon state ──
@@ -115,10 +125,27 @@ export function CheckoutView() {
   const [applyingCoupon, setApplyingCoupon] = useState(false)
 
   // ── Payment state (demo card fields — display only, never stored) ──
-  const [payMethod, setPayMethod] = useState<'card' | 'wallet'>('card')
+  // 'card' → paymentMethod CARD (simulated gateway, instant confirmation)
+  // 'bank' → paymentMethod BANK_TRANSFER (order parks in PENDING_PAYMENT)
+  const [payMethod, setPayMethod] = useState<'card' | 'bank'>('card')
   const [card, setCard] = useState({ number: '', expiry: '', cvc: '' })
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
-  const [paidWith, setPaidWith] = useState<{ method: 'card' | 'wallet'; last4?: string } | null>(null)
+  const [paidWith, setPaidWith] = useState<{ method: 'card'; last4?: string } | null>(null)
+
+  // Payment options offered by the platform — CARD runs on the simulated
+  // gateway; a manual-only deployment (PAYMENT_DRIVER=manual) lists bank
+  // transfer alone and we auto-select it.
+  const { data: methodsData } = useApi<{
+    methods: { id: string; label: string; manual: boolean; description: string }[]
+  }>('/api/payments/methods')
+  const methods = methodsData?.methods ?? null
+  const cardAvailable = methods ? methods.some((m) => m.id === 'CARD') : true
+  const bankDescription =
+    methods?.find((m) => m.id === 'BANK_TRANSFER')?.description ??
+    'Wire the total to the platform account; an operator confirms receipt.'
+  if (!cardAvailable && payMethod === 'card') {
+    setPayMethod('bank')
+  }
 
   const subtotal = cart.reduce((sum, i) => sum + i.price * i.quantity, 0)
   const freeShipping = subtotal >= FREE_SHIPPING_THRESHOLD
@@ -251,7 +278,7 @@ export function CheckoutView() {
     setPaidWith(
       payMethod === 'card'
         ? { method: 'card', last4: card.number.replace(/\s/g, '').slice(-4) }
-        : { method: 'wallet' }
+        : null
     )
     setPlacing(true)
     try {
@@ -267,6 +294,7 @@ export function CheckoutView() {
           ...form,
           phone: form.phone || null,
           couponCode: appliedCoupon?.code ?? null,
+          paymentMethod: payMethod === 'card' ? 'CARD' : 'BANK_TRANSFER',
         }),
       })
       const json = await res.json()
@@ -277,6 +305,8 @@ export function CheckoutView() {
       setPlacedOrder(json.order)
       setPlacedPricing(json.pricing ?? null)
       setPlacedPendingApproval(!!json.pendingApproval)
+      setPlacedPendingPayment(!!json.pendingPayment)
+      setPlacedPayment(json.payment ?? null)
       clearCart()
       toast(
         json.pendingApproval
@@ -284,7 +314,13 @@ export function CheckoutView() {
               title: 'Sent for approval 🕐',
               description: 'Your organization must approve this order before it reaches the seller.',
             }
-          : { title: 'Order placed! 🎉', description: 'A confirmation has been sent to your email' }
+          : json.pendingPayment
+            ? {
+                title: 'Order placed — awaiting your bank transfer',
+                description:
+                  'Wire the total using the bank details on the confirmation screen. Transfers are confirmed by an operator on business days.',
+              }
+            : { title: 'Order placed! 🎉', description: 'A confirmation has been sent to your email' }
       )
     } catch {
       toast({ title: 'Checkout failed', description: 'Network error — please try again', variant: 'destructive' })
@@ -311,18 +347,31 @@ export function CheckoutView() {
               <div className="flex h-[72px] w-[72px] items-center justify-center rounded-full border-2 border-teal-500/40 bg-teal-500/10">
                 <Hourglass size={36} className="text-teal-600 dark:text-teal-400" />
               </div>
+            ) : placedPendingPayment ? (
+              <div className="flex h-[72px] w-[72px] items-center justify-center rounded-full border-2 border-amber-500/40 bg-amber-500/10">
+                <Landmark size={36} className="text-amber-600 dark:text-amber-400" />
+              </div>
             ) : (
               <CheckCircle2 size={72} className="text-emerald-500" />
             )}
           </motion.div>
           <h1 className="mt-6 text-3xl font-extrabold tracking-tight">
-            {placedPendingApproval ? 'Sent for approval' : 'Order confirmed!'}
+            {placedPendingApproval
+              ? 'Sent for approval'
+              : placedPendingPayment
+                ? 'Order placed — awaiting your bank transfer'
+                : 'Order confirmed!'}
           </h1>
           <p className="mt-2 text-muted-foreground">
             {placedPendingApproval ? (
               <>
                 Thanks, {placedOrder.fullName.split(' ')[0]}! Your order is on hold until an approver in your
                 organization clears it — we&apos;ll move it to the seller the moment it&apos;s approved.
+              </>
+            ) : placedPendingPayment ? (
+              <>
+                Thanks, {placedOrder.fullName.split(' ')[0]}! Your order is reserved. Wire the total using the
+                bank details below — an operator confirms receipt on business days.
               </>
             ) : (
               <>
@@ -332,7 +381,7 @@ export function CheckoutView() {
           </p>
 
           {/* Simulated confirmation email */}
-          {user?.email && !placedPendingApproval && (
+          {user?.email && !placedPendingApproval && !placedPendingPayment && (
             <motion.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
@@ -354,13 +403,19 @@ export function CheckoutView() {
                   <p className="font-mono text-sm font-bold">{placedOrder.id.slice(-8).toUpperCase()}</p>
                 </div>
                 <Badge
-                  className={
+                  className={cn(
                     placedPendingApproval
                       ? 'bg-teal-500 hover:bg-teal-500'
-                      : 'bg-emerald-500 hover:bg-emerald-500'
-                  }
+                      : placedPendingPayment
+                        ? 'bg-amber-500 hover:bg-amber-500'
+                        : 'bg-emerald-500 hover:bg-emerald-500'
+                  )}
                 >
-                  {placedPendingApproval ? 'AWAITING APPROVAL' : placedOrder.status}
+                  {placedPendingApproval
+                    ? 'AWAITING APPROVAL'
+                    : placedPendingPayment
+                      ? 'AWAITING PAYMENT'
+                      : placedOrder.status}
                 </Badge>
               </div>
               <Separator />
@@ -383,7 +438,7 @@ export function CheckoutView() {
               </ul>
               <Separator />
               <div className="flex justify-between text-base font-bold">
-                <span>{placedPendingApproval ? 'Order total' : 'Total paid'}</span>
+                <span>{placedPendingApproval || placedPendingPayment ? 'Order total' : 'Total paid'}</span>
                 <span>{formatUSD(placedOrder.total)}</span>
               </div>
               {placedPricing && placedPricing.discount > 0 && placedPricing.couponCode && (
@@ -398,21 +453,57 @@ export function CheckoutView() {
                   Shipping to {placedOrder.address}, {placedOrder.city}, {placedOrder.country} {placedOrder.zip}
                 </span>
               </div>
+
+              {/* Bank transfer — wire instructions + reference */}
+              {placedPendingPayment && (
+                <div className="space-y-3 rounded-xl border border-amber-500/40 bg-amber-500/5 p-4 text-left">
+                  <div className="flex items-center gap-2">
+                    <Landmark size={15} className="shrink-0 text-amber-600 dark:text-amber-400" />
+                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                      Bank transfer details
+                    </p>
+                  </div>
+                  <pre className="whitespace-pre-wrap rounded-lg border bg-background/60 p-3 font-mono text-[11px] leading-relaxed">
+                    {placedPayment?.instructions ??
+                      'The platform bank account details will be sent to your email.'}
+                  </pre>
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="text-muted-foreground">Transfer reference</span>
+                    <span className="rounded-md bg-amber-500/10 px-2 py-1 font-mono text-xs font-bold text-amber-700 dark:text-amber-300">
+                      {placedOrder.id.slice(-8).toUpperCase()}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        navigator.clipboard
+                          ?.writeText(placedOrder.id.slice(-8).toUpperCase())
+                          .then(() => toast({ title: 'Reference copied' }))
+                          .catch(() => {})
+                      }
+                      className="rounded-full p-1 text-muted-foreground transition hover:text-foreground"
+                      aria-label="Copy transfer reference"
+                    >
+                      <Copy size={13} />
+                    </button>
+                  </div>
+                  {placedPayment?.dueAt && (
+                    <p className="text-xs text-muted-foreground">
+                      Please complete the transfer by {formatDate(placedPayment.dueAt)}.
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    You can also pay later from My Orders — the order stays reserved until the transfer is
+                    confirmed.
+                  </p>
+                </div>
+              )}
+
               {paidWith && (
                 <div className="flex items-center gap-2 rounded-lg bg-muted/60 p-3 text-xs text-muted-foreground">
-                  {paidWith.method === 'card' ? (
-                    <>
-                      <CreditCard size={14} className="shrink-0" />
-                      <span>
-                        Paid by card <span className="font-mono font-semibold">•••• {paidWith.last4}</span>
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <Lock size={14} className="shrink-0" />
-                      <span>Paid with Vendora wallet</span>
-                    </>
-                  )}
+                  <CreditCard size={14} className="shrink-0" />
+                  <span>
+                    Paid by card <span className="font-mono font-semibold">•••• {paidWith.last4}</span>
+                  </span>
                 </div>
               )}
             </CardContent>
@@ -576,36 +667,41 @@ export function CheckoutView() {
             <CardContent>
               <RadioGroup
                 value={payMethod}
-                onValueChange={(v) => setPayMethod(v as 'card' | 'wallet')}
+                onValueChange={(v) => setPayMethod(v as 'card' | 'bank')}
                 className="gap-3"
               >
+                {cardAvailable && (
+                  <Label
+                    htmlFor="pay-card"
+                    className="flex cursor-pointer items-center gap-3 rounded-xl border-2 p-4 transition-colors has-[[data-state=checked]]:border-primary"
+                  >
+                    <RadioGroupItem value="card" id="pay-card" />
+                    <CreditCard size={18} className="text-muted-foreground" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Credit / debit card</p>
+                      <p className="text-xs text-muted-foreground">
+                        Visa, Mastercard, Amex — confirmed instantly
+                      </p>
+                    </div>
+                    <span className="text-[10px] font-semibold uppercase text-muted-foreground">Demo</span>
+                  </Label>
+                )}
                 <Label
-                  htmlFor="pay-card"
+                  htmlFor="pay-bank"
                   className="flex cursor-pointer items-center gap-3 rounded-xl border-2 p-4 transition-colors has-[[data-state=checked]]:border-primary"
                 >
-                  <RadioGroupItem value="card" id="pay-card" />
-                  <CreditCard size={18} className="text-muted-foreground" />
+                  <RadioGroupItem value="bank" id="pay-bank" />
+                  <Landmark size={18} className="text-muted-foreground" />
                   <div className="flex-1">
-                    <p className="text-sm font-medium">Credit / debit card</p>
-                    <p className="text-xs text-muted-foreground">Visa, Mastercard, Amex</p>
+                    <p className="text-sm font-medium">Bank transfer</p>
+                    <p className="text-xs text-muted-foreground">{bankDescription}</p>
                   </div>
-                  <span className="text-[10px] font-semibold uppercase text-muted-foreground">Demo</span>
-                </Label>
-                <Label
-                  htmlFor="pay-wallet"
-                  className="flex cursor-pointer items-center gap-3 rounded-xl border-2 p-4 transition-colors has-[[data-state=checked]]:border-primary"
-                >
-                  <RadioGroupItem value="wallet" id="pay-wallet" />
-                  <Lock size={18} className="text-muted-foreground" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">Vendora wallet</p>
-                    <p className="text-xs text-muted-foreground">Pay with your balance</p>
-                  </div>
+                  <span className="text-[10px] font-semibold uppercase text-muted-foreground">Manual</span>
                 </Label>
               </RadioGroup>
 
               {/* Card details — demo-only, formatted as-you-type, never stored */}
-              {payMethod === 'card' && (
+              {payMethod === 'card' ? (
                 <motion.div
                   initial={{ opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -680,6 +776,26 @@ export function CheckoutView() {
                       {fieldErrors.cardCvc && (
                         <p className="text-xs font-medium text-destructive" role="alert">{fieldErrors.cardCvc}</p>
                       )}
+                    </div>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-4 space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                      <Landmark size={15} />
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold">Order now, wire later</p>
+                      <p className="text-xs text-muted-foreground">
+                        Your order is placed immediately and the items are reserved. We&apos;ll show the
+                        platform bank account details on the next screen — wire the total and an operator
+                        confirms receipt on business days.
+                      </p>
                     </div>
                   </div>
                 </motion.div>

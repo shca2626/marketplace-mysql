@@ -25,6 +25,10 @@ import {
   ShoppingBag,
   SlidersHorizontal,
   Briefcase,
+  StoreIcon,
+  Receipt,
+  Banknote,
+  Wallet,
 } from 'lucide-react'
 import type { View, ViewParams } from '@/store/marketplace'
 
@@ -77,9 +81,19 @@ export const ADMIN_NAV: NavConfig = {
     {
       label: 'Operations',
       items: [
+        { key: 'vendors', label: 'Vendors', icon: StoreIcon, description: 'Seller directory, verification & suspension' },
+        { key: 'products', label: 'Products', icon: Package, description: 'Full catalog moderation & takedowns' },
+        { key: 'orders', label: 'Orders', icon: ShoppingBag, description: 'Every order across the marketplace' },
         { key: 'organizations', label: 'Organizations', icon: Building2, description: 'Companies, banks, MFIs & e-wallets' },
         { key: 'pricing', label: 'Pricing & Lists', icon: Tags, description: 'Price lists & customer groups' },
         { key: 'coupons', label: 'Coupons', icon: Ticket, description: 'Promotions & discount codes' },
+      ],
+    },
+    {
+      label: 'Finance',
+      items: [
+        { key: 'payments', label: 'Payments', icon: Receipt, description: 'Money settlement & capture queue' },
+        { key: 'payouts', label: 'Payouts', icon: Banknote, description: 'Vendor settlement & commission' },
       ],
     },
     {
@@ -105,6 +119,11 @@ export const ADMIN_NAV: NavConfig = {
   ],
   titles: {
     overview: { title: 'Platform Overview', description: 'Live marketplace KPIs, activity and health at a glance.' },
+    vendors: { title: 'Vendors', description: 'Every seller on the marketplace — verify, suspend and set commissions.' },
+    products: { title: 'Product Moderation', description: 'Browse and moderate every listing on the marketplace.' },
+    orders: { title: 'Orders', description: 'Every order placed on the platform — buyers, sellers and money.' },
+    payments: { title: 'Payments', description: 'Settlement console — bank transfers and invoices awaiting capture.' },
+    payouts: { title: 'Payouts', description: 'Vendor settlement batches and commission configuration.' },
     organizations: { title: 'Organizations', description: 'Manage companies, banks, MFIs, e-wallets and their members.' },
     pricing: { title: 'Pricing & Lists', description: 'Price lists and customer groups that drive contract pricing.' },
     coupons: { title: 'Coupons', description: 'Create and monitor promotional discount codes.' },
@@ -138,6 +157,7 @@ export const SELLER_NAV: NavConfig = {
       label: 'Sales',
       items: [
         { key: 'orders', label: 'Orders', icon: ShoppingBag, description: 'Incoming orders & fulfilment' },
+        { key: 'earnings', label: 'Earnings', icon: Wallet, description: 'Settlement & payout history' },
         { key: 'rfqs', label: 'RFQ Inbox', icon: FileText, description: 'Quote requests for your catalog' },
         { key: 'disputes', label: 'Disputes', icon: Scale, description: 'Buyer disputes on your orders' },
       ],
@@ -147,6 +167,7 @@ export const SELLER_NAV: NavConfig = {
     overview: { title: 'Seller Dashboard', description: 'Your store performance, sales and activity.' },
     products: { title: 'Products', description: 'Manage listings, pricing, stock and variants.' },
     orders: { title: 'Orders', description: 'Incoming orders and fulfilment status.' },
+    earnings: { title: 'Earnings', description: 'Your settlement balance, commission rate and payout history.' },
     rfqs: { title: 'RFQ Inbox', description: 'Quote requests that reference your catalog — respond with winning quotes.' },
     disputes: { title: 'Disputes', description: 'Buyer disputes raised against your orders.' },
   },

@@ -71,7 +71,11 @@ export async function getSessionUser() {
   const userId = parseSessionToken(cookieStore.get(SESSION_COOKIE)?.value)
   if (!userId) return null
   const user = await db.user.findUnique({ where: { id: userId } })
-  return user ?? null
+  // Suspended accounts are globally locked out: their session stops resolving
+  // (they effectively sign out everywhere). Admins can reactivate from the
+  // vendor management console.
+  if (!user || user.status === 'SUSPENDED') return null
+  return user
 }
 
 export function toSessionUser(user: {

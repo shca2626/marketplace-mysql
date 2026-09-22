@@ -5,8 +5,7 @@ import { getSessionUser } from '@/lib/auth'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { CACHE_TAGS, invalidateTags } from '@/lib/cache'
 import { RATE_LIMITS } from '@/lib/rate-limit'
-import { productCreateSchema, validateAttributes } from '@/lib/catalog/validation'
-import { slugifyTitle } from '@/lib/catalog/definitions'
+import { createProduct, productFormSchema } from '@/server/modules/products/service'
 import type { ImportRow } from '@/lib/product-io'
 
 /**
@@ -48,119 +47,77 @@ interface RowResult {
   productId?: string
 }
 
+/**
+ * Map a raw import row onto the shared product form schema, resolve the
+ * category, then create through the SAME service the single-create route
+ * uses (createProduct). This keeps bulk and manual creates schema-identical
+ * — the old inline create had drifted from the live schema and crashed.
+ */
 async function createFromImportRow(
   sellerId: string,
   row: Record<string, unknown>
 ): Promise<{ ok: true; productId: string } | { ok: false; error: string }> {
-  const importRow = row as unknown as ImportRow
+  const r = row as unknown as ImportRow
+
   // category slug / name / id → category record
   const category = await db.category.findFirst({
     where: {
-      OR: [
-        { slug: importRow.categorySlug },
-        { name: importRow.categorySlug },
-        { id: importRow.categorySlug },
-      ],
+      OR: [{ slug: r.categorySlug }, { name: r.categorySlug }, { id: r.categorySlug }],
     },
   })
-  if (!category) return { ok: false, error: `Unknown category "${importRow.categorySlug}"` }
+  if (!category) return { ok: false, error: `Unknown category "${r.categorySlug}"` }
 
-  // normalize to the create schema shape
-  const payload = {
-    title: importRow.title,
-    description: importRow.description,
-    price: importRow.price,
-    compareAtPrice: importRow.compareAtPrice ?? null,
-    images: importRow.images,
+  const parsed = productFormSchema.safeParse({
+    title: r.title,
+    description: r.description,
+    price: r.price,
+    compareAtPrice: r.compareAtPrice ?? null,
+    images: Array.isArray(r.images) ? r.images : [],
     categoryId: category.id,
-    stock: importRow.stock ?? 10,
-    brand: importRow.brand ?? null,
-    sku: importRow.sku ?? null,
-    barcode: importRow.barcode ?? null,
-    condition: importRow.condition ?? 'NEW',
-    tags: importRow.tags ?? [],
-    videoUrl: importRow.videoUrl ?? null,
-    freeShipping: importRow.freeShipping ?? false,
-    shippingNote: importRow.shippingNote ?? null,
-    handlingDays: importRow.handlingDays ?? 2,
-    weightKg: importRow.weightKg ?? null,
-    lengthCm: importRow.lengthCm ?? null,
-    widthCm: importRow.widthCm ?? null,
-    heightCm: importRow.heightCm ?? null,
-    minOrderQty: importRow.minOrderQty ?? 1,
-    maxPerOrder: importRow.maxPerOrder ?? null,
-    warrantyMonths: importRow.warrantyMonths ?? null,
-    metaTitle: importRow.metaTitle ?? null,
-    metaDescription: importRow.metaDescription ?? null,
-    status: importRow.status ?? 'ACTIVE',
-    attributes: importRow.attributes ?? {},
-    variants: importRow.variants,
-  }
-
-  const parsed = productCreateSchema.safeParse(payload)
+    stock: r.stock ?? 10,
+    status: r.status === 'DRAFT' ? 'DRAFT' : 'ACTIVE',
+    sku: r.sku ?? null,
+    barcode: r.barcode ?? null,
+    videoUrl: r.videoUrl ?? null,
+    freeShipping: r.freeShipping ?? false,
+    shippingFee: r.freeShipping ? null : null,
+    weightGrams: r.weightKg != null ? Math.round(r.weightKg * 1000) : null,
+    lengthCm: r.lengthCm ?? null,
+    widthCm: r.widthCm ?? null,
+    heightCm: r.heightCm ?? null,
+    processingDays: r.handlingDays ?? null,
+    metaTitle: r.metaTitle ?? null,
+    metaDescription: r.metaDescription ?? null,
+    moq: r.minOrderQty && r.minOrderQty > 1 ? r.minOrderQty : null,
+    variants: Array.isArray(r.variants)
+      ? r.variants.map((v) => ({
+          name: v.name,
+          options: (v.options ?? {}) as Record<string, string>,
+          price: v.priceDelta != null ? Math.round((r.price + v.priceDelta) * 100) / 100 : null,
+          compareAtPrice: null,
+          stock: v.stock ?? 0,
+          sku: v.sku || null,
+          isActive: true,
+        }))
+      : undefined,
+  })
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid row data' }
   }
-  const attrCheck = validateAttributes(category.slug, parsed.data.attributes ?? {})
-  if (!attrCheck.ok) return { ok: false, error: attrCheck.errors[0] }
 
-  // slug uniqueness
-  const base = slugifyTitle(parsed.data.title)
-  let slug = base
-  let i = 2
-  for (;;) {
-    const existing = await db.product.findFirst({ where: { slug }, select: { id: true } })
-    if (!existing) break
-    slug = `${base}-${i++}`
+  // Publishing requires ≥1 image; imports without images land as drafts
+  if (parsed.data.status === 'ACTIVE' && parsed.data.images.length === 0) {
+    ;(parsed.data as { status?: string }).status = 'DRAFT'
   }
 
-  const product = await db.product.create({
-    data: {
-      title: parsed.data.title,
-      description: parsed.data.description,
-      price: parsed.data.price,
-      compareAtPrice: parsed.data.compareAtPrice ?? null,
-      images: JSON.stringify(parsed.data.images),
-      videoUrl: parsed.data.videoUrl ?? null,
-      categoryId: category.id,
-      slug,
-      brand: parsed.data.brand || null,
-      sku: parsed.data.sku || null,
-      barcode: parsed.data.barcode || null,
-      condition: parsed.data.condition ?? 'NEW',
-      tags: JSON.stringify(parsed.data.tags ?? []),
-      attributes: JSON.stringify(attrCheck.value),
-      stock: parsed.data.stock,
-      freeShipping: parsed.data.freeShipping ?? false,
-      shippingNote: parsed.data.shippingNote || null,
-      handlingDays: parsed.data.handlingDays ?? 2,
-      weightKg: parsed.data.weightKg ?? null,
-      lengthCm: parsed.data.lengthCm ?? null,
-      widthCm: parsed.data.widthCm ?? null,
-      heightCm: parsed.data.heightCm ?? null,
-      minOrderQty: parsed.data.minOrderQty ?? 1,
-      maxPerOrder: parsed.data.maxPerOrder ?? null,
-      warrantyMonths: parsed.data.warrantyMonths ?? null,
-      metaTitle: parsed.data.metaTitle || null,
-      metaDescription: parsed.data.metaDescription || null,
-      status: parsed.data.status ?? 'ACTIVE',
-      sellerId,
-      variants: parsed.data.variants?.length
-        ? {
-            create: parsed.data.variants.map((v) => ({
-              name: v.name,
-              options: JSON.stringify(v.options ?? {}),
-              priceDelta: v.priceDelta ?? 0,
-              sku: v.sku || null,
-              stock: v.stock ?? 0,
-              image: v.image || null,
-            })),
-          }
-        : undefined,
-    },
-    select: { id: true },
-  })
-  return { ok: true, productId: product.id }
+  try {
+    const product = await createProduct(sellerId, parsed.data)
+    return { ok: true, productId: product!.id }
+  } catch (err) {
+    const status = (err as { status?: number }).status
+    if (status) return { ok: false, error: (err as Error).message }
+    return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -172,6 +129,8 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Please sign in first' }, { status: 401 })
     if (user.role !== 'SELLER' && user.role !== 'ADMIN')
       return NextResponse.json({ error: 'Only sellers can manage products in bulk' }, { status: 403 })
+    if (user.role === 'SELLER' && user.status === 'SUSPENDED')
+      return NextResponse.json({ error: 'Your vendor account is suspended' }, { status: 403 })
 
     const limited = enforceRateLimit(req, 'productWrite', RATE_LIMITS.productWrite, user.id)
     if (limited) return limited

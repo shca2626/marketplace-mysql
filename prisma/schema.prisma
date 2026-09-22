@@ -23,8 +23,11 @@ model User {
   name      String     @db.VarChar(255)
   image     String?    @db.VarChar(512)
   role      String     @default("BUYER") @db.VarChar(16) // BUYER | SELLER | ADMIN
+  status    String     @default("ACTIVE") @db.VarChar(16) // ACTIVE | SUSPENDED — platform-controlled vendor lifecycle
+  suspendedAt DateTime?
   storeName String?    @db.VarChar(120)
   storeBio  String?    @db.Text
+  commissionRate Float? // vendor payout commission override (percent); null = platform default
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
@@ -47,6 +50,8 @@ model User {
   disputesResolved  Dispute[]   @relation("DisputeResolver")
   recurringSchedules RecurringRfq[]
   mediaAssets      MediaAsset[] @relation("MediaAssets")
+  paymentsCaptured Payment[]  @relation("PaymentsCapturedBy")
+  payouts          Payout[]   @relation("PayoutSeller")
 
   @@index([role])
 }
@@ -121,7 +126,7 @@ model Order {
   buyer     User        @relation(fields: [buyerId], references: [id])
   items     OrderItem[]
   total     Float
-  status    String      @default("PAID") @db.VarChar(16) // PAID | PROCESSING | SHIPPED | DELIVERED | CANCELLED
+  status    String      @default("PAID") @db.VarChar(16) // PENDING_PAYMENT | PENDING_APPROVAL | PAID | PROCESSING | SHIPPED | DELIVERED | CANCELLED
   fullName  String      @db.VarChar(120)
   address   String      @db.VarChar(255)
   city      String      @db.VarChar(120)
@@ -139,6 +144,7 @@ model Order {
   sourceType     String? @db.VarChar(12) // CART | RFQ
   sourceQuoteId  String? @unique // quote that produced this order
   approvalRequest ApprovalRequest?
+  payment        Payment?
   disputes Dispute[]
 
   @@index([buyerId, createdAt])
@@ -159,10 +165,13 @@ model OrderItem {
   image     String?  @db.VarChar(512) // snapshot of first product image
   variantId   String? // purchased ProductVariant (null = base product)
   variantName String? @db.VarChar(200) // snapshot of variant label at purchase time
+  payoutId    String? // set when this item's revenue was settled into a seller payout
+  payout      Payout? @relation(fields: [payoutId], references: [id])
 
   @@index([orderId])
   @@index([productId])
   @@index([sellerId])
+  @@index([sellerId, payoutId])
 }
 
 model ProductVariant {
@@ -580,6 +589,68 @@ model RecurringRfq {
 
   @@index([userId])
   @@index([active, nextRunAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Payments — explicit money settlement for orders.
+// Methods: CARD (simulated gateway — succeeds inline), BANK_TRANSFER (manual:
+// buyer wires money, admin captures), INVOICE (NET-terms B2B flow from quote
+// conversion). A payment row exists exactly when money is expected; SUCCEEDED
+// flips the order to PAID.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Payment {
+  id           String    @id @default(cuid())
+  orderId      String    @unique
+  order        Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  method       String    @db.VarChar(16) // CARD | BANK_TRANSFER | INVOICE
+  status       String    @default("PENDING") @db.VarChar(16) // PENDING | SUCCEEDED | FAILED | CANCELLED
+  amount       Decimal   @db.Decimal(12, 2)
+  currency     String    @default("USD") @db.VarChar(3)
+  reference    String?   @db.VarChar(160) // buyer-supplied transfer reference / gateway txn id
+  instructions String?   @db.VarChar(600) // manual-payment instructions snapshot for the buyer
+  dueAt        DateTime? // INVOICE: NET-terms due date
+  paidAt       DateTime?
+  capturedById String?
+  capturedBy   User?     @relation("PaymentsCapturedBy", fields: [capturedById], references: [id])
+  note        String?   @db.VarChar(500) // admin note on capture / failure
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status, createdAt])
+  @@index([method, status])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Payouts — platform → seller settlement. A payout settles the seller's share
+// (gross − commission) of all order items whose payment has SUCCEEDED and that
+// have not been settled yet (OrderItem.payoutId IS NULL). Commission rate:
+// vendor override (User.commissionRate) falling back to the platform default
+// stored in PlatformSetting key "payouts".
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Payout {
+  id             String   @id @default(cuid())
+  number         String   @unique @db.VarChar(32) // PY-2026-000001
+  sellerId       String
+  seller         User     @relation("PayoutSeller", fields: [sellerId], references: [id])
+  periodStart    DateTime
+  periodEnd      DateTime
+  itemCount      Int      @default(0)
+  grossAmount    Decimal  @default(0) @db.Decimal(12, 2)
+  commissionRate Float    // percent actually applied (snapshot)
+  commission     Decimal  @default(0) @db.Decimal(12, 2)
+  netAmount      Decimal  @default(0) @db.Decimal(12, 2)
+  status         String   @default("PENDING") @db.VarChar(12) // PENDING | PAID | CANCELLED
+  paidAt         DateTime?
+  note           String?   @db.VarChar(500)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  items OrderItem[]
+
+  @@index([sellerId, status])
+  @@index([status, createdAt])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

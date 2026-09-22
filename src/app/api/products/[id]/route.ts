@@ -1,42 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/auth'
 import { favoriteIdsFor, productInclude, serializeProduct, serializeReview } from '@/lib/serialize'
 import { ensureUniqueSlug, productFormSchema } from '@/server/modules/products/service'
+import { recordAudit } from '@/server/modules/audit/service'
 
-// GET /api/products/[id] — product detail with reviews
+// GET /api/products/[id] — product detail with reviews. Products of
+// suspended vendors are hidden from the public (404); the owner (via seller
+// console) and platform admins can still open them.
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await ctx.params
-    const product = await db.product.findUnique({
-      where: { id },
-      include: {
-        ...productInclude,
-        reviews: {
-          orderBy: { createdAt: 'desc' },
-          include: { user: { select: { id: true, name: true } } },
+    const [product, viewer] = await Promise.all([
+      db.product.findUnique({
+        where: { id },
+        include: {
+          ...productInclude,
+          seller: { select: { id: true, name: true, storeName: true, storeBio: true, status: true, createdAt: true, products: { where: { status: 'ACTIVE', seller: { status: 'ACTIVE' } }, select: { id: true } } } },
+          reviews: {
+            orderBy: { createdAt: 'desc' },
+            include: { user: { select: { id: true, name: true } } },
+          },
         },
-      },
-    })
+      }),
+      getSessionUser(),
+    ])
     if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
+    const isOwner = viewer?.id === product.sellerId
+    const isAdmin = viewer?.role === 'ADMIN'
+    if (product.seller.status === 'SUSPENDED' && !isOwner && !isAdmin) {
+      return NextResponse.json({ error: 'Product not found' }, { status: 404 })
+    }
 
-    const seller = await db.user.findUnique({
-      where: { id: product.sellerId },
-      select: {
-        id: true,
-        name: true,
-        storeName: true,
-        storeBio: true,
-        createdAt: true,
-        products: { where: { status: 'ACTIVE' }, select: { id: true } },
-      },
-    })
-
-    const session = await getSessionUser()
+    // seller info already rides along on the product include
+    const seller = product.seller
+    const session = viewer
     const favIds = await favoriteIdsFor(session?.id, [product.id])
 
     const related = await db.product.findMany({
-      where: { categoryId: product.categoryId, status: 'ACTIVE', id: { not: product.id } },
+      where: { categoryId: product.categoryId, status: 'ACTIVE', seller: { status: 'ACTIVE' }, id: { not: product.id } },
       include: productInclude,
       orderBy: { soldCount: 'desc' },
       take: 4,
@@ -64,7 +67,57 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   }
 }
 
-// PUT /api/products/[id] — update (owner only). Variants are replaced atomically.
+// PATCH /api/products/[id] — ADMIN quick actions on any listing
+// (takedown/restore, feature toggle). This is the platform-owner moderation
+// surface; regular sellers keep using PUT for full edits of their own rows.
+export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await ctx.params
+    const user = await getSessionUser()
+    if (!user) return NextResponse.json({ error: 'Please sign in first' }, { status: 401 })
+    if (user.role !== 'ADMIN')
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+
+    const parsed = z
+      .object({
+        status: z.enum(['ACTIVE', 'DRAFT', 'ARCHIVED']).optional(),
+        featured: z.boolean().optional(),
+      })
+      .safeParse(await req.json())
+    if (!parsed.success || (!parsed.data.status && parsed.data.featured === undefined)) {
+      return NextResponse.json({ error: 'Provide status and/or featured' }, { status: 400 })
+    }
+
+    const product = await db.product.findUnique({ where: { id }, select: { id: true, title: true, status: true, featured: true } })
+    if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
+
+    const updated = await db.product.update({
+      where: { id },
+      data: {
+        ...(parsed.data.status ? { status: parsed.data.status, featured: parsed.data.status !== 'ACTIVE' ? false : undefined } : {}),
+        ...(parsed.data.featured !== undefined ? { featured: parsed.data.featured } : {}),
+      },
+    })
+
+    await recordAudit({
+      actorId: user.id,
+      actorType: 'ADMIN',
+      action: 'PRODUCT_MODERATED',
+      entityType: 'Product',
+      entityId: id,
+      summary: `Admin moderated "${product.title}": ${JSON.stringify(parsed.data)}`,
+      metadata: { before: { status: product.status, featured: product.featured }, after: parsed.data },
+    })
+
+    return NextResponse.json({ product: { id: updated.id, status: updated.status, featured: updated.featured } })
+  } catch (err) {
+    console.error('product PATCH error', err)
+    return NextResponse.json({ error: 'Failed to moderate product' }, { status: 500 })
+  }
+}
+
+// PUT /api/products/[id] — update (owner, or platform admin override).
+// Variants are replaced atomically.
 export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await ctx.params
@@ -73,8 +126,21 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
 
     const product = await db.product.findUnique({ where: { id } })
     if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
-    if (product.sellerId !== user.id)
+    const isOwner = product.sellerId === user.id
+    const isAdmin = user.role === 'ADMIN'
+    if (!isOwner && !isAdmin)
       return NextResponse.json({ error: 'You can only edit your own products' }, { status: 403 })
+    // Admins editing someone else's listing is a moderation event — audit it.
+    if (isAdmin && !isOwner) {
+      await recordAudit({
+        actorId: user.id,
+        actorType: 'ADMIN',
+        action: 'PRODUCT_ADMIN_EDITED',
+        entityType: 'Product',
+        entityId: id,
+        summary: `Admin edited vendor product "${product.title}"`,
+      })
+    }
 
     const body = await req.json()
     const parsed = productFormSchema.safeParse(body)
@@ -167,7 +233,8 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
   }
 }
 
-// DELETE /api/products/[id] — delete or archive (owner only)
+// DELETE /api/products/[id] — delete or archive (owner, or platform admin
+// override — admin takedown archives rows with order history, deletes the rest)
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await ctx.params
@@ -176,17 +243,39 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
 
     const product = await db.product.findUnique({ where: { id } })
     if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
-    if (product.sellerId !== user.id)
+    const isOwner = product.sellerId === user.id
+    const isAdmin = user.role === 'ADMIN'
+    if (!isOwner && !isAdmin)
       return NextResponse.json({ error: 'You can only delete your own products' }, { status: 403 })
 
     const orderItemCount = await db.orderItem.count({ where: { productId: id } })
     if (orderItemCount > 0) {
       // Products tied to orders are archived to preserve order history
       await db.product.update({ where: { id }, data: { status: 'ARCHIVED', featured: false } })
+      if (isAdmin && !isOwner) {
+        await recordAudit({
+          actorId: user.id,
+          actorType: 'ADMIN',
+          action: 'PRODUCT_TAKEDOWN',
+          entityType: 'Product',
+          entityId: id,
+          summary: `Admin took down "${product.title}" (archived — ${orderItemCount} order items)`,
+        })
+      }
       return NextResponse.json({ ok: true, archived: true })
     }
 
     await db.product.delete({ where: { id } })
+    if (isAdmin && !isOwner) {
+      await recordAudit({
+        actorId: user.id,
+        actorType: 'ADMIN',
+        action: 'PRODUCT_TAKEDOWN',
+        entityType: 'Product',
+        entityId: id,
+        summary: `Admin deleted vendor product "${product.title}"`,
+      })
+    }
     return NextResponse.json({ ok: true, archived: false })
   } catch (err) {
     console.error('product DELETE error', err)

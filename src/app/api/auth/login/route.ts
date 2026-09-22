@@ -24,6 +24,14 @@ export async function POST(req: NextRequest) {
     if (!user || !verifyPassword(password, user.password)) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
+    // Suspended vendors (and any suspended account) cannot sign in — a clear
+    // message instead of a silent rejection.
+    if (user.status === 'SUSPENDED') {
+      return NextResponse.json(
+        { error: 'This account has been suspended by the platform administrator. Contact support to resolve this.' },
+        { status: 403 }
+      )
+    }
 
     await setSessionCookie(user.id)
     return NextResponse.json({ user: toSessionUser(user) })

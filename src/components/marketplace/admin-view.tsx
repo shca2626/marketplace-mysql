@@ -21,6 +21,11 @@ import { OverviewTab } from './admin/overview-tab'
 import { PricingTab } from './admin/pricing-tab'
 import { RfqsTab } from './admin/rfqs-tab'
 import { DisputesTab } from './admin/disputes-tab'
+import { VendorsTab } from './admin/vendors-tab'
+import { AdminProductsTab } from './admin/products-tab'
+import { AdminOrdersTab } from './admin/orders-tab'
+import { PaymentsTab } from './admin/payments-tab'
+import { PayoutsTab } from './admin/payouts-tab'
 import { AdminSettings } from './admin-settings'
 import { RfqSettings } from './admin/settings/rfq-settings'
 
@@ -43,6 +48,11 @@ function AdminDashboard() {
     <DashboardLayout role="admin" nav={ADMIN_NAV} activeKey={activeSection} onNavigate={onNavigate}>
       <PageHeader icon={headerIcon} title={title} description={description} />
       {activeSection === 'overview' && <OverviewTab />}
+      {activeSection === 'vendors' && <VendorsTab />}
+      {activeSection === 'products' && <AdminProductsTab />}
+      {activeSection === 'orders' && <AdminOrdersTab />}
+      {activeSection === 'payments' && <PaymentsTab />}
+      {activeSection === 'payouts' && <PayoutsTab />}
       {activeSection === 'organizations' && <OrganizationsTab />}
       {activeSection === 'pricing' && <PricingTab />}
       {activeSection === 'coupons' && <CouponsTab />}

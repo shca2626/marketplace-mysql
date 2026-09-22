@@ -29,6 +29,7 @@ import { STORE_COVERS, getStoreCover, setStoreCover } from '@/lib/store-covers'
 import { ProductFormDialog } from './product-form-dialog'
 import { SellerRfqInboxTab } from './seller/rfq-inbox-tab'
 import { SellerDisputesTab } from './seller/disputes-tab'
+import { SellerEarningsTab } from './seller/earnings-tab'
 import { StarRating } from './star-rating'
 import { DashboardLayout, PageHeader } from '@/components/dashboards/dashboard-layout'
 import { SELLER_NAV } from '@/components/dashboards/nav-config'
@@ -726,6 +727,9 @@ export function SellerView() {
 
       {/* ── Seller RFQ inbox section ── */}
       {activeTab === 'rfqs' && <SellerRfqInboxTab myProducts={myProducts} />}
+
+      {/* ── Earnings section ── */}
+      {activeTab === 'earnings' && <SellerEarningsTab />}
 
       {/* ── Disputes section ── */}
       {activeTab === 'disputes' && <SellerDisputesTab focusId={params.disputeId ?? null} />}

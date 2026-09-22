@@ -2,7 +2,25 @@
 
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Ban, CalendarClock, Check, ClipboardList, Hourglass, PackageCheck, PackageOpen, ReceiptText, Scale, Search, Star, Truck, X } from 'lucide-react'
+import {
+  Ban,
+  CalendarClock,
+  Check,
+  ClipboardList,
+  CreditCard,
+  Hourglass,
+  Landmark,
+  Loader2,
+  PackageCheck,
+  PackageOpen,
+  ReceiptText,
+  Scale,
+  Search,
+  Star,
+  Truck,
+  Wallet,
+  X,
+} from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
@@ -19,7 +37,17 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,10 +71,38 @@ const STATUS_STEPS = [
 const STATUS_COLORS: Record<string, string> = {
   PAID: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
   PENDING_APPROVAL: 'bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300',
+  PENDING_PAYMENT: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
   PROCESSING: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
   SHIPPED: 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300',
   DELIVERED: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
   CANCELLED: 'bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400',
+}
+
+/** Friendly badge label for the two long pending statuses. */
+function statusLabel(status: string): string {
+  if (status === 'PENDING_APPROVAL') return 'AWAITING APPROVAL'
+  if (status === 'PENDING_PAYMENT') return 'AWAITING PAYMENT'
+  return status
+}
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  CARD: 'Card',
+  BANK_TRANSFER: 'Bank transfer',
+  INVOICE: 'Invoice',
+}
+
+const PAYMENT_STATUS_STYLES: Record<string, string> = {
+  PENDING: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+  SUCCEEDED: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+  FAILED: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300',
+  CANCELLED: 'bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400',
+}
+
+function paymentStatusLabel(status: string): string {
+  if (status === 'SUCCEEDED') return 'paid'
+  if (status === 'FAILED') return 'failed'
+  if (status === 'CANCELLED') return 'payment cancelled'
+  return 'payment pending'
 }
 
 /** Estimated delivery window: 3–6 days after the order was placed. */
@@ -131,13 +187,78 @@ export function OrdersView() {
     }
   }
 
+  // ── Pay-later dialog (PENDING_PAYMENT orders) ──
+  const [payDialogOrder, setPayDialogOrder] = useState<OrderDTO | null>(null)
+  const [payMethod, setPayMethod] = useState<'card' | 'bank'>('card')
+  const [payReference, setPayReference] = useState('')
+  const [paying, setPaying] = useState(false)
+  // Set after a bank-transfer submit — the fresh instructions from the pay
+  // response stay visible so the buyer can complete the wire.
+  const [paySubmitted, setPaySubmitted] = useState<{ instructions: string | null; reference: string | null } | null>(null)
+
+  const openPayDialog = (order: OrderDTO) => {
+    setPayMethod('card')
+    setPayReference('')
+    setPaying(false)
+    setPaySubmitted(null)
+    setPayDialogOrder(order)
+  }
+
+  const closePayDialog = () => {
+    if (paying) return
+    setPayDialogOrder(null)
+    setPaySubmitted(null)
+  }
+
+  const confirmPayment = async () => {
+    if (!payDialogOrder) return
+    setPaying(true)
+    try {
+      const res = await fetch(`/api/orders/${payDialogOrder.id}/pay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          method: payMethod === 'card' ? 'CARD' : 'BANK_TRANSFER',
+          ...(payMethod === 'bank' && payReference.trim() ? { reference: payReference.trim() } : {}),
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        toast({ title: 'Payment failed', description: json.error ?? 'Something went wrong', variant: 'destructive' })
+        return
+      }
+      void refetch()
+      if (json.paid) {
+        setPayDialogOrder(null)
+        toast({
+          title: 'Payment confirmed',
+          description: `#${payDialogOrder.id.slice(-8).toUpperCase()} is paid and moves to the seller`,
+        })
+      } else {
+        // Bank transfer — keep the instructions from the response on screen
+        setPaySubmitted({
+          instructions: json.payment?.instructions ?? null,
+          reference: json.payment?.reference ?? null,
+        })
+        toast({
+          title: 'Transfer details submitted — awaiting confirmation',
+          description: 'An operator confirms receipt on business days. You can track the order below.',
+        })
+      }
+    } catch {
+      toast({ title: 'Payment failed', description: 'Network error — please try again', variant: 'destructive' })
+    } finally {
+      setPaying(false)
+    }
+  }
+
   const orders = data?.orders ?? []
 
   // Status chips: ALL + every status present in the order list (canonical order)
   const statusCounts = useMemo(() => {
     const counts = new Map<string, number>()
     for (const o of orders) counts.set(o.status, (counts.get(o.status) ?? 0) + 1)
-    const order = ['PENDING_APPROVAL', 'PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED']
+    const order = ['PENDING_APPROVAL', 'PENDING_PAYMENT', 'PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED']
     return order.filter((s) => counts.has(s)).map((s) => ({ status: s, count: counts.get(s)! }))
   }, [orders])
 
@@ -307,6 +428,28 @@ export function OrdersView() {
                       #${order.id.slice(-8).toUpperCase()}
                     </span>
                     <span className="text-xs text-muted-foreground">{formatDate(order.createdAt)}</span>
+                    {order.payment && (
+                      <span
+                        className={cn(
+                          'flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold',
+                          PAYMENT_STATUS_STYLES[order.payment.status] ??
+                            'bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400'
+                        )}
+                        title={
+                          order.payment.status === 'FAILED'
+                            ? 'The last payment attempt failed — try Pay now again'
+                            : `Payment via ${PAYMENT_METHOD_LABELS[order.payment.method] ?? order.payment.method}`
+                        }
+                      >
+                        {order.payment.method === 'BANK_TRANSFER' ? (
+                          <Landmark size={12} className="shrink-0" />
+                        ) : (
+                          <CreditCard size={12} className="shrink-0" />
+                        )}
+                        {PAYMENT_METHOD_LABELS[order.payment.method] ?? order.payment.method} ·{' '}
+                        {paymentStatusLabel(order.payment.status)}
+                      </span>
+                    )}
                     {openDisputeByOrder.has(order.id) && (
                       <span
                         className="flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-[11px] font-semibold text-rose-700 dark:bg-rose-950 dark:text-rose-300"
@@ -333,7 +476,7 @@ export function OrdersView() {
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-bold">{formatUSD(order.total)}</span>
                     <Badge className={cn('rounded-full text-[11px] font-semibold', STATUS_COLORS[order.status])}>
-                      {order.status === 'PENDING_APPROVAL' ? 'AWAITING APPROVAL' : order.status}
+                      {statusLabel(order.status)}
                     </Badge>
                   </div>
                 </button>
@@ -364,6 +507,27 @@ export function OrdersView() {
                           sent to the seller. You can still withdraw it below.
                         </p>
                       </div>
+                    </div>
+                  ) : order.status === 'PENDING_PAYMENT' ? (
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/40 bg-amber-500/5 px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                          <Wallet size={14} />
+                        </span>
+                        <div>
+                          <p className="text-sm font-semibold">Awaiting your payment</p>
+                          <p className="text-xs text-muted-foreground">
+                            {order.payment?.status === 'FAILED'
+                              ? 'Your last payment attempt failed — try again below.'
+                              : order.payment?.method === 'BANK_TRANSFER'
+                                ? 'Complete the bank transfer, or pay by card for instant confirmation.'
+                                : 'Pay by card for instant confirmation, or by bank transfer.'}
+                          </p>
+                        </div>
+                      </div>
+                      <Button size="sm" className="h-9 rounded-full px-4" onClick={() => openPayDialog(order)}>
+                        <Wallet size={13} className="mr-1.5" /> Pay now
+                      </Button>
                     </div>
                   ) : (
                   <div className="flex items-start">
@@ -480,7 +644,7 @@ export function OrdersView() {
                       Ship to: {order.fullName}, {order.address}, {order.city} {order.zip}
                     </span>
                     <div className="flex items-center gap-2">
-                      {(order.status === 'PAID' || order.status === 'PENDING_APPROVAL') && (
+                      {['PAID', 'PENDING_APPROVAL', 'PENDING_PAYMENT'].includes(order.status) && (
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button
@@ -591,6 +755,154 @@ export function OrdersView() {
           {() => <span />}
         </DisputeDetailDialog>
       )}
+
+      {/* Pay-later dialog for PENDING_PAYMENT orders */}
+      <Dialog open={!!payDialogOrder} onOpenChange={(open) => (open ? undefined : closePayDialog())}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wallet size={16} className="text-primary" /> Pay order
+              {payDialogOrder && (
+                <span className="font-mono text-sm font-bold">#{payDialogOrder.id.slice(-8).toUpperCase()}</span>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              Settle this order — card payments confirm instantly, bank transfers are confirmed by an operator.
+            </DialogDescription>
+          </DialogHeader>
+
+          {payDialogOrder && (
+            <div className="space-y-4">
+              {/* Order summary */}
+              <div className="flex items-center justify-between gap-3 rounded-xl border bg-muted/40 px-3.5 py-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {payDialogOrder.items.length} item{payDialogOrder.items.length === 1 ? '' : 's'} ·{' '}
+                    {formatDate(payDialogOrder.createdAt)}
+                  </p>
+                  <p className="mt-0.5 line-clamp-1 text-sm text-muted-foreground">
+                    {payDialogOrder.items[0]?.title}
+                    {payDialogOrder.items.length > 1
+                      ? ` +${payDialogOrder.items.length - 1} more`
+                      : ''}
+                  </p>
+                </div>
+                <p className="shrink-0 text-lg font-bold tabular-nums">{formatUSD(payDialogOrder.total)}</p>
+              </div>
+
+              {paySubmitted ? (
+                /* Bank transfer submitted — fresh instructions stay on screen */
+                <div className="space-y-3 rounded-xl border border-amber-500/40 bg-amber-500/5 p-4">
+                  <div className="flex items-center gap-2">
+                    <Hourglass size={15} className="shrink-0 text-amber-600 dark:text-amber-400" />
+                    <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">
+                      Transfer details submitted — awaiting confirmation
+                    </p>
+                  </div>
+                  <pre className="whitespace-pre-wrap rounded-lg border bg-background/60 p-3 font-mono text-[11px] leading-relaxed">
+                    {paySubmitted.instructions ??
+                      'The platform bank account details will be sent to your email.'}
+                  </pre>
+                  {paySubmitted.reference && (
+                    <p className="text-xs text-muted-foreground">
+                      Your transfer reference on file:{' '}
+                      <span className="font-mono font-semibold text-foreground">{paySubmitted.reference}</span>
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Wire the total above — an operator confirms receipt on business days, then the order
+                    moves to the seller.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Method selection */}
+                  <RadioGroup
+                    value={payMethod}
+                    onValueChange={(v) => setPayMethod(v as 'card' | 'bank')}
+                    className="gap-3"
+                  >
+                    <Label
+                      htmlFor="pay-now-card"
+                      className="flex cursor-pointer items-center gap-3 rounded-xl border-2 p-3.5 transition-colors has-[[data-state=checked]]:border-primary"
+                    >
+                      <RadioGroupItem value="card" id="pay-now-card" />
+                      <CreditCard size={17} className="text-muted-foreground" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">Card</p>
+                        <p className="text-xs text-muted-foreground">Confirmed instantly (demo gateway)</p>
+                      </div>
+                    </Label>
+                    <Label
+                      htmlFor="pay-now-bank"
+                      className="flex cursor-pointer items-center gap-3 rounded-xl border-2 p-3.5 transition-colors has-[[data-state=checked]]:border-primary"
+                    >
+                      <RadioGroupItem value="bank" id="pay-now-bank" />
+                      <Landmark size={17} className="text-muted-foreground" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">Bank transfer</p>
+                        <p className="text-xs text-muted-foreground">
+                          Wire the total — confirmed by an operator
+                        </p>
+                      </div>
+                    </Label>
+                  </RadioGroup>
+
+                  {/* Bank transfer — instructions + optional wire reference */}
+                  {payMethod === 'bank' && (
+                    <div className="space-y-3">
+                      {payDialogOrder.payment?.instructions ? (
+                        <pre className="whitespace-pre-wrap rounded-xl border bg-muted/40 p-3.5 font-mono text-[11px] leading-relaxed">
+                          {payDialogOrder.payment.instructions}
+                        </pre>
+                      ) : (
+                        <p className="rounded-xl border border-dashed bg-muted/40 px-3.5 py-3 text-xs text-muted-foreground">
+                          The platform bank account details appear here once you submit — you&apos;ll wire the
+                          total and an operator confirms receipt.
+                        </p>
+                      )}
+                      <div className="space-y-1.5">
+                        <Label htmlFor="pay-reference">
+                          Transfer reference{' '}
+                          <span className="text-xs font-normal text-muted-foreground">(optional)</span>
+                        </Label>
+                        <Input
+                          id="pay-reference"
+                          value={payReference}
+                          onChange={(e) => setPayReference(e.target.value)}
+                          placeholder="e.g. TRF-88213 — helps us match your wire"
+                          className="h-10 rounded-xl uppercase placeholder:normal-case"
+                          maxLength={160}
+                          disabled={paying}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" className="rounded-xl" onClick={closePayDialog} disabled={paying}>
+              {paySubmitted ? 'Done' : 'Cancel'}
+            </Button>
+            {!paySubmitted && (
+              <Button className="rounded-xl" onClick={() => void confirmPayment()} disabled={paying}>
+                {paying ? (
+                  <>
+                    <Loader2 size={14} className="mr-1.5 animate-spin" /> Processing…
+                  </>
+                ) : payMethod === 'card' ? (
+                  'Confirm payment'
+                ) : (
+                  'Submit transfer details'
+                )}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

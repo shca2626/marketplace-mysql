@@ -9,29 +9,29 @@ export async function GET() {
     const [featured, trending, newArrivals, categories, productCount, sellerCount, reviewCount, orderCount] =
       await Promise.all([
         db.product.findMany({
-          where: { status: 'ACTIVE', featured: true },
+          where: { status: 'ACTIVE', featured: true, seller: { status: 'ACTIVE' } },
           include: productInclude,
           orderBy: [{ rating: 'desc' }, { soldCount: 'desc' }],
           take: 8,
         }),
         db.product.findMany({
-          where: { status: 'ACTIVE' },
+          where: { status: 'ACTIVE', seller: { status: 'ACTIVE' } },
           include: productInclude,
           orderBy: { soldCount: 'desc' },
           take: 8,
         }),
         db.product.findMany({
-          where: { status: 'ACTIVE' },
+          where: { status: 'ACTIVE', seller: { status: 'ACTIVE' } },
           include: productInclude,
           orderBy: { createdAt: 'desc' },
           take: 8,
         }),
         db.category.findMany({
           orderBy: { name: 'asc' },
-          include: { products: { where: { status: 'ACTIVE' }, select: { images: true } } },
+          include: { products: { where: { status: 'ACTIVE', seller: { status: 'ACTIVE' } }, select: { images: true } } },
         }),
-        db.product.count({ where: { status: 'ACTIVE' } }),
-        db.user.count({ where: { role: 'SELLER' } }),
+        db.product.count({ where: { status: 'ACTIVE', seller: { status: 'ACTIVE' } } }),
+        db.user.count({ where: { role: 'SELLER', status: 'ACTIVE' } }),
         db.review.count(),
         db.order.count(),
       ])

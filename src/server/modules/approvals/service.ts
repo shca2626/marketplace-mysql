@@ -283,7 +283,9 @@ export async function decideApproval(
       if (request.order.status !== 'PENDING_APPROVAL')
         throw new ApprovalServiceError('The linked order is no longer awaiting approval', 409)
       await db.$transaction(async (tx) => {
-        await tx.order.update({ where: { id: request.orderId! }, data: { status: 'PAID' } })
+        // Payment comes AFTER org approval now — the buyer settles the approved
+        // order from their orders page (card or bank transfer).
+        await tx.order.update({ where: { id: request.orderId! }, data: { status: 'PENDING_PAYMENT' } })
         await tx.approvalRequest.update({
           where: { id: approvalId },
           data: { status: 'APPROVED', decidedById: decider.id, decidedAt: now, decisionNote: decisionNote?.slice(0, 500) ?? null },

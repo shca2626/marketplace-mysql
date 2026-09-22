@@ -31,6 +31,9 @@ export type NotificationType =
   | 'RECURRING_PREVIEW' // buyer: your recurring RFQ publishes soon
   | 'RECURRING_PUBLISHED' // buyer: a recurring run was published
   | 'RECURRING_PAUSED' // buyer: schedule auto-paused (empty cycles) or skipped
+  | 'VENDOR_STATUS' // seller: platform verified / suspended / reactivated your account
+  | 'PAYMENT_STATUS' // buyer: payment captured, failed or awaiting confirmation
+  | 'PAYOUT_STATUS' // seller: a payout was created or marked paid
 
 export interface EmitInput {
   userId: string

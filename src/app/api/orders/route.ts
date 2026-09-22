@@ -6,6 +6,7 @@ import { serializeOrder } from '@/lib/serialize'
 import { computePricing } from '@/lib/pricing'
 import { findActiveCoupon, type ActiveCoupon } from '@/server/modules/coupons/service'
 import { needsApproval, createOrderApprovalRequest, notifyOrderApprovalRequested } from '@/server/modules/approvals/service'
+import { ensurePayment, succeedPayment } from '@/server/modules/payments/service'
 
 const checkoutSchema = z.object({
   items: z
@@ -24,6 +25,7 @@ const checkoutSchema = z.object({
   zip: z.string().min(3, 'ZIP code is required').max(20),
   phone: z.string().max(30).optional().nullable(),
   couponCode: z.string().trim().max(24).optional().nullable(),
+  paymentMethod: z.enum(['CARD', 'BANK_TRANSFER']).optional(), // absent = CARD (legacy callers)
 })
 
 // POST /api/orders — checkout
@@ -40,12 +42,27 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       )
     }
-    const { items, couponCode: rawCouponCode, ...shipping } = parsed.data
+    const { items, couponCode: rawCouponCode, paymentMethod, ...shipping } = parsed.data
+    const method = paymentMethod ?? 'CARD'
 
     // Deduplicate + validate stock (product-level and, when selected, variant-level)
     const productIds = [...new Set(items.map((i) => i.productId))]
     const products = await db.product.findMany({ where: { id: { in: productIds } } })
     const productMap = new Map(products.map((p) => [p.id, p]))
+
+    // Vendor-lifecycle guard: a suspended vendor's catalog is un-purchasable
+    const sellerIds = [...new Set(products.map((p) => p.sellerId))]
+    const suspendedSellers = await db.user.findMany({
+      where: { id: { in: sellerIds }, status: 'SUSPENDED' },
+      select: { storeName: true, name: true },
+    })
+    if (suspendedSellers.length > 0) {
+      const store = suspendedSellers[0].storeName ?? suspendedSellers[0].name
+      return NextResponse.json(
+        { error: `"${store}" is currently unavailable — remove their items from your cart to continue` },
+        { status: 400 }
+      )
+    }
 
     const variantIds = [...new Set(items.map((i) => i.variantId).filter((v): v is string => !!v))]
     const variantRows = variantIds.length
@@ -143,7 +160,10 @@ export async function POST(req: NextRequest) {
         data: {
           buyerId: user.id,
           total: pricing.total,
-          status: routeForApproval ? 'PENDING_APPROVAL' : 'PAID',
+          // CARD settles inside this transaction; bank transfers wait for the
+          // buyer's wire + operator capture; approval-routed orders pay after
+          // the org clears them.
+          status: routeForApproval ? 'PENDING_APPROVAL' : method === 'CARD' ? 'PAID' : 'PENDING_PAYMENT',
           organizationId: orgId,
           ...shipping,
           phone: shipping.phone ?? null,
@@ -199,6 +219,21 @@ export async function POST(req: NextRequest) {
           requester: { id: user.id, name: user.name },
           amount: pricing.total,
         })
+      } else {
+        // Money settlement — CARD succeeds inline (simulated gateway);
+        // BANK_TRANSFER parks the order in PENDING_PAYMENT with instructions.
+        const payment = await ensurePayment(tx, {
+          orderId: created.id,
+          amount: pricing.total,
+          method,
+          orderRef: created.id.slice(-8).toUpperCase(),
+        })
+        if (method === 'CARD') {
+          await succeedPayment(tx, {
+            paymentId: payment.id,
+            reference: `SIM-${Date.now().toString(36).toUpperCase()}`,
+          })
+        }
       }
       return created
     })
@@ -214,10 +249,21 @@ export async function POST(req: NextRequest) {
       })
     }
 
+    const paymentRow = await db.payment.findUnique({ where: { orderId: order.id } })
+
     return NextResponse.json(
       {
         order: serializeOrder(order),
         pendingApproval: routeForApproval,
+        pendingPayment: order.status === 'PENDING_PAYMENT',
+        payment: paymentRow
+          ? {
+              method: paymentRow.method,
+              status: paymentRow.status,
+              instructions: paymentRow.instructions,
+              dueAt: paymentRow.dueAt?.toISOString() ?? null,
+            }
+          : null,
         pricing: {
           subtotal: pricing.subtotal,
           discount: pricing.discount,
@@ -243,7 +289,7 @@ export async function GET() {
     const orders = await db.order.findMany({
       where: { buyerId: user.id },
       orderBy: { createdAt: 'desc' },
-      include: { items: true },
+      include: { items: true, payment: true },
     })
 
     return NextResponse.json({ orders: orders.map((o) => serializeOrder(o)) })
