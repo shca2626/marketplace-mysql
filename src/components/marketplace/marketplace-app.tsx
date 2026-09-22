@@ -1,5 +1,22 @@
 'use client'
 
+// ─────────────────────────────────────────────────────────────────────────────
+// APP ROOT — STRICT STOREFRONT / CONSOLE SEPARATION
+//
+// The public storefront and the internal consoles are two different products
+// sharing one route (single-page app):
+//
+//   STOREFRONT (home, catalog, product, store, cart, checkout)
+//     → StorefrontLayout: promo bar, marketplace header (search, categories,
+//       cart), marketing footer, cart drawer, back-to-top.
+//
+//   CONSOLES (admin, seller, account, rfqs, business, orders, favorites)
+//     → each view mounts its own DashboardLayout: role-aware sidebar,
+//       contextual topbar, spacious content area and a slim utility footer.
+//       ZERO storefront chrome inside — no promo bar, no catalog search,
+//       no category nav, no marketing footer.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ThemeProvider } from 'next-themes'
@@ -7,6 +24,7 @@ import { useMarketplace, type View } from '@/store/marketplace'
 import type { SessionUser } from '@/lib/types'
 import type { StorefrontSettings, BannerSlideDTO } from '@/lib/settings/schema'
 import { parseLocation } from '@/lib/routing'
+import { DASHBOARD_VIEWS } from '@/components/dashboards/nav-config'
 import { Header } from './header'
 import { Footer } from './footer'
 import { HomeView } from './home-view'
@@ -15,31 +33,34 @@ import { ProductView } from './product-view'
 import { StoreView } from './store-view'
 import { CartView } from './cart-view'
 import { CheckoutView } from './checkout-view'
-import { OrdersView } from './orders-view'
-import { FavoritesView } from './favorites-view'
 import { SellerView } from './seller-view'
-import { AccountView } from './account-view'
 import { AdminView } from './admin-view'
-import { RfqView } from './b2b/rfq-view'
-import { BusinessView } from './b2b/business-view'
+// Buyer console pages — existing views mounted in the shared dashboard shell.
+import { BuyerDashboard } from '@/components/dashboards/buyer-dashboard'
+import { BuyerRfqsPage, BuyerBusinessPage, BuyerOrdersPage, BuyerFavoritesPage } from '@/components/dashboards/buyer-pages'
 import { CartDrawer } from './cart-drawer'
 import { AuthModal } from './auth-modal'
 import { BackToTop } from './back-to-top'
 
-const VIEWS: Record<View, () => React.ReactNode> = {
+/** Public shopping surfaces. */
+const STOREFRONT_VIEWS: Record<string, () => React.ReactNode> = {
   home: () => <HomeView />,
   catalog: () => <CatalogView />,
   product: () => <ProductView />,
   store: () => <StoreView />,
   cart: () => <CartView />,
   checkout: () => <CheckoutView />,
-  orders: () => <OrdersView />,
-  favorites: () => <FavoritesView />,
-  seller: () => <SellerView />,
-  account: () => <AccountView />,
+}
+
+/** Internal consoles — every one mounts its own DashboardLayout. */
+const CONSOLE_VIEWS: Record<string, () => React.ReactNode> = {
   admin: () => <AdminView />,
-  rfqs: () => <RfqView />,
-  business: () => <BusinessView />,
+  seller: () => <SellerView />,
+  account: () => <BuyerDashboard />,
+  rfqs: () => <BuyerRfqsPage />,
+  business: () => <BuyerBusinessPage />,
+  orders: () => <BuyerOrdersPage />,
+  favorites: () => <BuyerFavoritesPage />,
 }
 
 export function MarketplaceApp() {
@@ -91,11 +112,14 @@ export function MarketplaceApp() {
     }
   }, [setUser, setAuthChecked, applyLocation, applySettings])
 
+  const isConsole = DASHBOARD_VIEWS.has(view)
+  const active = isConsole ? CONSOLE_VIEWS[view] : STOREFRONT_VIEWS[view]
+
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-      <div className="flex min-h-screen flex-col bg-background text-foreground">
-        <Header />
-        <main className="flex-1">
+      {isConsole ? (
+        /* ── Internal console — dedicated dashboard shell ── */
+        <div className="min-h-screen bg-muted/40 text-foreground">
           <AnimatePresence mode="wait">
             <motion.div
               key={view}
@@ -104,15 +128,34 @@ export function MarketplaceApp() {
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
             >
-              {VIEWS[view]()}
+              {active?.()}
             </motion.div>
           </AnimatePresence>
-        </main>
-        <Footer />
-        <CartDrawer />
-        <AuthModal />
-        <BackToTop />
-      </div>
+          <AuthModal />
+        </div>
+      ) : (
+        /* ── Public storefront — marketing chrome ── */
+        <div className="flex min-h-screen flex-col bg-background text-foreground">
+          <Header />
+          <main className="flex-1">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={view}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+              >
+                {active?.()}
+              </motion.div>
+            </AnimatePresence>
+          </main>
+          <Footer />
+          <CartDrawer />
+          <AuthModal />
+          <BackToTop />
+        </div>
+      )}
     </ThemeProvider>
   )
 }

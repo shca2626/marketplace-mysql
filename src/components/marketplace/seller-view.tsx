@@ -3,13 +3,10 @@
 import { useState } from 'react'
 import {
   ArrowRight,
-  BadgeCheck,
   Check,
   DollarSign,
   Hourglass,
   Image as ImageIcon,
-  Inbox,
-  LayoutDashboard,
   Loader2,
   Package,
   PackageSearch,
@@ -33,13 +30,15 @@ import { ProductFormDialog } from './product-form-dialog'
 import { SellerRfqInboxTab } from './seller/rfq-inbox-tab'
 import { SellerDisputesTab } from './seller/disputes-tab'
 import { StarRating } from './star-rating'
+import { DashboardLayout, PageHeader } from '@/components/dashboards/dashboard-layout'
+import { SELLER_NAV } from '@/components/dashboards/nav-config'
+import type { NavItem } from '@/components/dashboards/nav-config'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -295,42 +294,27 @@ export function SellerView() {
   }))
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{user.storeName}</h1>
-            <BadgeCheck size={20} className="text-primary" />
-          </div>
-          <p className="mt-1 text-sm text-muted-foreground">Seller dashboard · {user.name}</p>
-        </div>
-        <Button className="rounded-xl" onClick={openCreate}>
-          <Plus size={16} className="mr-1.5" /> Add product
-        </Button>
-      </div>
+    <DashboardLayout
+      role="seller"
+      nav={SELLER_NAV}
+      activeKey={activeTab}
+      onNavigate={(item: NavItem) =>
+        navigate('seller', { sellerTab: item.key === 'overview' ? undefined : item.key })
+      }
+    >
+      <PageHeader
+        title={user.storeName ?? 'Seller Console'}
+        description={`Seller console · ${user.name}`}
+        actions={
+          <Button className="rounded-xl" onClick={openCreate}>
+            <Plus size={16} className="mr-1.5" /> Add product
+          </Button>
+        }
+      />
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-8">
-        <TabsList className="h-11 w-full justify-start gap-1 overflow-x-auto rounded-xl bg-muted/60 p-1 sm:w-auto">
-          <TabsTrigger value="overview" className="gap-1.5 rounded-lg px-4 text-sm">
-            <LayoutDashboard size={14} /> Overview
-          </TabsTrigger>
-          <TabsTrigger value="products" className="gap-1.5 rounded-lg px-4 text-sm">
-            <Package size={14} /> Products <Badge variant="secondary" className="ml-1 rounded-full text-[10px]">{myProducts.length}</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="orders" className="gap-1.5 rounded-lg px-4 text-sm">
-            <Truck size={14} /> Orders
-          </TabsTrigger>
-          <TabsTrigger value="rfqs" className="gap-1.5 rounded-lg px-4 text-sm">
-            <Inbox size={14} /> Quote requests
-          </TabsTrigger>
-          <TabsTrigger value="disputes" className="gap-1.5 rounded-lg px-4 text-sm">
-            <Scale size={14} /> Disputes
-          </TabsTrigger>
-        </TabsList>
-
-        {/* ── Overview tab ── */}
-        <TabsContent value="overview" className="mt-6 space-y-6">
+      {/* ── Overview section ── */}
+      {activeTab === 'overview' && (
+      <div className="space-y-6">
           {/* KPI cards */}
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             {statsLoading || !stats
@@ -612,10 +596,12 @@ export function SellerView() {
               </CardContent>
             </Card>
           </div>
-        </TabsContent>
+        </div>
+      )}
 
-        {/* ── Products tab ── */}
-        <TabsContent value="products" className="mt-6">
+      {/* ── Products section ── */}
+      {activeTab === 'products' && (
+      <div>
           <Card>
             <CardContent className="p-0">
               {productsLoading ? (
@@ -735,20 +721,18 @@ export function SellerView() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+      </div>
+      )}
 
-        {/* ── Seller RFQ inbox tab ── */}
-        <TabsContent value="rfqs" className="mt-6">
-          <SellerRfqInboxTab myProducts={myProducts} />
-        </TabsContent>
+      {/* ── Seller RFQ inbox section ── */}
+      {activeTab === 'rfqs' && <SellerRfqInboxTab myProducts={myProducts} />}
 
-        {/* ── Disputes tab ── */}
-        <TabsContent value="disputes" className="mt-6">
-          <SellerDisputesTab focusId={params.disputeId ?? null} />
-        </TabsContent>
+      {/* ── Disputes section ── */}
+      {activeTab === 'disputes' && <SellerDisputesTab focusId={params.disputeId ?? null} />}
 
-        {/* ── Orders tab ── */}
-        <TabsContent value="orders" className="mt-6">
+      {/* ── Orders section ── */}
+      {activeTab === 'orders' && (
+      <div>
           {ordersLoading ? (
             <div className="space-y-4">
               {Array.from({ length: 3 }).map((_, i) => (
@@ -837,8 +821,8 @@ export function SellerView() {
               })}
             </div>
           )}
-        </TabsContent>
-      </Tabs>
+      </div>
+      )}
 
       <ProductFormDialog
         open={formOpen}
@@ -847,6 +831,6 @@ export function SellerView() {
         editing={editing}
         onSaved={refetchAll}
       />
-    </div>
+    </DashboardLayout>
   )
 }

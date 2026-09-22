@@ -34,6 +34,7 @@ export interface ViewParams {
   query?: string
   sellerId?: string
   sellerTab?: string
+  adminTab?: string // admin console: active sidebar section (?view=admin&tab=…)
   rfqId?: string
   quoteId?: string
   disputeId?: string // seller dashboard: open a specific dispute

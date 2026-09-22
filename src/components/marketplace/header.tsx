@@ -214,6 +214,24 @@ export function Header() {
                   <p className="truncate text-xs font-normal text-muted-foreground">{user.email}</p>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                {/* Role-aware console entry — the internal dashboards are separate
+                    surfaces; the storefront menu is the doorway to them. */}
+                {user.role === 'ADMIN' && (
+                  <DropdownMenuItem onClick={() => navigate('admin')} className="cursor-pointer font-medium">
+                    <BarChart3 size={15} className="mr-2" /> Admin console
+                  </DropdownMenuItem>
+                )}
+                {user.role === 'SELLER' && (
+                  <DropdownMenuItem onClick={() => navigate('seller')} className="cursor-pointer font-medium">
+                    <LayoutDashboard size={15} className="mr-2" /> Seller console
+                  </DropdownMenuItem>
+                )}
+                {user.role !== 'ADMIN' && user.role !== 'SELLER' && (
+                  <DropdownMenuItem onClick={() => navigate('account')} className="cursor-pointer font-medium">
+                    <LayoutDashboard size={15} className="mr-2" /> My dashboard
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => navigate('orders')} className="cursor-pointer">
                   <Package size={15} className="mr-2" /> My Orders
                 </DropdownMenuItem>
@@ -227,17 +245,11 @@ export function Header() {
                   <Building2 size={15} className="mr-2" /> Business Account
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate('account')} className="cursor-pointer">
-                  <Settings size={15} className="mr-2" /> Account
+                  <Settings size={15} className="mr-2" /> Account settings
                 </DropdownMenuItem>
-                {(user.role === 'ADMIN') && (
-                  <DropdownMenuItem onClick={() => navigate('admin')} className="cursor-pointer">
-                    <BarChart3 size={15} className="mr-2" /> Platform analytics
-                  </DropdownMenuItem>
-                )}
-                {user.role !== 'ADMIN' && (
+                {(user.role === 'BUYER' || !user.role) && (
                   <DropdownMenuItem onClick={() => navigate('seller')} className="cursor-pointer">
-                    <LayoutDashboard size={15} className="mr-2" />
-                    {user.role === 'SELLER' ? 'Seller Dashboard' : 'Start Selling'}
+                    <Store size={15} className="mr-2" /> Start selling
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />

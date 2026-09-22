@@ -42,6 +42,7 @@ export function viewToQuery(view: View, params: ViewParams = {}): string {
     if (params.query) sp.set('q', params.query)
   }
   if (view === 'seller' && params.sellerTab) sp.set('tab', params.sellerTab)
+  if (view === 'admin' && params.adminTab) sp.set('tab', params.adminTab)
   if (view === 'rfqs' && params.rfqId) sp.set('rfq', params.rfqId)
   if (view === 'rfqs' && params.scheduleId) sp.set('schedule', params.scheduleId)
   if (view === 'seller' && params.disputeId) sp.set('dispute', params.disputeId)
@@ -80,6 +81,10 @@ export function parseLocation(href: string = typeof window !== 'undefined' ? win
     if (view === 'seller') {
       const tab = sp.get('tab')
       if (tab) params.sellerTab = tab
+    }
+    if (view === 'admin') {
+      const tab = sp.get('tab')
+      if (tab) params.adminTab = tab
     }
     if (view === 'rfqs') {
       const rfq = sp.get('rfq')

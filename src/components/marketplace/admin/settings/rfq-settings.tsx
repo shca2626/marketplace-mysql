@@ -20,7 +20,7 @@ import {
   Loader2,
   Repeat2,
   RotateCcw,
-  Settings2,
+  Search,
   ShieldCheck,
   SlidersHorizontal,
   Trash2,
@@ -61,7 +61,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Select,
@@ -139,6 +138,7 @@ export function RfqSettings() {
   const [rollingBack, setRollingBack] = useState(false)
   const [deleteOverrideTarget, setDeleteOverrideTarget] = useState<AdminPayload['overrides'][number] | null>(null)
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0)
+  const [panelQuery, setPanelQuery] = useState('') // rail search filter
 
   const query = useMemo(() => {
     if (scopeType === 'PLATFORM') return ''
@@ -225,15 +225,20 @@ export function RfqSettings() {
   )
 
   return (
-    <div className="space-y-4">
-      {/* ── Scope bar ── */}
-      <Card className="border-border/70 shadow-sm">
-        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end sm:justify-between">
-          <div className="flex flex-wrap items-end gap-3">
-            <div>
-              <Label className="text-xs font-medium text-muted-foreground">Editing scope</Label>
+    <div className="space-y-5">
+      {/* ── Settings toolbar: scope + history ── */}
+      <Card className="border-border/70 py-0 shadow-sm">
+        <CardContent className="px-0 py-0">
+          <div className="flex flex-col gap-3 px-4 py-3.5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"
+                title="Editing scope — lower scope wins"
+              >
+                <Layers size={15} />
+              </span>
               <Select value={scopeType} onValueChange={changeScopeType}>
-                <SelectTrigger className="mt-1 h-9 w-56 rounded-lg font-medium">
+                <SelectTrigger className="h-9 w-[172px] rounded-lg text-[13px] font-medium" aria-label="Editing scope">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
@@ -244,27 +249,21 @@ export function RfqSettings() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            {scopeType === 'ORG_TYPE' && (
-              <div>
-                <Label className="text-xs font-medium text-muted-foreground">Organization type</Label>
+              {scopeType === 'ORG_TYPE' && (
                 <Select value={scopeId} onValueChange={setScopeId}>
-                  <SelectTrigger className="mt-1 h-9 w-56 rounded-lg">
+                  <SelectTrigger className="h-9 w-[190px] rounded-lg text-[13px]" aria-label="Organization type">
                     <SelectValue placeholder="Choose a type…" />
                   </SelectTrigger>
-                  <SelectContent className="rounded-xl">
+                  <SelectContent className="max-h-72 rounded-xl">
                     {data?.orgTypes.map((t) => (
                       <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-            )}
-            {scopeType === 'ORG' && (
-              <div>
-                <Label className="text-xs font-medium text-muted-foreground">Organization</Label>
+              )}
+              {scopeType === 'ORG' && (
                 <Select value={scopeId} onValueChange={setScopeId}>
-                  <SelectTrigger className="mt-1 h-9 w-64 rounded-lg">
+                  <SelectTrigger className="h-9 w-[220px] rounded-lg text-[13px]" aria-label="Organization">
                     <SelectValue placeholder="Choose an organization…" />
                   </SelectTrigger>
                   <SelectContent className="max-h-72 rounded-xl">
@@ -273,13 +272,10 @@ export function RfqSettings() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-            )}
-            {scopeType === 'CATEGORY' && (
-              <div>
-                <Label className="text-xs font-medium text-muted-foreground">Category</Label>
+              )}
+              {scopeType === 'CATEGORY' && (
                 <Select value={scopeId} onValueChange={setScopeId}>
-                  <SelectTrigger className="mt-1 h-9 w-56 rounded-lg">
+                  <SelectTrigger className="h-9 w-[190px] rounded-lg text-[13px]" aria-label="Category">
                     <SelectValue placeholder="Choose a category…" />
                   </SelectTrigger>
                   <SelectContent className="max-h-72 rounded-xl">
@@ -288,61 +284,86 @@ export function RfqSettings() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-            )}
-            {scopeType === 'REGION' && (
-              <div>
-                <Label className="text-xs font-medium text-muted-foreground">Region code</Label>
+              )}
+              {scopeType === 'REGION' && (
                 <Input
-                  className="mt-1 h-9 w-44 rounded-lg uppercase"
+                  className="h-9 w-[180px] rounded-lg text-[13px] uppercase"
                   placeholder="e.g. YEMEN, SANA"
                   value={regionInput}
                   onChange={(e) => setRegionInput(e.target.value)}
+                  aria-label="Region code"
                 />
-              </div>
+              )}
+              {scopeType !== 'PLATFORM' && (
+                <Badge
+                  variant={activeOverride ? 'default' : 'outline'}
+                  className={cn(
+                    'rounded-full text-[10.5px] font-semibold',
+                    activeOverride ? 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/10' : ''
+                  )}
+                >
+                  {activeOverride ? 'Override active' : 'No override yet'}
+                </Badge>
+              )}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 shrink-0 rounded-lg"
+              disabled={!effectiveScope}
+              onClick={() => setHistoryOpen(true)}
+            >
+              <History size={14} className="mr-1.5" /> View history
+            </Button>
+          </div>
+          {/* Info strip — one calm line explaining the scope semantics */}
+          <div className="border-t bg-muted/40 px-4 py-2 text-xs leading-relaxed text-muted-foreground">
+            {scopeType === 'PLATFORM' ? (
+              <>Editing <strong className="text-foreground/80">Platform Default</strong> — every organization, category and region uses these values until an override is added.</>
+            ) : (
+              <>Editing an <strong className="text-foreground/80">override for {scopeLabel()}</strong> — fields start from the broader scope; save to carve out this one.</>
+            )}
+            {data && data.overrides.length > 0 && (
+              <span className="ml-1.5 rounded-full bg-muted px-1.5 py-px text-[10.5px] font-semibold tabular-nums">
+                {data.overrides.length} active override{data.overrides.length === 1 ? '' : 's'} platform-wide
+              </span>
             )}
           </div>
-          <Button
-            variant="outline"
-            className="h-9 shrink-0 rounded-lg"
-            disabled={!effectiveScope}
-            onClick={() => setHistoryOpen(true)}
-          >
-            <History size={14} className="mr-1.5" /> View history
-          </Button>
         </CardContent>
       </Card>
 
-      {/* ── Contextual line ── */}
-      <p className="text-xs text-muted-foreground">
-        {scopeType === 'PLATFORM' ? (
-          <>These settings apply to <strong className="text-foreground/80">Platform Default</strong> — every organization, category and region uses them until an override is added.</>
-        ) : (
-          <>You are editing an <strong className="text-foreground/80">override for {scopeLabel()}</strong>. Fields start from the broader scope — save to carve out this scope{activeOverride ? '' : ' (no override exists yet)'}</>
-        )}
-        {data && data.overrides.length > 0 && scopeType === 'PLATFORM' && (
-          <> · {data.overrides.length} active override{data.overrides.length === 1 ? '' : 's'} exist{data.overrides.length === 1 ? 's' : ''} below this scope.</>
-        )}
-      </p>
-
       {/* ── Workspace ── */}
-      <div className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
+      <div className="grid gap-5 lg:grid-cols-[272px_minmax(0,1fr)]">
         {/* Section tree */}
-        <aside className="lg:sticky lg:top-4 lg:self-start">
+        <aside className="lg:sticky lg:top-20 lg:self-start">
           <div className="rounded-2xl border bg-card shadow-sm">
-            <div className="border-b px-4 py-3">
-              <div className="flex items-center gap-2 font-semibold">
-                <Settings2 size={15} className="text-primary" /> RFQ settings
+            <div className="space-y-2.5 border-b px-3.5 py-3">
+              <div className="relative">
+                <Search
+                  size={13}
+                  className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+                />
+                <Input
+                  value={panelQuery}
+                  onChange={(e) => setPanelQuery(e.target.value)}
+                  placeholder="Filter panels…"
+                  className="h-8 rounded-lg bg-muted/50 pl-7 text-xs shadow-none focus-visible:ring-1"
+                  aria-label="Filter settings panels"
+                />
               </div>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">
+              <p className="px-0.5 text-[11px] text-muted-foreground">
                 {RFQ_SETTINGS_SECTIONS.length} groups · {Object.keys(RFQ_SETTING_PANELS).length} panels
               </p>
             </div>
-            <ScrollArea className="max-h-[62vh] px-2 py-2">
+            <ScrollArea className="max-h-[58vh] px-2 py-2">
               <nav aria-label="Settings sections" className="space-y-1">
                 {RFQ_SETTINGS_SECTIONS.map((section) => {
                   const Icon = SECTION_ICONS[section.key] ?? Layers
-                  const hasOverride = data?.overrides.some((o) => section.panels.some((p) => p.key === o.key))
+                  const panels = section.panels.filter((p) =>
+                    panelQuery.trim() ? p.title.toLowerCase().includes(panelQuery.trim().toLowerCase()) : true
+                  )
+                  if (panels.length === 0) return null
+                  const hasOverride = data?.overrides.some((o) => panels.some((p) => p.key === o.key))
                   return (
                     <div key={section.key}>
                       <div className="flex items-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -350,7 +371,7 @@ export function RfqSettings() {
                         <span className="truncate">{section.title}</span>
                         {hasOverride && <Badge variant="outline" className="ml-auto rounded-full border-primary/40 px-1.5 text-[9px] text-primary">ovr</Badge>}
                       </div>
-                      {section.panels.map((p) => {
+                      {panels.map((p) => {
                         const isActive = p.key === activePanel
                         const isOverridden = data?.overrides.some((o) => o.key === p.key)
                         return (

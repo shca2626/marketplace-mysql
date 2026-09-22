@@ -45,7 +45,7 @@ export function FavoritesView() {
   const products = data?.products ?? []
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
+    <div className="mx-auto w-full max-w-6xl">
       <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Favorites</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         {loading ? 'Loading…' : `${products.length} saved product${products.length === 1 ? '' : 's'}`}

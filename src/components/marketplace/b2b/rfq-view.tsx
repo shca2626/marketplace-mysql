@@ -326,7 +326,7 @@ function RfqListView({
   )
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
+    <div className="mx-auto w-full max-w-5xl">
       <RecurringSchedulesCard focusId={focusScheduleId} />
 
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -588,7 +588,7 @@ function RfqDetailView({
 
   if (loading && !rfq) {
     return (
-      <div className="mx-auto max-w-4xl px-4 py-8">
+      <div className="mx-auto w-full max-w-5xl">
         <Skeleton className="h-8 w-40" />
         <Skeleton className="mt-6 h-40 w-full rounded-2xl" />
         <Skeleton className="mt-5 h-64 w-full rounded-2xl" />
@@ -597,7 +597,7 @@ function RfqDetailView({
   }
   if (!rfq) {
     return (
-      <div className="mx-auto max-w-4xl px-4 py-8">
+      <div className="mx-auto w-full max-w-5xl">
         <EmptyState
           icon={Info}
           title="RFQ not found"
@@ -617,7 +617,7 @@ function RfqDetailView({
   const canCancel = ['SUBMITTED', 'UNDER_REVIEW', 'QUOTED'].includes(rfq.status)
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
+    <div className="mx-auto w-full max-w-5xl">
       <button
         onClick={onBack}
         className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
