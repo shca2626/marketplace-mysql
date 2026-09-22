@@ -290,6 +290,136 @@ export async function addOrganizationMember(
 
 // ── Admin operations ────────────────────────────────────────────────────────
 
+/** Trim an optional string field: '' → null, undefined → undefined. */
+function cleanOptionalString(
+  value: string | null | undefined,
+  max: number,
+  label: string
+): string | null | undefined {
+  if (value === undefined) return undefined
+  if (value === null) return null
+  const trimmed = value.trim()
+  if (trimmed.length > max) {
+    throw new OrgServiceError(`${label} must be at most ${max} characters`)
+  }
+  return trimmed || null
+}
+
+export async function adminCreateOrganization(
+  adminId: string,
+  input: {
+    name: string
+    orgType?: string
+    legalName?: string | null
+    taxId?: string | null
+    registrationNumber?: string | null
+    industry?: string | null
+    website?: string | null
+    status?: string
+    creditTermsDays?: number
+    creditLimit?: number
+    notes?: string | null
+    ownerEmail?: string
+  }
+): Promise<OrganizationDTO> {
+  const name = input.name.trim()
+  if (name.length < 2 || name.length > 160) {
+    throw new OrgServiceError('Organization name must be 2–160 characters')
+  }
+  const orgType = input.orgType ?? 'COMPANY'
+  if (!['COMPANY', 'BANK', 'MFI', 'EWALLET'].includes(orgType)) {
+    throw new OrgServiceError('Invalid organization type')
+  }
+  // Admin-created orgs are trusted — they start active (verified) unless the
+  // admin explicitly parks them in the verification queue.
+  const status = input.status ?? 'ACTIVE'
+  if (!['PENDING_VERIFICATION', 'ACTIVE'].includes(status)) {
+    throw new OrgServiceError('Admin-created organizations start as Active or Pending verification')
+  }
+  if (
+    input.creditTermsDays !== undefined &&
+    (!Number.isInteger(input.creditTermsDays) || input.creditTermsDays < 0 || input.creditTermsDays > 180)
+  ) {
+    throw new OrgServiceError('Credit terms must be 0–180 days')
+  }
+  if (input.creditLimit !== undefined && (input.creditLimit < 0 || input.creditLimit > 10_000_000)) {
+    throw new OrgServiceError('Credit limit out of range')
+  }
+  if (input.notes !== undefined && input.notes !== null && input.notes.length > 5000) {
+    throw new OrgServiceError('Notes must be at most 5000 characters')
+  }
+
+  const legalName = cleanOptionalString(input.legalName, 200, 'Legal name')
+  const taxId = cleanOptionalString(input.taxId, 60, 'Tax ID')
+  const registrationNumber = cleanOptionalString(input.registrationNumber, 60, 'Registration number')
+  const industry = cleanOptionalString(input.industry, 80, 'Industry')
+  const website = cleanOptionalString(input.website, 255, 'Website')
+
+  // Owner (optional) must already have a Vendora account — resolved before any
+  // write so a typo never leaves a half-created organization behind.
+  const ownerEmail = input.ownerEmail?.trim().toLowerCase()
+  const owner = ownerEmail
+    ? await db.user.findUnique({ where: { email: ownerEmail }, select: { id: true, name: true } })
+    : null
+  if (ownerEmail && !owner) {
+    throw new OrgServiceError(
+      'No Vendora account uses that email — ask them to register first, then assign them.',
+      404
+    )
+  }
+  if (owner) {
+    const ownedOrg = await db.organizationMember.findFirst({
+      where: { userId: owner.id, role: 'OWNER' },
+      select: { organization: { select: { name: true } } },
+    })
+    if (ownedOrg) {
+      throw new OrgServiceError(
+        `That user already owns "${ownedOrg.organization.name}" — one user can own a single organization.`,
+        409
+      )
+    }
+  }
+
+  const slug = await uniqueSlug(name)
+  const org = await db.$transaction(async (tx) => {
+    const created = await tx.organization.create({
+      data: {
+        name,
+        slug,
+        orgType,
+        legalName: legalName ?? null,
+        taxId: taxId ?? null,
+        registrationNumber: registrationNumber ?? null,
+        industry: industry ?? null,
+        website: website ?? null,
+        status,
+        verifiedAt: status === 'ACTIVE' ? new Date() : null,
+        creditTermsDays: input.creditTermsDays ?? 0,
+        creditLimit: input.creditLimit ?? 0,
+        notes: input.notes ?? null,
+        ...(owner ? { members: { create: { userId: owner.id, role: 'OWNER' } } } : {}),
+      },
+      include: {
+        members: { include: { user: { select: { id: true, name: true, email: true } } } },
+        _count: { select: { members: true } },
+      },
+    })
+    return created
+  })
+
+  await recordAudit({
+    actorId: adminId,
+    actorType: 'ADMIN',
+    action: 'ORG_CREATED_ADMIN',
+    entityType: 'Organization',
+    entityId: org.id,
+    summary: `Organization "${org.name}" created by admin`,
+    metadata: { name: org.name, status: org.status, ownerEmail: ownerEmail ?? null },
+  })
+
+  return serializeOrg(org as never)
+}
+
 export async function adminListOrganizations(filter?: {
   status?: string
   search?: string
@@ -319,6 +449,12 @@ export async function adminUpdateOrganization(
   orgId: string,
   adminId: string,
   input: {
+    name?: string
+    legalName?: string | null
+    taxId?: string | null
+    registrationNumber?: string | null
+    industry?: string | null
+    website?: string | null
     status?: string
     orgType?: string
     creditTermsDays?: number
@@ -332,6 +468,24 @@ export async function adminUpdateOrganization(
   if (!org) throw new OrgServiceError('Organization not found', 404)
 
   const data: Record<string, unknown> = {}
+  // Profile fields — the slug is a stable identifier and never follows renames.
+  if (input.name !== undefined) {
+    const name = input.name.trim()
+    if (name.length < 2 || name.length > 160) {
+      throw new OrgServiceError('Organization name must be 2–160 characters')
+    }
+    data.name = name
+  }
+  const legalName = cleanOptionalString(input.legalName, 200, 'Legal name')
+  if (legalName !== undefined) data.legalName = legalName
+  const taxId = cleanOptionalString(input.taxId, 60, 'Tax ID')
+  if (taxId !== undefined) data.taxId = taxId
+  const registrationNumber = cleanOptionalString(input.registrationNumber, 60, 'Registration number')
+  if (registrationNumber !== undefined) data.registrationNumber = registrationNumber
+  const industry = cleanOptionalString(input.industry, 80, 'Industry')
+  if (industry !== undefined) data.industry = industry
+  const website = cleanOptionalString(input.website, 255, 'Website')
+  if (website !== undefined) data.website = website
   if (input.orgType !== undefined) {
     if (!['COMPANY', 'BANK', 'MFI', 'EWALLET'].includes(input.orgType)) {
       throw new OrgServiceError('Invalid organization type')
@@ -399,4 +553,40 @@ export async function adminUpdateOrganization(
   }
 
   return serializeOrg(updated as never)
+}
+
+export async function adminDeleteOrganization(adminId: string, orgId: string): Promise<void> {
+  const org = await db.organization.findUnique({
+    where: { id: orgId },
+    include: {
+      _count: { select: { members: true, rfqs: true, orders: true, priceLists: true, approvalRequests: true } },
+    },
+  })
+  if (!org) throw new OrgServiceError('Organization not found', 404)
+
+  // Trading history must survive — orgs that transacted can only be suspended.
+  const { rfqs, orders, priceLists, approvalRequests } = org._count
+  if (rfqs + orders + priceLists + approvalRequests > 0) {
+    const parts: string[] = []
+    if (orders) parts.push(`${orders} order(s)`)
+    if (rfqs) parts.push(`${rfqs} RFQ(s)`)
+    if (priceLists) parts.push(`${priceLists} price list(s)`)
+    if (approvalRequests) parts.push(`${approvalRequests} approval request(s)`)
+    throw new OrgServiceError(
+      `Cannot delete "${org.name}": it has ${parts.join(', ')}. Suspend it instead to preserve history.`,
+      409
+    )
+  }
+
+  await db.organization.delete({ where: { id: orgId } })
+
+  await recordAudit({
+    actorId: adminId,
+    actorType: 'ADMIN',
+    action: 'ORG_DELETED',
+    entityType: 'Organization',
+    entityId: orgId,
+    summary: `Organization "${org.name}" deleted`,
+    metadata: { name: org.name, slug: org.slug, members: org._count.members },
+  })
 }

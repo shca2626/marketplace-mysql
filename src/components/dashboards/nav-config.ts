@@ -57,10 +57,10 @@ export interface NavConfig {
   titles: Record<string, { title: string; description?: string }>
 }
 
-// ── Admin console ───────────────────────────────────────────────────────────
+// ── Admin dashboard ───────────────────────────────────────────────────────
 
 export const ADMIN_NAV: NavConfig = {
-  consoleName: 'Admin Console',
+  consoleName: 'Admin Dashboard',
   roleLabel: 'Platform Administrator',
   groups: [
     {
@@ -116,10 +116,10 @@ export const ADMIN_NAV: NavConfig = {
   },
 }
 
-// ── Seller console ──────────────────────────────────────────────────────────
+// ── Seller dashboard ────────────────────────────────────────────────────────
 
 export const SELLER_NAV: NavConfig = {
-  consoleName: 'Seller Console',
+  consoleName: 'Seller Dashboard',
   roleLabel: 'Merchant',
   groups: [
     {
@@ -152,7 +152,7 @@ export const SELLER_NAV: NavConfig = {
   },
 }
 
-// ── Buyer console ───────────────────────────────────────────────────────────
+// ── Buyer dashboard ─────────────────────────────────────────────────────────
 
 export const BUYER_NAV: NavConfig = {
   consoleName: 'My Account',

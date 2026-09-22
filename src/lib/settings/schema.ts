@@ -22,11 +22,47 @@ export const generalSettingsSchema = z.object({
   sampleImages: z.array(z.string().trim().min(1).max(1000)).max(24),
 })
 
+/** Legacy accent presets — kept so old stored documents keep resolving. */
+export const ACCENT_PRESET_HEX: Record<string, string> = {
+  orange: '#ea580c',
+  emerald: '#059669',
+  rose: '#e11d48',
+  amber: '#d97706',
+}
+
+/** Curated swatches offered in the admin picker (any hex is also accepted). */
+export const ACCENT_SWATCHES: { value: string; label: string }[] = [
+  { value: '#ea580c', label: 'Sunset' },
+  { value: '#d97706', label: 'Amber' },
+  { value: '#e11d48', label: 'Rose' },
+  { value: '#dc2626', label: 'Crimson' },
+  { value: '#059669', label: 'Emerald' },
+  { value: '#0d9488', label: 'Teal' },
+  { value: '#7c3aed', label: 'Violet' },
+  { value: '#c026d3', label: 'Fuchsia' },
+]
+
+export const DEFAULT_ACCENT_HEX = '#ea580c'
+
+/**
+ * Normalize any stored accent value (legacy preset name, 3- or 6-digit hex,
+ * junk) into a 6-digit lowercase hex. Pure — safe for zod transforms.
+ */
+export function normalizeAccentHex(input: unknown, fallback: string = DEFAULT_ACCENT_HEX): string {
+  if (typeof input !== 'string') return fallback
+  const v = input.trim().toLowerCase()
+  if (ACCENT_PRESET_HEX[v]) return ACCENT_PRESET_HEX[v]
+  if (/^#[0-9a-f]{6}$/.test(v)) return v
+  if (/^#[0-9a-f]{3}$/.test(v)) return `#${v.slice(1).split('').map((c) => c + c).join('')}`
+  if (/^[0-9a-f]{6}$/.test(v)) return `#${v}`
+  return fallback
+}
+
 export const themeSettingsSchema = z.object({
   defaultTheme: z.enum(['light', 'dark', 'system']),
-  /** accent preset — drives [data-accent] CSS variable overrides */
-  accent: z.enum(['orange', 'emerald', 'rose', 'amber']),
-  /** corner radius scale — drives [data-radius] CSS variable overrides */
+  /** brand accent — any hex color, applied live to --primary across the app */
+  accent: z.string().transform((v) => normalizeAccentHex(v)),
+  /** corner radius scale — applied live to --radius */
   radius: z.enum(['sharp', 'compact', 'cozy', 'roomy']),
 })
 
@@ -93,7 +129,7 @@ export const DEFAULT_STOREFRONT_SETTINGS: StorefrontSettings = {
   },
   theme: {
     defaultTheme: 'light',
-    accent: 'orange',
+    accent: '#ea580c',
     radius: 'cozy',
   },
   layout: {

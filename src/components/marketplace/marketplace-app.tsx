@@ -41,6 +41,7 @@ import { BuyerRfqsPage, BuyerBusinessPage, BuyerOrdersPage, BuyerFavoritesPage }
 import { CartDrawer } from './cart-drawer'
 import { AuthModal } from './auth-modal'
 import { BackToTop } from './back-to-top'
+import { StorefrontTheme } from './storefront-theme'
 
 /** Public shopping surfaces. */
 const STOREFRONT_VIEWS: Record<string, () => React.ReactNode> = {
@@ -117,6 +118,10 @@ export function MarketplaceApp() {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+      {/* Live theme bridge — pushes admin-configured accent / radius /
+          default-mode onto the document root for BOTH storefront and
+          dashboards the moment settings load or change. */}
+      <StorefrontTheme />
       {isConsole ? (
         /* ── Internal console — dedicated dashboard shell ── */
         <div className="min-h-screen bg-muted/40 text-foreground">

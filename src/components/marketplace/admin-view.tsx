@@ -24,7 +24,7 @@ import { DisputesTab } from './admin/disputes-tab'
 import { AdminSettings } from './admin-settings'
 import { RfqSettings } from './admin/settings/rfq-settings'
 
-function AdminConsole() {
+function AdminDashboard() {
   const navigate = useMarketplace((s) => s.navigate)
   const params = useMarketplace((s) => s.params)
   const activeSection = params.adminTab ?? 'overview'
@@ -63,7 +63,7 @@ export function AdminView() {
     return (
       <SignInRequired
         icon={ShieldCheck}
-        title="Admin console"
+        title="Admin dashboard"
         description="Sign in with a platform administrator account to operate the marketplace."
         afterView="admin"
       />
@@ -75,10 +75,10 @@ export function AdminView() {
       <AccessDenied
         icon={ShieldAlert}
         title="Admin access required"
-        description="The admin console is restricted to marketplace administrators."
+        description="The admin dashboard is restricted to marketplace administrators."
       />
     )
   }
 
-  return <AdminConsole />
+  return <AdminDashboard />
 }

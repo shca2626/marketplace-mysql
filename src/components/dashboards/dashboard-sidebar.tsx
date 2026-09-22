@@ -1,18 +1,16 @@
 'use client'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DASHBOARD SIDEBAR — the primary navigation for every internal console.
+// DASHBOARD SIDEBAR — the primary navigation for every internal dashboard.
 // Desktop: sticky rail (264px expanded / 72px icon-only collapsed, persisted).
 // Mobile: the same nav tree inside a Sheet drawer. Role-aware brand block,
-// grouped sections, active-item highlighting and a "back to storefront"
-// escape hatch at the bottom.
+// grouped sections and active-item highlighting. The "view storefront"
+// shortcut lives in the topbar next to the theme switch.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState } from 'react'
 import { ChevronsLeft, ChevronsRight, Store } from 'lucide-react'
-import { useMarketplace } from '@/store/marketplace'
 import type { NavConfig, NavItem, RoleKey } from './nav-config'
-import { STOREFRONT_LINK } from './nav-config'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
@@ -158,34 +156,6 @@ function SidebarHeader({
   )
 }
 
-/** Bottom escape hatch — always visible, takes you back to the public store. */
-function SidebarFooter({
-  onNavigate,
-  collapsed,
-  storefrontLabel,
-}: {
-  onNavigate: () => void
-  collapsed: boolean
-  storefrontLabel: string
-}) {
-  return (
-    <div className="shrink-0 border-t px-3 py-3">
-      <button
-        type="button"
-        onClick={onNavigate}
-        title={collapsed ? storefrontLabel : undefined}
-        className={cn(
-          'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
-          collapsed && 'justify-center px-0'
-        )}
-      >
-        <Store size={15} className="shrink-0" />
-        {!collapsed && <span className="truncate">{storefrontLabel}</span>}
-      </button>
-    </div>
-  )
-}
-
 // ── Desktop rail ────────────────────────────────────────────────────────────
 
 export function DashboardSidebar({
@@ -199,7 +169,6 @@ export function DashboardSidebar({
   activeKey: string
   onNavigate: (item: NavItem) => void
 }) {
-  const navigate = useMarketplace((s) => s.navigate)
   // Collapse choice persisted across sessions. Read lazily during the first
   // client render (render-time state adjustment — the same pattern the app
   // uses for the storefront cover choice; SSR renders the default and the
@@ -230,8 +199,6 @@ export function DashboardSidebar({
     })
   }
 
-  const storefront = STOREFRONT_LINK[role]
-
   return (
     <aside
       className={cn(
@@ -241,11 +208,6 @@ export function DashboardSidebar({
     >
       <SidebarHeader nav={nav} role={role} collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
       <SidebarNavBody nav={nav} activeKey={activeKey} onNavigate={onNavigate} collapsed={collapsed} />
-      <SidebarFooter
-        collapsed={collapsed}
-        storefrontLabel={storefront.label}
-        onNavigate={() => navigate('home')}
-      />
     </aside>
   )
 }
@@ -267,9 +229,6 @@ export function DashboardMobileNav({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const navigate = useMarketplace((s) => s.navigate)
-  const storefront = STOREFRONT_LINK[role]
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="left" className="flex w-[290px] flex-col gap-0 p-0">
@@ -296,14 +255,6 @@ export function DashboardMobileNav({
             onAfterNavigate={() => onOpenChange(false)}
           />
         </div>
-        <SidebarFooter
-          collapsed={false}
-          storefrontLabel={storefront.label}
-          onNavigate={() => {
-            onOpenChange(false)
-            navigate('home')
-          }}
-        />
       </SheetContent>
     </Sheet>
   )

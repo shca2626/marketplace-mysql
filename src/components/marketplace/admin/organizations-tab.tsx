@@ -5,16 +5,17 @@ import {
   BadgeCheck,
   Ban,
   Building2,
-  ExternalLink,
   Globe,
   Loader2,
   Mail,
   Pencil,
+  Plus,
   RotateCcw,
   Save,
   SearchX,
   ShieldAlert,
   ShieldQuestion,
+  Trash2,
   Users,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
@@ -81,10 +82,17 @@ export function OrganizationsTab() {
   const debouncedSearch = useDebounced(search)
   const [openId, setOpenId] = useState<string | null>(null)
   const [openSeq, setOpenSeq] = useState(0)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createSeq, setCreateSeq] = useState(0)
 
   const openOrg = (id: string) => {
     setOpenId(id)
     setOpenSeq((s) => s + 1)
+  }
+
+  const openCreate = () => {
+    setCreateOpen(true)
+    setCreateSeq((s) => s + 1)
   }
 
   const query = new URLSearchParams()
@@ -141,12 +149,18 @@ export function OrganizationsTab() {
           onChange={setStatusFilter}
           ariaLabel="Filter organizations by status"
         />
-        <SearchInput
-          value={search}
-          onChange={setSearch}
-          placeholder="Search organizations — name, tax ID…"
-          ariaLabel="Search organizations"
-        />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            placeholder="Search organizations — name, tax ID…"
+            ariaLabel="Search organizations"
+            className="min-w-0 flex-1 md:max-w-72"
+          />
+          <Button className="shrink-0 rounded-xl" onClick={openCreate}>
+            <Plus size={15} className="mr-1.5" /> New organization
+          </Button>
+        </div>
       </div>
 
       {/* Loading */}
@@ -291,6 +305,14 @@ export function OrganizationsTab() {
         onClose={() => setOpenId(null)}
         onChanged={() => void refetchList()}
       />
+
+      {/* Creation dialog */}
+      <OrgCreateDialog
+        open={createOpen}
+        seq={createSeq}
+        onClose={() => setCreateOpen(false)}
+        onCreated={() => void refetchList()}
+      />
     </div>
   )
 }
@@ -318,13 +340,30 @@ function OrgManageDialog({
 
   // Local edit state — re-initialized on every dialog open (seq) and every
   // fresh detail fetch (new object identity), the seller-view cover pattern.
-  const [form, setForm] = useState({ creditTermsDays: '30', creditLimit: '0', notes: '', orgType: 'COMPANY' })
+  const [form, setForm] = useState({
+    name: '',
+    legalName: '',
+    taxId: '',
+    registrationNumber: '',
+    industry: '',
+    website: '',
+    creditTermsDays: '30',
+    creditLimit: '0',
+    notes: '',
+    orgType: 'COMPANY',
+  })
   const [groupIds, setGroupIds] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState<string | null>(null)
   const [initializedFor, setInitializedFor] = useState<{ seq: number; org: OrganizationDTO } | null>(null)
   if (org && (!initializedFor || initializedFor.seq !== seq || initializedFor.org !== org)) {
     setInitializedFor({ seq, org })
     setForm({
+      name: org.name,
+      legalName: org.legalName ?? '',
+      taxId: org.taxId ?? '',
+      registrationNumber: org.registrationNumber ?? '',
+      industry: org.industry ?? '',
+      website: org.website ?? '',
       creditTermsDays: String(org.creditTermsDays),
       creditLimit: String(org.creditLimit),
       notes: org.notes ?? '',
@@ -353,6 +392,37 @@ function OrgManageDialog({
       return
     }
     toast({ title: successTitle, description: successDescription })
+    refresh()
+  }
+
+  const saveProfile = async () => {
+    const name = form.name.trim()
+    if (name.length < 2) {
+      toast({
+        title: 'Name too short',
+        description: 'Organization name must be at least 2 characters.',
+        variant: 'destructive',
+      })
+      return
+    }
+    setSaving('profile')
+    const res = await apiRequest(`/api/admin/organizations/${orgId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        name,
+        legalName: form.legalName.trim() || null,
+        taxId: form.taxId.trim() || null,
+        registrationNumber: form.registrationNumber.trim() || null,
+        industry: form.industry.trim() || null,
+        website: form.website.trim() || null,
+      }),
+    })
+    setSaving(null)
+    if (!res.ok) {
+      toastApiError(res.error, 'Profile save failed')
+      return
+    }
+    toast({ title: 'Profile saved' })
     refresh()
   }
 
@@ -401,6 +471,23 @@ function OrgManageDialog({
     refresh()
   }
 
+  const deleteOrg = async () => {
+    setSaving('delete')
+    const res = await apiRequest(`/api/admin/organizations/${orgId}`, { method: 'DELETE' })
+    setSaving(null)
+    if (!res.ok) {
+      // 409 → the server message explains exactly which history blocks deletion.
+      toastApiError(res.error, 'Delete failed')
+      return
+    }
+    toast({
+      title: 'Organization deleted',
+      description: `${org?.name ?? 'The organization'} has been removed.`,
+    })
+    onClose()
+    onChanged()
+  }
+
   const toggleGroup = (id: string, checked: boolean) => {
     setGroupIds((prev) => {
       const next = new Set(prev)
@@ -445,31 +532,96 @@ function OrgManageDialog({
               </div>
             </DialogHeader>
 
-            {/* Profile facts */}
-            <div className="grid grid-cols-2 gap-4 rounded-xl border p-4 sm:grid-cols-3">
-              <DetailField label="Legal name" value={org.legalName ?? '—'} />
-              <DetailField label="Tax ID" value={org.taxId ?? '—'} />
-              <DetailField label="Registration no." value={org.registrationNumber ?? '—'} />
-              <DetailField label="Industry" value={org.industry ?? '—'} />
-              <DetailField label="Joined" value={`${formatDate(org.createdAt)} (${timeAgo(org.createdAt)})`} />
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Website</p>
-                {org.website ? (
-                  <a
-                    href={org.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-0.5 inline-flex items-center gap-1 truncate text-sm font-medium text-primary hover:underline"
-                  >
-                    <Globe size={13} className="shrink-0" />
-                    <span className="truncate">{org.website.replace(/^https?:\/\//, '')}</span>
-                    <ExternalLink size={12} className="shrink-0" />
-                  </a>
-                ) : (
-                  <p className="mt-0.5 text-sm text-muted-foreground">—</p>
-                )}
+            {/* Profile */}
+            <section aria-label="Organization profile">
+              <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
+                <Globe size={14} className="text-primary" /> Profile
+              </h3>
+              <div className="space-y-3 rounded-xl border p-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="org-name" className="text-xs">
+                    Name
+                  </Label>
+                  <Input
+                    id="org-name"
+                    value={form.name}
+                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                    aria-label="Organization name"
+                  />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="org-legal-name" className="text-xs">
+                      Legal name
+                    </Label>
+                    <Input
+                      id="org-legal-name"
+                      value={form.legalName}
+                      onChange={(e) => setForm((f) => ({ ...f, legalName: e.target.value }))}
+                      aria-label="Legal name"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="org-tax-id" className="text-xs">
+                      Tax ID
+                    </Label>
+                    <Input
+                      id="org-tax-id"
+                      value={form.taxId}
+                      onChange={(e) => setForm((f) => ({ ...f, taxId: e.target.value }))}
+                      aria-label="Tax ID"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="org-registration" className="text-xs">
+                      Registration no.
+                    </Label>
+                    <Input
+                      id="org-registration"
+                      value={form.registrationNumber}
+                      onChange={(e) => setForm((f) => ({ ...f, registrationNumber: e.target.value }))}
+                      aria-label="Registration number"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="org-industry" className="text-xs">
+                      Industry
+                    </Label>
+                    <Input
+                      id="org-industry"
+                      value={form.industry}
+                      onChange={(e) => setForm((f) => ({ ...f, industry: e.target.value }))}
+                      aria-label="Industry"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="org-website" className="text-xs">
+                    Website
+                  </Label>
+                  <Input
+                    id="org-website"
+                    value={form.website}
+                    onChange={(e) => setForm((f) => ({ ...f, website: e.target.value }))}
+                    placeholder="https://…"
+                    aria-label="Website"
+                  />
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-[11px] text-muted-foreground">
+                    Joined {formatDate(org.createdAt)} · the /{org.slug} identifier never changes on rename
+                  </p>
+                  <Button size="sm" className="rounded-xl" onClick={() => void saveProfile()} disabled={busy}>
+                    {saving === 'profile' ? (
+                      <Loader2 size={14} className="mr-1.5 animate-spin" />
+                    ) : (
+                      <Save size={14} className="mr-1.5" />
+                    )}
+                    Save profile
+                  </Button>
+                </div>
               </div>
-            </div>
+            </section>
 
             {/* Members */}
             <section aria-label="Organization members">
@@ -713,8 +865,332 @@ function OrgManageDialog({
                 </p>
               </div>
             </section>
+
+            {/* Danger zone */}
+            <section
+              aria-label="Danger zone"
+              className="rounded-xl border border-destructive/40 bg-destructive/5 p-4"
+            >
+              <h3 className="mb-2 text-sm font-semibold text-destructive">Danger zone</h3>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="min-w-0 flex-1 text-[11px] text-muted-foreground">
+                  Organizations that have traded — orders, RFQs, price lists — cannot be deleted; suspend them
+                  instead to preserve history.
+                </p>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm" className="shrink-0 rounded-xl" disabled={busy}>
+                      {saving === 'delete' ? (
+                        <Loader2 size={14} className="mr-1.5 animate-spin" />
+                      ) : (
+                        <Trash2 size={14} className="mr-1.5" />
+                      )}
+                      Delete organization
+                    </Button>
+                  </AlertDialogTrigger>
+                  <ConfirmContent
+                    title={`Delete ${org.name}?`}
+                    description="This permanently removes the organization and its memberships. This cannot be undone."
+                    actionLabel="Delete organization"
+                    destructive
+                    onConfirm={() => void deleteOrg()}
+                  />
+                </AlertDialog>
+              </div>
+            </section>
           </>
         )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ── Creation dialog ──────────────────────────────────────────────────────────
+
+const CREATE_FORM_DEFAULTS = {
+  name: '',
+  orgType: 'COMPANY',
+  status: 'ACTIVE',
+  ownerEmail: '',
+  legalName: '',
+  taxId: '',
+  registrationNumber: '',
+  industry: '',
+  website: '',
+  creditTermsDays: '0',
+  creditLimit: '0',
+  notes: '',
+}
+
+function OrgCreateDialog({
+  open,
+  seq,
+  onClose,
+  onCreated,
+}: {
+  open: boolean
+  seq: number
+  onClose: () => void
+  onCreated: () => void
+}) {
+  const [form, setForm] = useState({ ...CREATE_FORM_DEFAULTS })
+  const [posting, setPosting] = useState(false)
+  // Fresh form on every open — the same render-time init pattern as the manage
+  // dialog (no effects).
+  const [initializedFor, setInitializedFor] = useState<number | null>(null)
+  if (open && initializedFor !== seq) {
+    setInitializedFor(seq)
+    setForm({ ...CREATE_FORM_DEFAULTS })
+  }
+
+  const submit = async () => {
+    const name = form.name.trim()
+    if (name.length < 2) {
+      toast({
+        title: 'Name too short',
+        description: 'Organization name must be at least 2 characters.',
+        variant: 'destructive',
+      })
+      return
+    }
+    const terms = Number(form.creditTermsDays)
+    if (!Number.isInteger(terms) || terms < 0 || terms > 180) {
+      toast({ title: 'Invalid credit terms', description: 'Payment terms must be 0–180 days.', variant: 'destructive' })
+      return
+    }
+    const limit = Number(form.creditLimit)
+    if (Number.isNaN(limit) || limit < 0) {
+      toast({ title: 'Invalid credit limit', description: 'Credit limit must be zero or more.', variant: 'destructive' })
+      return
+    }
+
+    setPosting(true)
+    const res = await apiRequest('/api/admin/organizations', {
+      method: 'POST',
+      body: JSON.stringify({
+        name,
+        orgType: form.orgType,
+        status: form.status,
+        ownerEmail: form.ownerEmail.trim() || undefined,
+        legalName: form.legalName.trim() || null,
+        taxId: form.taxId.trim() || null,
+        registrationNumber: form.registrationNumber.trim() || null,
+        industry: form.industry.trim() || null,
+        website: form.website.trim() || null,
+        creditTermsDays: terms,
+        creditLimit: Math.round(limit * 100) / 100,
+        notes: form.notes.trim() || null,
+      }),
+    })
+    setPosting(false)
+    if (!res.ok) {
+      toastApiError(res.error, 'Creation failed')
+      return
+    }
+    toast({ title: 'Organization created', description: `${name} is ready.` })
+    onCreated()
+    onClose()
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => (!v ? onClose() : undefined)}>
+      <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 leading-tight">
+            <Building2 size={18} className="text-primary" /> New organization
+          </DialogTitle>
+          <DialogDescription>
+            Create a business account on behalf of the platform — assign an owner and configure commercial
+            terms right away.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="new-org-name" className="text-xs">
+              Name
+            </Label>
+            <Input
+              id="new-org-name"
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              placeholder="e.g. Acme Trading Co"
+              aria-label="Organization name"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="new-org-type" className="text-xs">
+                Organization type
+              </Label>
+              <Select value={form.orgType} onValueChange={(v) => setForm((f) => ({ ...f, orgType: v }))}>
+                <SelectTrigger id="new-org-type" className="h-9" aria-label="Organization type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="COMPANY">Company</SelectItem>
+                  <SelectItem value="BANK">Bank</SelectItem>
+                  <SelectItem value="MFI">Micro-finance institution</SelectItem>
+                  <SelectItem value="EWALLET">E-wallet</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="new-org-status" className="text-xs">
+                Status
+              </Label>
+              <Select value={form.status} onValueChange={(v) => setForm((f) => ({ ...f, status: v }))}>
+                <SelectTrigger id="new-org-status" className="h-9" aria-label="Initial status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ACTIVE">Active</SelectItem>
+                  <SelectItem value="PENDING_VERIFICATION">Pending verification</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="new-org-owner" className="text-xs">
+              Owner email
+            </Label>
+            <Input
+              id="new-org-owner"
+              type="email"
+              value={form.ownerEmail}
+              onChange={(e) => setForm((f) => ({ ...f, ownerEmail: e.target.value }))}
+              placeholder="owner@example.com"
+              aria-label="Owner email, optional"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Optional — must already have a Vendora account; they become the organization owner
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="new-org-legal-name" className="text-xs">
+                Legal name
+              </Label>
+              <Input
+                id="new-org-legal-name"
+                value={form.legalName}
+                onChange={(e) => setForm((f) => ({ ...f, legalName: e.target.value }))}
+                aria-label="Legal name"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="new-org-tax-id" className="text-xs">
+                Tax ID
+              </Label>
+              <Input
+                id="new-org-tax-id"
+                value={form.taxId}
+                onChange={(e) => setForm((f) => ({ ...f, taxId: e.target.value }))}
+                aria-label="Tax ID"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="new-org-registration" className="text-xs">
+                Registration no.
+              </Label>
+              <Input
+                id="new-org-registration"
+                value={form.registrationNumber}
+                onChange={(e) => setForm((f) => ({ ...f, registrationNumber: e.target.value }))}
+                aria-label="Registration number"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="new-org-industry" className="text-xs">
+                Industry
+              </Label>
+              <Input
+                id="new-org-industry"
+                value={form.industry}
+                onChange={(e) => setForm((f) => ({ ...f, industry: e.target.value }))}
+                aria-label="Industry"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="new-org-website" className="text-xs">
+              Website
+            </Label>
+            <Input
+              id="new-org-website"
+              value={form.website}
+              onChange={(e) => setForm((f) => ({ ...f, website: e.target.value }))}
+              placeholder="https://…"
+              aria-label="Website"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="new-org-credit-terms" className="text-xs">
+                Credit terms (days)
+              </Label>
+              <Input
+                id="new-org-credit-terms"
+                type="number"
+                min={0}
+                max={180}
+                value={form.creditTermsDays}
+                onChange={(e) => setForm((f) => ({ ...f, creditTermsDays: e.target.value }))}
+                aria-label="Payment terms in days, 0 to 180"
+              />
+              <p className="text-[11px] text-muted-foreground">0 = prepaid · max 180 (NET-180)</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="new-org-credit-limit" className="text-xs">
+                Credit limit (USD)
+              </Label>
+              <Input
+                id="new-org-credit-limit"
+                type="number"
+                min={0}
+                step="0.01"
+                value={form.creditLimit}
+                onChange={(e) => setForm((f) => ({ ...f, creditLimit: e.target.value }))}
+                aria-label="Credit limit in US dollars"
+              />
+              <p className="text-[11px] text-muted-foreground">{formatUSD(Number(form.creditLimit) || 0)}</p>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="new-org-notes" className="text-xs">
+              Notes
+            </Label>
+            <Textarea
+              id="new-org-notes"
+              rows={2}
+              value={form.notes}
+              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+              placeholder="KYC notes, contract references…"
+              aria-label="Internal notes about this organization"
+              className="resize-none"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" className="rounded-xl" onClick={onClose} disabled={posting}>
+              Cancel
+            </Button>
+            <Button className="rounded-xl" onClick={() => void submit()} disabled={posting}>
+              {posting ? (
+                <Loader2 size={14} className="mr-1.5 animate-spin" />
+              ) : (
+                <Plus size={14} className="mr-1.5" />
+              )}
+              Create organization
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   )
@@ -749,16 +1225,5 @@ function ConfirmContent({
         </AlertDialogAction>
       </AlertDialogFooter>
     </AlertDialogContent>
-  )
-}
-
-function DetailField({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-0.5 truncate text-sm" title={value}>
-        {value}
-      </p>
-    </div>
   )
 }

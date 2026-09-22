@@ -214,16 +214,16 @@ export function Header() {
                   <p className="truncate text-xs font-normal text-muted-foreground">{user.email}</p>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {/* Role-aware console entry — the internal dashboards are separate
+                {/* Role-aware dashboard entry — the internal dashboards are separate
                     surfaces; the storefront menu is the doorway to them. */}
                 {user.role === 'ADMIN' && (
                   <DropdownMenuItem onClick={() => navigate('admin')} className="cursor-pointer font-medium">
-                    <BarChart3 size={15} className="mr-2" /> Admin console
+                    <BarChart3 size={15} className="mr-2" /> Admin dashboard
                   </DropdownMenuItem>
                 )}
                 {user.role === 'SELLER' && (
                   <DropdownMenuItem onClick={() => navigate('seller')} className="cursor-pointer font-medium">
-                    <LayoutDashboard size={15} className="mr-2" /> Seller console
+                    <LayoutDashboard size={15} className="mr-2" /> Seller dashboard
                   </DropdownMenuItem>
                 )}
                 {user.role !== 'ADMIN' && user.role !== 'SELLER' && (

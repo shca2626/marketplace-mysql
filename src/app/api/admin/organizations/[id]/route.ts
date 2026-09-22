@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAdmin } from '@/server/guards'
-import { adminUpdateOrganization, OrgServiceError } from '@/server/modules/organizations/service'
+import {
+  adminDeleteOrganization,
+  adminUpdateOrganization,
+  OrgServiceError,
+} from '@/server/modules/organizations/service'
 
 const updateSchema = z.object({
+  name: z.string().trim().min(2).max(160).optional(),
+  legalName: z.string().max(200).nullable().optional(),
+  taxId: z.string().max(60).nullable().optional(),
+  registrationNumber: z.string().max(60).nullable().optional(),
+  industry: z.string().max(80).nullable().optional(),
+  website: z.string().max(255).nullable().optional(),
   status: z.enum(['PENDING_VERIFICATION', 'ACTIVE', 'SUSPENDED', 'REJECTED']).optional(),
   orgType: z.enum(['COMPANY', 'BANK', 'MFI', 'EWALLET']).optional(),
   creditTermsDays: z.number().int().min(0).max(180).optional(),
@@ -13,7 +23,7 @@ const updateSchema = z.object({
   groupIds: z.array(z.string()).optional(),
 })
 
-// PATCH /api/admin/organizations/[id] — verification, credit config, group mapping
+// PATCH /api/admin/organizations/[id] — profile, verification, credit config, group mapping
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { user, error } = await requireAdmin()
   if (error) return error
@@ -32,5 +42,22 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     }
     console.error('admin org PATCH error', err)
     return NextResponse.json({ error: 'Failed to update organization' }, { status: 500 })
+  }
+}
+
+// DELETE /api/admin/organizations/[id] — only orgs without trading history
+export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const { user, error } = await requireAdmin()
+  if (error) return error
+  try {
+    const { id } = await ctx.params
+    await adminDeleteOrganization(user!.id, id)
+    return NextResponse.json({ ok: true })
+  } catch (err) {
+    if (err instanceof OrgServiceError) {
+      return NextResponse.json({ error: err.message }, { status: err.status })
+    }
+    console.error('admin org DELETE error', err)
+    return NextResponse.json({ error: 'Failed to delete organization' }, { status: 500 })
   }
 }

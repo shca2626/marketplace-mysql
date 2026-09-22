@@ -30,6 +30,7 @@ import { useMarketplace } from '@/store/marketplace'
 import { toast } from '@/hooks/use-toast'
 import { useApi } from '@/hooks/use-api'
 import type { StorefrontSettings, BannerSlideDTO } from '@/lib/settings/schema'
+import { ACCENT_SWATCHES, normalizeAccentHex } from '@/lib/settings/schema'
 import { resolveImageVariant } from '@/lib/storage/url'
 import type { CategoryDTO } from '@/lib/types'
 import { Button } from '@/components/ui/button'
@@ -277,32 +278,8 @@ export function AdminSettings() {
             />
           </FieldCard>
 
-          <FieldCard title="Accent color" desc="Buttons, links, highlights and charts across the storefront.">
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-              {(
-                [
-                  { value: 'orange', label: 'Sunset', swatch: 'bg-orange-500' },
-                  { value: 'emerald', label: 'Emerald', swatch: 'bg-emerald-600' },
-                  { value: 'rose', label: 'Rose', swatch: 'bg-rose-500' },
-                  { value: 'amber', label: 'Amber', swatch: 'bg-amber-500' },
-                ] as const
-              ).map((o) => (
-                <button
-                  key={o.value}
-                  onClick={() => update('theme', 'accent', o.value)}
-                  aria-pressed={draft.theme.accent === o.value}
-                  className={cn(
-                    'flex flex-col items-center gap-2 rounded-xl border bg-card px-3 py-3.5 transition-all hover:border-primary/40',
-                    draft.theme.accent === o.value && 'border-primary bg-primary/5 ring-1 ring-primary/30'
-                  )}
-                >
-                  <span className={cn('flex h-9 w-9 items-center justify-center rounded-full text-white shadow-inner', o.swatch)}>
-                    {draft.theme.accent === o.value && <Check size={16} className="drop-shadow" strokeWidth={3} />}
-                  </span>
-                  <span className="text-xs font-medium">{o.label}</span>
-                </button>
-              ))}
-            </div>
+          <FieldCard title="Accent color" desc="Buttons, links, highlights and charts — any color you like, applied live across the platform." className="lg:col-span-2">
+            <AccentPicker value={draft.theme.accent} onChange={(hex) => update('theme', 'accent', hex)} />
           </FieldCard>
 
           <FieldCard title="Corner radius" desc="Global roundness of cards, buttons and inputs." className="lg:col-span-2">
@@ -572,6 +549,107 @@ function RadioRow({
           {o.hint && <span className="text-[10px] text-muted-foreground">{o.hint}</span>}
         </button>
       ))}
+    </div>
+  )
+}
+
+// ── accent color picker (unlimited — presets + any hex) ─────────────────────
+
+function AccentPicker({ value, onChange }: { value: string; onChange: (hex: string) => void }) {
+  // Local text-field state, re-synced (render-time pattern) whenever the
+  // effective value changes from the outside (load, reset, another field).
+  const [sync, setSync] = useState<{ value: string } | null>(null)
+  const [hexInput, setHexInput] = useState(value)
+  if (!sync || sync.value !== value) {
+    setSync({ value })
+    setHexInput(value)
+  }
+  const valid = /^#([0-9a-f]{6}|[0-9a-f]{3})$/i.test(hexInput.trim())
+  const isPreset = ACCENT_SWATCHES.some((s) => s.value === value)
+
+  const commit = (raw: string) => {
+    setHexInput(raw)
+    if (/^#([0-9a-f]{6}|[0-9a-f]{3})$/i.test(raw.trim())) onChange(normalizeAccentHex(raw))
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Preset swatches */}
+      <div className="grid grid-cols-4 gap-2.5 sm:grid-cols-8">
+        {ACCENT_SWATCHES.map((s) => (
+          <button
+            key={s.value}
+            type="button"
+            onClick={() => commit(s.value)}
+            aria-pressed={value === s.value}
+            aria-label={`Accent ${s.label} ${s.value}`}
+            className={cn(
+              'flex flex-col items-center gap-1.5 rounded-xl border bg-card px-2 py-3 transition-all hover:border-primary/40',
+              value === s.value && 'border-primary bg-primary/5 ring-1 ring-primary/30'
+            )}
+          >
+            <span
+              className="flex h-8 w-8 items-center justify-center rounded-full shadow-inner"
+              style={{ backgroundColor: s.value, color: '#fff' }}
+            >
+              {value === s.value && <Check size={14} className="drop-shadow" strokeWidth={3} />}
+            </span>
+            <span className="text-[11px] font-medium leading-none">{s.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Custom color — any hex via the native picker + text field */}
+      <div className="flex flex-col gap-3 rounded-xl border bg-card p-3.5 sm:flex-row sm:items-center">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <label
+            className="relative block h-10 w-10 shrink-0 cursor-pointer overflow-hidden rounded-xl border shadow-sm transition-transform hover:scale-105 focus-within:ring-2 focus-within:ring-ring"
+            style={{ backgroundColor: valid ? normalizeAccentHex(hexInput) : value }}
+            title="Pick any color"
+          >
+            <input
+              type="color"
+              value={valid ? normalizeAccentHex(hexInput) : value}
+              onChange={(e) => commit(e.target.value)}
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              aria-label="Pick a custom accent color"
+            />
+          </label>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">
+              Custom color {!isPreset && <span className="text-xs font-normal text-muted-foreground">(active)</span>}
+            </p>
+            <p className="text-xs text-muted-foreground">Open the picker or type any hex value.</p>
+          </div>
+          <Input
+            value={hexInput}
+            onChange={(e) => commit(e.target.value)}
+            onBlur={() => !valid && setHexInput(value)}
+            aria-label="Accent hex value"
+            aria-invalid={!valid}
+            spellCheck={false}
+            className={cn(
+              'h-9 w-28 shrink-0 rounded-lg font-mono text-[13px] uppercase',
+              !valid && 'border-destructive/60 focus-visible:ring-destructive'
+            )}
+          />
+        </div>
+        {!valid && (
+          <p className="text-xs text-destructive sm:w-36">Enter a hex color like #7c3aed.</p>
+        )}
+        {/* Live preview — mirrors how the accent renders as a primary button */}
+        <div className="flex items-center gap-3 border-t pt-3 sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0">
+          <span
+            className="rounded-lg px-3.5 py-2 text-xs font-semibold text-white shadow-sm"
+            style={{ backgroundColor: value }}
+          >
+            Primary button
+          </span>
+          <span className="text-xs font-semibold" style={{ color: value }}>
+            Link text
+          </span>
+        </div>
+      </div>
     </div>
   )
 }

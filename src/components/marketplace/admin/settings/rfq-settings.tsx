@@ -2,7 +2,9 @@
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RFQ SETTINGS — the admin configuration cockpit (UI-first, no code).
-// Left: section tree mirroring the settings taxonomy. Top: the editing scope
+// Left (≥lg): collapsible accordion of the settings taxonomy groups + panel
+// search + active overrides. Below lg the rail collapses into a single
+// grouped dropdown picker above the form. Top: the editing scope
 // selector (Platform Default / org type / org / category / region — lower
 // scope wins) + View History. Right: the registry-rendered panel form with
 // Save / Cancel / Reset-to-default. Every change is diffed, logged and can be
@@ -12,6 +14,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import {
   BarChart3,
+  ChevronDown,
   ChevronRight,
   Coins,
   CreditCard,
@@ -65,7 +68,9 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
@@ -125,6 +130,11 @@ const SCOPE_LABEL: Record<string, string> = {
   REGION: 'Region',
 }
 
+/** Key of the section that owns a panel ('quoteRouting' → 'master'). */
+function sectionKeyOf(panelKey: string): string {
+  return RFQ_SETTINGS_SECTIONS.find((s) => s.panels.some((p) => p.key === panelKey))?.key ?? ''
+}
+
 // ── Component ───────────────────────────────────────────────────────────────
 
 export function RfqSettings() {
@@ -139,6 +149,19 @@ export function RfqSettings() {
   const [deleteOverrideTarget, setDeleteOverrideTarget] = useState<AdminPayload['overrides'][number] | null>(null)
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0)
   const [panelQuery, setPanelQuery] = useState('') // rail search filter
+  // Accordion state for the desktop rail — only the initial panel's group
+  // ('quoteRouting' → 'master') starts expanded; clicks toggle membership,
+  // and several groups may be open at once.
+  const [openSections, setOpenSections] = useState<Set<string>>(() => new Set([sectionKeyOf('quoteRouting')]))
+
+  const toggleSection = useCallback((key: string) => {
+    setOpenSections((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
 
   const query = useMemo(() => {
     if (scopeType === 'PLATFORM') return ''
@@ -223,6 +246,27 @@ export function RfqSettings() {
   const activeOverride = data?.overrides.find(
     (o) => o.key === activePanel && o.scopeType === scopeType && o.scopeId === (scopeType === 'REGION' ? regionInput.toUpperCase().slice(0, 64) : scopeId)
   )
+
+  // Rail search — derived at render (never setState-in-effect): a typed query
+  // force-expands every group with matches and hides the rest, while
+  // openSections quietly keeps the user's manual open/close choices for when
+  // the query is cleared.
+  const queryText = panelQuery.trim().toLowerCase()
+  const isFiltering = queryText.length > 0
+  const totalPanels = Object.keys(RFQ_SETTING_PANELS).length
+  const matchStats = useMemo(() => {
+    if (!isFiltering) return null
+    let groups = 0
+    let panels = 0
+    for (const section of RFQ_SETTINGS_SECTIONS) {
+      const hits = section.panels.filter((p) => p.title.toLowerCase().includes(queryText)).length
+      if (hits > 0) {
+        groups += 1
+        panels += hits
+      }
+    }
+    return { groups, panels }
+  }, [isFiltering, queryText])
 
   return (
     <div className="space-y-5">
@@ -334,8 +378,8 @@ export function RfqSettings() {
 
       {/* ── Workspace ── */}
       <div className="grid gap-5 lg:grid-cols-[272px_minmax(0,1fr)]">
-        {/* Section tree */}
-        <aside className="lg:sticky lg:top-20 lg:self-start">
+        {/* Desktop rail — searchable accordion of the 7 category groups */}
+        <aside className="hidden lg:sticky lg:top-20 lg:self-start lg:block">
           <div className="rounded-2xl border bg-card shadow-sm">
             <div className="space-y-2.5 border-b px-3.5 py-3">
               <div className="relative">
@@ -352,44 +396,69 @@ export function RfqSettings() {
                 />
               </div>
               <p className="px-0.5 text-[11px] text-muted-foreground">
-                {RFQ_SETTINGS_SECTIONS.length} groups · {Object.keys(RFQ_SETTING_PANELS).length} panels
+                {matchStats
+                  ? `${matchStats.groups} group${matchStats.groups === 1 ? '' : 's'} · ${matchStats.panels} of ${totalPanels} panels match`
+                  : `${RFQ_SETTINGS_SECTIONS.length} groups · ${totalPanels} panels`}
               </p>
             </div>
             <ScrollArea className="max-h-[58vh] px-2 py-2">
               <nav aria-label="Settings sections" className="space-y-1">
                 {RFQ_SETTINGS_SECTIONS.map((section) => {
                   const Icon = SECTION_ICONS[section.key] ?? Layers
-                  const panels = section.panels.filter((p) =>
-                    panelQuery.trim() ? p.title.toLowerCase().includes(panelQuery.trim().toLowerCase()) : true
-                  )
+                  const panels = section.panels.filter((p) => !isFiltering || p.title.toLowerCase().includes(queryText))
                   if (panels.length === 0) return null
                   const hasOverride = data?.overrides.some((o) => panels.some((p) => p.key === o.key))
+                  // A typed query force-expands every group with matches; the
+                  // manual open/close choices in openSections apply otherwise.
+                  const isOpen = isFiltering || openSections.has(section.key)
                   return (
                     <div key={section.key}>
-                      <div className="flex items-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        <Icon size={13} />
+                      <button
+                        type="button"
+                        aria-expanded={isOpen}
+                        aria-controls={`rfq-rail-${section.key}`}
+                        onClick={() => toggleSection(section.key)}
+                        className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      >
+                        <Icon size={13} className="shrink-0" />
                         <span className="truncate">{section.title}</span>
-                        {hasOverride && <Badge variant="outline" className="ml-auto rounded-full border-primary/40 px-1.5 text-[9px] text-primary">ovr</Badge>}
-                      </div>
-                      {panels.map((p) => {
-                        const isActive = p.key === activePanel
-                        const isOverridden = data?.overrides.some((o) => o.key === p.key)
-                        return (
-                          <button
-                            key={p.key}
-                            className={cn(
-                              'flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13px] transition-colors',
-                              isActive
-                                ? 'bg-primary/10 font-medium text-primary'
-                                : 'text-foreground/75 hover:bg-muted hover:text-foreground'
-                            )}
-                            onClick={() => setActivePanel(p.key)}
-                          >
-                            <span className="truncate">{p.title}</span>
-                            <ChevronRight size={12} className={cn('shrink-0', isActive ? 'text-primary' : 'text-muted-foreground/50')} />
-                          </button>
-                        )
-                      })}
+                        {hasOverride && (
+                          <Badge variant="outline" className="shrink-0 rounded-full border-primary/40 px-1.5 text-[9px] text-primary">ovr</Badge>
+                        )}
+                        <span className="ml-auto flex shrink-0 items-center gap-1.5">
+                          <span className="rounded-full bg-muted px-1.5 text-[10px] font-semibold leading-4 tabular-nums text-muted-foreground">
+                            {panels.length}
+                          </span>
+                          <ChevronDown
+                            size={13}
+                            className={cn('transition-transform duration-200', isOpen ? 'rotate-180 text-foreground/70' : 'text-muted-foreground/50')}
+                          />
+                        </span>
+                      </button>
+                      {isOpen && (
+                        <div id={`rfq-rail-${section.key}`} className="mt-0.5 space-y-0.5 pb-1 pl-1.5">
+                          {panels.map((p) => {
+                            const isActive = p.key === activePanel
+                            const isOverridden = data?.overrides.some((o) => o.key === p.key)
+                            return (
+                              <button
+                                key={p.key}
+                                className={cn(
+                                  'flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13px] transition-colors',
+                                  isActive
+                                    ? 'bg-primary/10 font-medium text-primary'
+                                    : 'text-foreground/75 hover:bg-muted hover:text-foreground'
+                                )}
+                                onClick={() => setActivePanel(p.key)}
+                              >
+                                <span className="truncate">{p.title}</span>
+                                {isOverridden && <span title="Override exists" className="size-1.5 shrink-0 rounded-full bg-primary/70" />}
+                                <ChevronRight size={12} className={cn('shrink-0', isActive ? 'text-primary' : 'text-muted-foreground/50')} />
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
@@ -399,34 +468,31 @@ export function RfqSettings() {
 
           {/* Overrides list */}
           {data && data.overrides.length > 0 && (
-            <div className="mt-3 rounded-2xl border bg-card shadow-sm">
-              <div className="border-b px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Active overrides
-              </div>
-              <ScrollArea className="max-h-52 px-2 py-1.5">
-                <ul className="space-y-1">
-                  {data.overrides.map((o) => (
-                    <li key={`${o.key}:${o.scopeType}:${o.scopeId}`} className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs">
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium">{o.panelTitle}</p>
-                        <p className="truncate text-[11px] text-muted-foreground">
-                          {o.scopeLabel} · {SCOPE_LABEL[o.scopeType]}
-                        </p>
-                      </div>
-                      <button
-                        aria-label={`Delete override for ${o.panelTitle}`}
-                        className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                        onClick={() => setDeleteOverrideTarget(o)}
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </ScrollArea>
-            </div>
+            <OverridesCard overrides={data.overrides} onDelete={setDeleteOverrideTarget} className="mt-3" />
           )}
         </aside>
+
+        {/* Mobile panel picker — one grouped dropdown replaces the stacked rail */}
+        <div className="lg:hidden">
+          <Select value={activePanel} onValueChange={setActivePanel}>
+            <SelectTrigger className="h-10 w-full rounded-xl text-[13px] font-medium" aria-label="Settings panel">
+              <SlidersHorizontal size={14} className="shrink-0 text-primary" />
+              <SelectValue placeholder="Choose a panel…" />
+            </SelectTrigger>
+            <SelectContent className="max-h-[24rem] rounded-xl">
+              {RFQ_SETTINGS_SECTIONS.map((section) => (
+                <SelectGroup key={section.key}>
+                  <SelectLabel className="text-[11px] font-semibold uppercase tracking-wide">{section.title}</SelectLabel>
+                  {section.panels.map((p) => (
+                    <SelectItem key={p.key} value={p.key} className="text-[13px]">
+                      {p.title}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         {/* Panel form */}
         <main className="min-w-0">
@@ -487,6 +553,13 @@ export function RfqSettings() {
             </CardContent>
           </Card>
         </main>
+
+        {/* Overrides list (mobile) — below the form */}
+        {data && data.overrides.length > 0 && (
+          <div className="lg:hidden">
+            <OverridesCard overrides={data.overrides} onDelete={setDeleteOverrideTarget} />
+          </div>
+        )}
       </div>
 
       {/* ── History dialog ── */}
@@ -496,6 +569,7 @@ export function RfqSettings() {
         panelKey={activePanel}
         scopeType={scopeType}
         scopeId={scopeType === 'REGION' ? regionInput.toUpperCase().slice(0, 64) : scopeId}
+        scopeDisplayName={scopeLabel()}
         refreshKey={historyRefreshKey}
         onRollback={(c) => setRollbackTarget(c)}
       />
@@ -585,6 +659,50 @@ export function RfqSettings() {
   )
 }
 
+// ── Active overrides card (desktop rail + below the mobile form) ───────────
+
+function OverridesCard({
+  overrides,
+  onDelete,
+  className,
+  maxHeightClass = 'max-h-52',
+}: {
+  overrides: AdminPayload['overrides']
+  onDelete: (o: AdminPayload['overrides'][number]) => void
+  className?: string
+  maxHeightClass?: string
+}) {
+  if (overrides.length === 0) return null
+  return (
+    <div className={cn('rounded-2xl border bg-card shadow-sm', className)}>
+      <div className="border-b px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Active overrides
+      </div>
+      <ScrollArea className={cn('px-2 py-1.5', maxHeightClass)}>
+        <ul className="space-y-1">
+          {overrides.map((o) => (
+            <li key={`${o.key}:${o.scopeType}:${o.scopeId}`} className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs">
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium">{o.panelTitle}</p>
+                <p className="truncate text-[11px] text-muted-foreground">
+                  {o.scopeLabel} · {SCOPE_LABEL[o.scopeType]}
+                </p>
+              </div>
+              <button
+                aria-label={`Delete override for ${o.panelTitle}`}
+                className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => onDelete(o)}
+              >
+                <Trash2 size={13} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      </ScrollArea>
+    </div>
+  )
+}
+
 // ── History dialog ─────────────────────────────────────────────────────────
 
 function HistoryDialog({
@@ -593,6 +711,7 @@ function HistoryDialog({
   panelKey,
   scopeType,
   scopeId,
+  scopeDisplayName,
   refreshKey,
   onRollback,
 }: {
@@ -601,6 +720,7 @@ function HistoryDialog({
   panelKey: string
   scopeType: ScopeType
   scopeId: string
+  scopeDisplayName: string
   refreshKey: number
   onRollback: (c: HistoryChange) => void
 }) {
@@ -618,7 +738,7 @@ function HistoryDialog({
             <History size={16} className="text-primary" /> Change history
           </DialogTitle>
           <DialogDescription>
-            {RFQ_SETTING_PANELS[panelKey]?.title} · {scopeId ? `${SCOPE_LABEL[scopeType]} ${scopeType === 'ORG' || scopeType === 'CATEGORY' ? '' : scopeId}` : SCOPE_LABEL[scopeType]} — newest first. Roll back any single field.
+            {RFQ_SETTING_PANELS[panelKey]?.title} · {scopeDisplayName} — newest first. Roll back any single field.
           </DialogDescription>
         </DialogHeader>
         <ScrollArea className="max-h-[60vh] pr-3">
@@ -633,51 +753,53 @@ function HistoryDialog({
               No changes logged for this panel at this scope yet.
             </div>
           ) : (
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b text-muted-foreground">
-                  <th className="pb-2 pr-3 font-semibold">When</th>
-                  <th className="pb-2 pr-3 font-semibold">Who</th>
-                  <th className="pb-2 pr-3 font-semibold">Field</th>
-                  <th className="pb-2 pr-3 font-semibold">Old → New</th>
-                  <th className="pb-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {changes.map((c) => (
-                  <tr key={c.id} className="border-b last:border-0 align-top">
-                    <td className="py-2.5 pr-3 whitespace-nowrap text-muted-foreground">
-                      {new Date(c.createdAt).toLocaleString()}
-                    </td>
-                    <td className="py-2.5 pr-3">
-                      <span className="font-medium">{c.userName}</span>
-                      {c.rollbackOfId && (
-                        <Badge variant="outline" className="ml-1.5 rounded-full border-primary/40 px-1.5 text-[9px] text-primary">
-                          <Undo2 size={9} className="mr-0.5" /> rollback
-                        </Badge>
-                      )}
-                    </td>
-                    <td className="py-2.5 pr-3 font-medium">{c.fieldLabel}</td>
-                    <td className="py-2.5 pr-3">
-                      <span className="text-muted-foreground line-through">
-                        {formatFieldValue(c.settingKey, c.field, c.oldValue)}
-                      </span>
-                      <span className="mx-1.5 text-muted-foreground/60">→</span>
-                      <span className="font-semibold text-foreground">
-                        {formatFieldValue(c.settingKey, c.field, c.newValue)}
-                      </span>
-                    </td>
-                    <td className="py-2.5">
-                      {c.rollbackOfId ? null : (
-                        <Button variant="ghost" size="sm" className="h-7 rounded-lg px-2 text-[11px]" onClick={() => onRollback(c)}>
-                          <Undo2 size={11} className="mr-1" /> Roll back
-                        </Button>
-                      )}
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[560px] text-left text-xs">
+                <thead>
+                  <tr className="border-b text-muted-foreground">
+                    <th className="pb-2 pr-3 font-semibold">When</th>
+                    <th className="pb-2 pr-3 font-semibold">Who</th>
+                    <th className="pb-2 pr-3 font-semibold">Field</th>
+                    <th className="pb-2 pr-3 font-semibold">Old → New</th>
+                    <th className="pb-2" />
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {changes.map((c) => (
+                    <tr key={c.id} className="border-b last:border-0 align-top">
+                      <td className="py-2.5 pr-3 whitespace-nowrap text-muted-foreground">
+                        {new Date(c.createdAt).toLocaleString()}
+                      </td>
+                      <td className="py-2.5 pr-3">
+                        <span className="font-medium">{c.userName}</span>
+                        {c.rollbackOfId && (
+                          <Badge variant="outline" className="ml-1.5 rounded-full border-primary/40 px-1.5 text-[9px] text-primary">
+                            <Undo2 size={9} className="mr-0.5" /> rollback
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="py-2.5 pr-3 font-medium">{c.fieldLabel}</td>
+                      <td className="py-2.5 pr-3">
+                        <span className="text-muted-foreground line-through">
+                          {formatFieldValue(c.settingKey, c.field, c.oldValue)}
+                        </span>
+                        <span className="mx-1.5 text-muted-foreground/60">→</span>
+                        <span className="font-semibold text-foreground">
+                          {formatFieldValue(c.settingKey, c.field, c.newValue)}
+                        </span>
+                      </td>
+                      <td className="py-2.5">
+                        {c.rollbackOfId ? null : (
+                          <Button variant="ghost" size="sm" className="h-7 rounded-lg px-2 text-[11px]" onClick={() => onRollback(c)}>
+                            <Undo2 size={11} className="mr-1" /> Roll back
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </ScrollArea>
       </DialogContent>

@@ -39,7 +39,7 @@ export function DashboardLayout({
 }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const activeItem = [...nav.groups.flatMap((g) => g.items)].find((i) => i.key === activeKey)
-  const sectionLabel = activeItem?.label ?? nav.titles[activeKey]?.title ?? 'Console'
+  const sectionLabel = activeItem?.label ?? nav.titles[activeKey]?.title ?? 'Dashboard'
 
   return (
     <div className="flex min-h-screen bg-muted/40 text-foreground">
@@ -58,6 +58,7 @@ export function DashboardLayout({
         <DashboardTopbar
           consoleName={nav.consoleName}
           sectionLabel={sectionLabel}
+          role={role}
           onOpenMobileNav={() => setMobileNavOpen(true)}
         />
 

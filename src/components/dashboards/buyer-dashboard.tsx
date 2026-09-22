@@ -122,8 +122,8 @@ export function BuyerDashboard() {
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
               <tile.icon size={19} />
             </span>
-            <div className="min-w-0">
-              <p className="flex items-baseline gap-2 text-sm font-semibold">
+            <div className="w-full min-w-0">
+              <p className="flex min-w-0 items-baseline gap-2 text-sm font-semibold">
                 <span className="truncate">{tile.title}</span>
                 {typeof tile.value === 'number' && (
                   <span className="rounded-full bg-muted px-1.5 py-px text-[10.5px] font-bold tabular-nums text-muted-foreground">
@@ -192,7 +192,7 @@ export function BuyerDashboard() {
                     <BadgeCheck size={15} className="text-primary" />
                   </div>
                   <Button size="sm" variant="outline" className="rounded-lg" onClick={() => navigate('seller')}>
-                    Open seller console
+                    Open seller dashboard
                   </Button>
                 </div>
               </>

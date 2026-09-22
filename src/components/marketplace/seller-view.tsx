@@ -303,8 +303,8 @@ export function SellerView() {
       }
     >
       <PageHeader
-        title={user.storeName ?? 'Seller Console'}
-        description={`Seller console · ${user.name}`}
+        title={user.storeName ?? 'Seller Dashboard'}
+        description={`Seller dashboard · ${user.name}`}
         actions={
           <Button className="rounded-xl" onClick={openCreate}>
             <Plus size={16} className="mr-1.5" /> Add product
