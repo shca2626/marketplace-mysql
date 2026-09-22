@@ -302,6 +302,8 @@ export interface RfqLineDTO {
   quantity: number
   targetPrice?: number | null
   notes?: string | null
+  /** Store the catalog line's product belongs to (open items have none). */
+  sellerName?: string | null
   product?: {
     id: string
     title: string
@@ -327,6 +329,7 @@ export interface QuoteLineDTO {
 
 export interface QuoteSellerMeta {
   name: string
+  storeName?: string | null
   verified?: boolean
   rating?: number | null
   reviewCount?: number

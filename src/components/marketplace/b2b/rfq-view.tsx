@@ -25,6 +25,7 @@ import {
   ShieldCheck,
   ShoppingCart,
   Star,
+  Store,
   Timer,
   TrendingDown,
   Trash2,
@@ -325,21 +326,63 @@ function RfqListView({
     [rfqs, statusFilter]
   )
 
+  // Header stats — a calm scannable strip over the buyer's pipeline.
+  const stats = useMemo(() => {
+    const awaiting = rfqs.filter((r) => r.status === 'SUBMITTED' || r.status === 'UNDER_REVIEW').length
+    const withQuotes = rfqs.filter((r) => r.status === 'QUOTED').length
+    const accepted = rfqs.filter((r) => r.status === 'ACCEPTED').length
+    return [
+      { label: 'Total requests', value: rfqs.length, cls: 'text-foreground' },
+      { label: 'Awaiting quotes', value: awaiting, cls: 'text-amber-600 dark:text-amber-400' },
+      { label: 'Quotes to review', value: withQuotes, cls: 'text-primary' },
+      { label: 'Accepted', value: accepted, cls: 'text-emerald-600 dark:text-emerald-400' },
+    ]
+  }, [rfqs])
+
+  const totalUnits = useMemo(
+    () => rfqs.reduce((s, r) => s + (r.totalQuantity ?? r.lines.reduce((q, l) => q + l.quantity, 0)), 0),
+    [rfqs]
+  )
+
   return (
     <div className="mx-auto w-full max-w-5xl">
-      <RecurringSchedulesCard focusId={focusScheduleId} />
-
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Requests for quote</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Bulk pricing, negotiated on your terms — NET terms and quantity breaks included.
-          </p>
+      {/* ── Page header ── */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-start gap-3.5">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <FileText size={22} />
+          </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Requests for quote</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Bulk pricing, negotiated on your terms — NET terms and quantity breaks included.
+            </p>
+          </div>
         </div>
         <Button className="rounded-xl" onClick={onCreate}>
           <Plus size={15} className="mr-1.5" /> New RFQ
         </Button>
       </div>
+
+      {/* ── Pipeline stats ── */}
+      {loading ? (
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-[68px] rounded-xl" />
+          ))}
+        </div>
+      ) : rfqs.length > 0 ? (
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {stats.map((s) => (
+            <div key={s.label} className="rounded-xl border bg-card px-3.5 py-3 shadow-sm">
+              <p className="truncate text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {s.label}
+              </p>
+              <p className={cn('mt-0.5 text-xl font-bold tabular-nums leading-7', s.cls)}>{s.value}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       <div className="mt-6 space-y-5">
         {loading ? (
@@ -370,7 +413,7 @@ function RfqListView({
           <>
             {statusCounts.length > 1 && (
               <div
-                className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                 role="tablist"
                 aria-label="Filter RFQs by status"
               >
@@ -379,13 +422,21 @@ function RfqListView({
                   aria-selected={statusFilter === 'ALL'}
                   onClick={() => setStatusFilter('ALL')}
                   className={cn(
-                    'shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors',
+                    'flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors',
                     statusFilter === 'ALL'
                       ? 'border-primary bg-primary text-primary-foreground'
                       : 'border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground'
                   )}
                 >
-                  All <span className="ml-0.5 opacity-70">{rfqs.length}</span>
+                  All
+                  <span
+                    className={cn(
+                      'rounded-full px-1.5 text-[10px] font-bold tabular-nums',
+                      statusFilter === 'ALL' ? 'bg-primary-foreground/20' : 'bg-muted text-muted-foreground'
+                    )}
+                  >
+                    {rfqs.length}
+                  </span>
                 </button>
                 {statusCounts.map(({ status, count }) => (
                   <button
@@ -394,110 +445,153 @@ function RfqListView({
                     aria-selected={statusFilter === status}
                     onClick={() => setStatusFilter(statusFilter === status ? 'ALL' : status)}
                     className={cn(
-                      'shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors',
+                      'flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors',
                       statusFilter === status
                         ? 'border-primary bg-primary text-primary-foreground'
                         : 'border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground'
                     )}
                   >
-                    {RFQ_STATUS_MAP[status]?.label ?? status}{' '}
-                    <span className="ml-0.5 opacity-70">{count}</span>
+                    {RFQ_STATUS_MAP[status]?.label ?? status}
+                    <span
+                      className={cn(
+                        'rounded-full px-1.5 text-[10px] font-bold tabular-nums',
+                        statusFilter === status ? 'bg-primary-foreground/20' : 'bg-muted text-muted-foreground'
+                      )}
+                    >
+                      {count}
+                    </span>
                   </button>
                 ))}
               </div>
             )}
 
             <div className="space-y-4">
-              {filtered.map((rfq, i) => (
-                <motion.div
-                  key={rfq.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.25, delay: Math.min(i * 0.04, 0.2) }}
-                >
-                  <Card
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`Open RFQ ${rfq.number}`}
-                    className="cursor-pointer transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-                    onClick={() => onOpen(rfq.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        onOpen(rfq.id)
-                      }
-                    }}
+              {filtered.map((rfq, i) => {
+                const lineCount = rfq.lineCount ?? rfq.lines.length
+                const units = rfq.totalQuantity ?? rfq.lines.reduce((s, l) => s + l.quantity, 0)
+                return (
+                  <motion.div
+                    key={rfq.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25, delay: Math.min(i * 0.04, 0.2) }}
                   >
-                    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b bg-muted/50 px-5 py-3">
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                        <span className="font-mono text-xs font-bold tracking-wide text-muted-foreground">
-                          {rfq.number}
-                        </span>
-                        <span className="text-xs text-muted-foreground">{timeAgo(rfq.createdAt)}</span>
-                      </div>
-                      <div className="flex items-center gap-2.5">
-                        {(rfq.quoteCount ?? 0) > 0 && (
-                          <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
-                            <MessageSquareText size={11} />
-                            {rfq.quoteCount} quote{(rfq.quoteCount ?? 0) === 1 ? '' : 's'}
+                    <Card
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Open RFQ ${rfq.number}`}
+                      className="cursor-pointer overflow-hidden transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                      onClick={() => onOpen(rfq.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          onOpen(rfq.id)
+                        }
+                      }}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 border-b bg-muted/40 px-5 py-2.5">
+                        <div className="flex items-center gap-2.5">
+                          <span className="rounded-md bg-background px-1.5 py-0.5 font-mono text-[11px] font-bold tracking-wide text-muted-foreground ring-1 ring-border/70">
+                            {rfq.number}
                           </span>
-                        )}
-                        <ExpiryChip expiresAt={rfq.expiresAt} />
-                        <StatusBadge status={rfq.status} map={RFQ_STATUS_MAP} />
-                      </div>
-                    </div>
-                    <CardContent className="p-5">
-                      <p className="font-semibold">
-                        {rfq.title?.trim() || rfq.lines[0]?.product?.title || rfq.lines[0]?.productName || 'Untitled request'}
-                      </p>
-                      {rfq.description && (
-                        <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{rfq.description}</p>
-                      )}
-                      <div className="mt-3.5 flex items-center gap-4 text-xs text-muted-foreground">
-                        <span>
-                          <span className="font-semibold text-foreground">{rfq.lineCount ?? rfq.lines.length}</span>{' '}
-                          line{(rfq.lineCount ?? rfq.lines.length) === 1 ? '' : 's'}
-                        </span>
-                        <span className="text-border">·</span>
-                        <span>
-                          <span className="font-semibold text-foreground">
-                            {(rfq.totalQuantity ?? rfq.lines.reduce((s, l) => s + l.quantity, 0)).toLocaleString()}
-                          </span>{' '}
-                          units total
-                        </span>
-                        {rfq.organizationName && (
-                          <>
-                            <span className="hidden text-border sm:inline">·</span>
-                            <span className="hidden truncate text-ellipsis sm:inline">{rfq.organizationName}</span>
-                          </>
-                        )}
-                      </div>
-                      {rfq.lines.length > 0 && (
-                        <div className="mt-3 flex items-center gap-2">
-                          {rfq.lines.slice(0, 4).map((l) => (
-                            <span
-                              key={l.id}
-                              title={`${l.productName} × ${l.quantity}`}
-                              className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg border bg-muted"
-                            >
-                              {l.product?.image ? (
-                                <img src={l.product.image} alt="" className="h-full w-full object-cover" loading="lazy" />
-                              ) : (
-                                <PackageSearch size={14} className="text-muted-foreground" />
-                              )}
+                          <span className="text-[11px] text-muted-foreground">{timeAgo(rfq.createdAt)}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {(rfq.quoteCount ?? 0) > 0 && (
+                            <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
+                              <MessageSquareText size={11} />
+                              {rfq.quoteCount} quote{(rfq.quoteCount ?? 0) === 1 ? '' : 's'}
                             </span>
-                          ))}
-                          {rfq.lines.length > 4 && (
-                            <span className="text-xs text-muted-foreground">+{rfq.lines.length - 4} more</span>
+                          )}
+                          <ExpiryChip expiresAt={rfq.expiresAt} />
+                          <StatusBadge status={rfq.status} map={RFQ_STATUS_MAP} />
+                        </div>
+                      </div>
+                      <CardContent className="p-5">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold leading-snug">
+                              {rfq.title?.trim() || rfq.lines[0]?.product?.title || rfq.lines[0]?.productName || 'Untitled request'}
+                            </p>
+                            {rfq.description && (
+                              <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{rfq.description}</p>
+                            )}
+                            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <PackageSearch size={12} className="text-muted-foreground/70" />
+                                <span className="font-semibold text-foreground">{lineCount}</span> line{lineCount === 1 ? '' : 's'}
+                              </span>
+                              <span className="text-border">·</span>
+                              <span>
+                                <span className="font-semibold text-foreground">{units.toLocaleString()}</span> units
+                              </span>
+                              {rfq.organizationName && (
+                                <>
+                                  <span className="text-border">·</span>
+                                  <span className="max-w-[160px] truncate">{rfq.organizationName}</span>
+                                </>
+                              )}
+                            </div>
+                            {/* Thumbnails — under the text on mobile */}
+                            {rfq.lines.length > 0 && (
+                              <div className="mt-3.5 flex items-center gap-2 sm:hidden">
+                                {rfq.lines.slice(0, 4).map((l) => (
+                                  <span
+                                    key={l.id}
+                                    title={`${l.productName} × ${l.quantity}`}
+                                    className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg border bg-muted"
+                                  >
+                                    {l.product?.image ? (
+                                      <img src={l.product.image} alt="" className="h-full w-full object-cover" loading="lazy" />
+                                    ) : (
+                                      <PackageSearch size={14} className="text-muted-foreground" />
+                                    )}
+                                  </span>
+                                ))}
+                                {rfq.lines.length > 4 && (
+                                  <span className="text-xs text-muted-foreground">+{rfq.lines.length - 4} more</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          {/* Thumbnails — right rail on desktop */}
+                          {rfq.lines.length > 0 && (
+                            <div className="hidden shrink-0 items-center gap-2 sm:flex">
+                              {rfq.lines.slice(0, 4).map((l) => (
+                                <span
+                                  key={l.id}
+                                  title={`${l.productName} × ${l.quantity}`}
+                                  className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg border bg-muted"
+                                >
+                                  {l.product?.image ? (
+                                    <img src={l.product.image} alt="" className="h-full w-full object-cover" loading="lazy" />
+                                  ) : (
+                                    <PackageSearch size={15} className="text-muted-foreground" />
+                                  )}
+                                </span>
+                              ))}
+                              {rfq.lines.length > 4 && (
+                                <span className="text-xs font-medium text-muted-foreground">+{rfq.lines.length - 4}</span>
+                              )}
+                            </div>
                           )}
                         </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))}
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                )
+              })}
             </div>
           </>
+        )}
+
+        {/* ── Standing schedules — management surface below the primary list ── */}
+        <RecurringSchedulesCard focusId={focusScheduleId} />
+
+        {!loading && rfqs.length > 0 && (
+          <p className="pb-1 pt-1 text-center text-[11px] text-muted-foreground">
+            {rfqs.length} request{rfqs.length === 1 ? '' : 's'} · {totalUnits.toLocaleString()} units quoted across all RFQs
+          </p>
         )}
       </div>
     </div>
@@ -770,6 +864,11 @@ function RfqDetailView({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="truncate text-sm font-semibold">{l.productName}</p>
+                    {l.sellerName && (
+                      <Badge variant="outline" className="shrink-0 rounded-full border-foreground/15 bg-foreground/5 px-2 text-[10px] font-medium text-foreground/70">
+                        <Store size={9} className="mr-1" /> {l.sellerName}
+                      </Badge>
+                    )}
                     {l.variantName && (
                       <Badge variant="outline" className="rounded-full border-primary/40 px-2 text-[10px] text-primary">
                         {l.variantName}
@@ -1002,7 +1101,15 @@ function QuoteCard({
               </span>
             )}
             <span className="text-xs text-muted-foreground">
-              by {quote.createdBy?.name ?? 'Vendora'} · {quote.sentAt ? timeAgo(quote.sentAt) : timeAgo(quote.createdAt)}
+              by{' '}
+              <span className="font-semibold text-foreground/80">
+                {quote.sellerMeta?.storeName ?? quote.createdBy?.name ?? 'Vendora'}
+              </span>
+              {quote.sellerMeta?.storeName && quote.createdBy?.name ? (
+                <span className="text-muted-foreground/70"> ({quote.createdBy.name})</span>
+              ) : null}
+              {' · '}
+              {quote.sentAt ? timeAgo(quote.sentAt) : timeAgo(quote.createdAt)}
             </span>
             <SellerTrustChips quote={quote} />
           </div>
@@ -1805,7 +1912,13 @@ function RfqCreateView({
                           </span>
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-semibold">{l.product.title}</p>
-                            <p className="text-xs text-muted-foreground">
+                            <p className="truncate text-xs text-muted-foreground">
+                              {l.product.sellerName && (
+                                <>
+                                  <span className="font-medium text-foreground/70">{l.product.sellerName}</span>
+                                  <span className="mx-1">·</span>
+                                </>
+                              )}
                               Retail {formatUSD(l.product.price)}/unit
                             </p>
                           </div>

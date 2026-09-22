@@ -15,7 +15,6 @@ import { useCallback, useMemo, useState } from 'react'
 import {
   BarChart3,
   ChevronDown,
-  ChevronRight,
   Coins,
   CreditCard,
   History,
@@ -64,7 +63,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Select,
   SelectContent,
@@ -149,19 +147,29 @@ export function RfqSettings() {
   const [deleteOverrideTarget, setDeleteOverrideTarget] = useState<AdminPayload['overrides'][number] | null>(null)
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0)
   const [panelQuery, setPanelQuery] = useState('') // rail search filter
-  // Accordion state for the desktop rail — only the initial panel's group
-  // ('quoteRouting' → 'master') starts expanded; clicks toggle membership,
-  // and several groups may be open at once.
+  // Accordion state for the desktop rail — SINGLE-OPEN: opening one group
+  // collapses the rest so the rail never outgrows its scroll container.
+  // ('quoteRouting' → 'master' starts expanded.)
   const [openSections, setOpenSections] = useState<Set<string>>(() => new Set([sectionKeyOf('quoteRouting')]))
 
   const toggleSection = useCallback((key: string) => {
     setOpenSections((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
+      if (prev.has(key)) return new Set() // collapse the open group
+      return new Set([key]) // single-open accordion
     })
   }, [])
+
+  // Selecting a panel from the rail keeps its group as the open one; clearing
+  // the search snaps back to the active panel's group.
+  const selectPanel = useCallback((key: string) => {
+    setActivePanel(key)
+    setOpenSections(new Set([sectionKeyOf(key)]))
+  }, [])
+
+  const onSearchChange = (value: string) => {
+    setPanelQuery(value)
+    if (!value.trim()) setOpenSections(new Set([sectionKeyOf(activePanel)]))
+  }
 
   const query = useMemo(() => {
     if (scopeType === 'PLATFORM') return ''
@@ -377,11 +385,13 @@ export function RfqSettings() {
       </Card>
 
       {/* ── Workspace ── */}
-      <div className="grid gap-5 lg:grid-cols-[272px_minmax(0,1fr)]">
-        {/* Desktop rail — searchable accordion of the 7 category groups */}
-        <aside className="hidden lg:sticky lg:top-20 lg:self-start lg:block">
-          <div className="rounded-2xl border bg-card shadow-sm">
-            <div className="space-y-2.5 border-b px-3.5 py-3">
+      <div className="grid items-start gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
+        {/* Desktop rail — single-open accordion inside a sticky, self-contained
+            scroll column. The card can never outgrow the viewport and never
+            overlaps the content beside it (native overflow-y-auto nav). */}
+        <aside className="hidden lg:block" aria-label="Settings navigation">
+          <div className="sticky top-20 flex max-h-[calc(100vh-6.5rem)] flex-col overflow-hidden rounded-2xl border bg-card shadow-sm">
+            <div className="shrink-0 space-y-2 border-b px-3 py-3">
               <div className="relative">
                 <Search
                   size={13}
@@ -389,7 +399,7 @@ export function RfqSettings() {
                 />
                 <Input
                   value={panelQuery}
-                  onChange={(e) => setPanelQuery(e.target.value)}
+                  onChange={(e) => onSearchChange(e.target.value)}
                   placeholder="Filter panels…"
                   className="h-8 rounded-lg bg-muted/50 pl-7 text-xs shadow-none focus-visible:ring-1"
                   aria-label="Filter settings panels"
@@ -401,75 +411,105 @@ export function RfqSettings() {
                   : `${RFQ_SETTINGS_SECTIONS.length} groups · ${totalPanels} panels`}
               </p>
             </div>
-            <ScrollArea className="max-h-[58vh] px-2 py-2">
-              <nav aria-label="Settings sections" className="space-y-1">
-                {RFQ_SETTINGS_SECTIONS.map((section) => {
-                  const Icon = SECTION_ICONS[section.key] ?? Layers
-                  const panels = section.panels.filter((p) => !isFiltering || p.title.toLowerCase().includes(queryText))
-                  if (panels.length === 0) return null
-                  const hasOverride = data?.overrides.some((o) => panels.some((p) => p.key === o.key))
-                  // A typed query force-expands every group with matches; the
-                  // manual open/close choices in openSections apply otherwise.
-                  const isOpen = isFiltering || openSections.has(section.key)
-                  return (
-                    <div key={section.key}>
-                      <button
-                        type="button"
-                        aria-expanded={isOpen}
-                        aria-controls={`rfq-rail-${section.key}`}
-                        onClick={() => toggleSection(section.key)}
-                        className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      >
-                        <Icon size={13} className="shrink-0" />
-                        <span className="truncate">{section.title}</span>
-                        {hasOverride && (
-                          <Badge variant="outline" className="shrink-0 rounded-full border-primary/40 px-1.5 text-[9px] text-primary">ovr</Badge>
-                        )}
-                        <span className="ml-auto flex shrink-0 items-center gap-1.5">
-                          <span className="rounded-full bg-muted px-1.5 text-[10px] font-semibold leading-4 tabular-nums text-muted-foreground">
-                            {panels.length}
-                          </span>
-                          <ChevronDown
-                            size={13}
-                            className={cn('transition-transform duration-200', isOpen ? 'rotate-180 text-foreground/70' : 'text-muted-foreground/50')}
-                          />
-                        </span>
-                      </button>
-                      {isOpen && (
-                        <div id={`rfq-rail-${section.key}`} className="mt-0.5 space-y-0.5 pb-1 pl-1.5">
-                          {panels.map((p) => {
-                            const isActive = p.key === activePanel
-                            const isOverridden = data?.overrides.some((o) => o.key === p.key)
-                            return (
-                              <button
-                                key={p.key}
-                                className={cn(
-                                  'flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13px] transition-colors',
-                                  isActive
-                                    ? 'bg-primary/10 font-medium text-primary'
-                                    : 'text-foreground/75 hover:bg-muted hover:text-foreground'
-                                )}
-                                onClick={() => setActivePanel(p.key)}
-                              >
-                                <span className="truncate">{p.title}</span>
-                                {isOverridden && <span title="Override exists" className="size-1.5 shrink-0 rounded-full bg-primary/70" />}
-                                <ChevronRight size={12} className={cn('shrink-0', isActive ? 'text-primary' : 'text-muted-foreground/50')} />
-                              </button>
-                            )
-                          })}
-                        </div>
+            {/* Native scroll container — min-h-0 + overflow-y-auto keeps the
+                menu fully reachable no matter how many groups are expanded. */}
+            <nav aria-label="Settings sections" className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
+              {RFQ_SETTINGS_SECTIONS.map((section) => {
+                const Icon = SECTION_ICONS[section.key] ?? Layers
+                const panels = section.panels.filter((p) => !isFiltering || p.title.toLowerCase().includes(queryText))
+                if (panels.length === 0) return null
+                const hasOverride = data?.overrides.some((o) => panels.some((p) => p.key === o.key))
+                // A typed query force-expands every group with matches; the
+                // manual single-open choice applies otherwise.
+                const isOpen = isFiltering || openSections.has(section.key)
+                return (
+                  <div key={section.key}>
+                    <button
+                      type="button"
+                      aria-expanded={isOpen}
+                      aria-controls={`rfq-rail-${section.key}`}
+                      onClick={() => toggleSection(section.key)}
+                      className={cn(
+                        'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-muted',
+                        !isOpen && 'mb-0.5'
                       )}
-                    </div>
-                  )
-                })}
-              </nav>
-            </ScrollArea>
+                    >
+                      <span
+                        className={cn(
+                          'flex size-6 shrink-0 items-center justify-center rounded-md transition-colors',
+                          isOpen ? 'bg-primary/15 text-primary' : 'bg-muted/70 text-muted-foreground'
+                        )}
+                      >
+                        <Icon size={13} />
+                      </span>
+                      <span
+                        className={cn(
+                          'min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-wide',
+                          isOpen ? 'text-foreground' : 'text-muted-foreground'
+                        )}
+                      >
+                        {section.title}
+                      </span>
+                      {hasOverride && (
+                        <span
+                          title="Some panels in this group have overrides"
+                          aria-label="Group has overrides"
+                          className="size-1.5 shrink-0 rounded-full bg-primary"
+                        />
+                      )}
+                      <span className="shrink-0 rounded-full bg-muted px-1.5 text-[10px] font-semibold leading-4 tabular-nums text-muted-foreground">
+                        {panels.length}
+                      </span>
+                      <ChevronDown
+                        size={13}
+                        className={cn(
+                          'shrink-0 text-muted-foreground/60 transition-transform duration-200',
+                          isOpen && 'rotate-180 text-foreground/70'
+                        )}
+                      />
+                    </button>
+                    {isOpen && (
+                      <div id={`rfq-rail-${section.key}`} className="mb-1 mt-0.5 animate-in fade-in slide-in-from-top-1 duration-200">
+                        {panels.map((p) => {
+                          const isActive = p.key === activePanel
+                          const isOverridden = data?.overrides.some((o) => o.key === p.key)
+                          return (
+                            <button
+                              key={p.key}
+                              aria-current={isActive ? 'page' : undefined}
+                              onClick={() => selectPanel(p.key)}
+                              className={cn(
+                                'relative flex w-full items-center gap-2 rounded-lg py-[7px] pl-4 pr-2.5 text-left text-[13px] transition-colors',
+                                isActive
+                                  ? 'bg-primary/10 font-semibold text-primary'
+                                  : 'text-foreground/70 hover:bg-muted hover:text-foreground'
+                              )}
+                            >
+                              {isActive && (
+                                <span
+                                  aria-hidden
+                                  className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-primary"
+                                />
+                              )}
+                              <span className="min-w-0 flex-1 truncate">{p.title}</span>
+                              {isOverridden && (
+                                <span title="Override exists" className="size-1.5 shrink-0 rounded-full bg-primary/70" />
+                              )}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+              {isFiltering && matchStats?.panels === 0 && (
+                <p className="px-2 py-6 text-center text-xs text-muted-foreground">
+                  No panels match “{panelQuery.trim()}”.
+                </p>
+              )}
+            </nav>
           </div>
-
-          {/* Overrides list */}
-          {data && data.overrides.length > 0 && (
-            <OverridesCard overrides={data.overrides} onDelete={setDeleteOverrideTarget} className="mt-3" />
-          )}
         </aside>
 
         {/* Mobile panel picker — one grouped dropdown replaces the stacked rail */}
@@ -552,14 +592,13 @@ export function RfqSettings() {
               )}
             </CardContent>
           </Card>
-        </main>
 
-        {/* Overrides list (mobile) — below the form */}
-        {data && data.overrides.length > 0 && (
-          <div className="lg:hidden">
-            <OverridesCard overrides={data.overrides} onDelete={setDeleteOverrideTarget} />
-          </div>
-        )}
+          {/* Overrides management — full width under the form (desktop + mobile
+              share this placement; the rail stays a pure navigation surface). */}
+          {data && data.overrides.length > 0 && (
+            <OverridesCard overrides={data.overrides} onDelete={setDeleteOverrideTarget} className="mt-5" />
+          )}
+        </main>
       </div>
 
       {/* ── History dialog ── */}
@@ -665,42 +704,61 @@ function OverridesCard({
   overrides,
   onDelete,
   className,
-  maxHeightClass = 'max-h-52',
 }: {
   overrides: AdminPayload['overrides']
   onDelete: (o: AdminPayload['overrides'][number]) => void
   className?: string
-  maxHeightClass?: string
 }) {
   if (overrides.length === 0) return null
   return (
-    <div className={cn('rounded-2xl border bg-card shadow-sm', className)}>
-      <div className="border-b px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        Active overrides
+    <div className={cn('overflow-hidden rounded-2xl border bg-card shadow-sm', className)}>
+      <div className="flex items-center justify-between gap-2 border-b bg-muted/40 px-4 py-2.5">
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Active overrides
+        </span>
+        <span className="rounded-full bg-muted px-1.5 text-[10.5px] font-semibold tabular-nums text-muted-foreground">
+          {overrides.length}
+        </span>
       </div>
-      <ScrollArea className={cn('px-2 py-1.5', maxHeightClass)}>
-        <ul className="space-y-1">
-          {overrides.map((o) => (
-            <li key={`${o.key}:${o.scopeType}:${o.scopeId}`} className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs">
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">{o.panelTitle}</p>
-                <p className="truncate text-[11px] text-muted-foreground">
-                  {o.scopeLabel} · {SCOPE_LABEL[o.scopeType]}
-                </p>
-              </div>
-              <button
-                aria-label={`Delete override for ${o.panelTitle}`}
-                className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                onClick={() => onDelete(o)}
-              >
-                <Trash2 size={13} />
-              </button>
-            </li>
-          ))}
-        </ul>
-      </ScrollArea>
+      {/* Native scroll — capped height, fully reachable on every viewport */}
+      <ul className="max-h-64 divide-y overflow-y-auto">
+        {overrides.map((o) => (
+          <li
+            key={`${o.key}:${o.scopeType}:${o.scopeId}`}
+            className="flex items-center gap-3 px-4 py-2.5 text-xs transition-colors hover:bg-muted/40"
+          >
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-semibold">{o.panelTitle}</p>
+              <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                {o.scopeLabel} · {SCOPE_LABEL[o.scopeType]} · updated {timeAgoShort(o.updatedAt)}
+              </p>
+            </div>
+            <button
+              aria-label={`Delete override for ${o.panelTitle}`}
+              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => onDelete(o)}
+            >
+              <Trash2 size={13} />
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   )
+}
+
+/** Compact “3d ago” style stamp for override rows. */
+function timeAgoShort(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime()
+  if (ms < 0) return 'just now'
+  const mins = Math.floor(ms / 60_000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 30) return `${days}d ago`
+  return new Date(iso).toLocaleDateString()
 }
 
 // ── History dialog ─────────────────────────────────────────────────────────
@@ -741,7 +799,8 @@ function HistoryDialog({
             {RFQ_SETTING_PANELS[panelKey]?.title} · {scopeDisplayName} — newest first. Roll back any single field.
           </DialogDescription>
         </DialogHeader>
-        <ScrollArea className="max-h-[60vh] pr-3">
+        {/* Native scroll — reliable inside the dialog on every viewport */}
+        <div className="max-h-[60vh] overflow-y-auto pr-1">
           {loading ? (
             <div className="space-y-3 py-6">
               {Array.from({ length: 4 }).map((_, i) => (
@@ -801,7 +860,7 @@ function HistoryDialog({
               </table>
             </div>
           )}
-        </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   )

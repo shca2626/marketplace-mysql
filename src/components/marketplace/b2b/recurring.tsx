@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   CalendarClock,
@@ -175,6 +175,13 @@ export function RecurringSchedulesCard({ focusId }: { focusId?: string | null })
     void refetch()
   }
 
+  // Focus handoff (notification → list): scroll the matching row into view
+  // now that the card lives below the primary list.
+  const focusRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (focusId) focusRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [focusId])
+
   if (loading) return null
   if (schedules.length === 0) return null
 
@@ -201,6 +208,8 @@ export function RecurringSchedulesCard({ focusId }: { focusId?: string | null })
         {[...active, ...paused].map((s) => (
           <div
             key={s.id}
+            id={focusId === s.id ? `schedule-${s.id}` : undefined}
+            ref={focusId === s.id ? focusRef : undefined}
             className={cn(
               'flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-background p-3.5',
               focusId === s.id && 'ring-2 ring-primary/40',

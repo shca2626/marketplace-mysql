@@ -141,7 +141,7 @@ export function ProductCard({ product, index = 0 }: { product: ProductDTO; index
             </Button>
           </div>
         </CardHeader>
-        <CardFooter className="flex flex-col items-start gap-1.5 p-4">
+        <CardFooter className="flex flex-col items-start gap-1.5 p-3.5 sm:p-4">
           <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-primary/80">
             {product.category.name}
           </span>
@@ -158,27 +158,29 @@ export function ProductCard({ product, index = 0 }: { product: ProductDTO; index
               {product.seller?.storeName ?? product.seller?.name ?? 'Vendora seller'}
             </span>
           </button>
-          <div className="flex w-full items-center justify-between">
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-base font-bold text-foreground">{formatUSD(product.price)}</span>
+          <div className="flex w-full items-baseline justify-between gap-2">
+            <div className="flex min-w-0 items-baseline gap-1.5">
+              <span className="truncate text-base font-bold text-foreground">{formatUSD(product.price)}</span>
               {product.compareAtPrice && (
-                <span className="text-xs text-muted-foreground line-through">
+                <span className="shrink-0 text-xs text-muted-foreground line-through">
                   {formatUSD(product.compareAtPrice)}
                 </span>
               )}
             </div>
-            <span className="text-[11px] text-muted-foreground">{formatNumber(product.soldCount)} sold</span>
+            <span className="shrink-0 text-[11px] text-muted-foreground">{formatNumber(product.soldCount)} sold</span>
           </div>
-          <div className="flex w-full items-center justify-between">
-            <StarRating value={product.rating} showValue count={product.reviewCount} />
+          {/* Rating + add-to-cart — stacks on narrow (2-col mobile) cards so the
+              button can never overflow the card frame; joins one row ≥sm. */}
+          <div className="flex w-full flex-col gap-2 pt-0.5 sm:flex-row sm:items-center sm:justify-between">
+            <StarRating value={product.rating} size={12} showValue count={product.reviewCount} className="min-w-0" />
             <Button
               size="sm"
-              className="h-8 gap-1.5 rounded-full px-3.5 text-xs transition-transform active:scale-95"
+              className="h-9 w-full gap-1.5 rounded-full px-4 text-xs transition-transform active:scale-95 sm:h-8 sm:w-auto sm:px-3.5"
               disabled={product.stock === 0}
               onClick={handleAdd}
             >
               <ShoppingCart size={13} />
-              Add
+              Add to cart
             </Button>
           </div>
         </CardFooter>

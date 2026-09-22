@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   Building2,
+  CalendarCheck,
   CalendarClock,
   CheckCircle2,
   Clock,
@@ -13,9 +14,11 @@ import {
   Mail,
   Percent,
   Plus,
+  ReceiptText,
   ShieldAlert,
   UserPlus,
   Users,
+  Wallet,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
@@ -221,10 +224,18 @@ export function BusinessView() {
 
   return (
     <div className="mx-auto w-full max-w-5xl">
-      <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Business account</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Your B2B identity on Vendora — verification, payment terms and your team.
-      </p>
+      {/* ── Page header ── */}
+      <div className="flex items-start gap-3.5">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+          <Building2 size={22} />
+        </span>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Business account</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Your B2B identity on Vendora — verification, payment terms and your team.
+          </p>
+        </div>
+      </div>
 
       {orgsLoading ? (
         <div className="mt-8 space-y-5">
@@ -258,7 +269,7 @@ export function BusinessView() {
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3, delay: 0.08 + i * 0.06 }}
-                    className="flex gap-3.5 rounded-xl border bg-card/70 p-4"
+                    className="flex gap-3.5 rounded-xl border bg-card/70 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm"
                   >
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                       <b.icon size={18} />
@@ -415,8 +426,8 @@ export function BusinessView() {
               <CardTitle className="flex items-center justify-between gap-2 text-base">
                 <span className="flex items-center gap-2">
                   <Users size={16} className="text-primary" /> Team members
-                  <span className="text-xs font-normal text-muted-foreground">
-                    ({detail?.members?.length ?? orgs.find((o) => o.id === activeOrgId)?.memberCount ?? 0})
+                  <span className="rounded-full bg-muted px-1.5 text-[11px] font-bold tabular-nums text-muted-foreground">
+                    {detail?.members?.length ?? orgs.find((o) => o.id === activeOrgId)?.memberCount ?? 0}
                   </span>
                 </span>
                 {detail?.myRole && (
@@ -575,17 +586,19 @@ function OrgStatusCard({ org, loading }: { org: OrganizationDTO | null; loading:
 
   const groups = org.groups ?? []
 
+  // Status-driven accents: a slim color strip on top of the card + tinted icon.
+  const statusAccent =
+    org.status === 'ACTIVE'
+      ? 'border-t-emerald-500'
+      : org.status === 'PENDING_VERIFICATION'
+        ? 'border-t-amber-500'
+        : org.status === 'SUSPENDED'
+          ? 'border-t-rose-500'
+          : 'border-t-border'
+
   return (
-    <Card className="overflow-hidden">
-      <div
-        className={cn(
-          'flex flex-wrap items-center gap-3 border-b px-5 py-4 sm:px-6',
-          org.status === 'ACTIVE' && 'bg-emerald-50/80 dark:bg-emerald-950/30',
-          org.status === 'PENDING_VERIFICATION' && 'bg-amber-50/80 dark:bg-amber-950/30',
-          org.status === 'SUSPENDED' && 'bg-rose-50/80 dark:bg-rose-950/30',
-          org.status === 'REJECTED' && 'bg-muted/60'
-        )}
-      >
+    <Card className={cn('overflow-hidden border-t-[3px] shadow-sm', statusAccent)}>
+      <div className="flex flex-wrap items-center gap-3.5 border-b bg-muted/30 px-5 py-4 sm:px-6">
         <span
           className={cn(
             'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl',
@@ -605,20 +618,21 @@ function OrgStatusCard({ org, loading }: { org: OrganizationDTO | null; loading:
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-bold leading-tight">{org.name}</h2>
+            <h2 className="truncate text-lg font-bold leading-tight">{org.name}</h2>
             <StatusBadge status={org.status} map={ORG_STATUS_MAP} />
           </div>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+          <p className="mt-1 truncate text-xs text-muted-foreground">
             Registered {formatDate(org.createdAt)}
-            {org.industry ? ` · ${org.industry}` : ''}
+            {org.industry ? <span className="mx-1.5">·</span> : null}
+            {org.industry}
             {org.website ? (
               <>
-                {' · '}
+                <span className="mx-1.5">·</span>
                 <a
                   href={org.website.startsWith('http') ? org.website : `https://${org.website}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="underline-offset-2 hover:underline"
+                  className="underline-offset-2 hover:text-primary hover:underline"
                 >
                   {org.website.replace(/^https?:\/\//, '')}
                 </a>
@@ -657,43 +671,36 @@ function OrgStatusCard({ org, loading }: { org: OrganizationDTO | null; loading:
         )}
 
         {org.status === 'ACTIVE' && (
-          <div className="space-y-4">
+          <div className="space-y-5">
             <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-xl bg-muted/50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Verified since
-                </p>
-                <p className="mt-0.5 text-sm font-semibold">
-                  {org.verifiedAt ? formatDate(org.verifiedAt) : '—'}
-                </p>
-              </div>
-              <div className="rounded-xl bg-muted/50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Payment terms
-                </p>
-                <p className="mt-0.5 text-sm font-semibold">
-                  {org.creditTermsDays > 0 ? `NET-${org.creditTermsDays}` : 'Prepaid'}
-                </p>
-              </div>
-              <div className="rounded-xl bg-muted/50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Credit limit
-                </p>
-                <p className="mt-0.5 text-sm font-semibold">
-                  {org.creditLimit > 0 ? formatUSD(org.creditLimit) : 'Not set'}
-                </p>
-              </div>
+              {[
+                { icon: CalendarCheck, label: 'Verified since', value: org.verifiedAt ? formatDate(org.verifiedAt) : '—' },
+                { icon: ReceiptText, label: 'Payment terms', value: org.creditTermsDays > 0 ? `NET-${org.creditTermsDays}` : 'Prepaid' },
+                { icon: Wallet, label: 'Credit limit', value: org.creditLimit > 0 ? formatUSD(org.creditLimit) : 'Not set' },
+              ].map((tile) => (
+                <div key={tile.label} className="flex items-center gap-3 rounded-xl border bg-muted/30 px-4 py-3">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <tile.icon size={16} />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      {tile.label}
+                    </p>
+                    <p className="mt-0.5 truncate text-sm font-bold">{tile.value}</p>
+                  </div>
+                </div>
+              ))}
             </div>
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Customer groups
               </p>
               {groups.length === 0 ? (
-                <p className="mt-1 text-sm text-muted-foreground">
+                <p className="mt-1.5 text-sm text-muted-foreground">
                   No customer groups yet — group price lists apply automatically once mapped.
                 </p>
               ) : (
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                <div className="mt-2 flex flex-wrap gap-1.5">
                   {groups.map((g) => (
                     <span
                       key={g.id}

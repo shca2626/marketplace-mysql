@@ -204,6 +204,7 @@ export interface PickedProduct {
   image?: string | null
   moq?: number | null
   stock?: number | null
+  sellerName?: string | null
   variants?: { id: string; name: string; price: number | null; stock: number }[]
 }
 
@@ -243,6 +244,7 @@ export function ProductPicker({
             images: string[]
             moq?: number | null
             stock?: number
+            seller?: { storeName?: string | null; name: string } | null
             variants?: { id: string; name: string; price: number | null; stock: number; isActive: boolean }[]
           }[]
         }
@@ -255,6 +257,7 @@ export function ProductPicker({
             image: p.images?.[0] ?? null,
             moq: p.moq ?? null,
             stock: p.stock ?? null,
+            sellerName: p.seller?.storeName ?? p.seller?.name ?? null,
             variants: (p.variants ?? [])
               .filter((v) => v.isActive)
               .map((v) => ({ id: v.id, name: v.name, price: v.price, stock: v.stock })),
@@ -316,8 +319,11 @@ export function ProductPicker({
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{p.title}</span>
-                  <span className="block text-xs text-muted-foreground">
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {p.sellerName && <span className="font-medium text-foreground/70">{p.sellerName}</span>}
+                    {p.sellerName && <span className="mx-1">·</span>}
                     Retail {p.price.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
+                    {(p.stock ?? 0) > 0 ? '' : ' · out of stock'}
                   </span>
                 </span>
               </button>

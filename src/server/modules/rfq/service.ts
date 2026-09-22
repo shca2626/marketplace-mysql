@@ -75,6 +75,7 @@ function serializeRfqLine(l: {
     moq?: number | null
     stock?: number
     priceTiers?: string | null
+    seller?: { storeName: string | null; name: string } | null
   } | null
 }): RfqLineDTO {
   return {
@@ -87,6 +88,7 @@ function serializeRfqLine(l: {
     quantity: l.quantity,
     targetPrice: l.targetPrice ? l.targetPrice.toNumber() : null,
     notes: l.notes,
+    sellerName: l.product?.seller ? (l.product.seller.storeName ?? l.product.seller.name) : null,
     product: l.product
       ? {
           id: l.product.id,
@@ -225,7 +227,7 @@ function serializeRfq(
 const rfqInclude = {
   organization: { select: { name: true } },
   user: { select: { id: true, name: true, email: true } },
-  lines: { include: { product: true } },
+  lines: { include: { product: { include: { seller: { select: { storeName: true, name: true } } } } } },
 } as const
 
 // ── Lifecycle sweep (lazy expiry — no cron needed) ──────────────────────────
@@ -644,7 +646,7 @@ export async function getRfq(rfqId: string, viewer: { id: string; role: string }
     const sellerIds = [...new Set(dto.quotes.map((q) => q.sellerId).filter((x): x is string => !!x))]
     if (sellerIds.length) {
       const [sellers, stats, openDisputes, lostDisputes] = await Promise.all([
-        db.user.findMany({ where: { id: { in: sellerIds } }, select: { id: true, name: true, verifiedAt: true, createdAt: true } }),
+        db.user.findMany({ where: { id: { in: sellerIds } }, select: { id: true, name: true, storeName: true, verifiedAt: true, createdAt: true } }),
         db.product.groupBy({ by: ['sellerId'], where: { sellerId: { in: sellerIds }, status: 'ACTIVE' }, _avg: { rating: true }, _sum: { reviewCount: true } }),
         disputesPanel.showDisputeCount || disputesPanel.affectsSellerRating
           ? openDisputeCountBySeller(sellerIds)
@@ -668,6 +670,7 @@ export async function getRfq(rfqId: string, viewer: { id: string; role: string }
           : baseRating
         q.sellerMeta = {
           name: seller.name,
+          storeName: seller.storeName ?? null,
           verified: ratingPanel.showVerificationBadge ? !!seller.verifiedAt : undefined,
           rating: ratingPanel.showStars ? displayedRating : undefined,
           reviewCount: ratingPanel.showReviewCount ? (stat?._sum.reviewCount ?? 0) : undefined,
