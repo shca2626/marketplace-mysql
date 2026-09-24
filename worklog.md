@@ -1055,3 +1055,44 @@ Stage Summary:
 - Media pipeline RESTORED and hardened (fail-closed invalid keys, atomic writes, traversal-proof).
 - Dev server up persistently (double-fork pattern documented above).
 - TASK-1 → DONE. Next READY: TASK-2 (product 404 skeleton, S).
+
+---
+Task ID: LOOP-3
+Agent: main agent (team lead)
+Task: Owner directives 1-5 executed: gitignore exception, keep local-disk.ts, delete gap analysis,
+keep team infra, and produce the complete Financier plan for owner approval.
+
+Work Log:
+- .gitignore: added exception `!src/lib/storage/local-disk.ts` right after the `local-*` pattern
+  (line 44-45) — the storage adapter is now git-tracked-safe and will survive host resets.
+  Verified via git check-ignore: matched only by the negation rule.
+- Deleted COMPANY_TO_COMPANY_GAP_ANALYSIS.md (was redundant — C2C phase closed by owner ruling;
+  confirmed via git log: PLATFORM-1 commit 8f1103c had implemented the real audit gaps).
+- Dispatched RECON worker (Explore agent) for Financier foundations: 14 fact sections with
+  file:line evidence returned. Key facts: orgType is a free String (BANK/MFI/EWALLET valid in
+  code only, schema.prisma:232); NO financier role/concept anywhere; guard conventions
+  (requireUser/requireAdmin + service-level org membership checks); 5-registry lockstep to add
+  a view; sequences prefix union closed; notifications linkView union closed; Order.total is
+  Float vs Decimal elsewhere; approvals/disputes module patterns documented as templates.
+- CRITICAL DISCOVERY (lead-verified): MySQL is DOWN — host reset wiped /home/z/mysql datadir,
+  nothing listens on 3306, .env holds a stale SQLite URL. Dev server also reaped. Recovery
+  runbook exists (scripts/recovery/README.md: 433MB MariaDB bintar download, init, secure,
+  db:push + db:seed, double-fork server start). Old business data is already lost; reseed =
+  demo data only. → became DP-5 in the plan.
+- Wrote team/FINANCIER_PLAN.md v1.0 (complete, evidence-based): 5 new Prisma models
+  (FinancierProfile, FinancingProduct, FinancingRequest FR-, FinancingOffer, FinancingFee),
+  7 E2E flows, surfaces (?view=financier console + buyer business-view card + admin
+  financing tab), full API surface, settings registry group, governance wiring, task breakdown
+  FIN-0..FIN-9 with DoD/deps/serialization, risks mapped to mitigations, non-goals, and
+  decision points DP-1 (identity: org+membership, no new global role) DP-2 (success fee
+  0.75% accrued/invoiced externally) DP-3 (invoice+PO financing v1) DP-4 (open-to-matching
+  distribution) DP-5 (DB recovery approval).
+- Updated SPRINT_PLAN.md (C2C CLOSED section, Financier phase = plan-approval gate, hygiene
+  backlog parked), TASK_BOARD.md (gate = owner approval), DECISIONS.md (D-012 C2C closed,
+  D-013 plan-approval gate + no-stop execution after).
+
+Stage Summary:
+- All 5 owner directives executed. Team infra intact; loop idle by design.
+- Financier module plan is COMPLETE and awaiting owner approval of DP-1..DP-5 — after approval
+  the team executes FIN-0..FIN-9 without stopping (state loop, escalations only).
+- Environment alert: server + DB down; recovery is FIN-0 first task (needs DP-5 approval).

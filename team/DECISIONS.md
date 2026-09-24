@@ -29,3 +29,9 @@
 - **D-011 (2026-09, owner directive)** — Time-based heartbeat REJECTED by owner. Cron job 412062
   deleted. No timers drive development cadence, ever. Loop advances on: worker results, session
   entry, or any owner message. Persistence of loop state = files (TASK_BOARD + worklog).
+- **D-012 (2026-09, owner ruling)** — Company-to-Company phase is CLOSED/complete. No C2C task
+  gates the Financier module. Redundant gap-analysis file deleted. local-disk.ts kept +
+  gitignore exception added (`!src/lib/storage/local-disk.ts`) so it survives host resets.
+- **D-013 (2026-09, owner directive)** — Financier module may NOT start until the owner approves
+  `team/FINANCIER_PLAN.md` (DP-1…DP-5). After approval, the team executes FIN-0…FIN-9 through
+  the state loop WITHOUT STOPPING — owner is interrupted only for PLAYBOOK §8 escalations.

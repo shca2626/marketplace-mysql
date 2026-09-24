@@ -41,6 +41,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 local-*
+# exception: the local-disk storage adapter is REQUIRED app source (was lost on host resets)
+!src/lib/storage/local-disk.ts
 .claude
 .z-ai-config
 *.log
