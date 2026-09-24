@@ -1,9 +1,15 @@
-# Financier Module — Implementation Plan v1.0 (FOR OWNER APPROVAL)
+# Financier Module — Implementation Plan v1.1 (detail layer of PLATFORM_PLAN)
 
-> **SUPERSEDED as master by `team/PLATFORM_PLAN.md` v2.0** — this file is retained as the
-> **Phase 1 (Financier Core) detail** of the big picture. Approval is governed by PLATFORM_PLAN's
-> DP-1…DP-9 list. Model delta: `FinancingRequest.targetType` gains `WORKING_CAPITAL`; applicant
-> org may be supplier-owned (Flow 3).
+> **MASTER plan = `team/PLATFORM_PLAN.md` v2.0** (big picture, 6 flows, phases P0–P6).
+> **DATA MODEL = `team/FINANCIER_SCHEMA.md` v2.0** — competitor-extracted (ymp.ye rendered via
+> browser: product/provider/wallet data structures) + code-grounded. This file keeps the
+> task breakdown (FIN-0…FIN-9) and integration detail. Approval is governed by PLATFORM_PLAN's
+> DP-1…DP-12 list (DP-10..12 defined in FINANCIER_SCHEMA §5).
+>
+> The earlier §3 model sketch in this file is SUPERSEDED by FINANCIER_SCHEMA.md v2.0
+> (12 models: FinancierProfile, FinancierBranch, FinancingProduct, FinancingRequest,
+> ApplicationDocument, FinancingOffer, FinancingAgreement, FinancingEvent, FinancingFee,
+> AccreditationProgram, SupplierAccreditation + sequences FIN/AGR).
 
 ---
 

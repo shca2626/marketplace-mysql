@@ -59,10 +59,16 @@ buyer-against-quote/order = the rest; Flow 5 = the same core wired into checkout
 | **P6 — POLISH** | Flow 6 UX allowance (seller nav → RFQs), education center + success stories (competitor-inspired, if approved DP-9), full regression + docs | 6 verified | Last-mile. |
 
 **Model deltas vs FINANCIER_PLAN v1** (v1's 5 models carry over):
-- `FinancingRequest.targetType: WORKING_CAPITAL | QUOTE | ORDER` (was QUOTE | ORDER) and applicant org may be a **supplier-owned org** (Flow 3)
+> **Full data model now lives in `team/FINANCIER_SCHEMA.md` v2.0** — 11+ models extracted from
+> the competitor (ymp.ye rendered via browser: provider profiles w/ branches+map+stats, financing
+> products w/ categories+amounts+murabaha-rates+collateral-enum+coverage, application CTA,
+> e-wallets) and grounded in our code conventions. Highlights beyond v1:
+> FinancierBranch (agents/branches), ApplicationDocument (typed uploads w/ verify flow),
+> FinancingAgreement (post-acceptance record + terms snapshot), FinancingEvent (track-only
+> disbursement/repayment ledger), AccreditationProgram/SupplierAccreditation (Flow 4),
+> Islamic-finance fields (shariaCompliant, MURABAHA_ANNUAL), coverageRegions, viewCount stats.
+- `FinancingRequest.targetType: WORKING_CAPITAL | QUOTE | ORDER | RFQ_LINE` (Flow 3 + super-cart line)
 - `RfqLine.lineType: PRODUCT | SERVICE | FINANCING | LOGISTICS | INSURANCE` (P3)
-- New (P5): `AccreditationProgram { ownerId (financier/platform), criteria Json, feeAmount, status }`, `SupplierAccreditation { organizationId, programId, documents Json, status: APPLIED|UNDER_REVIEW|VERIFIED|REJECTED, verifiedAt, paidAt }`
-- New (P4): `FinancingEvent { offerId, type: DISBURSEMENT|REPAYMENT|SETTLEMENT, occurredAt, reference, reportedById, note }` — **events only, no balances, no custody**
 - orgType taxonomy extended in code: + `LOGISTICS | INSURANCE | SERVICE_PROVIDER` (String column — code-only change, no migration)
 
 ## 4. Approval points (v2 — supersedes v1's DP-1..5 where noted)

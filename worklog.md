@@ -1131,3 +1131,40 @@ Work Log:
 Stage Summary:
 - Big-picture master plan exists at team/PLATFORM_PLAN.md awaiting owner approval.
   FINANCIER_PLAN.md retained as Phase-1 detail. No code changed.
+
+---
+Task ID: LOOP-5
+Agent: main agent (team lead)
+Task: Owner correction — the competitor (ymp.ye) was provided to EXTRACT THE DATA MODEL, and no
+detailed schema had been produced. Deliver the real, competitor-derived financier schema.
+
+Work Log:
+- Rendered the competitor SPA with agent-browser (page_reader returned only the JS shell for
+  subpages). Pages extracted: homepage, /ar/services (catalog + 9-category filter chips),
+  /ar/services/70 (product detail), /ar/service-providers (directory), /ar/service-providers/2
+  (Al-Kuraimi full profile). "طلب تمويل" CTA confirmed auth-gated (no form logged out).
+- Data structures captured with evidence: provider = name/logo/type/about(rich)/contact email+phone/
+  Leaflet map location/branches&agents with kinds/stats (11,449 visitors, 6 services)/success
+  stories; product = name/provider/9 categories (investment·individual·seasonal·corporate·
+  agricultural·pension·housing·alternative-energy·electronic)/description+features/rate model
+  ("annual murabaha ≤30%", min repayment 6 months)/conditions (nationality·residence·reputation·
+  property proof·collateral)/amount min 99,996 – max 100,000,000 YER/collateral enum (5 values:
+  personal guarantee·mortgage·bank guarantee·convertible securities·self-guarantee)/
+  22-governorate coverage/auth-gated request CTA; e-wallets (Jeeb, Mobile Money + payroll);
+  education center (courses/lessons/durations) + stories/news.
+- Wrote team/FINANCIER_SCHEMA.md v2.0: 11 Prisma-style models (FinancierProfile, FinancierBranch,
+  FinancingProduct, FinancingRequest FR-, ApplicationDocument, FinancingOffer, FinancingAgreement
+  AGR-, FinancingEvent track-only ledger, FinancingFee, AccreditationProgram,
+  SupplierAccreditation) with full fields/types/enums, sequences FIN+AGR, settings panels,
+  notification types, competitor→model traceability mapping, and 3 new decision points
+  (DP-10 public directory?, DP-11 Islamic finance fields, DP-12 offer numbering).
+- Updated FINANCIER_PLAN.md (v1.1 — now a detail layer pointing at the schema) and
+  PLATFORM_PLAN.md (model-deltas section now points at FINANCIER_SCHEMA v2.0).
+
+Stage Summary:
+- The schema the owner asked for now exists: competitor-extracted, code-grounded, 11 models with
+  every field the competitor's UI proves out (amounts, murabaha caps, tenor floors, collateral
+  enums, coverage regions, branches, stats) plus our B2B flows (working capital, quote/order/line
+  targets, agreements, track-only events, fees, accreditation).
+- Plan stack now consistent: PLATFORM_PLAN (master phases) → FINANCIER_SCHEMA (data) →
+  FINANCIER_PLAN (task breakdown). Awaiting owner approval DP-1..DP-12.
