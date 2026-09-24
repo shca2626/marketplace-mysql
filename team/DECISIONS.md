@@ -22,7 +22,10 @@
   (smoke 3 · vendor-lifecycle 25 · commission-payouts 12 · catalog-moderation 20).
 
 ## Working agreements
-- **D-009 (2026-09)** — Autonomous team mode ON: 15-min webDevReview heartbeat; user = product owner
-  (escalation list in PLAYBOOK §8).
+- **D-009 (2026-09, amended)** — Autonomous team mode ON. Execution model is the **STATE LOOP**
+  (State → Lead decision → Worker → Result → State → …). NOT time-based.
 - **D-010 (2026-09)** — Shared files are Lead-written; workers append to `worklog.md` only
   (plus their own scoped code files).
+- **D-011 (2026-09, owner directive)** — Time-based heartbeat REJECTED by owner. Cron job 412062
+  deleted. No timers drive development cadence, ever. Loop advances on: worker results, session
+  entry, or any owner message. Persistence of loop state = files (TASK_BOARD + worklog).

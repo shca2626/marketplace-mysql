@@ -1,12 +1,12 @@
 # Vendora Task Board
 
-> Working state of the autonomous team. **Single writer: the LEAD.**
-> Read `team/PLAYBOOK.md` first. Statuses change only through the Lead.
+> Live status only. The PLAN (scope/DoD/deps) lives in `team/SPRINT_PLAN.md`.
+> Single writer: the LEAD. Execution model: STATE LOOP — no timers, no cron.
 
 ## In Progress
-| Task ID | Owner | Summary | Files locked |
-|---|---|---|---|
-| (none) | — | — | — |
+| Task ID | Owner | Summary |
+|---|---|---|
+| (none — loop idle, awaiting next entry) | — | — |
 
 ## Review
 | Task ID | Summary | Reviewer | Verdict |
@@ -15,33 +15,18 @@
 ## Done
 | Task ID | Summary | Evidence |
 |---|---|---|
-| TEAM-SETUP | Autonomous-team infra stood up: playbook + board + decisions + 15-min webDevReview heartbeat | this file + worklog tail + cron job |
+| TASK-1 / FIX-1 | local-disk.ts restored (traversal-proof, atomic writes, fail-closed); media pipeline live again | worklog FIX-1: media 200/webp/immutable, traversal 404, roundtrip+HTTP proof, lint clean |
+| TASK-0 | COMPANY_TO_COMPANY_GAP_ANALYSIS.md (157 lines, 10 verdicts, A/B/C/D) | worklog TASK-0 entry + file on disk |
+| TEAM-SETUP | Team infra + state-loop model + sprint plan | team/*.md + worklog LOOP-1 |
 
-## Backlog (ordered — top first)
-| # | ID | Item | Source |
-|---|---|---|---|
-| 1 | TASK-0 | Generate `COMPANY_TO_COMPANY_GAP_ANALYSIS.md` (read-only gap analysis: 10-question code audit, COMPLETE/PARTIAL/UI-DEMO-ONLY/NOT-FOUND/UNKNOWN classification, closing Sections A/B/C/D). **Confirmed missing on disk.** | owner directive |
-| 2 | … | Seed items from gap-analysis **Section A** (must-fix before Financier) | TASK-0 output |
-| 3 | … | Seed items from **Section B** (parallelizable) | TASK-0 output |
-
-Known candidates pending TASK-0 confirmation (from whois.md audit, P1=4/P2=8/P3=5):
-- Financier domain module — orgType BANK/MFI/EWALLET exist only as settings-scope keys today
-- CARD payment is an inline simulation → gateway abstraction
-- Organization creditLimit stored but never enforced at checkout
-- Auth hardening: email verification / password reset / MFA
-- Rate limiting beyond `/api/media`
-- `typescript.ignoreBuildErrors: true` — eliminate
-- Single-process in-memory cache/limiter
-- Product detail 404 → infinite skeleton (`product-view.tsx:390`)
-- Test coverage: RFQ chain, approvals, disputes, recurring, pricing, uploads, coupons (0 each; baseline 60/4)
-
-## File Locks
-| File / resource | Holder | Task ID | Released |
-|---|---|---|---|
-| `prisma/schema.prisma` | LEAD-gated | — | — |
-| `worklog.md` / `TASK_BOARD.md` | LEAD-gated | — | — |
+## Next READY (top of queue, post TASK-1)
+1. TASK-2 (product 404 skeleton, S)
+2. TASK-4 (rate limiting + CSRF, S)
+3. TASK-3 (creditLimit enforcement, M)
 
 ## Blocked (needs owner)
 | Item | Why |
 |---|---|
-| (to be seeded from gap-analysis Section D after TASK-0) | owner approval required |
+| **D-002 settlement ruling** — bank wires route through platform account | Owner must amend D-002 or direct re-path; blocks F-0 + dispute refunds |
+| `.env` tracked in git (DB creds) | Rotate + untrack |
+| PHASE 2 (F-0..F-5) | Phase gate: Phase 1 complete + owner go/no-go |
