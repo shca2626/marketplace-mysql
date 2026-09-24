@@ -1,8 +1,9 @@
 # Financier Module — Implementation Plan v1.0 (FOR OWNER APPROVAL)
 
-> Owner rule: **nothing below executes until you approve.** After approval, the team runs
-> FIN-0 → FIN-9 through the state loop without stopping (escalations only, per PLAYBOOK §8).
-> Evidence base: code recon (file:line cites) + disaster-recovery runbook, 2026-09.
+> **SUPERSEDED as master by `team/PLATFORM_PLAN.md` v2.0** — this file is retained as the
+> **Phase 1 (Financier Core) detail** of the big picture. Approval is governed by PLATFORM_PLAN's
+> DP-1…DP-9 list. Model delta: `FinancingRequest.targetType` gains `WORKING_CAPITAL`; applicant
+> org may be supplier-owned (Flow 3).
 
 ---
 

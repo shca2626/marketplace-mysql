@@ -23,8 +23,9 @@
 ## Gate — BLOCKED on owner
 | Item | Why |
 |---|---|
-| **FINANCIER PLAN APPROVAL** — `team/FINANCIER_PLAN.md` v1.0, decision points DP-1…DP-5 | Owner must approve before FIN-0 dispatches. After approval: team runs FIN-0…FIN-9 without stopping. |
+| **PLATFORM PLAN APPROVAL** — `team/PLATFORM_PLAN.md` v2.0 (big picture, 6 flows, phases P0–P6, decision points DP-1…DP-9); FINANCIER_PLAN.md = Phase-1 detail | Owner must approve before P0/FIN-0 dispatches. After approval: team runs all phases without stopping. |
 | DP-5 especially: DB recovery approval | MySQL datadir wiped by host reset; runbook reseed = demo data only (old data already lost) |
+| DP-6: Flow-5 track-only-ledger ruling (needed before P4 only) | Amends D-002 wording |
 
 ## After approval — queue
 FIN-0 infra recovery (lead) → FIN-1 schema → FIN-2 services → FIN-3 API → FIN-4 financier console → FIN-5 buyer surfaces → FIN-6 admin tab → FIN-7 governance → FIN-8 QA regression → FIN-9 docs.
