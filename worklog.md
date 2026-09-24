@@ -902,3 +902,43 @@ Stage Summary:
 - Platform owner now can: see/suspend/verify/commission every vendor, browse and moderate every product, see every order + money, configure payment details and commission, capture payments, generate and settle payouts.
 - Data notes: PY-2026-000001 (paid, Casa Verde) is real test data; seller4 verified flag set during E2E; Casey's 3 test orders remain as demo data of the new statuses.
 - Watchdog: recreated earlier this round as job 406961 (15-min webDevReview); verify on next round (both prior instances were auto-disabled by exec limits).
+
+---
+Task ID: TEAM-SETUP
+Agent: main agent (Z.ai Code, orchestrator → team lead)
+Task: Owner directive — stop waiting for manual prompts; stand up a self-managing autonomous
+engineering team (lead + full-stack developer + tester/auditor with agent-browser) that
+completes the platform end-to-end. Design answer requested; no source code changed.
+
+Work Log:
+- Verified current state: COMPANY_TO_COMPANY_GAP_ANALYSIS.md does NOT exist on disk (checked FS);
+  team/ dir did not exist; zero cron jobs active; worklog.md = 904 lines, latest phases
+  AUDIT-R1 / 10-a / 10-b / PLATFORM-1.
+- Created /home/z/my-project/team/PLAYBOOK.md — team charter: roles & separation of duties
+  (tester never fixes; developer never self-verifies), Task-ID scheme (N, N-a/N-b, FIX-#, QA-R#,
+  VERIFY-#), store-and-forward communication protocol (stateless sub-agents "converse" via
+  worklog appends relayed by the Lead), file-lock/serialization rules (shared files lead-only),
+  15-min heartbeat procedure, Definition of Done (lint + db:push + agent-browser E2E evidence +
+  worklog append + board update; no E2E = not done), escalation list for the product owner.
+- Created /home/z/my-project/team/TASK_BOARD.md — kanban (In Progress / Review / Done / Backlog /
+  File Locks / Blocked). Backlog seeded: TASK-0 = generate COMPANY_TO_COMPANY_GAP_ANALYSIS.md
+  (confirmed missing), then Section A/B items; known-candidate list from whois.md audit included
+  (financier module, payment gateway abstraction, creditLimit enforcement, auth hardening,
+  rate limiting, ignoreBuildErrors, product 404 skeleton, missing test coverage).
+- Created /home/z/my-project/team/DECISIONS.md — invariants D-001..D-010: business model
+  (third-party orchestrator, external settlement, no SaaS multi-tenancy), architecture
+  (single-route SPA, modules, sequences, dev on :3000, E2E DoD), working agreements
+  (autonomous heartbeat mode, lead-only shared files).
+- Created the 15-minute webDevReview heartbeat cron job (single instance) — the autonomy
+  mechanism: each firing = one mini-sprint (standup → agent-browser QA sweep → fix-or-build →
+  verify → log). Mandatory read chain for any future agent: worklog tail → DECISIONS →
+  PLAYBOOK → TASK_BOARD.
+
+Stage Summary:
+- Autonomous team is LIVE: roles, protocols, shared consciousness (worklog + board + decisions),
+  serialization guarantees, heartbeat cadence, DoD, escalation policy — all documented and
+  consistent with how this environment physically works (stateless one-shot sub-agents +
+  persistent lead + file-based memory).
+- Zero source code touched (owner constraint: "just answer, don't change any code").
+- Next: TASK-0 (gap analysis) will be picked up by the first heartbeat / next lead turn;
+  its Section A seeds the sprint backlog for the Financier phase.
