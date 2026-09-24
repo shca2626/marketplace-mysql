@@ -1168,3 +1168,52 @@ Stage Summary:
   targets, agreements, track-only events, fees, accreditation).
 - Plan stack now consistent: PLATFORM_PLAN (master phases) → FINANCIER_SCHEMA (data) →
   FINANCIER_PLAN (task breakdown). Awaiting owner approval DP-1..DP-12.
+
+---
+Task ID: RECON-FIN-2
+Agent: Lead
+Task: Owner provided the full 3-step financing-wizard field extraction + competitor login
+(nosopan860@dd2car.com / Admin123) and directed: deep-analyze, integrate into EXISTING schema/code
+with integrity, no duplication, one entry per data point.
+
+Work Log:
+- Logged into ymp.ye via agent-browser (login = phone 772228289 + password).
+- Captured the authenticated user model from localStorage `userInfo` (id, 4-part name, email,
+  phone, identity_type=personalCard, national_identity=10101254747, identity_attachment[],
+  residence_type {slug,name}, marital_status, nationality, initial_data{birthday,gender,address,
+  lat,lng,district_id,city_id,district,city}, whatsapp_number, image) + profile page rendering
+  (Personal / Contact sections, avatar upload, "Edit profile" in wizard step 1).
+- Patched XHR in-page to capture `/api/fund-order/3763` raw JSON (Bearer token): full request
+  model incl. fund_order_statuses[] status HISTORY with per-transition note, status codes
+  (rejected, auto-rejected), guarantee/guarantee_status/project_type lookups, `*_other`
+  free-text companions, installments[], branch, is_rating, currency{id,min,max}, account {id,name}
+  REFERENCE-ONLY (competitor never copies profile data into requests — validates the
+  single-entry rule).
+- Walked the live wizard DOM: step 1 = profile review + consent checkbox (info_agree) +
+  "Edit profile" button; step 2 = 22 controls with exact select option codes (new|existing,
+  false|true, activity types 12..16|1, cities/districts lookup ids, ownership|rent, guarantee
+  ids 59/345/346/347|1, guarantee status 7/8/9|1); step 3 = review-by-reference.
+- REWROTE team/FINANCIER_SCHEMA.md to v3.0: §1 evidence inventory (wizard + API payloads
+  verbatim); §2 single-entry doctrine (5 rules); §3 models — User additive applicant-profile
+  columns (11 nullable, DP-14), FinancingRequest v2 (typed ACTIVITY/UNDERWRITING/GUARANTEE
+  columns replacing businessInfo/collateralOffered Json buckets; organizationId nullable DP-13;
+  consentAt), ApplicantDocument (dual-scope: user KYC once + request evidence — replaces
+  ApplicationDocument), product category taxonomy += RURAL|FISHERIES|OTHER, coverageRegions
+  semantics; §4 enum code mapping; §5 status lifecycle mapping (competitor 9 states → our
+  superset; notes via AuditLog+Notification, no new table — DP-15); §6 sequences/settings/
+  notifications; §7 field-level traceability (every wizard field → exactly ONE home); §8
+  documented deviations; §9 DP-13..DP-17.
+- Synced FINANCIER_PLAN.md (v1.1: schema pointer v3.0, DP-13..17 checklist, 3-step wizard
+  flow 3, FIN-1 includes User columns, FIN-5 = wizard intake surfaces, document-upload non-goal
+  LIFTED) and PLATFORM_PLAN.md (§0 wizard evidence, model-deltas → v3.0, DP-13..17 rows,
+  status line DP-1..DP-17).
+
+Stage Summary:
+- Field-level competitor extraction is COMPLETE (public pages v2 + authenticated wizard/API v3).
+- The data model now integrates the competitor's fields into OUR existing schema with zero
+  duplication: personal data once on User, KYC docs once at user level, per-application facts
+  only on FinancingRequest, money schedules on offer/agreement, status history in the existing
+  audit substrate. Traceability proof in FINANCIER_SCHEMA §7.
+- Awaiting owner approval: DP-1..DP-17 (new: DP-13 individual applicants, DP-14 User columns,
+  DP-15 status-note substrate, DP-16 no geo tables, DP-17 defer ratings/branches).
+- DB + dev server still DOWN (P0/FIN-0, DP-5) — unchanged, owner-gated.

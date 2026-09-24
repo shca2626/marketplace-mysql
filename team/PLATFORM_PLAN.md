@@ -2,7 +2,9 @@
 
 > Master plan absorbing FINANCIER_PLAN v1.0 as **Phase 1 detail**.
 > Evidence: full code recon (file:line) + owner's 6-flow spec + competitor analysis
-> (ymp.ye — Yemen Microfinance Platform). **Nothing executes until you approve.**
+> (ymp.ye — Yemen Microfinance Platform: public pages AND owner's authenticated wizard
+> walk-through + live API extraction `/api/profile`, `/api/fund-orders`, `/api/fund-order/{id}`).
+> **Nothing executes until you approve.**
 
 ---
 
@@ -14,6 +16,11 @@ ymp.ye (منصة اليمن للتمويل الأصغر) is a microfinance aggre
 - **E-wallets as providers** (جيب، موبايل موني) with services (Payroll mass payouts) → *orgType EWALLET (exists in our schema, unused)*
 - **Service taxonomy** — financing + Takaful insurance (التأمين التكافلي) + entertainment top-ups → *we adopt FINANCING/LOGISTICS/INSURANCE/SERVICE lines; entertainment is out of scope (B2C retail, not our model)*
 - **Education center** (courses, lessons, durations), **success stories**, **news** → *deferred content layer (DP-9)*
+- **Financing application wizard** (3 steps: profile-review+consent → 22-field activity/financing form →
+  review) with per-request **status history + provider notes** (`fund_order_statuses`), ID/KYC stored
+  ONCE at account level (requests reference `account {id,name}` only — validates our single-entry rule)
+  → *maps to User additive profile (DP-14) + FinancingRequest v2 typed columns + ApplicantDocument
+  (FINANCIER_SCHEMA v3.0 §5–§7)*
 
 ## 1. The six flows mapped against our actual code
 
@@ -59,14 +66,18 @@ buyer-against-quote/order = the rest; Flow 5 = the same core wired into checkout
 | **P6 — POLISH** | Flow 6 UX allowance (seller nav → RFQs), education center + success stories (competitor-inspired, if approved DP-9), full regression + docs | 6 verified | Last-mile. |
 
 **Model deltas vs FINANCIER_PLAN v1** (v1's 5 models carry over):
-> **Full data model now lives in `team/FINANCIER_SCHEMA.md` v2.0** — 11+ models extracted from
-> the competitor (ymp.ye rendered via browser: provider profiles w/ branches+map+stats, financing
-> products w/ categories+amounts+murabaha-rates+collateral-enum+coverage, application CTA,
-> e-wallets) and grounded in our code conventions. Highlights beyond v1:
-> FinancierBranch (agents/branches), ApplicationDocument (typed uploads w/ verify flow),
-> FinancingAgreement (post-acceptance record + terms snapshot), FinancingEvent (track-only
-> disbursement/repayment ledger), AccreditationProgram/SupplierAccreditation (Flow 4),
-> Islamic-finance fields (shariaCompliant, MURABAHA_ANNUAL), coverageRegions, viewCount stats.
+> **Full data model now lives in `team/FINANCIER_SCHEMA.md` v3.0** — 12 models + additive User
+> columns, extracted from the competitor at FIELD level (public pages: provider profiles w/
+> branches+map+stats, financing products w/ categories+amounts+murabaha-rates+collateral-enum+
+> coverage; authenticated: 3-step wizard w/ DOM enum codes, user model from `userInfo`, request
+> model from `/api/fund-order` incl. status history w/ notes + `*_other` free-text companions +
+  installments + branch + is_rating) and grounded in our code conventions. Highlights beyond v1:
+> FinancierBranch, ApplicantDocument (dual-scope: user KYC once + request evidence — ONE subsystem),
+> FinancingAgreement (terms snapshot), FinancingEvent (track-only ledger),
+> AccreditationProgram/SupplierAccreditation (Flow 4), Islamic-finance fields, coverageRegions,
+> viewCount stats, **FinancingRequest v2 typed activity/underwriting/guarantee columns**
+> (activityStatus…capitalAmount/monthlyInstallmentCapacity/previousFinancing…guaranteeType/Status +
+> `*Other` companions), consentAt, **User additive applicant-profile columns (DP-14)**.
 - `FinancingRequest.targetType: WORKING_CAPITAL | QUOTE | ORDER | RFQ_LINE` (Flow 3 + super-cart line)
 - `RfqLine.lineType: PRODUCT | SERVICE | FINANCING | LOGISTICS | INSURANCE` (P3)
 - orgType taxonomy extended in code: + `LOGISTICS | INSURANCE | SERVICE_PROVIDER` (String column — code-only change, no migration)
@@ -84,6 +95,11 @@ buyer-against-quote/order = the rest; Flow 5 = the same core wired into checkout
 | **DP-7** | orgType taxonomy += LOGISTICS / INSURANCE / SERVICE_PROVIDER (Super-Cart pools) | recommend yes |
 | **DP-8** | Phase order P0→P6 as tabled above (P4/P5 swappable) | confirm or reorder |
 | **DP-9** | Education center + success stories (competitor-inspired) in scope? | recommend defer to P6 tail |
+| **DP-13** | Individual applicants: `FinancingRequest.organizationId` nullable (null = individual/sole-proprietor — competitor-proven; Flow-5 prerequisite) | **recommend YES** (FINANCIER_SCHEMA §9) |
+| **DP-14** | Additive `User` applicant-profile columns (11 nullable — phone/whatsapp/DOB/gender/marital/nationality/identityType/identityNumber/residence/residenceType); single-entry rule; B2C unaffected | **recommend YES** (FINANCIER_SCHEMA §3.1) |
+| **DP-15** | Status history + provider notes via existing AuditLog + Notification substrate (no new column/table) | **recommend YES** |
+| **DP-16** | No geo lookup tables in v1 — free strings + normalized product-coverage matching | **recommend YES** |
+| **DP-17** | Financier ratings (`is_rating`) + branch-level request routing | **recommend defer to v2** |
 
 ## 5. Guardrails (unchanged)
 
@@ -92,4 +108,5 @@ invoiced fees; never lends, never holds funds, never merchant of record; no SaaS
 All financing money moves directly buyer⇄financier / financier⇄supplier.
 
 **Status: AWAITING OWNER APPROVAL — reply "approved" or per-DP adjustments (e.g. "DP-2 → 1.5%, DP-6 yes, DP-9 defer").**
+Decision list now spans **DP-1…DP-17** (DP-10..12 and DP-13..17 defined in FINANCIER_SCHEMA.md §9).
 After approval: board updated → P0 dispatches → the loop runs phases to completion without stopping (escalations only).
