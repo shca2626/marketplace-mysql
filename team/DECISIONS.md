@@ -35,3 +35,19 @@
 - **D-013 (2026-09, owner directive)** — Financier module may NOT start until the owner approves
   `team/FINANCIER_PLAN.md` (DP-1…DP-5). After approval, the team executes FIN-0…FIN-9 through
   the state loop WITHOUT STOPPING — owner is interrupted only for PLAYBOOK §8 escalations.
+- **D-014 (2026-09, owner rulings on data design — governs the financier domain and ALL new
+  domains):**
+  1. **ZERO JSON.** No `Json` columns and no JSON-in-`Text` blobs in new domains. Lists become
+     child tables with FKs; addresses become typed scalar columns; schedules become installment
+     tables. Legacy Json columns in the commerce core (Product.images/specs/highlights/priceTiers,
+     ProductVariant.options, MediaAsset.variants, RecurringRfq.lines/recipientIds,
+     Organization.billingAddress, AuditLog.metadata, PlatformSetting.value, RfqSetting.value) are
+     FROZEN — not extended, normalized only via a future explicit decision.
+  2. **SINGLE ENTRY.** Every data point lives in exactly ONE place and is referenced everywhere
+     else (competitor-validated: `fund-order.account = {id,name}`).
+  3. **REUSE THE EXISTING SUBSTRATE.** Before adding any column/table, prove no existing home
+     exists (Organization, User, MediaAsset, Sequence, AuditLog/Notification, RfqSetting).
+     Documents link `MediaAsset` via `mediaId`; financier identity lives on `Organization`;
+     NO geo lookup tables (strings — DP-16).
+  Enforcement: `team/FINANCIER_SCHEMA.md` v4.0 §2 (rules R-1/R-2/R-3), §8 duplication audit;
+  reflected in `team/docs/06-data-dictionary.md` (LEGACY-JSON marks) and test INV checks.

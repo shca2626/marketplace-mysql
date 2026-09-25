@@ -1217,3 +1217,308 @@ Stage Summary:
 - Awaiting owner approval: DP-1..DP-17 (new: DP-13 individual applicants, DP-14 User columns,
   DP-15 status-note substrate, DP-16 no geo tables, DP-17 defer ratings/branches).
 - DB + dev server still DOWN (P0/FIN-0, DP-5) — unchanged, owner-gated.
+---
+Task ID: DOC-6b
+Agent: Docs Writer W5
+Task: Deployment/ops runbook + security threat model docs
+
+Work Log:
+- Skimmed worklog tail for context (LOOP-4/5, RECON-FIN-2: financier schema v3→v4, DB+dev server down P0).
+- Read and verified sources before writing anything: scripts/recovery/README.md (5-step
+  MariaDB restore, sha256 pin, double-fork dev start, inline DATABASE_URL rationale),
+  scripts/recovery/ file list (README.md, my.cnf, recover-all.sh, download-one.sh,
+  start-mysql.sh.txt), package.json scripts, Caddyfile, next.config.ts, .gitignore,
+  prisma/schema.prisma (Payment/Payout/AuditLog/SettingChange/RfqSetting blocks,
+  provider=mysql), scripts/db-provider.ts, src/lib/auth.ts, src/lib/http.ts,
+  src/lib/rate-limit.ts, src/server/guards.ts, src/lib/db.ts, src/lib/storage/index.ts
+  + types.ts + image-pipeline.ts, api/media/[...key], api/uploads + [id],
+  api/auth/login, api/route.ts, payouts service, settings service (120s TTL cache),
+  team/DECISIONS.md (D-001..D-013), FINANCIER_SCHEMA.md header (v4.0 confirmed).
+- Verified gap claims with greps instead of trusting the brief: assertSameOrigin coverage
+  (16 routes) vs ABSENT on auth/login+register, orders, rfqs, and single-product
+  writes (products POST, products/[id] PUT/DELETE — extra gap beyond brief);
+  enforceRateLimit wiring (login/register/order policies defined but never called);
+  no middleware.ts; no queryRaw anywhere (no raw SQL); search uses parameterized
+  Prisma contains; .env IS tracked in git (git ls-files); local-disk.ts IS missing
+  from disk while .gitignore:45 has the !exception; storage/uploads/ + public/uploads
+  are git-tracked; dev.log absent (server down); commit convention TASK-ID: subject
+  (plus bare-UUID commits).
+- Wrote team/docs/08-deployment-ops-runbook.md (10 sections): topology diagram
+  (browser→Caddy:81→Next:3000, XTransformPort escape, user-space MySQL, local-disk
+  storage), constraints table (D-007, process physics, env poisoning, host resets,
+  ignoreBuildErrors), startup/shutdown + verification, env-var table with risks,
+  .env-tracked warning + secret rotation runbook (values anonymized), DB ops
+  (db:push --accept-data-loss warning, seeds, provider flip, backup inventory,
+  full 5-step restore reproduced from recovery README, restore verification),
+  observability (dev.log grep targets, AuditLog, screenshots convention, no
+  alerting), routine ops (payouts generate/mark-paid, dispute escalation +
+  autoSuspendAfterDisputes, media cleanup 409 constraints, settings rollback +
+  120s cache), P0-1..P0-9 incident matrix (incl. local-disk.ts restore, stale
+  DATABASE_URL, 413/415/422 upload triage), release notes (single-node, git-based,
+  TASK-ID convention, D-010), module checklist template + financier launch checklist.
+- Wrote team/docs/09-security-threat-model.md (12 sections): trust-level table T0-T5
+  (financier staff PLANNED), auth/session model (scrypt params, HMAC token,
+  timingSafeEqual, cookie flags, 30-day trade-offs, SUSPENDED kill switch), role/
+  endpoint access matrix + org-scope + PLANNED financier doc ACL, STRIDE tables per
+  component (API/auth/media/storage/DB/settings/notifications/payments/payouts/
+  PLANNED financing) with honest risk ratings and the verified gaps (login brute
+  force H, CSRF absent on login/orders/rfqs/product-writes M, .env in git H, no
+  CSP/headers M, single-process limiter M, XFF spoofable on direct :3000),
+  input validation (zod pattern, no raw SQL, contains wildcard note, magic bytes,
+  path traversal w/ local-disk.ts re-verify caveat), media deep-dive + P0 note,
+  secrets management + rotation runbook + .env.example recommendation (not created),
+  PII inventory + planned applicant PII duties (consent evidence, retention proposal,
+  Arabic-market note), money-integrity invariants (D-001/D-002, admin-only capture/
+  mark-paid, 409 guards, track-only ledger), rate-limit table with wired/unwired
+  status, audit logging state + auth-event logging recommendation, prioritized
+  roadmap P0/P1/P2.
+- Fixed two editorial defects post-write (stray backtick in D-007 row; §5.4→§5.5
+  cross-ref; hardened §3.1 verify command). Modified nothing else — READ-ONLY on
+  code, exactly two new doc files.
+
+Stage Summary:
+- Files written: team/docs/08-deployment-ops-runbook.md (~454 lines),
+  team/docs/09-security-threat-model.md (~508 lines). No code touched.
+- Key findings while writing: (1) CSRF gap is wider than the brief stated — single-
+  product write routes also lack assertSameOrigin (only products/bulk has it);
+  (2) register route also lacks rate limit + CSRF (brief only named login);
+  (3) login's sameSite=lax cookie is currently the de-facto CSRF shield on the
+  unguarded routes — documented as partial mitigation, not a fix; (4) storage/
+  uploads renditions and public/uploads are git-tracked, so media survives host
+  resets via git; (5) dev.log currently absent = dev server down, consistent with
+  the pending P0/FIN-0 recovery; (6) no raw SQL anywhere — injection surface is
+  Prisma-parameterized end to end.
+- Unverified/flagged in docs: local-disk.ts path-traversal containment cannot be
+  re-confirmed until the file is restored from git (marked in both docs); review
+  rate-limit policy wiring to be re-checked at wiring review.
+---
+Task ID: DOC-6a
+Agent: Docs Writer W4
+Task: Test plan + acceptance criteria doc
+
+Work Log:
+- Read worklog tail (LOOP-4/5, RECON-FIN-2), team/DECISIONS.md (D-001..D-013) and team/PLAYBOOK.md
+  (DoD §7, runbook §10) in full as mandated.
+- Verified the current testing reality before writing anything: zero test files repo-wide
+  (re-confirmed), no `test` script in package.json, 88 API route files counted under
+  src/app/api/**, agent-browser CLI present at /usr/local/bin (command surface captured from
+  --help for the protocol section).
+- Read scripts/verify-b2b.sh line-by-line and extracted its 10-step assertion list; inventoried
+  the 14+ screenshots/ evidence dirs (upload1, restore/restore2, 5a, 5b, rfqfull, approvals1,
+  enforce1, next1, rfqsettings, history/qa-r7..r10) and mined QA history (QA-R8 settings-rail
+  containment + mobile card fix + 3-seller E2E RFQ-2026-000017; AUDIT-R1 no-tests verdict).
+- Verified state machines in code: RFQ_TRANSITIONS table + accept/withdraw/review/convert
+  guards (rfq/service.ts), quote PENDING_REVIEW moderation path, disputes header diagram +
+  sweepDisputes (escalateAt / sellerResponseDays / FULL_REFUND default / verifiedAt clearing),
+  payouts (PENDING→PAID|CANCELLED, 409 wrong-state, commissionRate precedence), payments
+  (PENDING→SUCCEEDED|FAILED|CANCELLED + sibling cleanup), orders (PENDING_APPROVAL routing at
+  approvals/service.ts:283-346, seller ladder PAID→PROCESSING→SHIPPED→DELIVERED), recurring
+  processDueSchedules (auto-pause on stock-out).
+- Verified rate-limit wiring by grep: upload/productWrite/mediaRead + inline buckets wired;
+  login/register/order/review presets defined in src/lib/rate-limit.ts:59-65 but referenced by
+  NO route (documented as gap). Verified CSRF posture: assertSameOrigin on 16 mutation route
+  files, session cookie httpOnly/SameSite=Lax/secure-in-prod, no global middleware.
+- Pulled planned-machine specs from FINANCIER_SCHEMA.md v4.0 §5 (lifecycles, DP-15 status
+  substrate) and FINANCIER_PLAN.md v1.1 (7 flows, FIN-0..FIN-9, wizard steps) for the
+  FinancingRequest/Offer/Agreement/Fee tables and E-11/E-12 ACs; exit criteria mapped to
+  PLATFORM_PLAN P0..P6.
+- Wrote team/docs/07-test-plan-acceptance-criteria.md (723 lines): honest current-state section
+  (D-008 gap = risk R-1), runtime-verification-first pyramid, environment + seed + test-account
+  matrix, verification-asset inventory (verify-b2b.sh steps, agent-browser 8-step protocol incl.
+  viewport 375/768/1440 + error trap), 21-row functional test matrix, 11 state-machine
+  transition tables w/ 33 forbidden-transition negative cases + 11 sweep cases (clock via direct
+  DB update + read-path trigger), API contract section (error envelope, CSRF, 429 w/ Retry-After,
+  per-domain checklists), 97 Given/When/Then ACs across E-01..E-12, 15 invariant checks (D-rules
+  executable incl. zero-JSON + single-entry greps), non-functional section, defect ladder
+  P0..P4, per-phase exit criteria P0..P6, risks R-1..R-4.
+- No other files touched (created team/docs/ + the one file only).
+
+Stage Summary:
+- File: team/docs/07-test-plan-acceptance-criteria.md v1.0, 723 lines.
+- Counts: 11 transition tables (7 live + 4 planned) · 33 forbidden-transition negatives ·
+  11 sweep cases · 97 ACs (77 current-scope + 14 financing-planned + 6 super-cart-planned) ·
+  15 invariant checks · 21-row test matrix · 4 risks (R-1 no-suite-vs-D-008, R-2 in-memory +
+  4 unwired rate-limit presets, R-3 sweeps only on read paths, R-4 test-data drift).
+- Unverified/no-assertions-made: playwright/jest absence re-confirmed by search only; admin
+  "16 tabs" reconciled as 14 sidebar sections + 2 pricing sub-consoles (verified in
+  admin-view.tsx + nav-config.ts); quote DRAFT status listed in schema comment but no create
+  path emits it (documented as create→SENT/PENDING_REVIEW only).
+---
+Task ID: DOC-5
+Agent: Docs Writer W3
+Task: Use cases + user stories doc
+Work Log:
+- Read worklog tail (last 100 lines), team/PLATFORM_PLAN.md v2.0 and team/DECISIONS.md in full;
+  skimmed team/FINANCIER_PLAN.md v1.1 and FINANCIER_SCHEMA.md v4.0 (status enums, DP list,
+  wizard field inventory) for grounding.
+- Verified two ambiguous capabilities in code before assigning statuses: compare-tray.tsx is a
+  PRODUCT comparison tray (max 4, hidden in checkout/seller/admin views) while quotes render as
+  comparable cards on RFQ detail -> UC-016 "review & compare quotes" marked EXISTS with note that
+  consolidated multi-line compare is Flow-2 PLANNED; buyer cancel confirmed at
+  api/orders/[id]/route.ts (buyer cancels PAID order pre-processing) and /api/reviews exists.
+- Wrote team/docs/02-use-cases-user-stories.md (one new file, nothing else touched):
+  actors table (8 actors incl. System + 2 PLANNED financier actors), Mermaid flowchart diagram
+  (8 bounded-context clusters, dotted edges = PLANNED), use-case catalog (47 UCs: 37 EXISTS,
+  9 PLANNED, 1 PARTIAL — UC-047 super-cart), user stories (65 stories in 12 epics E-01..E-12,
+  each with strict Given/When/Then ACs, MoSCoW priority, EXISTS/PLANNED status),
+  traceability table (story -> UC -> flow 1-6), explicit non-goals (D-002, D-003, entertainment
+  top-ups, DP-9 education deferral).
+- Invariants embedded: payouts/financing stories are record/track-only, never fund movement
+  (D-002); sweeps stories are lazy, no cron (D-011); checkout financing flagged DP-6-gated;
+  financier identity = org members, no new global role (DP-1).
+Stage Summary:
+- File: team/docs/02-use-cases-user-stories.md (v1.0, 577 lines).
+- Counts: 47 use cases, 65 user stories, 12 epics, 8 actors, 8 clusters, 6 business flows traced.
+---
+Task ID: DOC-3
+Agent: Docs Writer W1
+Task: Domain Model/ERD + Data Dictionary docs
+
+Work Log:
+- Read worklog tail (LOOP-4/5, RECON-FIN-2) for context; read team/DECISIONS.md in full
+  (D-001..D-013) and verified Sequence prefixes in code ('RFQ' | 'QTE' | 'DSP' | 'PY',
+  src/server/modules/sequences/service.ts).
+- Read prisma/schema.prisma IN FULL (32 models, ground truth) and team/FINANCIER_SCHEMA.md v4.0
+  IN FULL (17 planned models + 12 User additive columns, DP-13..DP-21, R-1/R-2/R-3).
+- Verified state machines against code (read-only): rfq/service.ts transition table
+  (RFQ_TRANSITIONS + quote PENDING_REVIEW review flow + QUOTED via issue from SUBMITTED or
+  UNDER_REVIEW), disputes.ts lifecycle comment, payments/service.ts, payouts/service.ts,
+  approvals/service.ts, orders/[id]/route.ts (STATUS_FLOW + buyer-cancel statuses).
+- Created team/docs/ and wrote FILE 1 team/docs/01-domain-model.md (1123 lines): bounded-context
+  overview (12 contexts, all 32 models named); 4 Mermaid erDiagrams (identity/commerce core,
+  negotiation/approvals, payments/payouts/disputes/recurring/settings substrate, financing
+  PLANNED with verbatim v4.0 field names — loose FKs drawn as non-identifying `..` connectors);
+  relationship inventory (45 enforced FKs + 2 implicit m-n + 11 loose FKs existing; 30 planned
+  FKs + 1 loose); 16 business invariants as data rules; 10 Mermaid stateDiagram-v2 (RFQ, Quote,
+  Order, Payment, Payout, Dispute + PLANNED FinancingRequest/FinancingOffer/fundingStatus/
+  agreement status); traceability chains (RFQ→Quote→Order→Payment→Payout + planned
+  FinancingRequest→Offer→Agreement→Events/Fees).
+- Wrote FILE 2 team/docs/06-data-dictionary.md (1224 lines): conventions (cuid, DATETIME(3) UTC,
+  Decimal(12,2) vs legacy Float money regimes, string enums + zod, @db.* mappings, LEGACY-JSON
+  marker); enum registry FIRST (25 existing + 30 planned enum-ish columns with values/usage);
+  Part A — all 32 existing models with EVERY field (field | Prisma | MySQL | null/default |
+  one-line description) + relations + indexes, grouped by bounded context, 12 legacy-JSON fields
+  marked; Part B — all 17 planned financier models + User additive columns, header "PLANNED —
+  NOT IN DATABASE YET", onDelete gaps flagged as "—" (unset in v4.0); field-count summary
+  (existing 368, planned 206 = 194 new-table + 12 User additive, grand total 574); appendix with
+  12-entry legacy JSON inventory + one-line future-normalization notes (explicitly NOT now).
+- Quality pass: fixed Mermaid cardinality/label issues, quote-balance check on all 14 mermaid
+  blocks, verified enum values verbatim against schema comments, counted/verified every model's
+  field rows against the schema, removed a stray placeholder entity and typos.
+
+Stage Summary:
+- Files produced: team/docs/01-domain-model.md (1123 lines, 14 Mermaid diagrams),
+  team/docs/06-data-dictionary.md (1224 lines, 790 table rows, 41 model sections).
+- Key decisions: bounded contexts mirror the doc structure in both files; RecurringRfq grouped
+  under Negotiation but diagrammed with the settings substrate; Coupon under Catalog & Pricing;
+  BannerSlide under Settings & Governance. Loose FKs documented separately from enforced FKs
+  (never conflated). PLANNED markings: section headers, diagram captions, table rows, enum
+  registry block. Existing-schema facts only from prisma/schema.prisma; planned facts only from
+  FINANCIER_SCHEMA v4.0. State-machine transitions verified against service code, not invented.
+- Facts not fully verifiable: (1) Quote.status DRAFT is in the enum but the issue path creates
+  SENT/PENDING_REVIEW directly — documented as such; (2) onDelete for several planned financier
+  relations is unset in v4.0 — documented as "—" with Prisma defaults noted; (3) Dispute
+  SELLER_RESPONDED→ESCALATED and RESOLVED→CLOSED transitions inferred from the disputes.ts
+  lifecycle comment (settings-enforced), not a machine-readable transition table.
+
+---
+Task ID: DOC-4
+Agent: Docs Writer W2
+Task: OpenAPI contract + API conventions doc
+Work Log:
+- Read worklog tail for context; read ALL 88 route.ts files under src/app/api/** (batched
+  Read calls) and extracted per-file: exported methods, zod request schemas, query params,
+  guards (requireUser/requireAdmin/inline), CSRF (assertSameOrigin) and rate-limit calls,
+  response shapes. Cross-checked supporting libs: lib/auth.ts (cookie format, MAX_AGE 30d,
+  suspended-account lockout), lib/http.ts, lib/rate-limit.ts (RATE_LIMITS), server/guards.ts,
+  products/service.ts productFormSchema, notifications service, serialize.ts DTOs.
+- Grep-verified which RATE_LIMITS policies are actually wired: login/register/order/review
+  are DEFINED BUT NOT WIRED (review additionally unwired - corrected the task brief);
+  productWrite is wired only on products/bulk.
+- Read team/FINANCIER_SCHEMA.md v4.0 (sections 3, 5, 6, traceability) + FINANCIER_PLAN.md
+  endpoint sketch for the planned financier API surface.
+- Wrote team/docs/openapi.yaml (OpenAPI 3.1.0, 8,493 lines) incrementally (Write + 3 Bash
+  heredoc appends + 3 corrective Edits): info with 3-line auth/error/pagination description,
+  relative server "/", 39 tags by domain, cookieAuth securityScheme (vendora_session apiKey
+  in cookie), 20 component schemas (Error, SessionUser, ProductSummary/Form/List, Order(Item),
+  Review, MediaAsset, Notification, AuditLog, Rfq/Quote/RfqLineInput, planned
+  FinancingRequest/FinancingOffer, RateLimited, ...). Documented every existing path+method
+  from the code: 88 path items / 121 operations with parameters, request bodies from the
+  actual zod schemas, and the status codes each handler really returns. Added 14 planned
+  financing paths / 19 operations under tag "Financing (planned)" with x-planned: true and
+  FINANCIER_SCHEMA-exact field names (activityStatus, capitalAmount, ... consent).
+- Fixed 3 YAML validity issues found by python3 yaml.safe_load round: unquoted "Admin: X" tag
+  names, descriptions containing braces/colons, flow-style tag lists with colons (51 lines
+  quoted). Final: YAML VALID, 102 paths, no undefined $refs, no unused/undefined tags.
+- Wrote team/docs/03-api-contract.md (389 lines): conventions (base path, session auth,
+  error model), status-code table with real message examples from the code (incl. the two
+  {error,details} exceptions on admin settings/slides and the unique 422 on uploads),
+  pagination/list-envelope patterns, CSRF policy (15 enforcing routes table + explicit
+  known-gaps list), rate-limit tables (named + inline, wired-vs-not flags), full 88-row
+  coverage matrix (endpoint x methods x auth x CSRF x purpose), 14-row planned financing
+  table (marked PLANNED), versioning policy (none yet, additive-only), and the
+  regenerate/extend process note.
+
+Stage Summary:
+- Files: team/docs/openapi.yaml (8,493 lines; 102 paths = 88 existing + 14 planned;
+  140 operations = 121 existing + 19 planned; 20 schemas; 39 tags) and
+  team/docs/03-api-contract.md (389 lines; 88-row coverage matrix).
+- Every documented endpoint was read from source; no guessing. Known gaps preserved as
+  documented facts: CSRF absent on auth/orders/rfq-chain/product-single-writes and most
+  admin CRUD; rate limits login/register/order/review defined but not wired.
+- No code changed (read-only task); exactly two new doc files created.
+
+---
+Task ID: DOC-1 / DOC-7 (Lead)
+Agent: Lead orchestrator
+Task: Owner rulings on team/FINANCIER_SCHEMA.md (no JSON data; no duplicated tables — reuse
+existing substrate) + build the full 9-document engineering suite for the WHOLE project
+(Domain Model/ERD, Use Cases/User Stories, OpenAPI contract, ADRs, Wireframes/Design System,
+Data Dictionary, Test Plan/Acceptance Criteria, Deployment/Ops Runbook, Security/Threat Model).
+
+Work Log:
+- Read the full v3.0 FINANCIER_SCHEMA + prisma/schema.prisma (761 lines, 32 models); identified
+  every violation of the owner's two rulings: 10 Json columns (residence, businessInfo,
+  selectedFinanciers, coverageRegions, collateralTypes, documentsRequired, repaymentSchedule,
+  termsSnapshot, hqAddress, branch address) + substrate duplication (ApplicantDocument
+  re-implementing MediaAsset storage fields; FinancierProfile re-storing Organization
+  identity/status/verification; businessInfo.industry duplicating Organization.industry).
+- Rewrote team/FINANCIER_SCHEMA.md → v4.0: §2 formalizes owner rules R-1 (zero JSON) / R-2
+  (single entry) / R-3 (reuse substrate); §3 17 planned models with ZERO Json — lists as child
+  tables (FinancingProductAttribute/Requirement/Coverage, FinancingRequestInvite,
+  FinancingOfferInstallment), typed scalar addresses (User.residenceStreet/City/District,
+  FinancierBranch.street/city/district/lat/lng), ApplicantDocument.mediaId → MediaAsset (no
+  storage fields), slim FinancierProfile (identity stays on Organization), FinancingAgreement
+  references the FROZEN offer (no terms snapshot — DP-20); §8 duplication audit table
+  (competitor structure → ONE Vendora home); §10 extends DP list to DP-18/19/20/21.
+- Recon (Explore agent) verified: auth/session internals, 88 API routes, guards, rate limits,
+  CSRF coverage, storage pipeline, settings registry, routing views, design tokens, sequences,
+  sweeps, Caddy, recovery scripts, E2E reality (NO on-disk test suite vs D-008 intent).
+- Dispatched 5 parallel writer agents (DOC-3..DOC-6b) with strict fact briefs; all completed:
+  01-domain-model.md (1,123 ln, 4 ERDs, 45 FK relations, 10 state machines), 06-data-dictionary.md
+  (1,224 ln, 574 fields, LEGACY-JSON marks), openapi.yaml (8,493 ln, 88 paths/121 ops + 14
+  planned x-planned) + 03-api-contract.md (389 ln, coverage matrix), 02-use-cases-user-stories.md
+  (577 ln, 47 UCs, 65 stories), 07-test-plan-acceptance-criteria.md (722 ln, 11 transition tables,
+  97 ACs, 15 invariant checks incl. zero-JSON/single-entry greps), 08-deployment-ops-runbook.md
+  (454 ln, P0-1..P0-9 incident matrix), 09-security-threat-model.md (508 ln, STRIDE + gaps).
+- Lead wrote 04-architecture-decision-records.md (ADR-0001..0016 incl. owner-set ADR-0014
+  zero-JSON/single-entry/substrate-reuse and ADR-0015 frozen-offer agreements),
+  05-wireframes-design-system.md (tokens + 16 ASCII wireframes incl. 6 planned financier
+  surfaces), team/docs/README.md index.
+- Corrections & syncs: ops runbook P0-3 fixed (local-disk.ts verified NOT in git history —
+  `git checkout` impossible; rebuild-from-interface + commit procedure written);
+  PLATFORM_PLAN.md → v4.0 pointers, DP-18..21 rows, DP-1…DP-21 status; FINANCIER_PLAN.md →
+  v4.0 pointers (17 models, zero Json, 12 User scalars, fee panel names, sketch fixed);
+  DECISIONS.md → D-014 added (zero-JSON + single-entry + substrate-reuse doctrine, governs
+  ALL new domains, legacy JSON inventory frozen).
+
+Stage Summary:
+- FINANCIER_SCHEMA.md is now v4.0: zero Json columns, every datum single-homed, existing
+  substrate reused (Organization/MediaAsset/Sequence/AuditLog/Notification/RfqSetting), no geo
+  tables. Evidence (owner's wizard extraction) fully retained in §1.
+- Complete 9-doc engineering suite at team/docs/ (10 files incl. openapi.yaml + README index),
+  all grounded in the live codebase; PLANNED financier content clearly marked everywhere.
+- Docs surfaced live issues for the next loop: P0 local-disk.ts rebuild+commit; .env in git;
+  unwired login/register/order/review rate limits; CSRF gaps; D-008 test-suite gap.
+- DB + dev server still DOWN (P0/FIN-0, owner-gated) — unchanged; docs round needed no runtime.
+- Awaiting owner: DP-1…DP-21 (DP-18/DP-19 already owner-set by today's rulings).

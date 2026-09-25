@@ -20,7 +20,7 @@ ymp.ye (منصة اليمن للتمويل الأصغر) is a microfinance aggre
   review) with per-request **status history + provider notes** (`fund_order_statuses`), ID/KYC stored
   ONCE at account level (requests reference `account {id,name}` only — validates our single-entry rule)
   → *maps to User additive profile (DP-14) + FinancingRequest v2 typed columns + ApplicantDocument
-  (FINANCIER_SCHEMA v3.0 §5–§7)*
+  (FINANCIER_SCHEMA v4.0 §2/§5/§7)*
 
 ## 1. The six flows mapped against our actual code
 
@@ -66,18 +66,18 @@ buyer-against-quote/order = the rest; Flow 5 = the same core wired into checkout
 | **P6 — POLISH** | Flow 6 UX allowance (seller nav → RFQs), education center + success stories (competitor-inspired, if approved DP-9), full regression + docs | 6 verified | Last-mile. |
 
 **Model deltas vs FINANCIER_PLAN v1** (v1's 5 models carry over):
-> **Full data model now lives in `team/FINANCIER_SCHEMA.md` v3.0** — 12 models + additive User
+> **Full data model now lives in `team/FINANCIER_SCHEMA.md` v4.0** — 17 models + additive User
 > columns, extracted from the competitor at FIELD level (public pages: provider profiles w/
 > branches+map+stats, financing products w/ categories+amounts+murabaha-rates+collateral-enum+
 > coverage; authenticated: 3-step wizard w/ DOM enum codes, user model from `userInfo`, request
 > model from `/api/fund-order` incl. status history w/ notes + `*_other` free-text companions +
   installments + branch + is_rating) and grounded in our code conventions. Highlights beyond v1:
-> FinancierBranch, ApplicantDocument (dual-scope: user KYC once + request evidence — ONE subsystem),
-> FinancingAgreement (terms snapshot), FinancingEvent (track-only ledger),
-> AccreditationProgram/SupplierAccreditation (Flow 4), Islamic-finance fields, coverageRegions,
-> viewCount stats, **FinancingRequest v2 typed activity/underwriting/guarantee columns**
+> FinancierBranch, FinancingRequestInvite, ApplicantDocument (mediaId → MediaAsset — ONE storage subsystem, DP-19),
+> FinancingAgreement (references the frozen offer — DP-20, no snapshot), FinancingEvent (track-only ledger),
+> AccreditationProgram/Criterion/SupplierAccreditation (Flow 4), FinancingOfferInstallment rows,
+> product trait child tables (DP-21), **FinancingRequest v2 typed activity/underwriting/guarantee columns**
 > (activityStatus…capitalAmount/monthlyInstallmentCapacity/previousFinancing…guaranteeType/Status +
-> `*Other` companions), consentAt, **User additive applicant-profile columns (DP-14)**.
+> `*Other` companions), consentAt, **User additive applicant-profile scalars (DP-14)** — ZERO Json columns (owner rulings DP-18/19; duplication audit §8).
 - `FinancingRequest.targetType: WORKING_CAPITAL | QUOTE | ORDER | RFQ_LINE` (Flow 3 + super-cart line)
 - `RfqLine.lineType: PRODUCT | SERVICE | FINANCING | LOGISTICS | INSURANCE` (P3)
 - orgType taxonomy extended in code: + `LOGISTICS | INSURANCE | SERVICE_PROVIDER` (String column — code-only change, no migration)
@@ -95,11 +95,15 @@ buyer-against-quote/order = the rest; Flow 5 = the same core wired into checkout
 | **DP-7** | orgType taxonomy += LOGISTICS / INSURANCE / SERVICE_PROVIDER (Super-Cart pools) | recommend yes |
 | **DP-8** | Phase order P0→P6 as tabled above (P4/P5 swappable) | confirm or reorder |
 | **DP-9** | Education center + success stories (competitor-inspired) in scope? | recommend defer to P6 tail |
-| **DP-13** | Individual applicants: `FinancingRequest.organizationId` nullable (null = individual/sole-proprietor — competitor-proven; Flow-5 prerequisite) | **recommend YES** (FINANCIER_SCHEMA §9) |
-| **DP-14** | Additive `User` applicant-profile columns (11 nullable — phone/whatsapp/DOB/gender/marital/nationality/identityType/identityNumber/residence/residenceType); single-entry rule; B2C unaffected | **recommend YES** (FINANCIER_SCHEMA §3.1) |
+| **DP-13** | Individual applicants: `FinancingRequest.organizationId` nullable (null = individual/sole-proprietor — competitor-proven; Flow-5 prerequisite) | **recommend YES** (FINANCIER_SCHEMA §10) |
+| **DP-14** | Additive `User` applicant-profile scalar columns (12 nullable — phone/whatsapp/DOB/gender/marital/nationality/identityType/identityNumber/residenceStreet/residenceCity/residenceDistrict/residenceType; NO Json); single-entry rule; B2C unaffected | **recommend YES** (FINANCIER_SCHEMA §3.1) |
 | **DP-15** | Status history + provider notes via existing AuditLog + Notification substrate (no new column/table) | **recommend YES** |
 | **DP-16** | No geo lookup tables in v1 — free strings + normalized product-coverage matching | **recommend YES** |
 | **DP-17** | Financier ratings (`is_rating`) + branch-level request routing | **recommend defer to v2** |
+| **DP-18** | **Zero-JSON doctrine for the financier domain** — every list a child table, every address typed scalars; legacy Json columns elsewhere frozen, not extended (owner ruling, FINANCIER_SCHEMA §2 R-1) | **YES — owner-set** |
+| **DP-19** | **One storage subsystem** — `ApplicantDocument` links `MediaAsset` via `mediaId`; no storage metadata duplication (owner ruling, §2 R-3) | **YES — owner-set** |
+| **DP-20** | `FinancingAgreement` references the accepted offer (frozen on acceptance) — no terms snapshot copy (§3.9) | **recommend YES** |
+| **DP-21** | Product traits as three child tables: Attribute (feature/condition) / Requirement (collateral/doc enums) / Coverage (region names) (§3.4) | **recommend YES** |
 
 ## 5. Guardrails (unchanged)
 
@@ -108,5 +112,5 @@ invoiced fees; never lends, never holds funds, never merchant of record; no SaaS
 All financing money moves directly buyer⇄financier / financier⇄supplier.
 
 **Status: AWAITING OWNER APPROVAL — reply "approved" or per-DP adjustments (e.g. "DP-2 → 1.5%, DP-6 yes, DP-9 defer").**
-Decision list now spans **DP-1…DP-17** (DP-10..12 and DP-13..17 defined in FINANCIER_SCHEMA.md §9).
+Decision list now spans **DP-1…DP-21** (DP-10..12 and DP-13..21 defined in FINANCIER_SCHEMA.md §10).
 After approval: board updated → P0 dispatches → the loop runs phases to completion without stopping (escalations only).

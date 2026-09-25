@@ -1,19 +1,21 @@
 # Financier Module — Implementation Plan v1.1 (detail layer of PLATFORM_PLAN)
 
 > **MASTER plan = `team/PLATFORM_PLAN.md` v2.0** (big picture, 6 flows, phases P0–P6).
-> **DATA MODEL = `team/FINANCIER_SCHEMA.md` v3.0** — wizard-complete: owner's 3-step wizard
+> **DATA MODEL = `team/FINANCIER_SCHEMA.md` v4.0** — wizard-complete: owner's 3-step wizard
 > walk-through + live authenticated extraction (`/api/profile`, `/api/fund-orders`,
 > `/api/fund-order/{id}` raw JSON, localStorage user model, DOM enum codes) + code-grounded.
 > This file keeps the task breakdown (FIN-0…FIN-9) and integration detail. Approval is governed by
-> PLATFORM_PLAN's DP list — DP-1…DP-9 there + DP-10…DP-17 (DP-10..12 and DP-13..17 defined in
-> FINANCIER_SCHEMA §9).
+> PLATFORM_PLAN's DP list — DP-1…DP-9 there + DP-10…DP-21 (DP-10..12 and DP-13..21 defined in
+> FINANCIER_SCHEMA §10).
 >
-> The earlier §3 model sketch in this file is SUPERSEDED by FINANCIER_SCHEMA.md v3.0
-> (12 models: FinancierProfile, FinancierBranch, FinancingProduct, FinancingRequest v2
-> [typed activity/underwriting/guarantee columns, nullable org — DP-13], ApplicantDocument
-> [dual-scope: user KYC + request evidence — ONE document subsystem], FinancingOffer,
-> FinancingAgreement, FinancingEvent, FinancingFee, AccreditationProgram, SupplierAccreditation
-> + sequences FIN/AGR + ADDITIVE User applicant-profile columns — DP-14).
+> The earlier §3 model sketch in this file is SUPERSEDED by FINANCIER_SCHEMA.md v4.0
+> (17 models, ZERO Json columns per owner ruling: FinancierProfile (slim — identity on
+> Organization), FinancierBranch, FinancingProduct (+Attribute/Requirement/Coverage child tables),
+> FinancingRequest v2 [typed activity/underwriting/guarantee columns, nullable org — DP-13],
+> FinancingRequestInvite, ApplicantDocument [mediaId → MediaAsset — ONE document subsystem,
+> DP-19], FinancingOffer (+FinancingOfferInstallment), FinancingAgreement [references the frozen
+> offer — DP-20], FinancingEvent, FinancingFee, AccreditationProgram/Criterion,
+> SupplierAccreditation + sequences FIN/AGR + ADDITIVE User applicant-profile scalars — DP-14).
 
 ---
 
@@ -57,19 +59,21 @@ funds, never becomes a party to the financing contract, no wallets, no credit sc
 no automated fee collection. Money flows **financier ⇄ buyer directly**; the platform only
 orchestrates, records, and invoices its fee.
 
-## 3. Domain model — governed by FINANCIER_SCHEMA.md v3.0 (single-entry doctrine)
+## 3. Domain model — governed by FINANCIER_SCHEMA.md v4.0 (single-entry + zero-JSON doctrine)
 
 ```prisma
-User (+11 additive nullable applicant-profile columns — DP-14)   // personal data ONCE
+User (+12 additive nullable applicant-profile scalar columns — DP-14)   // personal data ONCE, no Json
 FinancierProfile      // 1:1 with Organization (orgType BANK/MFI/EWALLET)
 FinancierBranch       // agents & branches
-FinancingProduct      // offering incl. category taxonomy + coverageRegions + amount ranges
+FinancingProduct      // offering: category taxonomy + amount ranges + 3 trait child tables
+                       //   (Attribute/Requirement/Coverage — DP-21, ZERO Json)
 FinancingRequest v2   // the application (number: FR-YYYY-######) — WHO (references only)
                        // + ACTIVITY + UNDERWRITING + ASK + GUARANTEE typed columns
                        // + consentAt; organizationId nullable (DP-13)
-ApplicantDocument     // ONE dual-scope doc subsystem: user KYC (requestId null) + request evidence
-FinancingOffer        // financier bid incl. repaymentSchedule (competitor installments[])
-FinancingAgreement    // accepted deal (AGR- number, termsSnapshot, fundingStatus)
+ApplicantDocument     // ONE doc subsystem (mediaId → MediaAsset): user KYC (requestId null) + request evidence (DP-19)
+FinancingRequestInvite // BUYER_SELECTED distribution rows (no org-id JSON)
+FinancingOffer        // financier bid + FinancingOfferInstallment rows (competitor installments[])
+FinancingAgreement    // accepted deal (AGR- number; references the FROZEN offer — DP-20, no snapshot)
 FinancingEvent        // track-only money ledger (D-002)
 FinancingFee          // platform revenue (mirrors Payout)
 AccreditationProgram / SupplierAccreditation   // Flow 4
@@ -79,8 +83,8 @@ requests never copy profile data (competitor's own `fund-order.account = {id,nam
 
 Registry edits: `'FIN'` added to SequencePrefix union (sequences/service.ts:9); new
 `financing` SectionDef in RFQ_SETTINGS_SECTIONS (registry.ts:136 — panels: general
-{enabled, requestExpiryDays, maxOffersPerRequest}, fees {financierFeePercent},
-distribution {defaultMode}) — admin form/zod/history/rollback derive automatically.
+{enabled, requestExpiryDays, maxOffersPerRequest}, fees {financierSuccessPercent,
+originationPercentCap}, distribution {defaultMode}) — admin form/zod/history/rollback derive automatically.
 
 ## 4. End-to-end flows (7)
 
@@ -139,7 +143,7 @@ PATCH  /api/admin/financing/fees/[id]               mark invoiced / paid / waive
 | ID | Task | Scope (files) | Worker | Dep | Size | DoD |
 |---|---|---|---|---|---|---|
 | **FIN-0** | Infra recovery: run MariaDB runbook (download/init/secure) + fix stale `.env` → mysql URL + `db:push` + `db:seed` + dev server up | scripts/recovery, .env (lead-only) | **Lead** | — | S-M | `/api/products?limit=1` returns data · login 200 · server survives boundaries (double-fork) |
-| **FIN-1** | Schema: models per FINANCIER_SCHEMA v3.0 + `'FIN'`/`'AGR'` prefixes + `financing` settings registry group + **additive User columns (DP-14)** + `db:push` + seed 2 demo financier orgs with profiles/products | prisma/schema.prisma (lead-gated), sequences/service.ts, rfq-settings/registry.ts, seeds | Dev | FIN-0 | M | push clean · seed shows 2 financier orgs · admin settings form renders new panels |
+| **FIN-1** | Schema: models per FINANCIER_SCHEMA v4.0 (zero Json — DP-18) + `'FIN'`/`'AGR'` prefixes + `financing` settings registry group + **additive User scalar columns (DP-14)** + `db:push` + seed 2 demo financier orgs with profiles/products | prisma/schema.prisma (lead-gated), sequences/service.ts, rfq-settings/registry.ts, seeds | Dev | FIN-0 | M | push clean · seed shows 2 financier orgs · admin settings form renders new panels |
 | **FIN-2** | Module services: request lifecycle, offer lifecycle, membership/orgType guards, fee accrual, expiry sweeps + notification types + audit actions | src/server/modules/financing/* (new) + notifications/audit wiring | Dev | FIN-1 | M-L | every transition + guard verified curl-level (401/403/happy paths) |
 | **FIN-3** | API routes per §6 conventions | src/app/api/financing/*, financier/*, admin/financing/* | Dev | FIN-2 | M | all routes live, guards enforced, CSRF+rate-limit on admin routes |
 | **FIN-4** | Financier console `?view=financier` (5-registry lockstep + console UI: inbox, detail, offer composer, my offers, profile) | routing.ts, marketplace.ts, marketplace-app.tsx, nav-config.ts, financier-view.tsx (new) | Dev | FIN-3 | L | E2E: financier sees distributed request, submits offer |
@@ -167,10 +171,11 @@ PATCH  /api/admin/financing/fees/[id]               mark invoiced / paid / waive
 
 No lending, no wallets, no escrow, no credit scoring, no automated fee collection, no
 CREDIT_LINE, no FX, no SaaS multi-tenancy. All financing money moves directly between buyer and
-financier. (v1's "no document upload" non-goal is LIFTED in v3 — the wizard extraction demands the
-`ApplicantDocument` dual-scope subsystem; it rides the existing local-disk storage adapter.)
+financier. (v1's "no document upload" non-goal was LIFTED in v3 and stays lifted in v4 — uploads go
+through the ONE existing MediaAsset pipeline, DP-19.)
 
 ---
 
-**Status: AWAITING OWNER APPROVAL (DP-1 … DP-17 — DP-13..17 defined in FINANCIER_SCHEMA §9).**
+**Status: AWAITING OWNER APPROVAL (DP-1 … DP-21 — DP-10..12 and DP-13..21 defined in FINANCIER_SCHEMA §10;
+DP-18/DP-19 are already owner-set rulings).**
 On approval → TASK_BOARD updated → FIN-0 dispatched immediately → loop runs to FIN-9 without stopping.
