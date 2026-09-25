@@ -1,8 +1,8 @@
 # Vendora — Test Plan & Acceptance Criteria
 
-**Doc 07 · team/docs series · Version 1.0 · September 2026**
+**Doc 07 · team/docs series · Version 2.0 · September 2026**
 **Audience:** the Vendora autonomous engineering team (Lead, full-stack developer agents, tester/auditor agents) and the product owner.
-**Governing references:** `team/DECISIONS.md` (D-001…D-013), `team/PLAYBOOK.md` §7 (DoD), `team/PLATFORM_PLAN.md` v2.0 (phases P0–P6, DP list), `team/FINANCIER_SCHEMA.md` v4.0, `team/FINANCIER_PLAN.md` v1.1. Code facts cited from `src/server/modules/*`, `src/lib/*`, `prisma/schema.prisma`, `scripts/*`.
+**Governing references:** `team/DECISIONS.md` (D-001…D-017, esp. D-014/D-015), `team/PLAYBOOK.md` §7 (DoD), `team/PLATFORM_PLAN.md` v3.0 (phases P0–P6, DP-1…DP-28), `team/FINANCIER_SCHEMA.md` **v5.0** (18 models — the authority for every PLANNED name below), `team/FINANCIER_PLAN.md` v2.0 (8 flows, FIN-0…FIN-10). Code facts cited from `src/server/modules/*`, `src/lib/*`, `prisma/schema.prisma`, `scripts/*`.
 
 ---
 
@@ -35,7 +35,7 @@ This document is written against the codebase **as it exists today**, not as we 
 ### 2.1 Objectives
 
 1. Prove the **business invariants** (D-001…D-013) hold — especially: the platform never creates money-transfer code paths (D-001/D-002), only route `/` exists (D-004), no timers drive anything (D-011).
-2. Prove every **state machine** (RFQ, Quote, Dispute, Payout, Order, Payment — later FinancingRequest/Offer/Agreement/Fee) accepts exactly its allowed transitions and rejects every other one with the documented status code.
+2. Prove every **state machine** (RFQ, Quote, Dispute, Payout, Order, Payment — later FinancingRequest v3, FinancingOffer, FinancingAgreement, FinancingFee, **AccreditationRequest, RequirementSubmission, AccountDocument**) accepts exactly its allowed transitions and rejects every other one with the documented status code — and that the **PLATFORM GATE** machine (DP-23) forwards only fully-verified requests.
 3. Prove the **API surface** (88 route files under `src/app/api/**`) honors its contract: `{error: string}` error envelope, 400 zod validation, 401/403 guards, 409 state conflicts, 429 with `Retry-After`.
 4. Prove **money math** (payout = Σgross − commission; commissionRate precedence) and idempotency guards on quote accept.
 5. Make every acceptance criterion for epics E-01…E-12 (§8) a Given/When/Then statement a tester can execute with agent-browser or curl and leave evidence for.
@@ -53,7 +53,7 @@ A classic pyramid (many unit tests, few E2E) assumes a unit-test framework. Vend
 
 | Layer | What | Runs where | Status |
 |---|---|---|---|
-| **L3 — E2E (primary)** | agent-browser golden paths + per-epic flows: snapshot → click/fill → assert → screenshot. Views via `?view=` deep links. | QA-dedicated tasks (QA-R#, FIN-8), never inside small FIX-# tasks | **Active today** (protocol exists, scripts do not — R-1) |
+| **L3 — E2E (primary)** | agent-browser golden paths + per-epic flows: snapshot → click/fill → assert → screenshot. Views via `?view=` deep links. | QA-dedicated tasks (QA-R#, FIN-9), never inside small FIX-# tasks | **Active today** (protocol exists, scripts do not — R-1) |
 | **L2 — API contract** | `scripts/verify-b2b.sh` (extend with per-domain scripts: negative matrices, 409 ladders, 429 probes, pagination envelopes) | Any task, cheap, deterministic | **Partially active** (one 10-step golden path exists) |
 | **L1 — unit / integration (future)** | Service-level tests for `src/server/modules/*` (pricing resolver, payout math, sweep functions with clock injection), run by a `bun test` script | Local + future CI | **Planned** — blocked on R-1 remediation decision |
 | **L0 — static** | `bun run lint`; schema duplication audit greps (§9); zero-JSON grep for financier models | Every task | **Active today** |
@@ -178,7 +178,7 @@ Status legend: **E** = exists w/ evidence · **P** = partial · **PL** = planned
 | 17 | Notifications (bell, unread, deep links, mark-read) | E (next1, qa-r8) | P | P (401) | — | — | E (dark/mobile) | PL |
 | 18 | Settings & rollback (RFQ settings 22 panels × 4 scopes, history, rollback; platform settings) | E (rfqsettings) | P | P (rollback CSRF+RL) | — | P (live enforcement after change) | E (rail containment regression!) | PL |
 | 19 | Storefront theme (branding, hero slides, store view, covers) | E (qa-r10) | P (admin slides CRUD w/ CSRF+RL) | P | — | — | E | — |
-| 20 | **Financing (PLANNED — P1/P2/P4)** | PL | PL | PL | PL (lazy sweep) | **PL-critical (zero-JSON, single-entry, D-002 track-only)** | PL | PL |
+| 20 | **Financing & Accreditation (PLANNED — P1 core: services + requirements engine + THE GATE + vault + accreditation machinery; P2 vertical; P4 checkout; P5 polish)** | PL | PL | PL | PL (lazy sweeps — requests/offers/accreditations, §6.15) | **PL-critical (zero-JSON, single-entry, gate exclusion + forward guard, D-002 track-only)** | PL | PL |
 | 21 | **Super-Cart (PLANNED — P3)** | PL | PL | PL | — | PL (D-001 check on new lineTypes) | PL | PL |
 
 ---
@@ -187,7 +187,7 @@ Status legend: **E** = exists w/ evidence · **P** = partial · **PL** = planned
 
 **How to read.** For each machine: (a) the allowed-transition table (positive tests, expected 2xx + resulting status), (b) forbidden transitions (negative tests, expected **409** unless noted — the service error contract), (c) sweep tests where the machine has lazy time-based transitions (D-011: no cron — sweeps fire on read paths `listMyRfqs`, `getRfq`, `adminListRfqs`, `adminListQuotes`, `sellerRfqInbox`; test protocol: **set the clock by direct DB update, then hit a triggering read path**, then assert DB + API state).
 
-Sources: `src/server/modules/rfq/service.ts` (`RFQ_TRANSITIONS`, accept/withdraw/review/convert guards), `rfq/disputes.ts` (header state diagram, `sweepDisputes`), `rfq/recurring.ts` (`processDueSchedules`), `payouts/service.ts`, `payments/service.ts`, `approvals/service.ts`, `seller-view.tsx:177` (fulfillment ladder), `prisma/schema.prisma` status comments; PLANNED machines from `FINANCIER_SCHEMA.md` v4.0 §5.
+Sources: `src/server/modules/rfq/service.ts` (`RFQ_TRANSITIONS`, accept/withdraw/review/convert guards), `rfq/disputes.ts` (header state diagram, `sweepDisputes`), `rfq/recurring.ts` (`processDueSchedules`), `payouts/service.ts`, `payments/service.ts`, `approvals/service.ts`, `seller-view.tsx:177` (fulfillment ladder), `prisma/schema.prisma` status comments; PLANNED machines from `FINANCIER_SCHEMA.md` **v5.0 §5** (three machines — all gate-first) + §3.7 (AccountDocument).
 
 ### 6.1 RFQ (statuses: DRAFT SUBMITTED UNDER_REVIEW QUOTED ACCEPTED REJECTED CANCELLED EXPIRED ORDERED)
 
@@ -361,32 +361,52 @@ Forbidden: capture a SUCCEEDED payment → 409 “Payment already captured”; c
 
 Forbidden/negative: skip on a paused schedule (409/guard); preview notification window only (`nextRunAt` within preview horizon → heads-up notification).
 
-### 6.8 PLANNED — FinancingRequest (`FINANCIER_SCHEMA.md` v4.0 §5; statuses: DRAFT SUBMITTED UNDER_REVIEW INFO_REQUESTED OFFERED ACCEPTED DECLINED_ALL EXPIRED CANCELLED WITHDRAWN)
+### 6.8 PLANNED — FinancingRequest v3 (`FINANCIER_SCHEMA.md` v5.0 §3.8 + §5.1; statuses: DRAFT SUBMITTED UNDER_PLATFORM_REVIEW RETURNED_FOR_COMPLETION FORWARDED_TO_FINANCIER UNDER_FINANCIER_REVIEW OFFERED ACCEPTED DECLINED EXPIRED CANCELLED)
 
-| From | Action | To | Notes |
+The gate is structural (DP-23): a financier can see a request only from `FORWARDED_TO_FINANCIER` onward.
+
+**6.8.a Allowed transitions**
+
+| From | Action (actor) | To | Notes / assertions |
 |---|---|---|---|
-| DRAFT | wizard submit | SUBMITTED | FR-YYYY-###### number; `consentAt` required (stamped) |
-| SUBMITTED | financier picks up | UNDER_REVIEW | status note → AuditLog `FINANCING_STATUS_CHANGED` + Notification (DP-15) |
-| SUBMITTED/UNDER_REVIEW | financier requests info | INFO_REQUESTED | |
-| INFO_REQUESTED | applicant answers | UNDER_REVIEW | |
-| UNDER_REVIEW | first offer SENT | OFFERED | |
-| OFFERED | applicant accepts one offer | ACCEPTED | siblings auto-DECLINED → request DECLINED_ALL if none left; FinancingFee ACCRUED; FinancingAgreement created referencing the **frozen** offer |
-| (pre-acceptance) | applicant cancels | CANCELLED / WITHDRAWN | wizard “Cancel request” |
-| (past `expiresAt`) | lazy sweep | EXPIRED | mirrors sweepDisputes — no cron |
+| DRAFT | wizard submit (applicant) | SUBMITTED | FR-YYYY-###### via Sequence `FIN`; `consentAt` required (stamped); RequirementSubmission rows created from the service's ServiceRequirement set (serviceId required — serviceKind FINANCING enforced) |
+| SUBMITTED | platform reviewer opens dossier | UNDER_PLATFORM_REVIEW | `platformReviewedById/At` stamped; audit PLATFORM_REVIEW_STARTED |
+| UNDER_PLATFORM_REVIEW | platform reviewer returns (aggregate reason) | RETURNED_FOR_COMPLETION | `returnedAt` + `returnedReason` set; per-item reasons on `RequirementSubmission.decisionNote`; notification PLATFORM_RETURNED_REQUEST |
+| RETURNED_FOR_COMPLETION | applicant fixes + resubmits | UNDER_PLATFORM_REVIEW | re-enters the gate; previously VERIFIED items may be preserved (FIN-3 documented behavior); REJECTED items re-supplied → SUBMITTED with `verifiedAt` cleared |
+| UNDER_PLATFORM_REVIEW | platform reviewer forwards — **guard: EVERY required RequirementSubmission is VERIFIED or WAIVED (R-4)** | FORWARDED_TO_FINANCIER | `forwardedAt` set; audit REQUEST_FORWARDED; notification FINANCING_REQUEST_RECEIVED to the financier |
+| FORWARDED_TO_FINANCIER | financier opens the request | UNDER_FINANCIER_REVIEW | the first state a financier can see at all |
+| UNDER_FINANCIER_REVIEW | first offer SENT | OFFERED | offer + FinancingOfferInstallment rows |
+| UNDER_FINANCIER_REVIEW | financier declines with note | DECLINED | decision note audited; applicant notified |
+| OFFERED | applicant accepts an offer | ACCEPTED | sibling offers auto-DECLINED (also across `multiGroupId`); FinancingAgreement (AGR-) created on the frozen offer; FinancingFee SUCCESS ACCRUED |
+| (any pre-acceptance state) | applicant cancels | CANCELLED | wizard "Cancel request"; forwarded/financier notified |
+| (past `expiresAt`, pre-acceptance) | lazy sweep | EXPIRED | read-path trigger, no cron (D-011) — §6.15 FS1 |
 
-Forbidden (PL): transitions not in table → 409; accept with a request in DRAFT → 409; expired offer accept → 409. Sweep (PL): `expiresAt` past → EXPIRED on read trigger.
+**6.8.b Forbidden transitions / gate negatives (expect 409 unless noted)**
+
+| From / setup | Attempted action | Expected |
+|---|---|---|
+| UNDER_PLATFORM_REVIEW with ≥ 1 required item PENDING / SUBMITTED / REJECTED | forward | **409** — the forward guard runs in the same transaction (transition guard + DB pre-check); status unchanged (R-4) |
+| DRAFT / SUBMITTED / UNDER_PLATFORM_REVIEW / RETURNED_FOR_COMPLETION | financier lists or directly reads the request | **not listed / 404** — inbox queries structurally exclude pre-forward states (R-4, INV-16); direct id access 403/404 |
+| any state not RETURNED_FOR_COMPLETION | applicant resubmit | 409 |
+| request with no live SENT offer | applicant accept | 409 |
+| ACCEPTED | applicant cancel | 409 |
+| FORWARDED_TO_FINANCIER and later | platform reviewer verify / waive a submission (gate closed) | 409 — gate verdicts only while the request is in the gate states |
+| any | non-admin calls a gate action (verify/reject/waive/return/forward) | **403** — gate is platform-only (R-4) |
+| any | applicant self-verifies own submission | **403** |
+| any | a transition not in 6.8.a | 409 `Cannot <action> a financing request in <status>` |
 
 ### 6.9 PLANNED — FinancingOffer (statuses: DRAFT SENT ACCEPTED DECLINED EXPIRED WITHDRAWN)
 
-| From | Action | To |
-|---|---|---|
-| DRAFT | financier sends | SENT (id-addressed; DP-12 no offer numbers) |
-| SENT | applicant accepts | ACCEPTED — siblings auto-DECLINED; agreement created from frozen offer snapshot |
-| SENT | applicant declines | DECLINED |
-| SENT | financier withdraws | WITHDRAWN |
-| SENT | `validUntil` passes | EXPIRED (lazy sweep) |
+| From | Action | To | Notes |
+|---|---|---|---|
+| DRAFT | financier sends | SENT (id-addressed; DP-12 no offer numbers) | |
+| SENT | applicant accepts | ACCEPTED — siblings auto-DECLINED (also across `multiGroupId`); agreement created from frozen offer snapshot | |
+| SENT | applicant declines | DECLINED | |
+| SENT | financier withdraws | WITHDRAWN | |
+| SENT | financier sends a REVISED offer | (new SENT offer) | revisions allowed — all SENT offers of the request remain comparable; comparison surfaces render them (§3.9 note in FINANCIER_SCHEMA) |
+| SENT | `validUntil` passes | EXPIRED (lazy sweep — §6.15 FS2) | |
 
-Forbidden (PL): accept/decline non-SENT → 409; withdraw non-SENT → 409; double-accept → 409 (mirror the Quote idempotency guard).
+Forbidden (PL): accept/decline non-SENT → 409; withdraw non-SENT → 409; double-accept → 409 (mirror the Quote idempotency guard); accept after `validUntil` → 409.
 
 ### 6.10 PLANNED — FinancingAgreement (`fundingStatus`: PENDING → REPORTED_FUNDED → REPORTED_SETTLED; `status` → COMPLETED)
 
@@ -399,16 +419,95 @@ Forbidden (PL): PENDING → REPORTED_SETTLED skip (409); settle before funded (4
 
 ### 6.11 PLANNED — FinancingFee (statuses: ACCRUED INVOICED PAID WAIVED)
 
-| From | Action | To |
-|---|---|---|
-| (offer accepted) | auto | ACCRUED (fee % × financed amount) |
-| ACCRUED | admin marks invoiced (external invoice) | INVOICED |
-| INVOICED | admin marks paid (external settlement) | PAID |
-| ACCRUED/INVOICED | admin waives | WAIVED |
+| From | Action | To | Notes |
+|---|---|---|---|
+| (offer accepted) | auto | ACCRUED (type SUCCESS — fee % × financed amount) | |
+| (accreditation granted — P5 polish) | auto | ACCRUED (type ACCREDITATION — service.accreditationFeeAmount) | |
+| ACCRUED | admin marks invoiced (external invoice) | INVOICED | |
+| INVOICED | admin marks paid (external settlement) | PAID | |
+| ACCRUED/INVOICED | admin waives | WAIVED | |
 
 Forbidden (PL): mark-paid from ACCRUED (skip INVOICED) → 409; waive PAID → 409; any automated collection path → D-002 violation. Mirrors Payout lifecycle exactly — test table 6.4 is the template.
 
-**Machine count: 11 transition tables (7 live + 4 planned) · 33 forbidden-transition negative cases · 11 sweep cases.**
+### 6.12 PLANNED — AccreditationRequest (v5.0 §3.13 + §5.2; statuses: DRAFT SUBMITTED UNDER_PLATFORM_REVIEW RETURNED_FOR_COMPLETION FORWARDED_TO_FINANCIER UNDER_FINANCIER_REVIEW ACCREDITED REJECTED EXPIRED REVOKED CANCELLED)
+
+**6.12.a Allowed transitions**
+
+| From | Action (actor) | To | Notes / assertions |
+|---|---|---|---|
+| DRAFT | org member submits | SUBMITTED | ACC-YYYY-###### via Sequence `ACC`; org applicants only (organizationId required); serviceKind = ACCREDITATION enforced; `consentAt` required |
+| SUBMITTED | platform reviewer opens dossier | UNDER_PLATFORM_REVIEW | same gate as financing (R-4) |
+| UNDER_PLATFORM_REVIEW | return (aggregate reason) | RETURNED_FOR_COMPLETION | per-item decisionNotes |
+| RETURNED_FOR_COMPLETION | org fixes + resubmits | UNDER_PLATFORM_REVIEW | |
+| UNDER_PLATFORM_REVIEW | forward — guard: all required items VERIFIED/WAIVED | FORWARDED_TO_FINANCIER | `forwardedAt`; audit REQUEST_FORWARDED; notification ACCREDITATION_RECEIVED |
+| FORWARDED_TO_FINANCIER | financier opens | UNDER_FINANCIER_REVIEW | |
+| UNDER_FINANCIER_REVIEW | financier grants | ACCREDITED | `accreditedAt` + `validUntil` (service.accreditationValidMonths, fallback settings accreditation.defaultValidMonths); decidedById/At + decisionNote; audit ACCREDITATION_GRANTED; notification ACCREDITATION_GRANTED |
+| UNDER_FINANCIER_REVIEW | financier rejects (note) | REJECTED | audit ACCREDITATION_REJECTED |
+| ACCREDITED | `validUntil` passes | EXPIRED | lazy sweep §6.15 FS3; ACCREDITATION_EXPIRING reminder within the 7-day window (FS4) |
+| ACCREDITED | financier or platform admin revokes (reason REQUIRED) | REVOKED | revokedById/At + revocationReason; audit ACCREDITATION_REVOKED; RFQ-unlock + auto-pass effects stop |
+| (any pre-decision state) | applicant org cancels | CANCELLED | |
+| EXPIRED / REVOKED / REJECTED / CANCELLED | renewal = a NEW AccreditationRequest for the same service | (new record) | `@@unique([serviceId, organizationId])` permits exactly one record per pair |
+
+**6.12.b Forbidden transitions / accreditation negatives**
+
+| From / setup | Attempted action | Expected |
+|---|---|---|
+| live record (ACCREDITED, `validUntil` future) for the (serviceId, organizationId) pair | create a second AccreditationRequest for the same pair | **409** — one accreditation record per financier-program per org (service-enforced unique) |
+| applicant without an organization (individual) | create accreditation request | **400** — org applicants only |
+| FinancierService with serviceKind = FINANCING | create accreditation request against it | **400/409** — serviceKind guard |
+| not FORWARDED_TO_FINANCIER / UNDER_FINANCIER_REVIEW | grant / reject | 409 |
+| ACCREDITED | revoke without `revocationReason` | **400** — reason REQUIRED |
+| pre-forward states | financier lists/reads the accreditation request | **not listed / 404** (gate exclusion, R-4 — INV-16) |
+| another financier's accreditation | financier B decides financier A's request | **403** (org-scoped guards) |
+
+### 6.13 PLANNED — RequirementSubmission (v5.0 §3.6 + §5.3; statuses: PENDING SUBMITTED VERIFIED REJECTED WAIVED)
+
+**6.13.a Allowed transitions**
+
+| From | Action (actor) | To | Notes / assertions |
+|---|---|---|---|
+| PENDING | applicant supplies answer / attaches an AccountDocument / PROFILE_FIELD auto-evaluates true | SUBMITTED | typed columns `valueText` / `valueNumber` / `valueDate` / `accountDocumentId` — zero JSON (R-1); `submittedAt` set |
+| SUBMITTED | platform admin verifies | VERIFIED | `verifiedAt` + `verifiedById` stamped; notification REQUIREMENT_VERIFIED; audit REQUIREMENT_VERIFIED |
+| SUBMITTED | platform admin rejects | REJECTED | `decisionNote` REQUIRED (shown to applicant); notification REQUIREMENT_REJECTED; audit REQUIREMENT_REJECTED |
+| REJECTED | applicant re-supplies | SUBMITTED | `verifiedAt` cleared |
+| PENDING, optional item only | platform admin waives | WAIVED | `decisionNote` REQUIRED |
+| PENDING + serviceRequirement.autoPassAccredited + applicant org holds a LIVE accreditation from THIS financier | system auto-pass | VERIFIED | **`verifiedById = null`** (system path); no admin involvement (DP-26) |
+
+**6.13.b Forbidden transitions / requirements-engine negatives**
+
+| Setup | Attempted action | Expected |
+|---|---|---|
+| any submission | applicant self-verifies | **403** |
+| any submission | financier staff verifies / rejects / waives | **403** — the gate is platform-only (R-4) |
+| SUBMITTED item | reject without decisionNote | **400** |
+| PENDING optional item | waive without decisionNote | **400** |
+| required item (serviceRequirement.isRequired = true) | waive at all | **409/400** — only OPTIONAL requirements can be waived |
+| VERIFIED item | applicant re-supplies | 409 (re-supply only from REJECTED) |
+| a ServiceRequirement of service X | create a submission on a request targeting service Y | **400/404** — requirement submission on a service not applied-for is rejected |
+| autoPassAccredited item, live accreditation from a DIFFERENT financier (or EXPIRED / REVOKED) | request submitted | item stays PENDING/SUBMITTED — **no auto-pass** (same-financier live grant only) |
+| both parents set (financingRequestId + accreditationRequestId) | create submission | **400** — exactly-one-parent rule (service-enforced; nullable-parent composite uniques) |
+
+### 6.14 PLANNED — AccountDocument (v5.0 §3.7; statuses: PENDING VERIFIED REJECTED)
+
+| From | Action (actor) | To | Notes |
+|---|---|---|---|
+| (upload) | any user / org member | PENDING | `mediaId` → MediaAsset (the ONLY storage subsystem — DP-19); documentType from the closed set; expiresAt optional |
+| PENDING | admin verifies | VERIFIED | reviewedById/At + note; notification DOCUMENT_VERIFIED; audit DOCUMENT_VERIFIED |
+| PENDING | admin rejects (note) | REJECTED | notification DOCUMENT_REJECTED |
+| VERIFIED | replaced by a newer version | old row isActive=false + new PENDING row | soft-delete, never duplicate (R-2) |
+
+Forbidden/negatives (PL): verify by non-admin → **403**; upload of a documentType outside settings `documents.allowedTypes` or over `maxSizeMb` → **400**; a verified document is never re-uploaded per request — requests reference it via `RequirementSubmission.accountDocumentId` / `RequestAttachment` (single-entry, INV-13).
+
+### 6.15 PLANNED — financier lazy sweeps (read-path triggered, D-011)
+
+| # | Setup (direct DB update) | Trigger | Expected |
+|---|---|---|---|
+| FS1 | FinancingRequest pre-acceptance, `expiresAt = past` | read path (applicant/admin list) | request → EXPIRED |
+| FS2 | FinancingOffer status SENT, `validUntil = past` | read path | offer → EXPIRED; accepting afterwards → 409 |
+| FS3 | AccreditationRequest ACCREDITED, `validUntil = past` | read path | → EXPIRED; renewal = new request; RFQ-unlock + auto-pass effects stop |
+| FS4 | AccreditationRequest ACCREDITED, `validUntil` within the 7-day reminder window | read path | ACCREDITATION_EXPIRING notification emitted (idempotent — once) |
+
+**Machine count: 14 transition tables (7 live + 7 planned) · 71 forbidden-transition negative cases (33 live + 38 financier-planned) · 15 sweep cases (11 existing + 4 financier FS1–FS4).**
 
 ---
 
@@ -468,7 +567,7 @@ Test procedure: fire N+1 requests (curl loop), expect the (N+1)th → 429 with `
 
 ## 8. Acceptance criteria per epic (Given/When/Then)
 
-Numbering `AC-<epic>-<n>`. Every AC must be executable via §4 protocol (agent-browser) or §7 (curl) and leave evidence (screenshot/curl transcript) in the worklog. **97 ACs total.**
+Numbering `AC-<epic>-<n>`. Every AC must be executable via §4 protocol (agent-browser) or §7 (curl) and leave evidence (screenshot/curl transcript) in the worklog. **104 ACs total (77 current-scope E-01…E-10 + 21 financing-planned E-11 + 6 super-cart-planned E-12).**
 
 ### E-01 Account (7)
 
@@ -577,22 +676,60 @@ Numbering `AC-<epic>-<n>`. Every AC must be executable via §4 protocol (agent-b
 - **AC-E10-06** — Given path traversal attempts (`../` in key), when requested, then the media route returns 404 (FIX-1 evidence).
 - **AC-E10-07** — Given dark mode, when the bell/popovers render, then contrast and theming hold (qa-r8 dark evidence).
 
-### E-11 Financing — PLANNED (14; blocks: DP-1…DP-17 approval, FIN-0…FIN-9)
+### E-11 Financing & Accreditation — PLANNED (21; blocks: DP-1…DP-28 approval, FIN-0…FIN-10)
 
-- **AC-E11-01** — Given an admin, when they set an organization's `orgType` to BANK/MFI/EWALLET, then a FinancierProfile is created PENDING_REVIEW and the org appears in the financing institutions list.
-- **AC-E11-02** — Given a pending FinancierProfile, when admin verifies it, then it becomes ACTIVE with audit `FINANCIER_VERIFIED` and the financier console becomes reachable to its OWNER/ADMIN members.
-- **AC-E11-03** — Given a verified financier org member, when they open `?view=financier`, then the console (inbox, request detail, offer composer, my offers, profile & products) renders — the 5-registry lockstep edit was done atomically (D-004 intact: only `?view=`).
-- **AC-E11-04** — Given a buyer member, when they start the wizard from a product page (“Finance this”), then **Step 1** shows their User profile + existing KYC documents read-only, offers “Edit profile” (which updates `User` — one entry), and requires the data-transfer consent checkbox before continuing; `consentAt` is stamped on submit.
-- **AC-E11-05** — Given step 1 consented, when the applicant fills **Step 2** (22 controls: activity status/capital/capacity/previous financing/contribution/other income/activity type-name-description-start-address-city-district-location type/amount/currency/purpose/guarantee type+status/attachments/notes), then every field lands in exactly one typed `FinancingRequest` column or `ApplicantDocument` row with an `FR-YYYY-######` number and status SUBMITTED.
-- **AC-E11-06** — Given **Step 3**, when it renders, then it shows the review **by reference** (User + request data, zero copies) and submission makes the request appear in “My financing requests” with status history notes (AuditLog `FINANCING_STATUS_CHANGED` + Notification).
-- **AC-E11-07** — Given a submitted request, when a matching financier sends an offer (rate/fee/tenor/validity/installments), then the request → OFFERED and the applicant is notified OFFER_RECEIVED.
-- **AC-E11-08** — Given multiple offers, when the applicant opens the compare view, then offers render side-by-side and accepting one marks it ACCEPTED, auto-declines siblings, creates a `FinancingAgreement` referencing the frozen offer, and accrues a `FinancingFee` (fee % × amount, default 0.75%).
-- **AC-E11-09** — Given an agreement, when the financier reports funding/settlement events, then `fundingStatus` moves PENDING → REPORTED_FUNDED → REPORTED_SETTLED and each is a typed `FinancingEvent` row — **track-only ledger, no money movement code path exists (D-002)**.
-- **AC-E11-10** — Given accrued fees, when admin marks INVOICED then PAID (or WAIVED), then the fee lifecycle completes with audit rows and external-settlement semantics only (mirrors Payout).
-- **AC-E11-11** — Given the duplication audit (FINANCIER_SCHEMA §8), when executed as checks, then FinancingRequest contains **no profile-copy columns** (no legalName/website/industry/email re-storage) and every competitor structure has exactly one Vendora home.
-- **AC-E11-12** — Given `prisma/schema.prisma`, when the financier models are grepped, then the count of `Json` columns in financier models is **0** (zero-JSON doctrine; audit-log metadata excluded — deliberately unused by this domain).
-- **AC-E11-13** — Given a request past `expiresAt` (set via DB), when a read-path sweep fires, then the request → EXPIRED with no cron/timer involved (D-011).
-- **AC-E11-14** — Given KYC documents uploaded once at user scope, when a later request needs them, then they are **reused** (dual-scope ApplicantDocument: `requestId` null for KYC) — uploading a second copy of the same KYC doc for the same user is refused or deduplicated.
+ACs are grouped by the 8 financier flows of FINANCIER_PLAN v2.0 §4 (F1–F8): each flow carries ≥ 1 happy-path and ≥ 1 negative AC. Every AC is a Given/When/Then a tester executes via §4 protocol (agent-browser) or §7 (curl) against FINANCIER_SCHEMA v5.0 names.
+
+**Flow F1 — institution onboarding**
+
+- **AC-E11-01** — Given an admin, when they set an organization's `orgType` to BANK / MFI / EWALLET (existing admin org CRUD), then a FinancierProfile is created for the org and it appears in the admin financing → institutions list pending verification; when the admin verifies it (licenseNumber/regulator), then the org becomes ACTIVE with `verifiedAt` set, an audit row is written, and the financier console becomes reachable to its OWNER/ADMIN members.
+- **AC-E11-02** — Given a non-admin user, when they call the institution verify/suspend endpoints, then the API returns 403; given a suspended financier org member, when they open `?view=financier`, then the console is unreachable (org-status guard).
+
+**Flow F2 — service & requirements setup (the flexible management interface — DP-24)**
+
+- **AC-E11-03** — Given a verified financier org OWNER/ADMIN, when they create a FinancierService (serviceKind FINANCING; category, amountMin/amountMax, rateType/rateMax, tenor, coverage + attributes), then it is ACTIVE in the public directory; and when they then attach a GENERAL library ConditionTemplate AND create a private template (scope FINANCIER, conditionType SELECT with ConditionOption rows), attaching both via ServiceRequirement (isRequired, displayOrder, instructions, autoPassAccredited), then the service's checklist contains both items — general labeled as general, private as theirs — and all 8 condition kinds are accepted by the composer.
+- **AC-E11-04** — Given a financier token, when it PATCHes a GENERAL-scope ConditionTemplate, then the API returns **403** (admin-only scope); and when financier A PATCHes financier B's private template (by id), then the API returns **403/404** — private libraries never leak.
+
+**Flow F3 — applicant document vault prep (DP-27)**
+
+- **AC-E11-05** — Given any signed-in user, when they upload a NATIONAL_ID document in the documents center, then an AccountDocument row is created (mediaId → MediaAsset) with status PENDING; and when the platform admin verifies it, then it becomes VERIFIED with reviewedById/reviewedAt, the user is notified DOCUMENT_VERIFIED, and org-scope documents (organizationId set) behave identically for org members.
+- **AC-E11-06** — Given a documentType outside settings `documents.allowedTypes` or a file over `maxSizeMb`, when uploaded, then the API returns 400 with a reason; and given an already-verified vault document, when the wizard checklist needs it, then it is attached by reference (`accountDocumentId`) — the UI offers no re-upload for the same requirement (single-entry, INV-13).
+
+**Flow F4 — THE PLATFORM VERIFICATION GATE (essence of the platform — DP-23)**
+
+- **AC-E11-07** — Given a SUBMITTED financing request, when the platform reviewer opens the gate queue (`?view=admin&tab=financing` → Review queue), then the dossier renders the applicant profile, the full requirements checklist (general + specific, labeled) and attached documents; and when the reviewer verifies required items, rejects one with a decisionNote, then returns the request, then it becomes RETURNED_FOR_COMPLETION with returnedAt/returnedReason, the applicant sees per-item notes and is notified PLATFORM_RETURNED_REQUEST; and after the applicant fixes + resubmits and all required items are VERIFIED (or WAIVED with a note), when the reviewer forwards, then the request becomes FORWARDED_TO_FINANCIER with forwardedAt set, the financier is notified FINANCING_REQUEST_RECEIVED, and every step has an audit row.
+- **AC-E11-08** — Given a request with one required item still PENDING / SUBMITTED / REJECTED, when the reviewer attempts to forward, then the API returns **409** and the status is unchanged; given a non-admin token (applicant or financier), when it calls any gate action (verify/reject/waive/return/forward), then the API returns **403**; and given a financier inbox query, when it runs against a SUBMITTED/RETURNED request, then the request is absent (and direct id access → 404) — R-4 structural exclusion.
+
+**Flow F5 — financing application (3-step wizard, v5 edition)**
+
+- **AC-E11-09** — Given a signed-in applicant on an ACTIVE service page, when they run the wizard, then step 1 renders profile + document vault read-only with jump-outs and requires the data-transfer consent (consentAt stamped at submit); step 2 captures the 22-field activity form into typed FinancingRequest columns AND the service checklist into RequirementSubmission rows (typed value columns; DOCUMENT items attach vault docs; PROFILE_FIELD items auto-evaluate); step 3 renders everything by reference; and when they submit, then an FR-YYYY-###### number is assigned, status is SUBMITTED, and the request appears in the gate queue — not in any financier inbox.
+- **AC-E11-10** — Given `intake.requireConsent` on, when submission is attempted without consent, then the API returns 400; given an ARCHIVED service, when the wizard is opened/submitted, then the API returns 400/404; and given a ServiceRequirement of a different service, when a submission referencing it is posted, then it is rejected (400/404).
+
+**Flow F6 — financier responds**
+
+- **AC-E11-11** — Given a FORWARDED_TO_FINANCIER request, when the financier opens it from the `?view=financier` inbox, then the request moves to UNDER_FINANCIER_REVIEW with checklist verdicts visible; and when they send an offer (amount, rate, fee, tenor, validity + installment rows), then the request becomes OFFERED, the applicant is notified OFFER_RECEIVED, and a later revised offer leaves both SENT offers comparable.
+- **AC-E11-12** — Given a SUBMITTED and a RETURNED_FOR_COMPLETION request for that financier's service, when the financier inbox is listed, then neither appears (empty for pre-forward states); and given a user who is not a member of the financier org, when they open `?view=financier` or call its APIs, then they get 403.
+
+**Flow F7 — applicant awards & tracking**
+
+- **AC-E11-13** — Given a request with multiple SENT offers (revisions) and a multiGroupId sibling group, when the applicant opens the compare views, then revisions compare within the request and each sibling's latest SENT offer compares across financiers; and when they accept one, then it becomes ACCEPTED, sibling offers (in-request and across the group) auto-DECLINE, a FinancingAgreement (AGR-) is created referencing the frozen offer, a FinancingFee SUCCESS is ACCRUED (fee % × amount, default 0.75%), and when the financier reports DISBURSEMENT then REPAYMENT events, then fundingStatus advances PENDING → REPORTED_FUNDED → REPORTED_SETTLED with typed FinancingEvent rows — track-only, no money-movement code path (D-002).
+- **AC-E11-14** — Given an offer past its validUntil, when acceptance is attempted, then the API returns 409; given an already-ACCEPTED offer, when acceptance is replayed, then the API returns 409 (idempotency); and given the financing module source, when INV-2's money-movement grep runs against it, then zero matches — any hit is a P0 D-002 defect.
+
+**Flow F8 — accreditation (MAIN service — DP-26)**
+
+- **AC-E11-15** — Given an org member and a financier's ACCREDITATION-kind service, when they apply (vault-aware checklist marks items already satisfied by verified docs) and submit, then an ACC-YYYY-###### number is assigned; and when the gate forwards it and the financier grants, then the request becomes ACCREDITED with accreditedAt + validUntil (from service.accreditationValidMonths), the org is notified ACCREDITATION_GRANTED, the live grant unlocks RFQ send/receive participation with that financier, and an autoPassAccredited requirement on the financier's other service auto-VERIFIES on the org's next application (verifiedById = null).
+- **AC-E11-16** — Given a live ACCREDITED record for the (serviceId, organizationId) pair, when a second AccreditationRequest is created for the pair, then the API returns **409**; given an accreditation from a different financier (or an EXPIRED/REVOKED one), when an autoPassAccredited item is evaluated, then it stays PENDING/SUBMITTED — no auto-pass; and given revocation, when the financier submits it without a reason, then the API returns 400.
+
+**Supporting invariants & sweeps (all flows)**
+
+- **AC-E11-17** — Given `prisma/schema.prisma` after FIN-1, when the 18 v5 financier models are grepped for `Json` columns, then the count is **0** (zero-JSON — INV-12; AuditLog.metadata pre-exists and is deliberately unused by the domain).
+- **AC-E11-18** — Given the duplication audit (FINANCIER_SCHEMA §8), when executed as checks, then FinancingRequest/FinancierProfile contain no profile-copy columns, and documents are reused via `RequirementSubmission.accountDocumentId` / `RequestAttachment` → AccountDocument → MediaAsset — never re-uploaded per request (single-entry — INV-13).
+- **AC-E11-19** — Given a request past `expiresAt`, an offer past `validUntil`, and an ACCREDITED accreditation past `validUntil` (all set via direct DB update), when the triggering read paths fire, then they become EXPIRED (and the accreditation emits ACCREDITATION_EXPIRING inside the 7-day window) — all lazy, no cron involved (D-011; §6.15).
+- **AC-E11-20** — Given the financier inbox service code, when inspected, then the financing and accreditation list queries structurally filter to FORWARDED_TO_FINANCIER and later states (INV-16 grep) — there is no code path that can list a pre-forward request for a financier.
+
+**Platform flow 5 — checkout financing (P4; DP-6-gated)**
+
+- **AC-E11-21** — Given an eligible order at checkout, when the buyer chooses financing, then a FinancingRequest with targetType ORDER is created and passes the same platform gate; and given completion, when repayment events are reported, then they live in the track-only ledger — the platform records but never holds funds, and earns commission plus an invoiced origination fee. *(Blocked until the DP-6 track-only ruling.)*
 
 ### E-12 Super-Cart — PLANNED (6; P3)
 
@@ -620,10 +757,13 @@ Numbering `AC-<epic>-<n>`. Every AC must be executable via §4 protocol (agent-b
 | INV-9 | Org credit threshold triggers | $499 vs $500+ checkout routing (AC-E06-04/05) | L2/L3 |
 | INV-10 | Suspended seller 403s | login 403 + checkout 400 + session 401 matrix (AC-E01-03, E03-06) | L2 |
 | INV-11 | Suspended users rejected by `getSessionUser` | `src/lib/auth.ts:77` — session with suspended user → null → 401 everywhere | L2 |
-| INV-12 | **Zero-JSON (financier, planned)** | `rg -A0 "Json" prisma/schema.prisma` restricted to financier models (FinancierProfile…FinancingFee, FinancingRequest/Offer/Agreement/Event/Fee, ApplicantDocument, FinancingProduct + trait tables) → **0 matches** (AuditLog.metadata pre-exists and is deliberately unused by the domain) | L0 grep |
-| INV-13 | **Single-entry (financier, planned)** | `rg "legalName|website|industry|email|phone" prisma/schema.prisma` — these columns appear ONLY on Organization/User, never on FinancingRequest/FinancierProfile (duplication audit, AC-E11-11) | L0 grep |
-| INV-14 | Consent stamped (planned) | FinancingRequest submitted without `consentAt` → impossible via API (zod + service guard); wizard step-1 checkbox gates submission (AC-E11-04) | L2/L3 |
+| INV-12 | **Zero-JSON (financier, planned — D-014/D-015, R-1)** | `rg -A0 "Json" prisma/schema.prisma` restricted to the **18 v5 models** (FinancierProfile, FinancierBranch, FinancierService, FinancierServiceAttribute, FinancierServiceCoverage, ConditionTemplate, ConditionOption, ServiceRequirement, RequirementSubmission, AccountDocument, RequestAttachment, FinancingRequest, FinancingOffer, FinancingOfferInstallment, FinancingAgreement, FinancingEvent, FinancingFee, AccreditationRequest) → **0 matches** (AuditLog.metadata pre-exists and is deliberately unused by the domain; financing notes use AuditLog.summary) | L0 grep |
+| INV-13 | **Single-entry (financier, planned — D-014, R-2)** | (a) `rg "legalName|website|industry|email|phone" prisma/schema.prisma` — these columns appear ONLY on Organization/User, never on FinancingRequest/FinancierProfile (duplication audit, AC-E11-18); (b) documents are uploaded ONCE to AccountDocument and referenced everywhere — `RequirementSubmission.accountDocumentId` / `RequestAttachment.accountDocumentId` links, never a re-upload per request; (c) personal data on User additive scalars, referenced by requests — no copies | L0 grep + L2 |
+| INV-14 | Consent stamped (planned) | FinancingRequest / AccreditationRequest submitted without `consentAt` → impossible via API (zod + service guard); wizard step-1 checkbox gates submission (AC-E11-09) | L2/L3 |
 | INV-15 | Owner doctrine: no C2C gates (D-012) | C2C phase tasks absent from active gates; financier module not blocked by C2C | Board check |
+| INV-16 | **R-4 gate exclusion (financier, planned — DP-23)** | Financier inbox/list queries (financing + accreditation) structurally filter to `FORWARDED_TO_FINANCIER` and later states — no code path can list a pre-forward request for a financier; direct id access → 403/404. L2 negative: create a SUBMITTED request, assert absent from the target financier's inbox and 404 on direct GET (AC-E11-12, AC-E11-20) | L0 grep + L2 |
+| INV-17 | **R-4 forward guard (financier, planned — DP-23)** | The forward transition is guarded IN THE SAME TRANSACTION by: every RequirementSubmission whose serviceRequirement.isRequired = true is VERIFIED or WAIVED (with decisionNote). L2 negative: forward with one required item PENDING/SUBMITTED/REJECTED → 409, status unchanged (AC-E11-08, §6.8.b) | L2 + code review |
+| INV-18 | **R-5 requirements-engine scope rules (financier, planned — DP-24)** | (a) GENERAL ConditionTemplate CRUD is admin-only — financier token → 403; (b) FINANCIER-scope templates are org-scoped — financier A cannot read/attach/edit financier B's; (c) RequirementSubmission has exactly one parent (financingRequestId XOR accreditationRequestId); (d) autoPassAccredited auto-verifies ONLY with a live ACCREDITED grant from the SAME financier (verifiedById = null); (e) one AccreditationRequest per (serviceId, organizationId) — second while live → 409 (§6.12.b/6.13.b) | L0 grep + L2 |
 
 ---
 
@@ -683,7 +823,7 @@ Executed from the dedicated security hardening document (team/docs security doc)
 - **Module change → golden path re-run** (`verify-b2b.sh`) is the minimum automated regression for any `src/server/modules/*` change.
 - **UI change in a QA hotspot** (§4.4 list) → targeted agent-browser re-check of that flow at 375px + dark.
 - **Schema change** → reseed cycle + golden path + affected-epic ACs re-run.
-- **QA-dedicated rounds (QA-R#, FIN-8)** → full sweep: golden path + changed epics + invariant greps + dev.log 200-sweep.
+- **QA-dedicated rounds (QA-R#, FIN-9)** → full sweep: golden path + changed epics + invariant greps + dev.log 200-sweep.
 - Every regression result is a worklog verdict (PASS/FAIL per PLAYBOOK §6 transition table).
 
 ### 11.3 DoD gate (PLAYBOOK §7 — restated as test gates)
@@ -697,12 +837,12 @@ Executed from the dedicated security hardening document (team/docs security doc)
 | Phase | Exit criteria (all must hold) | Sign-off |
 |---|---|---|
 | **P0 INFRA** | DB up (recovery runbook done), `db:push` + both seeds clean, `/api/products?limit=1` returns data, login 200, server survives command boundary (double-fork), golden path runs end-to-end | Lead (DP-5 owner approval precedes) |
-| **P1 FINANCIER CORE** | INV-12/13 greps clean; AC-E11-01…07 pass; wizard 3 steps E2E'd; financier console renders; admin verify/suspend E2E'd | Lead + owner (phase go/no-go is §8 escalation) |
-| **P2 SUPPLIER WORKING CAPITAL** | AC-E11-08…14 pass incl. fee lifecycle + agreement events + duplication audit; FIN-8 regression sweep green (catalog, checkout, RFQ chain re-verified) | Lead |
+| **P1 FINANCIER CORE: services + requirements engine + THE GATE** (PLATFORM_PLAN v3.0 — the gate/composer/vault/accreditation machinery ships HERE) | INV-12/13/16/17/18 checks pass; AC-E11-01…06 pass (institution onboarding, services + requirements composer, document vault); **gate machinery E2E'd** — AC-E11-07/08 (verify/reject/waive per item, return with reasons, forward blocked on incomplete, non-admin 403, financier exclusion); wizard 3 steps E2E'd (AC-E11-09/10); financier console renders incl. requirements composer + admin gate console + institutions + fees (AC-E11-11/12); **accreditation machinery E2E'd in P1** (AC-E11-15 happy path: apply → gate → forward → grant → auto-pass); sweeps AC-E11-19 spot-checked | Lead + owner (phase go/no-go is §8 escalation) |
+| **P2 SUPPLIER WORKING CAPITAL** | AC-E11-13/14 pass incl. offer comparison (within request + across multiGroupId siblings), accept → fee ACCRUED → INVOICED → PAID, agreement events + duplication audit (AC-E11-18); FIN-9 regression sweep green (catalog, checkout, RFQ chain re-verified) | Lead |
 | **P3 SUPER-CART** | AC-E12-01…06 pass; multi-seller regression (QA-R8 3-seller flow) still green; per-line commission math verified | Lead |
-| **P4 CUSTOMER FINANCING** | AC-E11 financing-from-checkout path passes; **DP-6 track-only-ledger ruling honored** — INV-2 grep extended to financing module, zero money-movement code | Lead + owner (DP-6) |
-| **P5 ACCREDITATION** | Accreditation program CRUD + doc review + verified badge E2E; auto-pass flag on financing apps verified | Lead |
-| **P6 POLISH** | Full-platform regression: all epics' ACs, all invariant greps, responsive matrix, perf smoke, docs updated (FIN-9) | Lead + owner |
+| **P4 CUSTOMER FINANCING** | AC-E11-21 checkout-financing path passes; **DP-6 track-only-ledger ruling honored** — INV-2 grep extended to the financing module, zero money-movement code | Lead + owner (DP-6) |
+| **P5 ACCREDITATION POLISH** | Accreditation tail only (machinery shipped in P1 per DP-26): FinancingFee type ACCREDITATION accrual, auto-pass + RFQ-unlock enforcement surfaces, renewal reminders (ACCREDITATION_EXPIRING — §6.15 FS4), accredited-vendor directory for the vendor-quotes relay E2E'd; AC-E11-15/16 re-verified with polish | Lead |
+| **P6 POLISH** | Full-platform regression: all epics' ACs, all invariant greps, responsive matrix, perf smoke, docs updated (FIN-10) | Lead + owner |
 
 Per-epic sign-off = every AC in §8 for that epic marked PASS with evidence link (worklog Task ID), zero P0/P1 open, regression policy §11.2 satisfied.
 
@@ -716,7 +856,8 @@ Per-epic sign-off = every AC in §8 for that epic marked PASS with evidence link
 | **R-2** | Rate limits are **in-memory, per-process** (single node) and 4 presets (login, register, order, review) are defined but **not wired** to any route | 429 tests pass locally but prove nothing about multi-instance deploys; brute-force damping on auth is currently absent in practice | Wire the 4 presets (FIX task); treat in-memory limiter as dev-only; note in security doc; re-run §7.1 matrix after wiring |
 | **R-3** | Sweeps (expireStaleQuotes, sweepDisputes, processDueSchedules) fire **only via read paths** (listMyRfqs, getRfq, adminListRfqs, adminListQuotes, sellerRfqInbox) — no scheduler exists by design (D-011) | Time-based transitions can be arbitrarily late if nobody reads; sweep tests depend on manually triggering the right read path | Acceptable per D-011 (owner directive). Test protocol (§6 clock-via-DB + read-trigger) must name the exact trigger endpoint per sweep; document any read path that misses a sweep call as a defect |
 | **R-4** | **Test data drift** — golden path creates a new org per run (“Acme Trading Co” × N), WELCOME10/BULK15 accumulate, seller product clones from QA rounds pollute the catalog | verify-b2b.sh assertions weaken over time (e.g. “empty org list” only true on fresh DB); compare flows pick up stray sellers | Re-seed discipline: run `db:seed` + `cleanup-b2b.ts` before QA rounds; verify-b2b.sh already randomizes fresh-buyer emails; add a pre-flight assertion helper that fails fast on unexpected fixture counts |
+| **R-5** | **Gate throughput (planned)** — the platform verification gate is a manual admin queue on the critical path of EVERY financing/accreditation request (FINANCIER_PLAN §9 risk) | Applicant-visible latency while requests wait for review; admin workload grows with volume | Mitigations planned in P1: gate-queue bulk actions; `autoForwardWhenAllVerified` setting (automates only the forward stamp once every required item already carries an admin VERIFIED/WAIVED verdict — verification itself is never skipped, DP-23); PROFILE_FIELD items pre-evaluated to SUBMITTED before a reviewer opens the dossier; RfqSetting `financing.general.requestExpiryDays` bounds queue residence |
 
 ---
 
-*End of document. Counts: 11 state-machine transition tables (7 live + 4 planned) · 33 forbidden-transition negative cases (30 tabulated + 3 inline in §6.6) · 11 sweep cases (8 numbered + 3 machine-table expiry transitions) · 97 Given/When/Then acceptance criteria (77 current-scope E-01…E-10 + 14 financing-planned E-11 + 6 super-cart-planned E-12) · 15 invariant checks (INV-1…INV-15, 4 financier-planned) · 21-row functional test matrix · 4 register risks.*
+*End of document. Counts: 14 state-machine transition tables (7 live + 7 planned: FinancingRequest v3, FinancingOffer, FinancingAgreement, FinancingFee, AccreditationRequest, RequirementSubmission, AccountDocument) · 71 forbidden-transition negative cases (33 live + 38 financier-planned) · 15 sweep cases (11 existing + 4 financier FS1–FS4) · 104 Given/When/Then acceptance criteria (77 current-scope E-01…E-10 + 21 financing-planned E-11 covering financier flows F1–F8 + 6 super-cart-planned E-12) · 18 invariant checks (INV-1…INV-18, 6 financier-planned) · 21-row functional test matrix · 5 register risks.*

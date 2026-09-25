@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Vendora Platform API
-  version: 1.0.0
+  version: 1.1.0
   description: |
     Authentication is a custom HTTP-only cookie session: cookie name `vendora_session`, value
     `${userId}.${expMs}.${HMAC-SHA256}` (signed, expiring, stateless token resolved against the
@@ -15,8 +15,13 @@ info:
     `{items,total,page,pages}`); the media library uses `limit` 1-60 / `offset` with envelope
     `{assets,errors,total,limit,offset}`. All other list endpoints return unpaginated arrays.
     This contract documents the single deployed SPA backend; there is no versioned API surface yet
-    (see team/docs/03-api-contract.md, section 7). Paths under /api/financing* and /api/financiers*
-    are PLANNED (marked `x-planned: true`) and are not implemented.
+    (see team/docs/03-api-contract.md, section 7). Paths under /api/financing*, /api/financier*,
+    /api/accreditation* and /api/documents* are PLANNED (financier domain v5.0, marked
+    `x-planned: true`) and are not implemented. Version 1.1.0 = planned financier surface
+    rebuilt to FINANCIER_SCHEMA v5.0 (services-not-products, platform verification gate,
+    requirements engine, universal documents, accreditation as a main service).
+    Documented surface: 123 paths (88 existing + 35 planned) and 164 operations
+    (121 existing + 43 planned).
 servers:
   - url: /
     description: Relative to the Caddy gateway origin that fronts this Next.js app (single deployment)
@@ -86,8 +91,30 @@ tags:
   - name: 'Admin: Vendors'
   - name: Financing (planned)
     description: >
-      Planned financier domain (PLATFORM_PLAN P1, FINANCIER_SCHEMA v4.0). None of these
-      endpoints exist in code yet; every path carries x-planned: true.
+      Planned applicant-facing financing surface (FINANCIER_SCHEMA v5.0): public services
+      directory, wizard-submitted requests, offer accept/decline. None of these endpoints
+      exist in code yet; every path carries x-planned: true.
+  - name: Financier Console (planned)
+    description: >
+      Planned financier console surface (FINANCIER_SCHEMA v5.0): services + requirements
+      composer, private + GENERAL condition library, gate-enforced inbox (FORWARDED+ requests
+      only), offers, accreditation decisions, agreement event reporting. Planned only
+      (x-planned: true).
+  - name: Accreditation (planned)
+    description: >
+      Planned applicant-company accreditation surface (FINANCIER_SCHEMA v5.0, DP-26):
+      accreditation requests and live-grant lookup (RFQ-unlock check). Planned only
+      (x-planned: true).
+  - name: Documents (planned)
+    description: >
+      Planned universal documents center for ALL users and organizations (DP-27):
+      AccountDocument vault over MediaAsset, verified once, reused by every request type.
+      Planned only (x-planned: true).
+  - name: Financing Admin (planned)
+    description: >
+      Planned admin gate + governance surface (FINANCIER_SCHEMA v5.0, DP-23): verification
+      gate queue and actions (verify/reject/waive, return, forward), institutions, fees,
+      GENERAL conditions library, AccountDocument verification. Planned only (x-planned: true).
 security:
   - cookieAuth: []
 components:
@@ -620,8 +647,11 @@ components:
     FinancingRequestPlanned:
       type: object
       description: >
-        PLANNED summary shape of FinancingRequest (FINANCIER_SCHEMA v4.0 section 3.5).
+        PLANNED summary shape of FinancingRequest v3 (FINANCIER_SCHEMA v5.0 section 3.8).
         Not implemented; field names are authoritative for the future implementation.
+        v5 changes - serviceId REQUIRED (services-not-products, DP-22), multiGroupId sibling
+        routing (DP-25), and the PLATFORM VERIFICATION GATE fields (platformReviewedById,
+        platformNote, returnedReason, forwardedAt - DP-23).
       properties:
         id:
           type: string
@@ -630,18 +660,48 @@ components:
           description: FR-YYYY-###### (Sequence FIN)
         organizationId:
           type: [string, 'null']
+          description: applicant org (B2B); null = individual (DP-13)
         createdById:
           type: string
-        productId:
-          type: [string, 'null']
+        serviceId:
+          type: string
+          description: the applied-for FinancierService (serviceKind FINANCING enforced)
         targetType:
           type: string
           enum: [WORKING_CAPITAL, QUOTE, ORDER, RFQ_LINE]
         targetId:
           type: [string, 'null']
+          description: quote/order/rfqLine id (loose FK, Dispute pattern)
+        multiGroupId:
+          type: [string, 'null']
+          description: DP-25 - sibling requests (one per financier's service) share the group id
         activityStatus:
           type: [string, 'null']
           enum: [NEW, EXISTING]
+        activityName:
+          type: [string, 'null']
+        activityDescription:
+          type: [string, 'null']
+        activityStartDate:
+          type: [string, 'null']
+          format: date
+          description: null = not started yet
+        activityCity:
+          type: [string, 'null']
+          description: free string, matched against service coverage (DP-16)
+        activityDistrict:
+          type: [string, 'null']
+        activityAddress:
+          type: [string, 'null']
+        activityLocationType:
+          type: [string, 'null']
+          enum: [OWNED, RENTED]
+        activityCategory:
+          type: [string, 'null']
+          description: applicant's answer to "activity type"
+        activityCategoryOther:
+          type: [string, 'null']
+          description: free text when activityCategory = OTHER
         capitalAmount:
           type: [number, 'null']
         ownContributionAmount:
@@ -656,25 +716,43 @@ components:
           type: number
         currency:
           type: string
+          description: ISO-4217; no currency table
         purpose:
           type: [string, 'null']
         tenorRequestedMonths:
           type: [integer, 'null']
         guaranteeType:
           type: [string, 'null']
+          enum: [PERSONAL_GUARANTEE, BANK_GUARANTEE, GOLD, COMMERCIAL, MORTGAGE, CONVERTIBLE_SECURITIES, SELF_GUARANTEE, OTHER]
+        guaranteeTypeOther:
+          type: [string, 'null']
         guaranteeStatus:
           type: [string, 'null']
-        activityCategory:
+          enum: [AVAILABLE, PARTIALLY_AVAILABLE, UNAVAILABLE, OTHER]
+        guaranteeStatusOther:
           type: [string, 'null']
-        status:
-          type: string
-          description: DRAFT | SUBMITTED | UNDER_REVIEW | INFO_REQUESTED | OFFERED | ACCEPTED | DECLINED_ALL | EXPIRED | CANCELLED | WITHDRAWN
-        distributionMode:
-          type: string
-          enum: [OPEN, BUYER_SELECTED]
+        applicantNotes:
+          type: [string, 'null']
         consentAt:
           type: [string, 'null']
           format: date-time
+          description: data-transfer consent + terms, stamped at submit
+        platformReviewedById:
+          type: [string, 'null']
+          description: the admin working the gate
+        platformNote:
+          type: [string, 'null']
+          description: public-to-applicant review summary
+        returnedReason:
+          type: [string, 'null']
+          description: aggregate reason when RETURNED_FOR_COMPLETION (per-item notes live on RequirementSubmission.decisionNote)
+        forwardedAt:
+          type: [string, 'null']
+          format: date-time
+          description: set when the gate PASSED - financier visibility starts HERE (R-4)
+        status:
+          type: string
+          enum: [DRAFT, SUBMITTED, UNDER_PLATFORM_REVIEW, RETURNED_FOR_COMPLETION, FORWARDED_TO_FINANCIER, UNDER_FINANCIER_REVIEW, OFFERED, ACCEPTED, DECLINED, EXPIRED, CANCELLED]
         submittedAt:
           type: [string, 'null']
           format: date-time
@@ -687,8 +765,8 @@ components:
     FinancingOfferPlanned:
       type: object
       description: >
-        PLANNED summary shape of FinancingOffer (FINANCIER_SCHEMA v4.0 section 3.8).
-        Not implemented.
+        PLANNED summary shape of FinancingOffer (FINANCIER_SCHEMA v5.0 section 3.9;
+        unchanged from v4.0 apart from the section renumber). Not implemented.
       properties:
         id:
           type: string
@@ -732,6 +810,376 @@ components:
               amount:
                 type: number
         createdAt:
+          type: string
+          format: date-time
+    FinancierService:
+      type: object
+      description: >
+        PLANNED shape of FinancierService (FINANCIER_SCHEMA v5.0 section 3.4) - THE
+        offering, renamed from v4's FinancingProduct (DP-22, services-not-products).
+        A service is either FINANCING or an ACCREDITATION program (serviceKind);
+        every application targets exactly ONE service, which keeps the requirements
+        checklist always well-defined. Not implemented.
+      properties:
+        id:
+          type: string
+        financierProfileId:
+          type: string
+        serviceKind:
+          type: string
+          enum: [FINANCING, ACCREDITATION]
+        category:
+          type: string
+          description: >
+            FINANCING - WORKING_CAPITAL | INVOICE_FINANCING | PO_FINANCING | EQUIPMENT |
+            VEHICLE | HOME | EDUCATION | AGRICULTURE | MICROENTERPRISE | SME | OTHER;
+            ACCREDITATION - SUPPLIER_QUALIFICATION | VENDOR_APPROVAL
+        name:
+          type: string
+        summary:
+          type: [string, 'null']
+        description:
+          type: [string, 'null']
+        targetSegment:
+          type: [string, 'null']
+          enum: [BUSINESS, INDIVIDUAL, BOTH]
+        status:
+          type: string
+          enum: [DRAFT, ACTIVE, ARCHIVED]
+        currency:
+          type: string
+          description: ISO-4217; no currency table
+        amountMin:
+          type: [number, 'null']
+        amountMax:
+          type: [number, 'null']
+          description: null = open (ACCREDITATION kinds)
+        rateType:
+          type: [string, 'null']
+          enum: [MURABAHA_ANNUAL, FIXED_ANNUAL, FLAT_FEE]
+        rateMax:
+          type: [number, 'null']
+          description: e.g. 30.000 = 30%/yr cap (murabaha)
+        feeFlat:
+          type: [number, 'null']
+        tenorMinMonths:
+          type: [integer, 'null']
+        tenorMaxMonths:
+          type: [integer, 'null']
+        repaymentFrequency:
+          type: [string, 'null']
+          enum: [MONTHLY, QUARTERLY, LUMP_SUM]
+        gracePeriodDays:
+          type: [integer, 'null']
+        shariaCompliant:
+          type: boolean
+        processingDays:
+          type: [integer, 'null']
+        accreditationValidMonths:
+          type: [integer, 'null']
+          description: ACCREDITATION kind - lifetime of the grant once ACCREDITED
+        accreditationFeeAmount:
+          type: [number, 'null']
+          description: ACCREDITATION kind - fee invoiced externally (D-002)
+        viewCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ConditionTemplate:
+      type: object
+      description: >
+        PLANNED shape of ConditionTemplate (FINANCIER_SCHEMA v5.0 section 3.5) - the
+        requirements engine (DP-24). scope GENERAL = platform-curated shared library
+        (admin-managed, reused by many financiers/services); scope FINANCIER = private
+        to one financier org. Attached per-service via ServiceRequirement; options are
+        ConditionOption rows, never JSON (R-1). Not implemented.
+      properties:
+        id:
+          type: string
+        scope:
+          type: string
+          enum: [GENERAL, FINANCIER]
+        organizationId:
+          type: [string, 'null']
+          description: null = GENERAL (platform library, admin-managed); set = FINANCIER-private
+        conditionType:
+          type: string
+          enum: [DOCUMENT, PROFILE_FIELD, DECLARATION, TEXT, NUMBER, DATE, SELECT, MULTI_SELECT]
+        code:
+          type: [string, 'null']
+          description: optional stable ref, e.g. COM-REG
+        title:
+          type: string
+        description:
+          type: [string, 'null']
+          description: instructions shown to the applicant
+        profileFieldKey:
+          type: [string, 'null']
+          description: >
+            PROFILE_FIELD only - closed set - user.phone | user.identityNumber |
+            user.dateOfBirth | org.taxId | org.registrationNumber | org.industry
+        documentType:
+          type: [string, 'null']
+          description: DOCUMENT only - expected AccountDocument.documentType
+        validationMin:
+          type: [number, 'null']
+          description: NUMBER only - inclusive lower bound
+        validationMax:
+          type: [number, 'null']
+          description: NUMBER only - inclusive upper bound
+        validityMonths:
+          type: [integer, 'null']
+          description: evidence freshness window (e.g. bank statement 3 months old)
+        isRepeatable:
+          type: boolean
+          description: DOCUMENT only - multiple docs allowed (e.g. 6 monthly statements)
+        isActive:
+          type: boolean
+        createdById:
+          type: string
+        options:
+          type: array
+          description: ConditionOption rows (SELECT / MULTI_SELECT choices - R-1, no JSON)
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              conditionTemplateId:
+                type: string
+              value:
+                type: string
+              position:
+                type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ServiceRequirement:
+      type: object
+      description: >
+        PLANNED shape of ServiceRequirement (FINANCIER_SCHEMA v5.0 section 3.5) - ONE
+        ConditionTemplate attached to ONE FinancierService with per-attachment config.
+        One definition, many attachments (R-5). Not implemented.
+      properties:
+        id:
+          type: string
+        serviceId:
+          type: string
+        conditionTemplateId:
+          type: string
+        isRequired:
+          type: boolean
+          description: optional conditions inform but never gate
+        displayOrder:
+          type: integer
+        instructions:
+          type: [string, 'null']
+          description: financier's per-service override text
+        autoPassAccredited:
+          type: boolean
+          description: auto-VERIFIED when the applicant org holds a live accreditation from THIS financier (DP-26)
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    RequirementSubmission:
+      type: object
+      description: >
+        PLANNED shape of RequirementSubmission (FINANCIER_SCHEMA v5.0 section 3.6) - the
+        per-request checklist row the PLATFORM GATE verifies item-by-item (R-4). Exactly
+        one parent set (financingRequestId or accreditationRequestId, service-enforced).
+        Typed value columns - zero JSON (R-1). Not implemented.
+      properties:
+        id:
+          type: string
+        serviceRequirementId:
+          type: string
+        financingRequestId:
+          type: [string, 'null']
+        accreditationRequestId:
+          type: [string, 'null']
+        status:
+          type: string
+          enum: [PENDING, SUBMITTED, VERIFIED, REJECTED, WAIVED]
+          description: >
+            PENDING - visible, nothing supplied yet; SUBMITTED - applicant supplied an
+            answer/document (or PROFILE_FIELD auto-evaluated); VERIFIED - platform verdict;
+            REJECTED - decisionNote REQUIRED; WAIVED - optional item waived, decisionNote
+            REQUIRED
+        valueText:
+          type: [string, 'null']
+          description: TEXT / DECLARATION / SELECT answers
+        valueNumber:
+          type: [number, 'null']
+          description: NUMBER answers
+        valueDate:
+          type: [string, 'null']
+          format: date
+          description: DATE answers
+        accountDocumentId:
+          type: [string, 'null']
+          description: DOCUMENT evidence - reuse of an AccountDocument (uploaded once - R-2)
+        submittedAt:
+          type: [string, 'null']
+          format: date-time
+        verifiedAt:
+          type: [string, 'null']
+          format: date-time
+        verifiedById:
+          type: [string, 'null']
+          description: the platform admin (or null for system autoPass)
+        decisionNote:
+          type: [string, 'null']
+          description: rejection / waiver reason - shown to applicant
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    AccountDocument:
+      type: object
+      description: >
+        PLANNED shape of AccountDocument (FINANCIER_SCHEMA v5.0 section 3.7) - the
+        UNIVERSAL document vault for ALL users and organizations (DP-27). MediaAsset-backed
+        (mediaId - DP-19, the only storage subsystem); verified ONCE by the platform,
+        reused by every financing / accreditation / KYC flow (R-2). Not implemented.
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+          description: owner/uploader - ALWAYS set (all users, not just applicants)
+        organizationId:
+          type: [string, 'null']
+          description: org-scope docs (company registry papers); null = personal
+        mediaId:
+          type: string
+          description: THE storage entry - MediaAsset carries key/mime/size/sha256/renditions
+        documentType:
+          type: string
+          enum: [NATIONAL_ID, PASSPORT, RESIDENCE_PERMIT, COMMERCIAL_REG, TAX_CARD, BUSINESS_LICENSE, BANK_STATEMENT, FINANCIAL_STATEMENT, PROOF_OF_ADDRESS, GUARANTEE_DOC, FEASIBILITY_STUDY, INVOICE, PURCHASE_ORDER, PROJECT_FILE, OTHER]
+        title:
+          type: [string, 'null']
+        issuedAt:
+          type: [string, 'null']
+          format: date
+          description: document's own issue date
+        expiresAt:
+          type: [string, 'null']
+          format: date
+          description: freshness vs ConditionTemplate.validityMonths
+        status:
+          type: string
+          enum: [PENDING, VERIFIED, REJECTED]
+        reviewedById:
+          type: [string, 'null']
+        reviewedAt:
+          type: [string, 'null']
+          format: date-time
+        note:
+          type: [string, 'null']
+          description: verification / rejection note
+        isActive:
+          type: boolean
+          description: soft-delete (replaced by a newer version of the doc)
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    AccreditationRequest:
+      type: object
+      description: >
+        PLANNED shape of AccreditationRequest (FINANCIER_SCHEMA v5.0 section 3.13) - the
+        QUALIFICATION & ACCREDITATION main flow (DP-26): companies only, gate-first
+        lifecycle, and the grant lives ON the request (status ACCREDITED + validUntil +
+        revocation) - no separate grant entity. Number ACC-YYYY-###### (Sequence ACC);
+        one record per (serviceId, organizationId). Not implemented.
+      properties:
+        id:
+          type: string
+        number:
+          type: string
+          description: ACC-YYYY-###### (Sequence ACC)
+        organizationId:
+          type: string
+          description: the applicant company (accreditation qualifies ORGANIZATIONS)
+        submittedById:
+          type: string
+        serviceId:
+          type: string
+          description: the financier's ACCREDITATION-kind service (serviceKind enforced)
+        multiGroupId:
+          type: [string, 'null']
+          description: DP-25 - sibling accreditation requests share the group id
+        scopeNotes:
+          type: [string, 'null']
+          description: what the accreditation covers
+        consentAt:
+          type: [string, 'null']
+          format: date-time
+        platformReviewedById:
+          type: [string, 'null']
+        platformNote:
+          type: [string, 'null']
+        returnedReason:
+          type: [string, 'null']
+          description: aggregate reason when RETURNED_FOR_COMPLETION
+        forwardedAt:
+          type: [string, 'null']
+          format: date-time
+          description: set when the platform gate PASSED - financier visibility starts here
+        status:
+          type: string
+          enum: [DRAFT, SUBMITTED, UNDER_PLATFORM_REVIEW, RETURNED_FOR_COMPLETION, FORWARDED_TO_FINANCIER, UNDER_FINANCIER_REVIEW, ACCREDITED, REJECTED, EXPIRED, REVOKED, CANCELLED]
+        submittedAt:
+          type: [string, 'null']
+          format: date-time
+        decidedById:
+          type: [string, 'null']
+          description: the financier's deciding staff user
+        decidedAt:
+          type: [string, 'null']
+          format: date-time
+        decisionNote:
+          type: [string, 'null']
+          description: financier's grant/reject note
+        accreditedAt:
+          type: [string, 'null']
+          format: date-time
+          description: grant stamp (ACCREDITED only)
+        validUntil:
+          type: [string, 'null']
+          format: date
+          description: grant lifetime - service.accreditationValidMonths default; ACCREDITED + validUntil in the future = live grant
+        revokedById:
+          type: [string, 'null']
+        revokedAt:
+          type: [string, 'null']
+          format: date-time
+        revocationReason:
+          type: [string, 'null']
+        expiresAt:
+          type: [string, 'null']
+          format: date-time
+          description: REQUEST-level expiry (pre-decision), lazy sweep
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
           type: string
           format: date-time
     RateLimited:
@@ -7513,37 +7961,854 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-  /api/financing/wizard:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PLANNED financier domain v5.0 — FINANCIER_SCHEMA.md v5.0 (services · platform
+  # gate · requirements engine) / FINANCIER_PLAN.md v2.0 section 6. None of these
+  # paths exist in code yet; every operation carries x-planned: true. Field names
+  # are FINANCIER_SCHEMA v5.0-exact.
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  # Group 1 — Services & requirements (financier console)
+  /api/financier/services:
     get:
-      summary: PLANNED - financing wizard intake configuration
-      tags: [Financing (planned)]
-      security: []
+      summary: PLANNED - list the financier's own services (with requirement counts)
+      tags: [Financier Console (planned)]
+      security:
+        - cookieAuth: []
       x-planned: true
       description: >
-        Not implemented. Would serve the 3-step wizard intake config (financing settings
-        panel: requireConsent, wizardEnabled, document allowedTypes/maxSizeMb; enum pickers
-        for activityCategory, guaranteeType, guaranteeStatus, activityLocationType,
-        activityStatus; city/district free strings per DP-16). Source: FINANCIER_SCHEMA
-        v4.0 section 6 and section 1.5 wizard field inventory.
+        Not implemented. Financier console: services of the caller's institution
+        (OrganizationMember OWNER/ADMIN of a BANK/MFI/EWALLET org with an ACTIVE
+        FinancierProfile - DP-1, no global FINANCIER role). Each item is joined
+        with its count of active ServiceRequirement rows. Source - FINANCIER_SCHEMA
+        v5.0 section 3.4, FINANCIER_PLAN v2.0 section 6.
+      parameters:
+        - name: serviceKind
+          in: query
+          schema:
+            type: string
+            enum: [FINANCING, ACCREDITATION]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [DRAFT, ACTIVE, ARCHIVED]
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Planned - free-text search on name/summary
       responses:
         '200':
-          description: Intake configuration (planned shape)
+          description: Own services with requirement counts (planned shape)
           content:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  services:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/FinancierService'
+                        - type: object
+                          properties:
+                            requirementCount:
+                              type: integer
+                              description: Count of active ServiceRequirement rows on the service
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not a financier org OWNER/ADMIN (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      summary: PLANNED - create a service (serviceKind FINANCING or ACCREDITATION)
+      tags: [Financier Console (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      x-csrf: planned assertSameOrigin (mutations follow the platform CSRF policy)
+      description: >
+        Not implemented. serviceKind FINANCING creates a financing service
+        (category from the B2B trio + market taxonomy); serviceKind ACCREDITATION
+        creates the financier's qualification program (accreditationValidMonths /
+        accreditationFeeAmount apply). Field names mirror FINANCIER_SCHEMA v5.0
+        section 3.4 exactly (DP-22 - services, not products).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [serviceKind, category, name]
+              properties:
+                serviceKind:
+                  type: string
+                  enum: [FINANCING, ACCREDITATION]
+                category:
+                  type: string
+                  description: >
+                    FINANCING - WORKING_CAPITAL | INVOICE_FINANCING | PO_FINANCING |
+                    EQUIPMENT | VEHICLE | HOME | EDUCATION | AGRICULTURE |
+                    MICROENTERPRISE | SME | OTHER; ACCREDITATION -
+                    SUPPLIER_QUALIFICATION | VENDOR_APPROVAL
+                name:
+                  type: string
+                  maxLength: 160
+                summary:
+                  type: [string, 'null']
+                  maxLength: 500
+                description:
+                  type: [string, 'null']
+                targetSegment:
+                  type: [string, 'null']
+                  enum: [BUSINESS, INDIVIDUAL, BOTH]
+                status:
+                  type: string
+                  enum: [DRAFT, ACTIVE, ARCHIVED]
+                  default: ACTIVE
+                currency:
+                  type: string
+                  default: YER
+                  description: ISO-4217; no currency table
+                amountMin:
+                  type: [number, 'null']
+                amountMax:
+                  type: [number, 'null']
+                  description: null = open (ACCREDITATION kinds)
+                rateType:
+                  type: [string, 'null']
+                  enum: [MURABAHA_ANNUAL, FIXED_ANNUAL, FLAT_FEE]
+                rateMax:
+                  type: [number, 'null']
+                feeFlat:
+                  type: [number, 'null']
+                tenorMinMonths:
+                  type: [integer, 'null']
+                tenorMaxMonths:
+                  type: [integer, 'null']
+                repaymentFrequency:
+                  type: [string, 'null']
+                  enum: [MONTHLY, QUARTERLY, LUMP_SUM]
+                gracePeriodDays:
+                  type: [integer, 'null']
+                shariaCompliant:
+                  type: boolean
+                  default: false
+                processingDays:
+                  type: [integer, 'null']
+                accreditationValidMonths:
+                  type: [integer, 'null']
+                  description: ACCREDITATION kind only - lifetime of the grant once ACCREDITED
+                accreditationFeeAmount:
+                  type: [number, 'null']
+                  description: ACCREDITATION kind only - fee, invoiced externally (D-002)
+      responses:
+        '201':
+          description: Created service (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  service:
+                    $ref: '#/components/schemas/FinancierService'
+        '400':
+          description: Invalid input (planned - follows the platform error model)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not a financier org OWNER/ADMIN (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/financier/services/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    patch:
+      summary: PLANNED - update or archive a service
+      tags: [Financier Console (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      x-csrf: planned assertSameOrigin (mutations follow the platform CSRF policy)
+      description: >
+        Not implemented. Partial update of a service owned by the caller's
+        institution; status ARCHIVED retires it from the public directory while
+        preserving requests and submissions. Accepts any subset of the create
+        body (name, summary, description, targetSegment, status, currency,
+        amountMin, amountMax, rateType, rateMax, feeFlat, tenorMinMonths,
+        tenorMaxMonths, repaymentFrequency, gracePeriodDays, shariaCompliant,
+        processingDays, accreditationValidMonths, accreditationFeeAmount).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                name:
+                  type: string
+                  maxLength: 160
+                summary:
+                  type: [string, 'null']
+                  maxLength: 500
+                description:
+                  type: [string, 'null']
+                targetSegment:
+                  type: [string, 'null']
+                  enum: [BUSINESS, INDIVIDUAL, BOTH]
+                status:
+                  type: string
+                  enum: [DRAFT, ACTIVE, ARCHIVED]
+                currency:
+                  type: string
+                amountMin:
+                  type: [number, 'null']
+                amountMax:
+                  type: [number, 'null']
+                rateType:
+                  type: [string, 'null']
+                  enum: [MURABAHA_ANNUAL, FIXED_ANNUAL, FLAT_FEE]
+                rateMax:
+                  type: [number, 'null']
+                feeFlat:
+                  type: [number, 'null']
+                tenorMinMonths:
+                  type: [integer, 'null']
+                tenorMaxMonths:
+                  type: [integer, 'null']
+                repaymentFrequency:
+                  type: [string, 'null']
+                  enum: [MONTHLY, QUARTERLY, LUMP_SUM]
+                gracePeriodDays:
+                  type: [integer, 'null']
+                shariaCompliant:
+                  type: boolean
+                processingDays:
+                  type: [integer, 'null']
+                accreditationValidMonths:
+                  type: [integer, 'null']
+                accreditationFeeAmount:
+                  type: [number, 'null']
+      responses:
+        '200':
+          description: Updated service (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  service:
+                    $ref: '#/components/schemas/FinancierService'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not the owning financier (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Service not found (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/financier/conditions:
+    get:
+      summary: PLANNED - searchable condition library (own private + GENERAL)
+      tags: [Financier Console (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      description: >
+        Not implemented. Requirements engine (DP-24): returns the caller's own
+        FINANCIER-scope ConditionTemplate rows plus the platform-curated GENERAL
+        library (scope GENERAL, R-5). Searchable by title/code; filterable by
+        conditionType and active state.
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Planned - free-text search on title/code
+        - name: scope
+          in: query
+          schema:
+            type: string
+            enum: [GENERAL, FINANCIER]
+        - name: conditionType
+          in: query
+          schema:
+            type: string
+            enum: [DOCUMENT, PROFILE_FIELD, DECLARATION, TEXT, NUMBER, DATE, SELECT, MULTI_SELECT]
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Condition templates (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conditions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ConditionTemplate'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not a financier org OWNER/ADMIN (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      summary: PLANNED - create a private condition template (+options)
+      tags: [Financier Console (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      x-csrf: planned assertSameOrigin (mutations follow the platform CSRF policy)
+      description: >
+        Not implemented. Creates a ConditionTemplate with scope forced to FINANCIER
+        (organizationId = caller's institution - the GENERAL library is admin-managed).
+        SELECT / MULTI_SELECT choices are ConditionOption rows, never JSON (R-1).
+        Field names mirror FINANCIER_SCHEMA v5.0 section 3.5 exactly.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [conditionType, title]
+              properties:
+                conditionType:
+                  type: string
+                  enum: [DOCUMENT, PROFILE_FIELD, DECLARATION, TEXT, NUMBER, DATE, SELECT, MULTI_SELECT]
+                title:
+                  type: string
+                  maxLength: 160
+                description:
+                  type: [string, 'null']
+                code:
+                  type: [string, 'null']
+                  maxLength: 32
+                  description: optional stable ref, e.g. COM-REG
+                profileFieldKey:
+                  type: [string, 'null']
+                  description: >
+                    PROFILE_FIELD only - closed set - user.phone | user.identityNumber |
+                    user.dateOfBirth | org.taxId | org.registrationNumber | org.industry
+                documentType:
+                  type: [string, 'null']
+                  description: >
+                    DOCUMENT only - expected AccountDocument.documentType (NATIONAL_ID |
+                    PASSPORT | RESIDENCE_PERMIT | COMMERCIAL_REG | TAX_CARD | BUSINESS_LICENSE
+                    | BANK_STATEMENT | FINANCIAL_STATEMENT | PROOF_OF_ADDRESS | GUARANTEE_DOC
+                    | FEASIBILITY_STUDY | INVOICE | PURCHASE_ORDER | PROJECT_FILE | OTHER)
+                validationMin:
+                  type: [number, 'null']
+                  description: NUMBER only - inclusive lower bound
+                validationMax:
+                  type: [number, 'null']
+                  description: NUMBER only - inclusive upper bound
+                validityMonths:
+                  type: [integer, 'null']
+                  description: evidence freshness window (e.g. bank statement 3 months)
+                isRepeatable:
+                  type: boolean
+                  default: false
+                  description: DOCUMENT only - multiple docs allowed
+                options:
+                  type: array
+                  description: SELECT / MULTI_SELECT choices (ConditionOption rows)
+                  items:
+                    type: object
+                    required: [value]
+                    properties:
+                      value:
+                        type: string
+                        maxLength: 160
+                      position:
+                        type: integer
+                        default: 0
+      responses:
+        '201':
+          description: Created condition template (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  condition:
+                    $ref: '#/components/schemas/ConditionTemplate'
+        '400':
+          description: Invalid input (planned - follows the platform error model)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not a financier org OWNER/ADMIN (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/financier/conditions/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    patch:
+      summary: PLANNED - update / deactivate a private condition template
+      tags: [Financier Console (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      x-csrf: planned assertSameOrigin (mutations follow the platform CSRF policy)
+      description: >
+        Not implemented. Own FINANCIER scope only (GENERAL templates are
+        admin-managed via /api/admin/financing/conditions). isActive=false
+        deactivates without losing ServiceRequirement attachments or submitted
+        answers. Options replace the ConditionOption set when present.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                title:
+                  type: string
+                  maxLength: 160
+                description:
+                  type: [string, 'null']
+                code:
+                  type: [string, 'null']
+                  maxLength: 32
+                profileFieldKey:
+                  type: [string, 'null']
+                documentType:
+                  type: [string, 'null']
+                validationMin:
+                  type: [number, 'null']
+                validationMax:
+                  type: [number, 'null']
+                validityMonths:
+                  type: [integer, 'null']
+                isRepeatable:
+                  type: boolean
+                isActive:
+                  type: boolean
+                options:
+                  type: array
+                  items:
+                    type: object
+                    required: [value]
+                    properties:
+                      value:
+                        type: string
+                        maxLength: 160
+                      position:
+                        type: integer
+      responses:
+        '200':
+          description: Updated condition template (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  condition:
+                    $ref: '#/components/schemas/ConditionTemplate'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not the owning financier / GENERAL scope is admin-managed (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Condition template not found (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/financier/services/{id}/requirements:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      summary: PLANNED - attach a condition template to a service
+      tags: [Financier Console (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      x-csrf: planned assertSameOrigin (mutations follow the platform CSRF policy)
+      description: >
+        Not implemented. Creates a ServiceRequirement - one ConditionTemplate on
+        one service with per-attachment config (required/optional, ordering,
+        instructions, auto-pass flag). Field names mirror FINANCIER_SCHEMA v5.0
+        section 3.5 exactly.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [conditionTemplateId]
+              properties:
+                conditionTemplateId:
+                  type: string
+                isRequired:
+                  type: boolean
+                  default: true
+                  description: optional conditions inform but never gate
+                displayOrder:
+                  type: integer
+                  default: 0
+                instructions:
+                  type: [string, 'null']
+                  maxLength: 500
+                  description: financier's per-service override text
+                autoPassAccredited:
+                  type: boolean
+                  default: false
+                  description: >
+                    auto-VERIFIED when the applicant org holds a live accreditation
+                    from THIS financier (DP-26)
+      responses:
+        '201':
+          description: Attached requirement (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requirement:
+                    $ref: '#/components/schemas/ServiceRequirement'
+        '400':
+          description: Invalid input (planned - follows the platform error model)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not the owning financier (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Service or condition template not found (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Template already attached to this service (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/financier/services/{id}/requirements/{reqId}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: reqId
+        in: path
+        required: true
+        schema:
+          type: string
+    patch:
+      summary: PLANNED - update requirement ordering / config / deactivate
+      tags: [Financier Console (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      x-csrf: planned assertSameOrigin (mutations follow the platform CSRF policy)
+      description: >
+        Not implemented. Reorders and reconfigures a ServiceRequirement
+        (isRequired, displayOrder, instructions, autoPassAccredited); isActive=false
+        deactivates it (checklist shrinks for new requests; existing submissions
+        preserved).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                isRequired:
+                  type: boolean
+                displayOrder:
+                  type: integer
+                instructions:
+                  type: [string, 'null']
+                  maxLength: 500
+                autoPassAccredited:
+                  type: boolean
+                isActive:
+                  type: boolean
+      responses:
+        '200':
+          description: Updated requirement (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requirement:
+                    $ref: '#/components/schemas/ServiceRequirement'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not the owning financier (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Service or requirement not found (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      summary: PLANNED - detach a requirement (submissions preserved)
+      tags: [Financier Console (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      x-csrf: planned assertSameOrigin (mutations follow the platform CSRF policy)
+      description: >
+        Not implemented. Detaches the ServiceRequirement from the service.
+        Existing RequirementSubmission rows (answers + platform verdicts) are
+        PRESERVED for audit and already-forwarded requests.
+      responses:
+        '200':
+          description: Detached (planned shape)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not the owning financier (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Service or requirement not found (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # Group 2 — Applications (applicant)
+  /api/financing/services:
+    get:
+      summary: PLANNED - public directory of ACTIVE financing/accreditation services
+      tags: [Financing (planned)]
+      security: []
+      x-planned: true
+      description: >
+        Not implemented. Public services directory (DP-10): ACTIVE FinancierService
+        rows of both kinds, each joined with the owning financier's public identity
+        (Organization name + orgType). Auth-gated surfaces (the apply wizard) hang
+        off these entries.
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Planned - free-text search on name/summary
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: Planned - FINANCING category filter
+        - name: serviceKind
+          in: query
+          schema:
+            type: string
+            enum: [FINANCING, ACCREDITATION]
+      responses:
+        '200':
+          description: Public service directory (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  services:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/FinancierService'
+                        - type: object
+                          properties:
+                            financier:
+                              type: object
+                              description: owning financier identity (reference only - R-2)
+                              properties:
+                                organizationId:
+                                  type: string
+                                name:
+                                  type: string
+                                orgType:
+                                  type: string
+                                  enum: [BANK, MFI, EWALLET]
+  /api/financing/services/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: PLANNED - service detail incl. composed requirements (labels only)
+      tags: [Financing (planned)]
+      security: []
+      x-planned: true
+      description: >
+        Not implemented. Public service detail (competitor URL /en/services/{id}):
+        terms + the composed requirements checklist rendered as LABELS ONLY
+        (title, conditionType, isRequired, displayOrder, instructions,
+        autoPassAccredited) - no answers, no verdicts.
+      responses:
+        '200':
+          description: Service detail with composed requirements (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  service:
+                    $ref: '#/components/schemas/FinancierService'
+                  requirements:
+                    type: array
+                    description: active ServiceRequirement rows, labels only
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        conditionTemplateId:
+                          type: string
+                        title:
+                          type: string
+                          description: from the ConditionTemplate
+                        conditionType:
+                          type: string
+                          enum: [DOCUMENT, PROFILE_FIELD, DECLARATION, TEXT, NUMBER, DATE, SELECT, MULTI_SELECT]
+                        isRequired:
+                          type: boolean
+                        displayOrder:
+                          type: integer
+                        instructions:
+                          type: [string, 'null']
+                        autoPassAccredited:
+                          type: boolean
+        '404':
+          description: Service not found / not ACTIVE (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /api/financing/requests:
     get:
-      summary: PLANNED - list my financing requests
+      summary: PLANNED - list my (org) financing requests + multiGroupId grouping
       tags: [Financing (planned)]
       security:
         - cookieAuth: []
       x-planned: true
       description: >
-        Not implemented. Applicant view: own requests (individual or via organization
-        membership); financier staff view: requests distributed to their institution.
-        Response items are FinancingRequest records (FR-YYYY-###### numbers).
+        Not implemented. Applicant view: own requests (individual + via
+        organization membership). The UI groups rows sharing a multiGroupId for
+        side-by-side sibling comparison (DP-25).
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [DRAFT, SUBMITTED, UNDER_PLATFORM_REVIEW, RETURNED_FOR_COMPLETION, FORWARDED_TO_FINANCIER, UNDER_FINANCIER_REVIEW, OFFERED, ACCEPTED, DECLINED, EXPIRED, CANCELLED]
+        - name: multiGroupId
+          in: query
+          schema:
+            type: string
+          description: Planned - restrict to one sibling group
       responses:
         '200':
           description: Financing request list (planned shape)
@@ -7556,38 +8821,86 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/FinancingRequestPlanned'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
     post:
-      summary: PLANNED - submit the wizard result as a financing request
+      summary: PLANNED - create a financing request (wizard payload + submissions)
       tags: [Financing (planned)]
       security:
         - cookieAuth: []
       x-planned: true
       x-csrf: planned assertSameOrigin (mutations follow the platform CSRF policy)
       description: >
-        Not implemented. Creates the FinancingRequest from the 3-step wizard; stamps
-        consentAt when consent is true; assigns number FR-YYYY-###### (Sequence FIN).
-        Field names mirror FINANCIER_SCHEMA v4.0 section 3.5 exactly.
+        Not implemented. Creates the FinancingRequest from the 3-step wizard v5
+        (FINANCIER_PLAN v2.0 flow 5): service-scoped (serviceId REQUIRED - DP-22),
+        typed activity columns, RequirementSubmission rows for the service's
+        checklist, stamps consentAt when consent is true, assigns number
+        FR-YYYY-###### (Sequence FIN), status SUBMITTED -> platform gate queue.
+        Multi-financier apply (DP-25) issues one request per selected service;
+        sibling requests share multiGroupId. Field names mirror FINANCIER_SCHEMA
+        v5.0 sections 3.8 / 3.6 exactly.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [amountRequested, currency, consent]
+              required: [serviceId, amountRequested, consent]
               properties:
+                serviceId:
+                  type: string
+                  description: the applied-for FinancierService (serviceKind FINANCING enforced)
+                organizationId:
+                  type: [string, 'null']
+                  description: applicant org context; null/absent = individual (DP-13)
                 targetType:
                   type: string
                   enum: [WORKING_CAPITAL, QUOTE, ORDER, RFQ_LINE]
                 targetId:
                   type: [string, 'null']
-                productId:
+                  description: quote/order/rfqLine id (loose FK, Dispute pattern)
+                multiGroupId:
                   type: [string, 'null']
-                organizationId:
-                  type: [string, 'null']
-                  description: null = individual applicant (DP-13)
+                  description: >
+                    DP-25 - present when this request belongs to a multi-financier
+                    sibling group (the wizard mints the group id and passes it to
+                    every sibling); absent = exclusive routing
                 activityStatus:
                   type: [string, 'null']
                   enum: [NEW, EXISTING]
+                activityName:
+                  type: [string, 'null']
+                  maxLength: 160
+                activityDescription:
+                  type: [string, 'null']
+                activityStartDate:
+                  type: [string, 'null']
+                  format: date
+                  description: null = not started yet
+                activityCity:
+                  type: [string, 'null']
+                  maxLength: 120
+                  description: free string, matched against service coverage (DP-16)
+                activityDistrict:
+                  type: [string, 'null']
+                  maxLength: 120
+                activityAddress:
+                  type: [string, 'null']
+                  maxLength: 255
+                activityLocationType:
+                  type: [string, 'null']
+                  enum: [OWNED, RENTED]
+                activityCategory:
+                  type: [string, 'null']
+                  maxLength: 24
+                activityCategoryOther:
+                  type: [string, 'null']
+                  maxLength: 160
+                  description: free text when activityCategory = OTHER
                 capitalAmount:
                   type: [number, 'null']
                 ownContributionAmount:
@@ -7599,54 +8912,68 @@ paths:
                 otherIncomeSources:
                   type: [string, 'null']
                   maxLength: 500
-                activityCategory:
-                  type: [string, 'null']
-                  description: INVESTMENT | RURAL | ENERGY | HOUSING | FISHERIES | AGRICULTURAL | SEASONAL | EQUIPMENT | OTHER (+ B2B trio)
-                activityStartDate:
-                  type: [string, 'null']
-                  format: date
-                activityName:
-                  type: [string, 'null']
-                  maxLength: 160
-                activityAddress:
-                  type: [string, 'null']
-                  maxLength: 255
-                activityCity:
-                  type: [string, 'null']
-                  maxLength: 120
-                activityDistrict:
-                  type: [string, 'null']
-                  maxLength: 120
-                activityDescription:
-                  type: [string, 'null']
                 amountRequested:
                   type: number
                 currency:
                   type: string
                   default: YER
-                  description: ISO-4217; no currency table (competitor deviation 5)
+                  description: ISO-4217; no currency table
                 purpose:
                   type: [string, 'null']
                 tenorRequestedMonths:
                   type: [integer, 'null']
-                activityLocationType:
-                  type: [string, 'null']
-                  enum: [OWNED, RENTED]
                 guaranteeType:
                   type: [string, 'null']
                   enum: [PERSONAL_GUARANTEE, BANK_GUARANTEE, GOLD, COMMERCIAL, MORTGAGE, CONVERTIBLE_SECURITIES, SELF_GUARANTEE, OTHER]
+                guaranteeTypeOther:
+                  type: [string, 'null']
+                  maxLength: 160
                 guaranteeStatus:
                   type: [string, 'null']
                   enum: [AVAILABLE, PARTIALLY_AVAILABLE, UNAVAILABLE, OTHER]
+                guaranteeStatusOther:
+                  type: [string, 'null']
+                  maxLength: 160
                 applicantNotes:
                   type: [string, 'null']
                 consent:
                   type: boolean
-                  description: Data-transfer consent + terms; stamps consentAt at submit
-                distributionMode:
-                  type: string
-                  enum: [OPEN, BUYER_SELECTED]
-                  default: OPEN
+                  description: data-transfer consent + terms; stamps consentAt at submit
+                submissions:
+                  type: array
+                  description: >
+                    RequirementSubmission inputs for the service's checklist
+                    (serviceRequirementId + the typed value column matching the
+                    condition kind; DOCUMENT items reference an AccountDocument)
+                  items:
+                    type: object
+                    required: [serviceRequirementId]
+                    properties:
+                      serviceRequirementId:
+                        type: string
+                      valueText:
+                        type: [string, 'null']
+                        maxLength: 500
+                      valueNumber:
+                        type: [number, 'null']
+                      valueDate:
+                        type: [string, 'null']
+                        format: date
+                      accountDocumentId:
+                        type: [string, 'null']
+                        description: reuse of a vault document (uploaded once - R-2)
+                attachments:
+                  type: array
+                  description: free RequestAttachment links (wizard field 20 - guarantee docs, studies, project files)
+                  items:
+                    type: object
+                    required: [accountDocumentId]
+                    properties:
+                      accountDocumentId:
+                        type: string
+                      kind:
+                        type: string
+                        enum: [GUARANTEE_DOC, STUDY, PROJECT_FILE, OTHER]
       responses:
         '201':
           description: Created financing request (planned shape)
@@ -7669,6 +8996,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '404':
+          description: Service not found (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Service not ACTIVE / not a FINANCING-kind service (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /api/financing/requests/{id}:
     parameters:
       - name: id
@@ -7677,14 +9016,19 @@ paths:
         schema:
           type: string
     get:
-      summary: PLANNED - financing request detail (both parties, membership-guarded)
+      summary: PLANNED - request detail (checklist verdicts + offers + status history)
       tags: [Financing (planned)]
       security:
         - cookieAuth: []
       x-planned: true
+      description: >
+        Not implemented. Applicant (or platform) view of one request: the gate's
+        per-requirement verdicts (RequirementSubmission rows incl. decisionNote),
+        the offers, and the status history (rendered from the AuditLog +
+        Notification substrate - DP-15, no history table).
       responses:
         '200':
-          description: Request detail with documents, invites and offers (planned shape)
+          description: Request detail with checklist, offers and history (planned shape)
           content:
             application/json:
               schema:
@@ -7692,181 +9036,27 @@ paths:
                 properties:
                   request:
                     $ref: '#/components/schemas/FinancingRequestPlanned'
-        '401':
-          description: Please sign in first (planned)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '403':
-          description: Not a party to this request (planned)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: Request not found (planned)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-    delete:
-      summary: PLANNED - cancel a request (pre-acceptance, wizard Cancel action)
-      tags: [Financing (planned)]
-      security:
-        - cookieAuth: []
-      x-planned: true
-      x-csrf: planned assertSameOrigin
-      description: >
-        Not implemented. Cancels a DRAFT/SUBMITTED/UNDER_REVIEW/INFO_REQUESTED/OFFERED request
-        (competitor Cancelled-by-customer mapping; FINANCIER_SCHEMA v4.0 section 5).
-      responses:
-        '200':
-          description: Cancelled request (planned shape)
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  request:
-                    $ref: '#/components/schemas/FinancingRequestPlanned'
-        '401':
-          description: Please sign in first (planned)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '403':
-          description: Only the requester can cancel (planned)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: Request not found (planned)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '409':
-          description: Request already accepted/closed (planned)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-  /api/financing/requests/{id}/documents:
-    get:
-      summary: PLANNED - list the request evidence documents
-      tags: [Financing (planned)]
-      security:
-        - cookieAuth: []
-      x-planned: true
-      description: >
-        Not implemented. ApplicantDocument rows over MediaAsset (BUSINESS_LICENSE,
-        FINANCIAL_STATEMENT, BANK_STATEMENT, TAX_REGISTRATION, PROPERTY_PROOF, INVOICE,
-        PURCHASE_ORDER, GUARANTEE_DOC, FEASIBILITY_STUDY, OTHER).
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Document list (planned shape)
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  documents:
+                  submissions:
                     type: array
                     items:
-                      type: object
-    post:
-      summary: PLANNED - attach evidence to a request (multipart over the media pipeline)
-      tags: [Financing (planned)]
-      security:
-        - cookieAuth: []
-      x-planned: true
-      x-csrf: planned assertSameOrigin
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required: [file, type]
-              properties:
-                file:
-                  type: array
-                  items:
-                    type: string
-                    format: binary
-                type:
-                  type: string
-                  description: ApplicantDocument.type (request-scope enum)
-      responses:
-        '201':
-          description: Attached documents (planned shape)
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  documents:
-                    type: array
-                    items:
-                      type: object
-        '400':
-          description: Invalid input / disallowed type (planned)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '401':
-          description: Please sign in first (planned)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '403':
-          description: Not the requester / CSRF rejected (planned)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-  /api/financing/requests/{id}/offers:
-    get:
-      summary: PLANNED - compare the offers on a request (applicant side)
-      tags: [Financing (planned)]
-      security:
-        - cookieAuth: []
-      x-planned: true
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Offer comparison (planned shape)
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
+                      $ref: '#/components/schemas/RequirementSubmission'
                   offers:
                     type: array
                     items:
                       $ref: '#/components/schemas/FinancingOfferPlanned'
+                  history:
+                    type: array
+                    description: status history rows from the audit substrate
+                    items:
+                      type: object
+                      properties:
+                        status:
+                          type: string
+                        note:
+                          type: [string, 'null']
+                        at:
+                          type: string
+                          format: date-time
         '401':
           description: Please sign in first (planned)
           content:
@@ -7885,78 +9075,60 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-    post:
-      summary: PLANNED - financier staff submit an offer on a distributed request
+    patch:
+      summary: PLANNED - cancel / resubmit-after-return (updates items)
       tags: [Financing (planned)]
       security:
         - cookieAuth: []
       x-planned: true
-      x-csrf: planned assertSameOrigin
+      x-csrf: planned assertSameOrigin (mutations follow the platform CSRF policy)
       description: >
-        Not implemented. Requires financier organization membership (OWNER/ADMIN/BUYER staff
-        via OrganizationMember; no global FINANCIER role - DP-1). The installment schedule is
-        proposed by the financier as FinancingOfferInstallment rows.
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+        Not implemented. action=cancel moves any pre-acceptance state to CANCELLED
+        (409 when already ACCEPTED). action=resubmit is only valid from
+        RETURNED_FOR_COMPLETION - it goes straight back to UNDER_PLATFORM_REVIEW
+        with updated submissions (FINANCIER_SCHEMA v5.0 section 5.1).
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [amount, tenorMonths]
+              required: [action]
               properties:
-                amount:
-                  type: number
-                currency:
+                action:
                   type: string
-                  default: YER
-                rateType:
-                  type: [string, 'null']
-                  enum: [MURABAHA_ANNUAL, FIXED_ANNUAL, FLAT_FEE]
-                ratePercent:
-                  type: [number, 'null']
-                feeFlat:
-                  type: [number, 'null']
-                tenorMonths:
-                  type: integer
-                collateralRequired:
-                  type: [string, 'null']
-                notes:
-                  type: [string, 'null']
-                  maxLength: 1000
-                validUntil:
-                  type: [string, 'null']
-                  format: date-time
-                installments:
+                  enum: [cancel, resubmit]
+                submissions:
                   type: array
+                  description: resubmit only - updated checklist answers
                   items:
                     type: object
-                    required: [installmentNo, dueDate, amount]
+                    required: [serviceRequirementId]
                     properties:
-                      installmentNo:
-                        type: integer
-                      dueDate:
+                      serviceRequirementId:
                         type: string
+                      valueText:
+                        type: [string, 'null']
+                        maxLength: 500
+                      valueNumber:
+                        type: [number, 'null']
+                      valueDate:
+                        type: [string, 'null']
                         format: date
-                      amount:
-                        type: number
+                      accountDocumentId:
+                        type: [string, 'null']
       responses:
-        '201':
-          description: Created offer (planned shape)
+        '200':
+          description: Updated request (planned shape)
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  offer:
-                    $ref: '#/components/schemas/FinancingOfferPlanned'
+                  request:
+                    $ref: '#/components/schemas/FinancingRequestPlanned'
         '400':
-          description: Invalid input (planned)
+          description: Invalid input (planned - follows the platform error model)
           content:
             application/json:
               schema:
@@ -7968,7 +9140,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '403':
-          description: Not a financier of this request (planned)
+          description: Only the requester (planned)
           content:
             application/json:
               schema:
@@ -7980,100 +9152,25 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '409':
-          description: Request not open for offers (planned)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-  /api/financing/offers/{id}:
-    patch:
-      summary: PLANNED - financier edits/withdraws their offer; reports funded-settled
-      tags: [Financing (planned)]
-      security:
-        - cookieAuth: []
-      x-planned: true
-      x-csrf: planned assertSameOrigin
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                action:
-                  type: [string, 'null']
-                  enum: [withdraw, report-funded, report-settled]
-                  description: Semantics summary-level; field-level detail in FINANCIER_SCHEMA v4.0
-                amount:
-                  type: number
-                rateType:
-                  type: string
-                ratePercent:
-                  type: number
-                feeFlat:
-                  type: number
-                tenorMonths:
-                  type: integer
-                collateralRequired:
-                  type: [string, 'null']
-                notes:
-                  type: [string, 'null']
-                  maxLength: 1000
-                validUntil:
-                  type: [string, 'null']
-                  format: date-time
-                installments:
-                  type: array
-                  items:
-                    type: object
-      responses:
-        '200':
-          description: Updated offer (planned shape)
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  offer:
-                    $ref: '#/components/schemas/FinancingOfferPlanned'
-        '401':
-          description: Please sign in first (planned)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '403':
-          description: Only the issuing financier (planned)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: Offer not found (planned)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '409':
-          description: Offer not editable (accepted offers are frozen - DP-20) (planned)
+          description: Cancel on an ACCEPTED request, or resubmit from a non-RETURNED state (planned)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
   /api/financing/offers/{id}/accept:
     post:
-      summary: PLANNED - applicant accepts one offer (siblings auto-decline; fee accrues)
+      summary: PLANNED - accept an offer (siblings auto-decline; fee accrues)
       tags: [Financing (planned)]
       security:
         - cookieAuth: []
       x-planned: true
-      x-csrf: planned assertSameOrigin
+      x-csrf: planned assertSameOrigin (mutations follow the platform CSRF policy)
+      description: >
+        Not implemented. Accepts one SENT offer: the request moves to ACCEPTED,
+        sibling offers (same-request revisions AND multiGroupId siblings) are
+        auto-DECLINED, the FinancingAgreement is created referencing the FROZEN
+        offer (AGR-YYYY-###### - DP-20) and a FinancingFee(SUCCESS) row is
+        ACCRUED (invoiced externally - D-002).
       parameters:
         - name: id
           in: path
@@ -8082,14 +9179,33 @@ paths:
             type: string
       responses:
         '200':
-          description: >
-            Acceptance result with the created FinancingAgreement (AGR-YYYY-######) and the
-            accrued FinancingFee (planned shape)
+          description: Acceptance result with the created agreement (planned shape)
           content:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  agreement:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      number:
+                        type: string
+                        description: AGR-YYYY-###### (Sequence AGR)
+                      offerId:
+                        type: string
+                      fundingStatus:
+                        type: string
+                        enum: [PENDING, REPORTED_FUNDED, REPORTED_SETTLED]
+                      status:
+                        type: string
+                        enum: [ACTIVE, COMPLETED, DEFAULTED, CANCELLED]
+                      acceptedAt:
+                        type: string
+                        format: date-time
+                  request:
+                    $ref: '#/components/schemas/FinancingRequestPlanned'
         '401':
           description: Please sign in first (planned)
           content:
@@ -8116,12 +9232,15 @@ paths:
                 $ref: '#/components/schemas/Error'
   /api/financing/offers/{id}/decline:
     post:
-      summary: PLANNED - applicant declines an offer
+      summary: PLANNED - decline an offer
       tags: [Financing (planned)]
       security:
         - cookieAuth: []
       x-planned: true
-      x-csrf: planned assertSameOrigin
+      x-csrf: planned assertSameOrigin (mutations follow the platform CSRF policy)
+      description: >
+        Not implemented. Declines a SENT offer; the request may stay OFFERED for
+        other offers (incl. sibling requests in the multiGroupId group).
       parameters:
         - name: id
           in: path
@@ -8162,54 +9281,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-  /api/financing/agreements/{id}:
+
+  # Group 3 — Accreditation (applicant companies)
+  /api/accreditation/requests:
     get:
-      summary: PLANNED - agreement detail (frozen accepted offer + installment schedule)
-      tags: [Financing (planned)]
+      summary: PLANNED - list my org's accreditation requests
+      tags: [Accreditation (planned)]
       security:
         - cookieAuth: []
       x-planned: true
+      description: >
+        Not implemented. Own-organization AccreditationRequest list (org members;
+        accreditation qualifies ORGANIZATIONS - individuals use financing).
+        Number ACC-YYYY-###### (Sequence ACC).
       parameters:
-        - name: id
-          in: path
-          required: true
+        - name: status
+          in: query
           schema:
             type: string
+            enum: [DRAFT, SUBMITTED, UNDER_PLATFORM_REVIEW, RETURNED_FOR_COMPLETION, FORWARDED_TO_FINANCIER, UNDER_FINANCIER_REVIEW, ACCREDITED, REJECTED, EXPIRED, REVOKED, CANCELLED]
       responses:
         '200':
-          description: Agreement with events and fees (planned shape)
+          description: Accreditation request list (planned shape)
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  agreement:
-                    type: object
-                    properties:
-                      id:
-                        type: string
-                      number:
-                        type: string
-                        description: AGR-YYYY-######
-                      offerId:
-                        type: string
-                      fundingStatus:
-                        type: string
-                        enum: [PENDING, REPORTED_FUNDED, REPORTED_SETTLED]
-                      status:
-                        type: string
-                        enum: [ACTIVE, COMPLETED, DEFAULTED, CANCELLED]
-                      acceptedAt:
-                        type: string
-                        format: date-time
-                      events:
-                        type: array
-                        items:
-                          type: object
-                      fees:
-                        type: array
-                        items:
-                          type: object
+                  requests:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AccreditationRequest'
         '401':
           description: Please sign in first (planned)
           content:
@@ -8217,35 +9319,855 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '403':
-          description: Not a party to the agreement (planned)
+          description: No active organization (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      summary: PLANNED - create an accreditation request (ACCREDITATION-kind service)
+      tags: [Accreditation (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      x-csrf: planned assertSameOrigin (mutations follow the platform CSRF policy)
+      description: >
+        Not implemented. The qualification & accreditation MAIN flow (DP-26): a
+        company picks the financier's ACCREDITATION-kind service, answers the
+        checklist (completing requirements not already in its profile/vault),
+        consents, and submits into the platform gate (R-4) - the financier sees
+        it only after forward. Number ACC-YYYY-###### (Sequence ACC). One
+        record per (serviceId, organizationId); renewal = a new request after
+        EXPIRED/REVOKED/REJECTED/CANCELLED. Field names mirror FINANCIER_SCHEMA
+        v5.0 section 3.13 exactly.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [serviceId, consent]
+              properties:
+                serviceId:
+                  type: string
+                  description: the financier's ACCREDITATION-kind service (serviceKind enforced)
+                multiGroupId:
+                  type: [string, 'null']
+                  description: DP-25 - sibling accreditation requests share the group id
+                scopeNotes:
+                  type: [string, 'null']
+                  maxLength: 500
+                  description: what the accreditation covers
+                consent:
+                  type: boolean
+                  description: data-transfer consent; stamps consentAt at submit
+                submissions:
+                  type: array
+                  description: RequirementSubmission inputs for the program's checklist
+                  items:
+                    type: object
+                    required: [serviceRequirementId]
+                    properties:
+                      serviceRequirementId:
+                        type: string
+                      valueText:
+                        type: [string, 'null']
+                        maxLength: 500
+                      valueNumber:
+                        type: [number, 'null']
+                      valueDate:
+                        type: [string, 'null']
+                        format: date
+                      accountDocumentId:
+                        type: [string, 'null']
+                        description: reuse of a vault document (uploaded once - R-2)
+      responses:
+        '201':
+          description: Created accreditation request (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request:
+                    $ref: '#/components/schemas/AccreditationRequest'
+        '400':
+          description: Invalid input (planned - follows the platform error model)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: No active organization (planned)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
         '404':
-          description: Agreement not found (planned)
+          description: Service not found (planned)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-  /api/financing/agreements/{id}/events:
-    post:
-      summary: PLANNED - financier reports an external money event (track-only ledger)
-      tags: [Financing (planned)]
+        '409':
+          description: >
+            Not an ACCREDITATION-kind service, or the org already holds a
+            live/expired-not-yet-renewable record for this program (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/accreditation/requests/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: PLANNED - accreditation request detail (checklist + decision)
+      tags: [Accreditation (planned)]
       security:
         - cookieAuth: []
       x-planned: true
-      x-csrf: planned assertSameOrigin
       description: >
-        Not implemented. DISBURSEMENT | REPAYMENT | EARLY_SETTLEMENT | LATE_FEE | NOTE rows -
-        the platform never holds funds (D-002). REPORTED_FUNDED / REPORTED_SETTLED transitions
-        of the agreement derive from these events.
+        Not implemented. Own-org detail incl. the gate checklist verdicts and,
+        post-decision, the grant/reject fields (decisionNote, accreditedAt,
+        validUntil, revocationReason).
+      responses:
+        '200':
+          description: Accreditation request detail (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request:
+                    $ref: '#/components/schemas/AccreditationRequest'
+                  submissions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RequirementSubmission'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not an org member of the applicant company (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Request not found (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/accreditation/valid:
+    get:
+      summary: PLANNED - own org's live accreditations (RFQ-unlock check)
+      tags: [Accreditation (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      description: >
+        Not implemented. Returns only ACCREDITED requests with validUntil in
+        the future (live grants, FINANCIER_SCHEMA v5.0 section 5.2). A live
+        grant (a) unlocks RFQ send/receive participation with that financier
+        and (b) auto-passes autoPassAccredited requirements on their other
+        services (DP-26).
       parameters:
-        - name: id
-          in: path
-          required: true
+        - name: organizationId
+          in: query
           schema:
             type: string
+          description: Planned - defaults to the caller's active organization
+      responses:
+        '200':
+          description: Live accreditations (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accreditations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AccreditationRequest'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # Group 4 — Documents center (ALL users — universal, DP-27)
+  /api/documents:
+    get:
+      summary: PLANNED - my document vault (user + org-scope)
+      tags: [Documents (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      description: >
+        Not implemented. Universal documents center (DP-27): AccountDocument rows
+        owned by the caller (personal, userId) and, when scoped, their
+        organization's docs (organizationId). MediaAsset-backed (mediaId);
+        verified ONCE by the platform, reused by every request type (R-2).
+      parameters:
+        - name: organizationId
+          in: query
+          schema:
+            type: string
+          description: Planned - restrict to one of the caller's orgs (org-scope docs)
+        - name: documentType
+          in: query
+          schema:
+            type: string
+            enum: [NATIONAL_ID, PASSPORT, RESIDENCE_PERMIT, COMMERCIAL_REG, TAX_CARD, BUSINESS_LICENSE, BANK_STATEMENT, FINANCIAL_STATEMENT, PROOF_OF_ADDRESS, GUARANTEE_DOC, FEASIBILITY_STUDY, INVOICE, PURCHASE_ORDER, PROJECT_FILE, OTHER]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, VERIFIED, REJECTED]
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Planned - free-text search on title
+      responses:
+        '200':
+          description: Vault documents (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AccountDocument'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      summary: PLANNED - upload into the vault (AccountDocument, MediaAsset-backed)
+      tags: [Documents (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      x-csrf: planned assertSameOrigin (mutations follow the platform CSRF policy)
+      description: >
+        Not implemented. Multipart upload over the existing media pipeline
+        (POST /api/uploads pattern): every file becomes a MediaAsset row and an
+        AccountDocument referencing it (mediaId - DP-19). Partial failure
+        mirrors the existing contract - 201 with {documents, errors}; 422 when
+        every file fails. allowedTypes / maxSizeMb come from the financing
+        settings documents panel.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, documentType]
+              properties:
+                file:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                documentType:
+                  type: string
+                  enum: [NATIONAL_ID, PASSPORT, RESIDENCE_PERMIT, COMMERCIAL_REG, TAX_CARD, BUSINESS_LICENSE, BANK_STATEMENT, FINANCIAL_STATEMENT, PROOF_OF_ADDRESS, GUARANTEE_DOC, FEASIBILITY_STUDY, INVOICE, PURCHASE_ORDER, PROJECT_FILE, OTHER]
+                title:
+                  type: [string, 'null']
+                  maxLength: 160
+                issuedAt:
+                  type: [string, 'null']
+                  format: date
+                  description: document's own issue date
+                expiresAt:
+                  type: [string, 'null']
+                  format: date
+                  description: freshness vs ConditionTemplate.validityMonths
+                organizationId:
+                  type: [string, 'null']
+                  description: org-scope doc (company registry papers); absent = personal
+      responses:
+        '201':
+          description: >
+            Uploaded documents (partial failure carries per-file errors - planned
+            shape, mirrors POST /api/uploads)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AccountDocument'
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        error:
+                          type: string
+        '400':
+          description: Invalid input / disallowed type (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Every file failed processing (planned - mirrors POST /api/uploads)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AccountDocument'
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        error:
+                          type: string
+  /api/documents/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    patch:
+      summary: PLANNED - replace / deactivate a vault document (meta update)
+      tags: [Documents (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      x-csrf: planned assertSameOrigin (mutations follow the platform CSRF policy)
+      description: >
+        Not implemented. Meta update (title, issuedAt, expiresAt) and soft
+        deactivation (isActive=false). Replacing a document = deactivate the old
+        row + upload the new version (R-2 single entry); historical
+        RequirementSubmission links keep pointing at the deactivated row.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                title:
+                  type: [string, 'null']
+                  maxLength: 160
+                issuedAt:
+                  type: [string, 'null']
+                  format: date
+                expiresAt:
+                  type: [string, 'null']
+                  format: date
+                isActive:
+                  type: boolean
+      responses:
+        '200':
+          description: Updated document (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  document:
+                    $ref: '#/components/schemas/AccountDocument'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not the document owner (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Document not found (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # Group 5 — Financier inbox (gate-enforced: FORWARDED+ only)
+  /api/financier/requests:
+    get:
+      summary: PLANNED - FORWARDED+ financing requests (gate-enforced inbox)
+      tags: [Financier Console (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      description: >
+        Not implemented. Financier console inbox. THE PLATFORM GATE IS STRUCTURAL
+        (R-4 / DP-23): this query returns only requests in FORWARDED_TO_FINANCIER
+        and later states - a SUBMITTED or RETURNED request is platform-private
+        by construction and can never be listed here.
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [FORWARDED_TO_FINANCIER, UNDER_FINANCIER_REVIEW, OFFERED, ACCEPTED, DECLINED, EXPIRED]
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Planned - free-text search on number / activityName
+      responses:
+        '200':
+          description: Forwarded financing requests (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requests:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FinancingRequestPlanned'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not a financier org member (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/financier/requests/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: PLANNED - forwarded request detail incl. checklist verdicts
+      tags: [Financier Console (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      description: >
+        Not implemented. Request detail for the financier: full wizard payload +
+        the platform gate's per-requirement verdicts (RequirementSubmission
+        rows). Pre-forward requests 404 here (not visible - R-4). Opening it
+        moves FORWARDED_TO_FINANCIER -> UNDER_FINANCIER_REVIEW.
+      responses:
+        '200':
+          description: Forwarded request detail with checklist verdicts (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request:
+                    $ref: '#/components/schemas/FinancingRequestPlanned'
+                  submissions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RequirementSubmission'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not the request's financier (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Request not found / not forwarded to this financier (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/financier/requests/{id}/offers:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      summary: PLANNED - submit an offer (+installments) on a forwarded request
+      tags: [Financier Console (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      x-csrf: planned assertSameOrigin (mutations follow the platform CSRF policy)
+      description: >
+        Not implemented. Compose offer (rate/fee/tenor/validity + installment
+        rows) on a FORWARDED+ request; SENT moves the request to OFFERED.
+        Revisions allowed (multiple offers within one request; the applicant
+        compares revisions and, across financiers, multiGroupId siblings).
+        Field names mirror FINANCIER_SCHEMA v5.0 section 3.9 exactly.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, tenorMonths]
+              properties:
+                amount:
+                  type: number
+                currency:
+                  type: string
+                  default: YER
+                rateType:
+                  type: [string, 'null']
+                  enum: [MURABAHA_ANNUAL, FIXED_ANNUAL, FLAT_FEE]
+                ratePercent:
+                  type: [number, 'null']
+                feeFlat:
+                  type: [number, 'null']
+                tenorMonths:
+                  type: integer
+                collateralRequired:
+                  type: [string, 'null']
+                  description: enum from the guarantee taxonomy (FINANCIER_SCHEMA v5.0 section 3.8)
+                notes:
+                  type: [string, 'null']
+                  maxLength: 1000
+                validUntil:
+                  type: [string, 'null']
+                  format: date-time
+                installments:
+                  type: array
+                  description: FinancingOfferInstallment rows (the financier's proposed schedule)
+                  items:
+                    type: object
+                    required: [installmentNo, dueDate, amount]
+                    properties:
+                      installmentNo:
+                        type: integer
+                      dueDate:
+                        type: string
+                        format: date
+                      amount:
+                        type: number
+      responses:
+        '201':
+          description: Created offer (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  offer:
+                    $ref: '#/components/schemas/FinancingOfferPlanned'
+        '400':
+          description: Invalid input (planned - follows the platform error model)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not the request's financier (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Request not found / not forwarded (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Request not open for offers (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/financier/requests/{id}/decision:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      summary: PLANNED - decline a forwarded request with a note
+      tags: [Financier Console (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      x-csrf: planned assertSameOrigin (mutations follow the platform CSRF policy)
+      description: >
+        Not implemented. Decline-with-note: the financing request moves to
+        DECLINED; the note is delivered to the applicant via the notification
+        substrate (DP-15) and audited.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [note]
+              properties:
+                note:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Declined request (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request:
+                    $ref: '#/components/schemas/FinancingRequestPlanned'
+        '400':
+          description: Invalid input (planned - follows the platform error model)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not the request's financier (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Request not found / not forwarded (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Request not in a declinable state (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/financier/accreditations/{id}/decision:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      summary: PLANNED - grant | reject | revoke an accreditation (reason required)
+      tags: [Financier Console (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      x-csrf: planned assertSameOrigin (mutations follow the platform CSRF policy)
+      description: >
+        Not implemented. GRANT moves the AccreditationRequest to ACCREDITED
+        (accreditedAt stamped, validUntil defaults to the service's
+        accreditationValidMonths) - a live grant unlocks RFQ participation with
+        this financier and auto-passes autoPassAccredited requirements on their
+        other services (DP-26). REJECT requires a decisionNote; REVOKE requires
+        a revocationReason and is only valid while ACCREDITED (FINANCIER_SCHEMA
+        v5.0 sections 3.13 / 5.2).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [GRANT, REJECT, REVOKE]
+                note:
+                  type: [string, 'null']
+                  maxLength: 500
+                  description: decisionNote on GRANT/REJECT; REQUIRED on REJECT
+                revocationReason:
+                  type: [string, 'null']
+                  maxLength: 500
+                  description: REQUIRED on REVOKE
+                validUntil:
+                  type: [string, 'null']
+                  format: date
+                  description: GRANT only - defaults to service.accreditationValidMonths
+      responses:
+        '200':
+          description: Decided accreditation request (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request:
+                    $ref: '#/components/schemas/AccreditationRequest'
+        '400':
+          description: Invalid input / missing required reason (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not the program's financier (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Accreditation request not found / not forwarded (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Request not in a state that allows this action (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/financier/offers/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    patch:
+      summary: PLANNED - withdraw an offer
+      tags: [Financier Console (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      x-csrf: planned assertSameOrigin (mutations follow the platform CSRF policy)
+      description: >
+        Not implemented. Withdraws a DRAFT/SENT offer (WITHDRAWN). Accepted
+        offers are frozen (409 - DP-20). Funding/repayment reporting lives on
+        the agreement events endpoint, not here.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [withdraw]
+      responses:
+        '200':
+          description: Withdrawn offer (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  offer:
+                    $ref: '#/components/schemas/FinancingOfferPlanned'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Only the issuing financier (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Offer not found (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Offer not withdrawable (accepted offers are frozen - DP-20) (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/financier/agreements/{id}/events:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      summary: PLANNED - report a funding/repayment event (track-only ledger)
+      tags: [Financier Console (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      x-csrf: planned assertSameOrigin (mutations follow the platform CSRF policy)
+      description: >
+        Not implemented. FinancingEvent rows (DISBURSEMENT | REPAYMENT |
+        EARLY_SETTLEMENT | LATE_FEE | NOTE) - the platform never holds funds
+        (D-002). The agreement's REPORTED_FUNDED / REPORTED_SETTLED
+        fundingStatus derives from these events. Field names mirror
+        FINANCIER_SCHEMA v5.0 section 3.11 exactly.
       requestBody:
         required: true
         content:
@@ -8275,8 +10197,28 @@ paths:
                 properties:
                   event:
                     type: object
+                    properties:
+                      id:
+                        type: string
+                      agreementId:
+                        type: string
+                      type:
+                        type: string
+                        enum: [DISBURSEMENT, REPAYMENT, EARLY_SETTLEMENT, LATE_FEE, NOTE]
+                      eventDate:
+                        type: string
+                        format: date
+                      amount:
+                        type: [number, 'null']
+                      note:
+                        type: [string, 'null']
+                      reportedById:
+                        type: [string, 'null']
+                      createdAt:
+                        type: string
+                        format: date-time
         '400':
-          description: Invalid input (planned)
+          description: Invalid input (planned - follows the platform error model)
           content:
             application/json:
               schema:
@@ -8288,7 +10230,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '403':
-          description: Only the agreement financier (planned)
+          description: Only the agreement's financier (planned)
           content:
             application/json:
               schema:
@@ -8299,36 +10241,51 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-  /api/financing/fees:
+
+  # Group 6 — Admin: the gate + governance
+  /api/admin/financing/queue:
     get:
-      summary: PLANNED (ADMIN) - commission accounting list (ACCRUED / INVOICED / PAID / WAIVED)
-      tags: [Financing (planned)]
+      summary: PLANNED (ADMIN) - platform verification gate queue (both request types)
+      tags: [Financing Admin (planned)]
       security:
         - cookieAuth: []
       x-planned: true
+      description: >
+        Not implemented. THE GATE (DP-23): financing + accreditation requests in
+        SUBMITTED / UNDER_PLATFORM_REVIEW / RETURNED_FOR_COMPLETION, filterable
+        by type and status. Admin route: requireAdmin + assertSameOrigin +
+        inline rate-limit bucket per existing admin conventions.
       parameters:
-        - name: status
-          in: query
-          schema:
-            type: string
-            enum: [ACCRUED, INVOICED, PAID, WAIVED]
         - name: type
           in: query
           schema:
             type: string
-            enum: [SUCCESS, ORIGINATION, ACCREDITATION]
+            enum: [FINANCING, ACCREDITATION]
+          description: Planned - request type filter
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [SUBMITTED, UNDER_PLATFORM_REVIEW, RETURNED_FOR_COMPLETION]
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Planned - free-text search on number / applicant
       responses:
         '200':
-          description: Fee list (planned shape)
+          description: Gate queue (planned shape - both request types)
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  fees:
+                  requests:
                     type: array
                     items:
-                      type: object
+                      oneOf:
+                        - $ref: '#/components/schemas/FinancingRequestPlanned'
+                        - $ref: '#/components/schemas/AccreditationRequest'
         '401':
           description: Please sign in first (planned)
           content:
@@ -8341,44 +10298,157 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-    patch:
-      summary: PLANNED (ADMIN) - mark fees invoiced / paid / waived
-      tags: [Financing (planned)]
+  /api/admin/financing/requests/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: PLANNED (ADMIN) - full dossier (profile + checklist + docs)
+      tags: [Financing Admin (planned)]
       security:
         - cookieAuth: []
       x-planned: true
-      x-csrf: planned assertSameOrigin
       description: >
-        Not implemented. Fees are invoiced externally; the platform only records status
-        transitions (D-001/D-002). Summary-level shape.
+        Not implemented. The gate console's dossier: the request (either type) +
+        applicant profile (User / Organization by reference - R-2) + the full
+        requirements checklist with submitted answers and verdicts + the
+        attached AccountDocument rows.
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [FINANCING, ACCREDITATION]
+          description: Planned - disambiguates the request type for the id
+      responses:
+        '200':
+          description: Full dossier (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request:
+                    oneOf:
+                      - $ref: '#/components/schemas/FinancingRequestPlanned'
+                      - $ref: '#/components/schemas/AccreditationRequest'
+                  applicant:
+                    type: object
+                    description: references only, never copies of profile data (R-2)
+                    properties:
+                      user:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                          name:
+                            type: string
+                          email:
+                            type: string
+                      organization:
+                        type: [object, 'null']
+                        properties:
+                          id:
+                            type: string
+                          name:
+                            type: string
+                          orgType:
+                            type: string
+                          taxId:
+                            type: [string, 'null']
+                          registrationNumber:
+                            type: [string, 'null']
+                  submissions:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/RequirementSubmission'
+                        - type: object
+                          properties:
+                            title:
+                              type: string
+                              description: from the ConditionTemplate (label)
+                            conditionType:
+                              type: string
+                              enum: [DOCUMENT, PROFILE_FIELD, DECLARATION, TEXT, NUMBER, DATE, SELECT, MULTI_SELECT]
+                            isRequired:
+                              type: boolean
+                  documents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AccountDocument'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Admin access required (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Request not found (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/financing/requests/{id}/submissions/{sid}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: sid
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      summary: PLANNED (ADMIN) - verify | reject | waive one checklist item (note required)
+      tags: [Financing Admin (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      x-csrf: planned assertSameOrigin (admin mutations are CSRF-enforced)
+      description: >
+        Not implemented. The gate's per-item verdict (FINANCIER_SCHEMA v5.0
+        section 5.3): VERIFY stamps verifiedAt + verifiedById; REJECT and WAIVE
+        REQUIRE a note (decisionNote is shown to the applicant). Admin route:
+        requireAdmin + assertSameOrigin + inline rate-limit bucket.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [ids, status]
+              required: [action]
               properties:
-                ids:
-                  type: array
-                  minItems: 1
-                  items:
-                    type: string
-                status:
+                action:
                   type: string
-                  enum: [INVOICED, PAID, WAIVED]
+                  enum: [VERIFY, REJECT, WAIVE]
                 note:
                   type: [string, 'null']
+                  maxLength: 500
+                  description: REQUIRED for REJECT / WAIVE (rejection or waiver reason)
       responses:
         '200':
-          description: Updated fees (planned shape)
+          description: Decided submission (planned shape)
           content:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  submission:
+                    $ref: '#/components/schemas/RequirementSubmission'
         '400':
-          description: Invalid input (planned)
+          description: Invalid input / note required but missing (planned)
           content:
             application/json:
               schema:
@@ -8395,99 +10465,712 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-  /api/financiers:
+        '404':
+          description: Request or submission not found (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Submission not in a decidable state (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/financing/requests/{id}/return:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      summary: PLANNED (ADMIN) - return the request to the applicant (aggregate reason)
+      tags: [Financing Admin (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      x-csrf: planned assertSameOrigin (admin mutations are CSRF-enforced)
+      description: >
+        Not implemented. Moves the request to RETURNED_FOR_COMPLETION with an
+        aggregate returnedReason (maxLength 500); per-item reasons live on the
+        RequirementSubmission decisionNote rows. The applicant resubmits via
+        PATCH /api/financing/requests/{id} (action=resubmit). Admin route:
+        requireAdmin + assertSameOrigin + inline rate-limit bucket.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Returned request (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request:
+                    oneOf:
+                      - $ref: '#/components/schemas/FinancingRequestPlanned'
+                      - $ref: '#/components/schemas/AccreditationRequest'
+        '400':
+          description: Invalid input (planned - follows the platform error model)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Admin access required (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Request not found (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Request not in a returnable state (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/financing/requests/{id}/forward:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      summary: PLANNED (ADMIN) - forward to the financier (BLOCKED unless complete)
+      tags: [Financing Admin (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      x-csrf: planned assertSameOrigin (admin mutations are CSRF-enforced)
+      description: >
+        Not implemented. THE GATE'S EXIT (R-4 / DP-23): forwards the request to
+        the financier (FORWARDED_TO_FINANCIER, forwardedAt stamped - financier
+        visibility starts HERE). BLOCKED with 409 CONFLICT unless every required
+        RequirementSubmission is VERIFIED or WAIVED (with a note) - incomplete
+        or incorrect requests must be RETURNED instead, never forwarded. Admin
+        route: requireAdmin + assertSameOrigin + inline rate-limit bucket.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note:
+                  type: [string, 'null']
+                  maxLength: 500
+                  description: optional platformNote shown with the forward
+      responses:
+        '200':
+          description: Forwarded request (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request:
+                    oneOf:
+                      - $ref: '#/components/schemas/FinancingRequestPlanned'
+                      - $ref: '#/components/schemas/AccreditationRequest'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Admin access required (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Request not found (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: >
+            CONFLICT - checklist incomplete: required RequirementSubmission items
+            are not all VERIFIED/WAIVED (R-4); return the request instead (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/financing/institutions:
     get:
-      summary: PLANNED - public financier directory (institutions)
-      tags: [Financing (planned)]
-      security: []
+      summary: PLANNED (ADMIN) - list financiers
+      tags: [Financing Admin (planned)]
+      security:
+        - cookieAuth: []
       x-planned: true
       description: >
-        Not implemented. Public directory of BANK/MFI/EWALLET organizations with a
-        FinancierProfile (about, license, regulator, logo, contact, min/max ticket, viewCount).
-        Gate: DP-10 (public directory) recommended YES.
+        Not implemented. Financier institutions (Organizations with orgType
+        BANK/MFI/EWALLET + their FinancierProfile financing facts and service
+        counts). Admin route: requireAdmin.
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING_VERIFICATION, ACTIVE, SUSPENDED, REJECTED]
+        - name: orgType
+          in: query
+          schema:
+            type: string
+            enum: [BANK, MFI, EWALLET]
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Planned - free-text search on name/legalName
+      responses:
+        '200':
+          description: Financier institutions (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  institutions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        organizationId:
+                          type: string
+                        name:
+                          type: string
+                        legalName:
+                          type: [string, 'null']
+                        orgType:
+                          type: string
+                          enum: [BANK, MFI, EWALLET]
+                        status:
+                          type: string
+                          enum: [PENDING_VERIFICATION, ACTIVE, SUSPENDED, REJECTED]
+                        verifiedAt:
+                          type: [string, 'null']
+                          format: date-time
+                        profile:
+                          type: object
+                          description: FinancierProfile financing facts (identity lives on Organization - R-3)
+                          properties:
+                            about:
+                              type: [string, 'null']
+                            licenseNumber:
+                              type: [string, 'null']
+                            regulator:
+                              type: [string, 'null']
+                            contactEmail:
+                              type: [string, 'null']
+                            contactPhone:
+                              type: [string, 'null']
+                        serviceCounts:
+                          type: object
+                          properties:
+                            FINANCING:
+                              type: integer
+                            ACCREDITATION:
+                              type: integer
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Admin access required (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/financing/institutions/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    patch:
+      summary: PLANNED (ADMIN) - verify / suspend / reactivate a financier
+      tags: [Financing Admin (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      x-csrf: planned assertSameOrigin (admin mutations are CSRF-enforced)
+      description: >
+        Not implemented. Institution lifecycle: VERIFY (license/regulator
+        checked), SUSPEND, REACTIVATE - mirrored on the FinancierProfile /
+        Organization status with audit + notification. Admin route: requireAdmin
+        + assertSameOrigin + inline rate-limit bucket.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [VERIFY, SUSPEND, REACTIVATE]
+                note:
+                  type: [string, 'null']
+                  maxLength: 500
+      responses:
+        '200':
+          description: Updated institution (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  institution:
+                    type: object
+                    additionalProperties: true
+        '400':
+          description: Invalid input (planned - follows the platform error model)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Admin access required (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Institution not found (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/financing/fees/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    patch:
+      summary: PLANNED (ADMIN) - mark a fee invoiced / paid / waive
+      tags: [Financing Admin (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      x-csrf: planned assertSameOrigin (admin mutations are CSRF-enforced)
+      description: >
+        Not implemented. FinancingFee lifecycle ACCRUED -> INVOICED -> PAID
+        (mirrors the Payout console). Fees are invoiced and collected
+        externally; the platform only records the transitions (D-001/D-002).
+        Admin route: requireAdmin + assertSameOrigin + inline rate-limit bucket.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [INVOICED, PAID, WAIVED]
+                note:
+                  type: [string, 'null']
+                  maxLength: 500
+      responses:
+        '200':
+          description: Updated fee (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fee:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      agreementId:
+                        type: string
+                      type:
+                        type: string
+                        enum: [SUCCESS, ORIGINATION, ACCREDITATION]
+                      baseAmount:
+                        type: number
+                      percentApplied:
+                        type: number
+                      amount:
+                        type: number
+                      status:
+                        type: string
+                        enum: [ACCRUED, INVOICED, PAID, WAIVED]
+                      invoicedAt:
+                        type: [string, 'null']
+                        format: date-time
+                      paidAt:
+                        type: [string, 'null']
+                        format: date-time
+        '400':
+          description: Invalid input (planned - follows the platform error model)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Admin access required (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Fee not found (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Invalid status transition (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/financing/conditions:
+    get:
+      summary: PLANNED (ADMIN) - GENERAL conditions library (searchable)
+      tags: [Financing Admin (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      description: >
+        Not implemented. The platform's shared GENERAL ConditionTemplate library
+        (R-5): one definition reused by many financiers on many services. Admin
+        route: requireAdmin.
       parameters:
         - name: q
           in: query
           schema:
             type: string
-          description: Planned - free-text filter
-        - name: orgType
+          description: Planned - free-text search on title/code
+        - name: conditionType
           in: query
           schema:
             type: string
-          description: Planned - BANK | MFI | EWALLET
+            enum: [DOCUMENT, PROFILE_FIELD, DECLARATION, TEXT, NUMBER, DATE, SELECT, MULTI_SELECT]
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
       responses:
         '200':
-          description: Financier directory (planned shape)
+          description: GENERAL condition templates (planned shape)
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  financiers:
+                  conditions:
                     type: array
                     items:
-                      type: object
-  /api/financiers/{id}:
-    get:
-      summary: PLANNED - public financier profile (branches, stats, contact)
-      tags: [Financing (planned)]
-      security: []
-      x-planned: true
-      description: >
-        Not implemented. Profile = Organization identity + FinancierProfile financing facts +
-        FinancierBranch rows (BRANCH | AGENT | ATM). Competitor parity: About/Services tabs,
-        branches and agents, success stories, visitor stats.
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Financier profile (planned shape)
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-        '404':
-          description: Financier not found (planned)
+                      $ref: '#/components/schemas/ConditionTemplate'
+        '401':
+          description: Please sign in first (planned)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-  /api/financiers/{id}/products:
-    get:
-      summary: PLANNED - public financing product list of one financier
-      tags: [Financing (planned)]
-      security: []
+        '403':
+          description: Admin access required (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      summary: PLANNED (ADMIN) - create a GENERAL condition template (+options)
+      tags: [Financing Admin (planned)]
+      security:
+        - cookieAuth: []
       x-planned: true
+      x-csrf: planned assertSameOrigin (admin mutations are CSRF-enforced)
       description: >
-        Not implemented. FinancingProduct rows (category, amountMin/amountMax, rateType/rateMax,
-        tenor floors/caps, shariaCompliant) plus trait child tables: features/eligibility
-        attributes, collateral/document requirements, region coverage.
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: category
-          in: query
-          schema:
-            type: string
-          description: Planned - category filter
+        Not implemented. Creates a ConditionTemplate with scope forced to
+        GENERAL (organizationId null - platform library). Same body as the
+        financier-private create. Admin route: requireAdmin + assertSameOrigin
+        + inline rate-limit bucket.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [conditionType, title]
+              properties:
+                conditionType:
+                  type: string
+                  enum: [DOCUMENT, PROFILE_FIELD, DECLARATION, TEXT, NUMBER, DATE, SELECT, MULTI_SELECT]
+                title:
+                  type: string
+                  maxLength: 160
+                description:
+                  type: [string, 'null']
+                code:
+                  type: [string, 'null']
+                  maxLength: 32
+                profileFieldKey:
+                  type: [string, 'null']
+                  description: >
+                    PROFILE_FIELD only - closed set - user.phone |
+                    user.identityNumber | user.dateOfBirth | org.taxId |
+                    org.registrationNumber | org.industry
+                documentType:
+                  type: [string, 'null']
+                  description: DOCUMENT only - expected AccountDocument.documentType
+                validationMin:
+                  type: [number, 'null']
+                validationMax:
+                  type: [number, 'null']
+                validityMonths:
+                  type: [integer, 'null']
+                isRepeatable:
+                  type: boolean
+                  default: false
+                options:
+                  type: array
+                  description: SELECT / MULTI_SELECT choices (ConditionOption rows)
+                  items:
+                    type: object
+                    required: [value]
+                    properties:
+                      value:
+                        type: string
+                        maxLength: 160
+                      position:
+                        type: integer
+                        default: 0
       responses:
-        '200':
-          description: Financing products (planned shape)
+        '201':
+          description: Created GENERAL condition template (planned shape)
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  products:
-                    type: array
-                    items:
-                      type: object
+                  condition:
+                    $ref: '#/components/schemas/ConditionTemplate'
+        '400':
+          description: Invalid input (planned - follows the platform error model)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Admin access required (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/financing/conditions/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    patch:
+      summary: PLANNED (ADMIN) - update / deactivate a GENERAL condition template
+      tags: [Financing Admin (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      x-csrf: planned assertSameOrigin (admin mutations are CSRF-enforced)
+      description: >
+        Not implemented. GENERAL-scope CRUD (financiers cannot touch these).
+        isActive=false deactivates without losing ServiceRequirement
+        attachments or submitted answers. Admin route: requireAdmin +
+        assertSameOrigin + inline rate-limit bucket.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                title:
+                  type: string
+                  maxLength: 160
+                description:
+                  type: [string, 'null']
+                code:
+                  type: [string, 'null']
+                  maxLength: 32
+                profileFieldKey:
+                  type: [string, 'null']
+                documentType:
+                  type: [string, 'null']
+                validationMin:
+                  type: [number, 'null']
+                validationMax:
+                  type: [number, 'null']
+                validityMonths:
+                  type: [integer, 'null']
+                isRepeatable:
+                  type: boolean
+                isActive:
+                  type: boolean
+                options:
+                  type: array
+                  items:
+                    type: object
+                    required: [value]
+                    properties:
+                      value:
+                        type: string
+                        maxLength: 160
+                      position:
+                        type: integer
+      responses:
+        '200':
+          description: Updated GENERAL condition template (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  condition:
+                    $ref: '#/components/schemas/ConditionTemplate'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Admin access required (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Condition template not found (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/documents/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    patch:
+      summary: PLANNED (ADMIN) - verify / reject an AccountDocument (any user's)
+      tags: [Financing Admin (planned)]
+      security:
+        - cookieAuth: []
+      x-planned: true
+      x-csrf: planned assertSameOrigin (admin mutations are CSRF-enforced)
+      description: >
+        Not implemented. Universal vault verification (DP-27): platform verdict
+        on ANY user's/org's AccountDocument - VERIFIED (reviewedById +
+        reviewedAt stamped, reused by every request type) or REJECTED (note
+        REQUIRED). Admin route: requireAdmin + assertSameOrigin + inline
+        rate-limit bucket.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [VERIFY, REJECT]
+                note:
+                  type: [string, 'null']
+                  description: REQUIRED on REJECT (rejection reason shown to the owner)
+      responses:
+        '200':
+          description: Decided document (planned shape)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  document:
+                    $ref: '#/components/schemas/AccountDocument'
+        '400':
+          description: Invalid input / note required but missing (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Please sign in first (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Admin access required (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Document not found (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Document not in a reviewable state (planned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'

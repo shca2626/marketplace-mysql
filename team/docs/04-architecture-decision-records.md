@@ -2,11 +2,11 @@
 
 | | |
 |---|---|
-| **Version** | 1.0 |
+| **Version** | 1.1 |
 | **Date** | September 2026 |
 | **Format** | Compact ADR log (Nygard-style: Context / Decision / Consequences), one section per record. |
 | **Status vocabulary** | `Accepted` (in force) · `Owner-set` (owner ruling, non-negotiable) · `Planned` (gated on owner approval) |
-| **Cross-references** | `team/DECISIONS.md` (D-001…D-014 invariants), `team/PLATFORM_PLAN.md` (DP-1…DP-21 open/approved points), `team/FINANCIER_SCHEMA.md` v4.0 |
+| **Cross-references** | `team/DECISIONS.md` (D-001…D-017 invariants), `team/PLATFORM_PLAN.md` v3.0 (DP-1…DP-28 open/approved points), `team/FINANCIER_SCHEMA.md` v5.0 |
 
 ---
 
@@ -256,6 +256,12 @@ line type. (−) the biggest refactor in the roadmap → sequenced after the fin
 is stable; per-line acceptance semantics must be designed against the existing sibling
 auto-decline behavior.
 
+**Amendment (2026-09, FINANCIER_SCHEMA v5.0).** The backbone decision is unchanged by the
+financier v5.0 rebuild: `RfqLine.lineType: FINANCING` still routes to typed provider pools, and
+the polymorphic financing lines need no schema change. The standalone application side is now
+service-scoped — `FinancingRequest.serviceId → FinancierService` (DP-22) — and every request
+passes the platform verification gate (ADR-0017) before any financier interaction.
+
 ## ADR-0014 — Financing domain: single-entry, zero-JSON, substrate-reusing data model
 **Status:** Owner-set (D-014; DP-18/DP-19) · **Date:** 2026-09
 
@@ -280,6 +286,15 @@ duplication audit.
 **Consequences.** (+) every datum one query away; relational integrity; no JSON parsing layers.
 (−) more small tables (17 planned models) — each justified by the audit; joins replace cheap
 blob reads; the doctrine now binds ALL future domains (D-014).
+
+**Amendment (2026-09, FINANCIER_SCHEMA v5.0).** The three rules stand unchanged and now govern
+the expanded v5.0 model (18 planned models, up from 17). Terminology only: `FinancingProduct*` →
+`FinancierService*` (DP-22, ADR-0019); `FinancingProductRequirement` and
+`FinancingRequestInvite` are DELETED (superseded by the requirements engine — ADR-0018 — and
+sibling-request routing — ADR-0020); `ApplicantDocument` → universal `AccountDocument` +
+`RequestAttachment` (ADR-0021). R-1's child-table doctrine now also covers `ConditionOption`
+rows and `RequirementSubmission` typed answer columns; R-2's document home is the account-level
+vault (verified once, reused everywhere).
 
 ## ADR-0015 — Financing agreement references the frozen offer (no terms snapshot)
 **Status:** Planned (DP-20; recommend YES) · **Date:** 2026-09
@@ -316,6 +331,136 @@ ops runbook.
 query convention; gateway is a single point of failure; production deployment is out of scope
 until the owner changes D-007.
 
+## ADR-0017 — Platform verification gate before any financier sees a request
+**Status:** Owner-set (D-015; DP-23) · **Date:** 2026-09
+
+**Context.** v4.0 forwarded financing requests to financiers on submit — the platform was a
+postman, not a gate. The owner ruled: "The platform management must verify the conditions
+required for any service applicant — documents and eligibility criteria … incomplete or
+incorrect requests must not be sent — this is the essence of the platform's operation." The
+competitor implements the same idea passively (its `under-review` status happens at the
+aggregator before the provider studies the file); v5.0 makes it an enforced workflow.
+
+**Decision (planned).** Both request types (`FinancingRequest`, `AccreditationRequest`) run the
+same gate-first status machine: `DRAFT → SUBMITTED → UNDER_PLATFORM_REVIEW →
+(RETURNED_FOR_COMPLETION ⇄) FORWARDED_TO_FINANCIER → …`. The platform admin verifies each
+`RequirementSubmission` item-by-item (VERIFIED / REJECTED with note / WAIVED for optional items
+with note); the forward transition is transaction-guarded — allowed ONLY when every required
+item is VERIFIED or WAIVED-with-note. Returned requests carry an aggregate `returnedReason` plus
+per-item `decisionNote`s. Financier inbox queries structurally exclude un-forwarded requests:
+they filter to `FORWARDED_TO_FINANCIER` and later states (forward-ordered index) — a financier
+literally cannot list a request that has not passed the gate. Gate fields live on both request
+types (`platformReviewedById/At`, `platformNote`, `returnedAt/Reason`, `forwardedAt`);
+`RfqSetting financing.general.platformReviewRequired` defaults TRUE; every gate action is
+audited and notified.
+
+**Consequences.** (+) financiers receive only complete, correct files (the platform's quality
+promise); applicant data stays platform-private pre-forward; per-item audit trail. (−) the gate
+is admin workload and a lifecycle stage on every request (mitigations: gate queue bulk actions,
+`autoForwardWhenAllVerified` setting, PROFILE_FIELD auto-evaluation, `autoPassAccredited`);
+a stalled gate needs the return path to stay honest.
+
+## ADR-0018 — Requirements engine: general + financier-specific condition templates
+**Status:** Owner-set (D-015; DP-24) · **Date:** 2026-09
+
+**Context.** The owner requires "general conditions required in several services by multiple
+funders, and specific conditions unique to the funder and the service … high flexibility …
+flexible, easy, and comprehensive management interface". v4.0 modeled requirements as enum trait
+rows (`FinancingProductRequirement`: COLLATERAL_ACCEPTED | DOCUMENT_REQUIRED) plus a parallel
+`AccreditationCriterion` table — neither can express free-form, ordered, typed conditions.
+
+**Decision (planned).** One engine serves both flows. `ConditionTemplate` (scope `GENERAL` —
+platform-curated shared library, `organizationId` null — or `FINANCIER` — private to one
+financier org) with 8 typed condition kinds: DOCUMENT | PROFILE_FIELD | DECLARATION | TEXT |
+NUMBER | DATE | SELECT | MULTI_SELECT (plus `profileFieldKey`, `documentType`,
+`validationMin/Max`, `validityMonths`, `isRepeatable`). SELECT/MULTI_SELECT choices are
+`ConditionOption` child rows (R-1 — no JSON options). Templates attach per-service via
+`ServiceRequirement` (`isRequired`, `displayOrder`, `instructions`, `autoPassAccredited`). Each
+request carries `RequirementSubmission` rows — the gate's verification unit — with typed value
+columns (`valueText`/`valueNumber`/`valueDate`) and `accountDocumentId` evidence reuse.
+PROFILE_FIELD items auto-evaluate from User/Organization; `autoPassAccredited` items auto-verify
+against a live accreditation. Management surfaces: admin library CRUD + financier composer
+(FINANCIER_PLAN v2.0 §5).
+
+**Consequences.** (+) one definition attached N times (no re-typing across funders); typed,
+queryable answers; deactivation preserves submission history. (−) two more tables than enum
+traits and a real management-UI product surface; `code` uniqueness for nullable columns is
+enforced in the service layer (MySQL allows NULL duplicates); the composer UX must stay
+"flexible, easy, comprehensive" or financiers will not adopt it.
+
+## ADR-0019 — Financiers offer SERVICES, not products (FinancierService + serviceKind)
+**Status:** Owner-set (D-015; DP-22) · **Date:** 2026-09
+
+**Context.** v4.0 named the financier's offering `FinancingProduct`. The competitor's own URL
+space is `/en/services/145` and its fund-order API returns `service: {id, name}` on every
+request — their data model never says "product". The owner ruled: "FINANCIER have services,
+not products", and that qualification & accreditation management is one of the main services
+the system provides.
+
+**Decision (planned).** `FinancierService` replaces `FinancingProduct`, with `serviceKind`
+FINANCING | ACCREDITATION (+ `category` taxonomy folding our B2B trio and the competitor's
+market taxonomy; `accreditationValidMonths` + `accreditationFeeAmount` on ACCREDITATION-kind
+services). Every application — financing or accreditation — targets exactly ONE service
+(`FinancingRequest.serviceId` / `AccreditationRequest.serviceId`, required; kind enforced in the
+service layer), which is what keeps every request's requirements checklist well-defined. Trait
+tables rename to `FinancierServiceAttribute` / `FinancierServiceCoverage`;
+`FinancingProductRequirement` is deleted (superseded by ADR-0018). Financing requests number
+FR- via `Sequence 'FIN'`; accreditation requests ACC- via `Sequence 'ACC'` (D-006).
+
+**Consequences.** (+) domain vocabulary matches the market evidence; one catalog + one
+requirements engine for both kinds; accreditation programs get terms (validity, fee) without a
+parallel table. (−) rename churn across v4-era docs; `category` must be validated per
+`serviceKind` (zod); the service picker becomes mandatory wizard state — no "open" requests
+(DP-28).
+
+## ADR-0020 — Multi-financier routing as sibling requests sharing multiGroupId
+**Status:** Planned (DP-25; recommend YES) · **Date:** 2026-09
+
+**Context.** The owner: requests go "exclusively to one financier or simultaneously to several".
+v4.0 designed `FinancingRequestInvite` rows + `distributionMode` OPEN | BUYER_SELECTED (with
+DP-4 open-to-matching). With the v5.0 requirements engine, a single shared request no longer has
+a well-defined object: each financier's service carries its OWN checklist, its own per-item
+verdicts, and its own response (offers, decline notes).
+
+**Decision (planned).** MULTI routing = N sibling requests sharing a `multiGroupId`, one per
+selected financier's matching service; EXCLUSIVE = a single request (`multiGroupId` null). Each
+sibling runs its own gate + financier review independently; the UI groups siblings for
+side-by-side offer comparison; accepting one offer auto-declines the siblings' offers.
+`FinancingRequestInvite` is deleted; `distributionMode` removed. v4's open-to-matching
+distribution is superseded/deferred (DP-28 — a category-level baseline checklist would first be
+needed).
+
+**Consequences.** (+) every request keeps one service, one checklist, one gate verdict, one
+status machine — no per-financier ambiguity; no org-id array blobs (R-1). (−) a
+multi-financier wizard session writes N request rows (accepted: per-financier state is genuinely
+independent); list/detail surfaces must group by `multiGroupId` to feel like one application to
+the applicant.
+
+## ADR-0021 — Universal AccountDocument vault (all users and organizations)
+**Status:** Owner-set (D-015; DP-27) · **Date:** 2026-09
+
+**Context.** The owner: "Documents management … needed for all users and accounts", and
+applicants must "complete any missing requirements not already available in their profile".
+v4's `ApplicantDocument` (also referenced by ADR-0009's consequence note) was applicant-scoped
+(userId + optional requestId/accreditationId), pushing verification into per-request context
+and inviting re-uploads of the same national ID for every application.
+
+**Decision (planned).** `AccountDocument` is the universal vault: `userId` ALWAYS set (every
+user — buyer, seller, financier staff, individual applicant), optional `organizationId` for
+org-scope papers; `mediaId → MediaAsset` (DP-19 — the only storage subsystem); 15-value
+`documentType` taxonomy; verified ONCE by the platform (status PENDING | VERIFIED | REJECTED,
+`reviewedById`/`reviewedAt`, `note`) with `issuedAt`/`expiresAt` freshness; `isActive`
+soft-delete for newer versions. Requests never own document bytes — they reference:
+`RequirementSubmission.accountDocumentId` for gate DOCUMENT evidence and `RequestAttachment`
+(loose `parentType` + `parentId` serving both request kinds) for free attachments. The wizard
+marks checklist items satisfiable by already-verified vault docs.
+
+**Consequences.** (+) upload-once / verify-once / reuse-everywhere; one verification workflow;
+consistent KYC across financing, accreditation and future flows. (−) a documents-center UX for
+every account type; document lifecycle (expiry, replacement) becomes a platform
+responsibility; `expiresAt` + `ConditionTemplate.validityMonths` freshness must be checked at
+gate time.
+
 ---
 
 ## Change log
@@ -323,3 +468,4 @@ until the owner changes D-007.
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 2026-09 | Initial log consolidating invariants (D-001…D-014), prior rulings and the v4.0 financing data-model decisions (ADR-0014/0015) into ADR form. |
+| 1.1 | 2026-09 | Financier v5.0 round (D-015/D-016): appended ADR-0017…0021 — platform verification gate, requirements engine, services-not-products, multi-financier sibling routing, universal document vault; amendment notes added to ADR-0013/0014; cross-references updated (FINANCIER_SCHEMA v5.0, DECISIONS D-001…D-017, DP-1…DP-28; Sequence prefixes FIN/AGR/ACC). |

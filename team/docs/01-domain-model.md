@@ -2,11 +2,11 @@
 
 | | |
 |---|---|
-| **Version** | 1.0 |
+| **Version** | 1.1 |
 | **Date** | September 2026 |
 | **Audience** | Expert software engineers (Vendora core team) |
-| **Status** | **EXISTING** sections describe `prisma/schema.prisma` (32 models, live database, ground truth). **PLANNED** sections describe `team/FINANCIER_SCHEMA.md` v4.0 (17 financier models + additive `User` columns) — owner-gated, NOT in the database yet. Every PLANNED artifact is explicitly marked. |
-| **Related** | `prisma/schema.prisma` (schema of record), `team/FINANCIER_SCHEMA.md` v4.0, `team/DECISIONS.md` (D-001…D-013, DP-1…DP-21), `06-data-dictionary.md` (field-level companion) |
+| **Status** | **EXISTING** sections describe `prisma/schema.prisma` (32 models, live database, ground truth). **PLANNED** sections describe `team/FINANCIER_SCHEMA.md` v5.0 (18 financier models + additive `User` columns) — owner-gated, NOT in the database yet. Every PLANNED artifact is explicitly marked. |
+| **Related** | `prisma/schema.prisma` (schema of record), `team/FINANCIER_SCHEMA.md` v5.0, `team/DECISIONS.md` (D-001…D-017, DP-1…DP-28), `06-data-dictionary.md` (field-level companion) |
 
 ---
 
@@ -26,7 +26,7 @@ authorization; `status` (ACTIVE | SUSPENDED) + `suspendedAt` implement the platf
 vendor lifecycle; `verifiedAt` is the KYC-lite verification stamp that enables RFQ routing
 auto-approve and distribution filters; `commissionRate` is the per-vendor payout commission
 override; `storeName`/`storeBio` carry the seller storefront. PLANNED: 12 additive nullable
-applicant-profile columns (§7 of FINANCIER_SCHEMA) — no new identity table.
+applicant-profile columns (FINANCIER_SCHEMA v5.0 §3.1) — no new identity table.
 
 ### 1.2 Catalog & Pricing — `Category`, `Product`, `ProductVariant`, `Review`, `Favorite`, `CustomerGroup`, `PriceList`, `PriceListEntry`, `Coupon`
 The governed catalog: `Category` (slug-addressed taxonomy), `Product` (retail `price` is the
@@ -88,15 +88,16 @@ by the Dispute Resolution settings panel; the disputed seller's RFQ distribution
 The single upload subsystem: content-deduplicated by `sha256`, processed into webp renditions
 (`variants`, LEGACY-JSON). `Product.images`/`ProductVariant.image`/`User.image` reference the
 medium rendition URL; deletes are reference-checked. PLANNED: the financier domain's entire
-document storage hangs off `MediaAsset` through `ApplicantDocument.mediaId` (DP-19 — one storage
-subsystem, no storage metadata duplication).
+document storage hangs off `MediaAsset` through `AccountDocument.mediaId` (DP-19/DP-27 — one
+storage subsystem, one universal document vault, no storage metadata duplication).
 
 ### 1.9 Notifications — `Notification`
 Server-side notification feed for everything the order list cannot see (order events stay derived
 client-side in the NotificationsBell). `type` is a 10-value string enum (RFQ_* / APPROVAL_*),
 `linkView` targets an SPA view (rfq | orders | business | seller) with optional `linkId`.
-PLANNED: `linkView` gains `financing`; new FINANCING_* / OFFER_* / DOC_* / FEE_* / AGREEMENT_*
-types (FINANCIER_SCHEMA §6).
+PLANNED: `linkView` gains `financing` and `financier`; new PLATFORM_* / REQUIREMENT_* /
+DOCUMENT_* / FINANCING_* / OFFER_* / ACCREDITATION_* / FEE_* / AGREEMENT_* types
+(FINANCIER_SCHEMA v5.0 §6).
 
 ### 1.10 Settings & Governance — `PlatformSetting`, `RfqSetting`, `SettingChange`, `BannerSlide`
 `PlatformSetting` is the platform-level key/value document store (storefront config; `value` is
@@ -105,34 +106,53 @@ JSON-in-Text, LEGACY-JSON). `RfqSetting` is scoped RFQ configuration — one row
 scope wins; panels include quote routing, expiry, distribution, dispute resolution, recurring
 RFQs, verification. `SettingChange` is the append-only change log with rollback chain
 (`rollbackOfId`), deliberately NOT FK-linked to RfqSetting so history survives override deletion.
-`BannerSlide` is admin-managed hero content. PLANNED: the financing settings panels
-(general/fees/distribution/documents/intake) land in the same `RfqSetting` registry — no new
-settings table.
+`BannerSlide` is admin-managed hero content. PLANNED: the financing settings section — 6 panels
+(general/fees/requirements/documents/intake/accreditation) — lands in the same `RfqSetting`
+registry; no new settings table.
 
 ### 1.11 Platform substrate — `AuditLog`, `Sequence`
 `AuditLog` is the polymorphic audit trail (loose `actorId` — SYSTEM entries have no user;
 `entityType`/`entityId`/`action` + `metadata` Json, LEGACY-JSON). `Sequence` is the atomic
 number generator behind every business number (D-006): current prefixes RFQ, QTE, DSP, PY →
-`PREFIX-YYYY-NNNNNN`; never client-side counters. PLANNED: prefixes += FIN (FR-) and AGR (AGR-);
+`PREFIX-YYYY-NNNNNN`; never client-side counters. PLANNED: prefixes += FIN (FR-), AGR (AGR-) and ACC (ACC-);
 financing status history rides `AuditLog.summary` text + `Notification` bodies (DP-15) — the
 `metadata` Json column is deliberately not used by the financier domain (R-1).
 
-### 1.12 Financing (PLANNED — NOT in the database yet) — 17 models + `User` additive columns
-The financier domain per `team/FINANCIER_SCHEMA.md` v4.0 (owner rulings: zero Json columns — R-1;
-single entry per data point — R-2; reuse the existing substrate — R-3). `FinancierProfile` is a
-slim 1:1 extension of `Organization` (legal identity stays on Organization); `FinancierBranch`
-(typed address columns); `FinancingProduct` + three trait child tables (`Attribute` features /
-eligibility text, `Requirement` collateral/document enums, `Coverage` region names);
-`FinancingRequest` (the application, FR-YYYY-NNNNNN, typed activity/underwriting/guarantee
-columns, loose-FK target to a quote/order/rfq-line); `FinancingRequestInvite` (BUYER_SELECTED
-distribution as rows); `ApplicantDocument` (one document subsystem over `MediaAsset`, dual-scope
-user-KYC / request-evidence, triple-scope with accreditation); `FinancingOffer` +
-`FinancingOfferInstallment` (the schedule is the financier's proposal); `FinancingAgreement`
-(1:1 with the accepted offer, NO snapshot — the offer is frozen instead, DP-20) with
-financier-REPORTED `fundingStatus` (D-002 — money never on platform); `FinancingEvent`
-(track-only ledger) and `FinancingFee` (commission accounting, invoiced externally);
-`AccreditationProgram` / `AccreditationCriterion` / `SupplierAccreditation` (Flow 4). Owner-gated
-behind DP-1…DP-21 approval.
+### 1.12 Financing (PLANNED — NOT in the database yet) — 18 models + `User` additive columns
+The financier domain per `team/FINANCIER_SCHEMA.md` v5.0 — the services/gate model, rebuilt on the
+owner's five rulings (D-015): zero Json columns — R-1; single entry per data point — R-2; reuse
+the existing substrate — R-3; the **platform verification gate** — R-4/DP-23; **flexible
+requirements** — R-5/DP-24. The 18 planned models, grouped:
+- **Services catalog (DP-22 — services, not products):** `FinancierProfile` (slim 1:1 extension
+  of `Organization` — legal identity stays on Organization); `FinancierBranch` (typed address
+  columns); `FinancierService` — THE offering (renamed from `FinancingProduct`; `serviceKind`
+  FINANCING | ACCREDITATION; `category`; `accreditationValidMonths` + `accreditationFeeAmount`
+  on ACCREDITATION-kind services) with trait child tables `FinancierServiceAttribute` (features /
+  eligibility text) and `FinancierServiceCoverage` (region names). v4's `FinancingProductRequirement`
+  is DELETED — superseded by the requirements engine.
+- **Requirements engine (DP-24):** `ConditionTemplate` (scope GENERAL — platform-curated shared
+  library — or FINANCIER — private to one financier org; 8 typed condition kinds DOCUMENT |
+  PROFILE_FIELD | DECLARATION | TEXT | NUMBER | DATE | SELECT | MULTI_SELECT; `profileFieldKey`,
+  `documentType`, `validationMin/Max`, `validityMonths`, `isRepeatable`); `ConditionOption`
+  (SELECT/MULTI_SELECT choices as rows — R-1); `ServiceRequirement` (one template attached to one
+  service: `isRequired`, `displayOrder`, `instructions`, `autoPassAccredited`);
+  `RequirementSubmission` (per-request checklist row — the gate's verification unit; typed value
+  columns + `accountDocumentId`; status PENDING | SUBMITTED | VERIFIED | REJECTED | WAIVED).
+- **Requests:** `FinancingRequest` v3 (FR-YYYY-NNNNNN; `serviceId` REQUIRED — service-scoped
+  applications; gate fields `platformReviewedById`/`platformReviewedAt`/`platformNote`/`returnedAt`/
+  `returnedReason`/`forwardedAt`; `multiGroupId` sibling routing — DP-25; `distributionMode`
+  REMOVED, `FinancingRequestInvite` DELETED); `FinancingOffer` + `FinancingOfferInstallment` (the
+  schedule is the financier's proposal); `FinancingAgreement` (1:1 with the accepted offer, NO
+  snapshot — the offer is frozen instead, DP-20) with financier-REPORTED `fundingStatus` (D-002 —
+  money never on platform); `FinancingEvent` (track-only ledger) and `FinancingFee` (commission
+  accounting, invoiced externally); `AccreditationRequest` (ACC-YYYY-###### — accreditation is a
+  MAIN service, DP-26: same platform gate, grant-on-request ACCREDITED + validUntil, revocation,
+  renewal; `@@unique([serviceId, organizationId])`).
+- **Documents (DP-27 — universal):** `AccountDocument` — the document vault for ALL users
+  (`userId` always set, optional `organizationId`), `mediaId → MediaAsset`, 15-value
+  `documentType`, verified ONCE and reused by every request type — plus `RequestAttachment`
+  (loose-parent link rows for free request attachments).
+Owner-gated behind DP-1…DP-28 approval (D-013/D-016).
 
 ---
 
@@ -487,45 +507,54 @@ erDiagram
 
 ### 2.4 Financing domain (PLANNED — every entity below is NOT in the database yet)
 
-> Caption: **ALL 17 entities in this diagram are PLANNED** (source: `team/FINANCIER_SCHEMA.md`
-> v4.0, owner-gated). Only `ORGANIZATION`, `USER` and `MEDIA_ASSET` are existing substrate,
-> referenced without duplication (R-2/R-3). Field names are verbatim from FINANCIER_SCHEMA v4.0.
-> Zero Json columns anywhere in this domain (R-1 / DP-18).
+> Caption: **ALL 18 entities in this diagram are PLANNED** (source: `team/FINANCIER_SCHEMA.md`
+> v5.0, owner-gated). Only `ORGANIZATION`, `USER`, `MEDIA_ASSET` (and `QUOTE`/`ORDER`/`RFQ_LINE`
+> as loose targets) are existing substrate, referenced without duplication (R-2/R-3). Field
+> names are verbatim from FINANCIER_SCHEMA v5.0. Zero Json columns anywhere in this domain
+> (R-1 / DP-18).
 
 ```mermaid
 erDiagram
     ORGANIZATION ||--|| FINANCIER_PROFILE : "1:1 legal entity"
     FINANCIER_PROFILE ||--o{ FINANCIER_BRANCH : has
-    FINANCIER_PROFILE ||--o{ FINANCING_PRODUCT : offers
-    FINANCING_PRODUCT ||--|{ FINANCING_PRODUCT_ATTRIBUTE : "features / eligibility"
-    FINANCING_PRODUCT ||--|{ FINANCING_PRODUCT_REQUIREMENT : "collateral / documents"
-    FINANCING_PRODUCT ||--|{ FINANCING_PRODUCT_COVERAGE : "geographic coverage"
+    FINANCIER_PROFILE ||--o{ FINANCIER_SERVICE : offers
+    FINANCIER_SERVICE ||--|{ FINANCIER_SERVICE_ATTRIBUTE : "features / eligibility"
+    FINANCIER_SERVICE ||--|{ FINANCIER_SERVICE_COVERAGE : "geographic coverage"
+    ORGANIZATION |o--o{ CONDITION_TEMPLATE : "FINANCIER-private scope (null = GENERAL)"
+    USER ||--o{ CONDITION_TEMPLATE : "created by (admin / financier staff)"
+    CONDITION_TEMPLATE ||--|{ CONDITION_OPTION : "SELECT / MULTI_SELECT choices"
+    FINANCIER_SERVICE ||--|{ SERVICE_REQUIREMENT : "composed acceptance checklist"
+    CONDITION_TEMPLATE ||--|{ SERVICE_REQUIREMENT : "attached to services via"
+    SERVICE_REQUIREMENT ||--o{ REQUIREMENT_SUBMISSION : "verified per request"
+    FINANCIER_SERVICE ||--o{ FINANCING_REQUEST : "applied for (kind = FINANCING)"
+    FINANCIER_SERVICE ||--o{ ACCREDITATION_REQUEST : "program (kind = ACCREDITATION)"
     ORGANIZATION |o--o{ FINANCING_REQUEST : "applicant org (nullable, DP-13)"
     USER ||--o{ FINANCING_REQUEST : "created by"
-    FINANCING_PRODUCT |o--o{ FINANCING_REQUEST : "direct target (optional)"
+    USER |o--o{ FINANCING_REQUEST : "platform gate reviewer (R-4)"
     FINANCING_REQUEST ||..o| QUOTE : "targetId (loose)"
     FINANCING_REQUEST ||..o| ORDER : "targetId (loose)"
     FINANCING_REQUEST ||..o| RFQ_LINE : "targetId (loose)"
-    FINANCING_REQUEST ||--o{ FINANCING_REQUEST_INVITE : "BUYER_SELECTED distribution"
-    ORGANIZATION ||--o{ FINANCING_REQUEST_INVITE : "invited financier"
-    FINANCING_REQUEST ||--o{ APPLICANT_DOCUMENT : "request evidence"
-    USER ||--o{ APPLICANT_DOCUMENT : "owns (KYC scope)"
-    APPLICANT_DOCUMENT }o--|| MEDIA_ASSET : "mediaId (one storage subsystem)"
-    USER |o--o{ APPLICANT_DOCUMENT : "reviewed by"
+    FINANCING_REQUEST ||--o{ REQUIREMENT_SUBMISSION : "checklist (XOR parent)"
+    ACCREDITATION_REQUEST ||--o{ REQUIREMENT_SUBMISSION : "checklist (XOR parent)"
+    USER |o--o{ REQUIREMENT_SUBMISSION : "verified by (gate / autoPass)"
+    ORGANIZATION ||--o{ ACCREDITATION_REQUEST : "applicant org (companies only)"
+    USER ||--o{ ACCREDITATION_REQUEST : "submitted by"
+    USER |o--o{ ACCREDITATION_REQUEST : "gate reviewer / decider / revoker"
+    USER ||--o{ ACCOUNT_DOCUMENT : "owns (every user — DP-27)"
+    ORGANIZATION |o--o{ ACCOUNT_DOCUMENT : "org-scope (nullable)"
+    ACCOUNT_DOCUMENT }o--|| MEDIA_ASSET : "mediaId (one storage subsystem)"
+    USER |o--o{ ACCOUNT_DOCUMENT : "reviewed by (verified once)"
+    ACCOUNT_DOCUMENT |o--o{ REQUIREMENT_SUBMISSION : "DOCUMENT evidence (reuse)"
+    ACCOUNT_DOCUMENT ||--o{ REQUEST_ATTACHMENT : "referenced by"
+    FINANCING_REQUEST |o..o{ REQUEST_ATTACHMENT : "parentId (loose, by parentType)"
+    ACCREDITATION_REQUEST |o..o{ REQUEST_ATTACHMENT : "parentId (loose, by parentType)"
     FINANCING_REQUEST ||--o{ FINANCING_OFFER : receives
     USER ||--o{ FINANCING_OFFER : "issued by (financier staff)"
     FINANCING_OFFER ||--|{ FINANCING_OFFER_INSTALLMENT : schedules
-    FINANCING_OFFER ||--|| FINANCING_AGREEMENT : "accepted offer (1:1)"
+    FINANCING_OFFER |o--|| FINANCING_AGREEMENT : "accepted offer (1:1)"
     FINANCING_AGREEMENT ||--o{ FINANCING_EVENT : "track-only ledger"
     FINANCING_AGREEMENT ||--o{ FINANCING_FEE : "platform commission"
     USER |o--o{ FINANCING_EVENT : "reported by"
-    FINANCIER_PROFILE ||--o{ ACCREDITATION_PROGRAM : runs
-    ACCREDITATION_PROGRAM ||--|{ ACCREDITATION_CRITERION : defines
-    ACCREDITATION_PROGRAM ||--o{ SUPPLIER_ACCREDITATION : issues
-    ORGANIZATION ||--o{ SUPPLIER_ACCREDITATION : "supplier applies"
-    SUPPLIER_ACCREDITATION |o--o{ APPLICANT_DOCUMENT : "accreditation evidence"
-    USER ||--o{ SUPPLIER_ACCREDITATION : "submits"
-    USER |o--o{ SUPPLIER_ACCREDITATION : "reviews"
 
     FINANCIER_PROFILE {
         string id PK
@@ -552,91 +581,169 @@ erDiagram
         decimal longitude
         bool isActive
     }
-    FINANCING_PRODUCT {
+    FINANCIER_SERVICE {
         string id PK
         string financierProfileId FK
+        string serviceKind "FINANCING | ACCREDITATION (DP-22)"
+        string category "taxonomy per kind"
         string name
-        string category "12-value taxonomy"
+        string summary
         string targetSegment "BUSINESS | INDIVIDUAL | BOTH"
-        string status "ACTIVE | DRAFT | ARCHIVED"
+        string status "DRAFT | ACTIVE | ARCHIVED"
         string currency "YER"
-        decimal amountMin
+        decimal amountMin "null = open (ACCREDITATION)"
         decimal amountMax
         string rateType "MURABAHA_ANNUAL | FIXED_ANNUAL | FLAT_FEE"
         decimal rateMax
         decimal feeFlat
         int tenorMinMonths
         int tenorMaxMonths
-        string repaymentFrequency
         bool shariaCompliant
-        int processingDays
+        int accreditationValidMonths "ACCREDITATION kind: grant lifetime"
+        decimal accreditationFeeAmount "ACCREDITATION kind: fee"
         int viewCount
     }
-    FINANCING_PRODUCT_ATTRIBUTE {
+    FINANCIER_SERVICE_ATTRIBUTE {
         string id PK
-        string productId FK
+        string serviceId FK
         string kind "FEATURE | ELIGIBILITY_CONDITION"
         int position
         string text
     }
-    FINANCING_PRODUCT_REQUIREMENT {
+    FINANCIER_SERVICE_COVERAGE {
         string id PK
-        string productId FK
-        string kind "COLLATERAL_ACCEPTED | DOCUMENT_REQUIRED"
-        string value "enum per kind"
-    }
-    FINANCING_PRODUCT_COVERAGE {
-        string id PK
-        string productId FK
+        string serviceId FK
         string regionName "normalized, case-insensitive match"
+    }
+    CONDITION_TEMPLATE {
+        string id PK
+        string scope "GENERAL | FINANCIER (R-5)"
+        string organizationId FK "null = GENERAL platform library"
+        string conditionType "DOCUMENT | PROFILE_FIELD | DECLARATION | TEXT | NUMBER | DATE | SELECT | MULTI_SELECT"
+        string code "optional stable ref"
+        string title
+        text description
+        string profileFieldKey "PROFILE_FIELD only"
+        string documentType "DOCUMENT only"
+        decimal validationMin "NUMBER only, inclusive"
+        decimal validationMax "NUMBER only, inclusive"
+        int validityMonths "evidence freshness window"
+        bool isRepeatable "DOCUMENT only"
+        bool isActive
+        string createdById FK
+    }
+    CONDITION_OPTION {
+        string id PK
+        string conditionTemplateId FK
+        string value "stored + displayed"
+        int position
+    }
+    SERVICE_REQUIREMENT {
+        string id PK
+        string serviceId FK
+        string conditionTemplateId FK
+        bool isRequired "optional conditions never gate"
+        int displayOrder
+        string instructions "per-service override text"
+        bool autoPassAccredited "auto-VERIFIED on live grant (DP-26)"
+        bool isActive
+    }
+    REQUIREMENT_SUBMISSION {
+        string id PK
+        string serviceRequirementId FK
+        string financingRequestId FK "XOR parent (nullable)"
+        string accreditationRequestId FK "XOR parent (nullable)"
+        string status "PENDING | SUBMITTED | VERIFIED | REJECTED | WAIVED"
+        string valueText "TEXT / DECLARATION / SELECT answers"
+        decimal valueNumber "NUMBER answers"
+        datetime valueDate "DATE answers"
+        string accountDocumentId FK "DOCUMENT evidence (reuse)"
+        datetime submittedAt
+        datetime verifiedAt
+        string verifiedById FK "null on autoPass"
+        string decisionNote "rejection / waiver reason"
+    }
+    ACCOUNT_DOCUMENT {
+        string id PK
+        string userId FK "owner — ALWAYS set (all users)"
+        string organizationId FK "org-scope docs (nullable)"
+        string mediaId FK "THE storage entry"
+        string documentType "15-value enum"
+        string title
+        datetime issuedAt
+        datetime expiresAt "freshness vs validityMonths"
+        string status "PENDING | VERIFIED | REJECTED"
+        string reviewedById FK "nullable"
+        datetime reviewedAt
+        text note
+        bool isActive "soft-delete"
+    }
+    REQUEST_ATTACHMENT {
+        string id PK
+        string parentType "FINANCING_REQUEST | ACCREDITATION_REQUEST"
+        string parentId "loose FK (Dispute pattern)"
+        string accountDocumentId FK
+        string kind "GUARANTEE_DOC | STUDY | PROJECT_FILE | OTHER"
     }
     FINANCING_REQUEST {
         string id PK
         string number UK "FR-YYYY-NNNNNN via Sequence FIN"
-        string organizationId FK "nullable"
+        string organizationId FK "nullable (DP-13)"
         string createdById FK
-        string productId FK "nullable"
+        string serviceId FK "REQUIRED — service-scoped (DP-22)"
         string targetType "WORKING_CAPITAL | QUOTE | ORDER | RFQ_LINE"
         string targetId "loose"
+        string multiGroupId "sibling routing (DP-25)"
         string activityStatus "NEW | EXISTING"
         string activityName
         string activityCity
         string activityLocationType "OWNED | RENTED"
         string activityCategory
-        string activityCategoryOther
         decimal capitalAmount
         decimal ownContributionAmount
         decimal monthlyInstallmentCapacity
         bool previousFinancing
-        string otherIncomeSources
         decimal amountRequested
         string currency
         text purpose
-        int tenorRequestedMonths
         string guaranteeType "8-value enum"
         string guaranteeStatus "4-value enum"
         text applicantNotes
         datetime consentAt
-        string distributionMode "OPEN | BUYER_SELECTED"
-        string status "10-value enum"
+        string platformReviewedById FK "THE GATE (R-4)"
+        datetime platformReviewedAt
+        text platformNote
+        datetime returnedAt "set on RETURNED_FOR_COMPLETION"
+        string returnedReason "aggregate; per-item notes on submissions"
+        datetime forwardedAt "financier visibility starts HERE"
+        string status "11-value gate machine"
         datetime expiresAt
     }
-    FINANCING_REQUEST_INVITE {
+    ACCREDITATION_REQUEST {
         string id PK
-        string requestId FK
-        string organizationId FK "invited financier org"
-    }
-    APPLICANT_DOCUMENT {
-        string id PK
-        string userId FK "owner/uploader, always set"
-        string requestId FK "null = user-level KYC"
-        string accreditationId FK "null unless accreditation evidence"
-        string mediaId FK "THE storage entry"
-        string type "11-value enum, scope-dependent"
-        string status "PENDING | VERIFIED | REJECTED"
-        string reviewedById FK "nullable"
-        datetime reviewedAt
-        text note
+        string number UK "ACC-YYYY-###### via Sequence ACC"
+        string organizationId FK "companies only — NOT nullable"
+        string submittedById FK
+        string serviceId FK "ACCREDITATION-kind service"
+        string multiGroupId "sibling routing (DP-25)"
+        string scopeNotes "what the accreditation covers"
+        datetime consentAt
+        string platformReviewedById FK "THE GATE (R-4)"
+        datetime platformReviewedAt
+        text platformNote
+        datetime returnedAt
+        string returnedReason
+        datetime forwardedAt
+        string status "11-value gate machine"
+        string decidedById FK "financier's deciding staff"
+        datetime decidedAt
+        string decisionNote "grant / reject note"
+        datetime accreditedAt "grant stamp (ACCREDITED only)"
+        datetime validUntil "grant lifetime (accreditationValidMonths)"
+        string revokedById FK "financier or platform admin"
+        datetime revokedAt
+        string revocationReason "REQUIRED on revoke"
+        datetime expiresAt "request-level expiry (pre-decision)"
     }
     FINANCING_OFFER {
         string id PK
@@ -687,32 +794,6 @@ erDiagram
         decimal percentApplied "snapshot"
         decimal amount
         string status "ACCRUED | INVOICED | PAID | WAIVED"
-    }
-    ACCREDITATION_PROGRAM {
-        string id PK
-        string financierProfileId FK
-        string name
-        decimal feeAmount
-        int validMonths
-        bool active
-    }
-    SUPPLIER_ACCREDITATION {
-        string id PK
-        string programId FK
-        string organizationId FK "supplier org"
-        string status "PENDING | UNDER_REVIEW | VERIFIED | REJECTED | EXPIRED"
-        string submittedById FK
-        string reviewedById FK
-        datetime verifiedAt
-        datetime expiresAt
-    }
-    ACCREDITATION_CRITERION {
-        string id PK
-        string programId FK
-        string kind "REQUIRED_DOCUMENT | MIN_TENURE_MONTHS | MIN_MONTHLY_REVENUE | MANUAL_CHECK"
-        string value "typed per kind"
-        string label
-        int position
     }
 ```
 
@@ -792,40 +873,53 @@ Implicit many-to-many (Prisma-managed join tables, no cascade semantics document
 
 ### 3.3 PLANNED — financier domain (NOT in the database yet)
 
+Source: `team/FINANCIER_SCHEMA.md` v5.0 — **37 enforced FK fields + 2 loose reference patterns**
+(v4.0 was 29 + 1; the requirements engine, the platform gate and universal documents account for
+the growth).
+
 | # | From (field) | To | Cardinality | onDelete | Semantics |
 |---|---|---|---|---|---|
 | 1 | `FinancierProfile.organizationId` (unique) | `Organization.id` | 1:1 (required) | Cascade | The financier legal entity (BANK/MFI/EWALLET) |
 | 2 | `FinancierBranch.financierProfileId` | `FinancierProfile.id` | N:1 (required) | Cascade | Branch/agent/ATM of financier |
-| 3 | `FinancingProduct.financierProfileId` | `FinancierProfile.id` | N:1 (required) | Cascade | Product catalog entry |
-| 4 | `FinancingProductAttribute.productId` | `FinancingProduct.id` | N:1 (required) | Cascade | Feature / eligibility bullet |
-| 5 | `FinancingProductRequirement.productId` | `FinancingProduct.id` | N:1 (required) | Cascade | Collateral/document requirement |
-| 6 | `FinancingProductCoverage.productId` | `FinancingProduct.id` | N:1 (required) | Cascade | Covered region name |
-| 7 | `FinancingRequest.organizationId` | `Organization.id` | N:1 (optional) | — (unset in v4.0) | Applicant org; null = individual (DP-13) |
-| 8 | `FinancingRequest.createdById` | `User.id` | N:1 (required) | — | Submitting user |
-| 9 | `FinancingRequest.productId` | `FinancingProduct.id` | N:1 (optional) | — | Direct product application; null = open request |
-| 10 | `FinancingRequestInvite.requestId` | `FinancingRequest.id` | N:1 (required) | Cascade | Distribution row |
-| 11 | `FinancingRequestInvite.organizationId` | `Organization.id` | N:1 (required) | — | Invited financier org |
-| 12 | `ApplicantDocument.userId` | `User.id` | N:1 (required) | Cascade | Owner/uploader — always set |
-| 13 | `ApplicantDocument.requestId` | `FinancingRequest.id` | N:1 (optional) | Cascade | Null = user-level KYC |
-| 14 | `ApplicantDocument.accreditationId` | `SupplierAccreditation.id` | N:1 (optional) | — | Accreditation evidence scope |
-| 15 | `ApplicantDocument.mediaId` | `MediaAsset.id` | N:1 (required) | — | THE storage entry (DP-19) |
-| 16 | `ApplicantDocument.reviewedById` | `User.id` | N:1 (optional) | — | Verifying staff user |
-| 17 | `FinancingOffer.requestId` | `FinancingRequest.id` | N:1 (required) | Cascade | Offer answers request |
-| 18 | `FinancingOffer.createdById` | `User.id` | N:1 (required) | — | Financier staff (via OrganizationMember, DP-1) |
-| 19 | `FinancingOfferInstallment.offerId` | `FinancingOffer.id` | N:1 (required) | Cascade | Proposed schedule row |
-| 20 | `FinancingAgreement.offerId` (unique) | `FinancingOffer.id` | 1:1 (required) | — | The accepted offer; NO snapshot (DP-20) |
-| 21 | `FinancingEvent.agreementId` | `FinancingAgreement.id` | N:1 (required) | Cascade | Track-only ledger entry |
-| 22 | `FinancingEvent.reportedById` | `User.id` | N:1 (optional) | — | Reporting financier staff |
-| 23 | `FinancingFee.agreementId` | `FinancingAgreement.id` | N:1 (required) | Cascade | Platform commission row |
-| 24 | `AccreditationProgram.financierProfileId` | `FinancierProfile.id` | N:1 (required) | Cascade | Program owner |
-| 25 | `AccreditationCriterion.programId` | `AccreditationProgram.id` | N:1 (required) | Cascade | Checklist criterion |
-| 26 | `SupplierAccreditation.programId` | `AccreditationProgram.id` | N:1 (required) | Cascade | Application to program |
-| 27 | `SupplierAccreditation.organizationId` | `Organization.id` | N:1 (required) | — | Supplier org applying |
-| 28 | `SupplierAccreditation.submittedById` | `User.id` | N:1 (required) | — | Submitting member |
-| 29 | `SupplierAccreditation.reviewedById` | `User.id` | N:1 (optional) | — | Reviewing staff |
-| 30 | `FinancingRequest.targetId` (loose) | `Quote/Order/RfqLine.id` | N:1 (optional) | n/a | What the financing is for (Dispute pattern) |
+| 3 | `FinancierService.financierProfileId` | `FinancierProfile.id` | N:1 (required) | Cascade | Service catalog entry (DP-22) |
+| 4 | `FinancierServiceAttribute.serviceId` | `FinancierService.id` | N:1 (required) | Cascade | Feature / eligibility bullet |
+| 5 | `FinancierServiceCoverage.serviceId` | `FinancierService.id` | N:1 (required) | Cascade | Covered region name |
+| 6 | `ConditionTemplate.organizationId` | `Organization.id` | N:1 (optional) | — | FINANCIER-private scope; null = GENERAL platform library (R-5) |
+| 7 | `ConditionTemplate.createdById` | `User.id` | N:1 (required) | — | Admin (GENERAL) or financier staff (FINANCIER) |
+| 8 | `ConditionOption.conditionTemplateId` | `ConditionTemplate.id` | N:1 (required) | Cascade | SELECT / MULTI_SELECT choice row (R-1) |
+| 9 | `ServiceRequirement.serviceId` | `FinancierService.id` | N:1 (required) | Cascade | Template attached to this service |
+| 10 | `ServiceRequirement.conditionTemplateId` | `ConditionTemplate.id` | N:1 (required) | — | The attached condition definition |
+| 11 | `RequirementSubmission.serviceRequirementId` | `ServiceRequirement.id` | N:1 (required) | Cascade | Checklist row — the gate's verification unit |
+| 12 | `RequirementSubmission.financingRequestId` | `FinancingRequest.id` | N:1 (optional) | Cascade | XOR parent #1 (service-enforced exactly-one) |
+| 13 | `RequirementSubmission.accreditationRequestId` | `AccreditationRequest.id` | N:1 (optional) | Cascade | XOR parent #2 (service-enforced exactly-one) |
+| 14 | `RequirementSubmission.accountDocumentId` | `AccountDocument.id` | N:1 (optional) | — | DOCUMENT evidence — REUSE of a vault doc (R-2) |
+| 15 | `RequirementSubmission.verifiedById` | `User.id` | N:1 (optional) | — | Platform admin (null on autoPass) |
+| 16 | `AccountDocument.userId` | `User.id` | N:1 (required) | Cascade | Owner/uploader — ALWAYS set (all users, DP-27) |
+| 17 | `AccountDocument.organizationId` | `Organization.id` | N:1 (optional) | — | Org-scope docs (company registry papers) |
+| 18 | `AccountDocument.mediaId` | `MediaAsset.id` | N:1 (required) | — | THE storage entry (DP-19) |
+| 19 | `AccountDocument.reviewedById` | `User.id` | N:1 (optional) | — | Verifying staff user (verified once) |
+| 20 | `RequestAttachment.accountDocumentId` | `AccountDocument.id` | N:1 (required) | Cascade | Free attachment references the vault |
+| 21 | `FinancingRequest.organizationId` | `Organization.id` | N:1 (optional) | — | Applicant org; null = individual (DP-13) |
+| 22 | `FinancingRequest.createdById` | `User.id` | N:1 (required) | — | Submitting user |
+| 23 | `FinancingRequest.serviceId` | `FinancierService.id` | N:1 (required) | — | REQUIRED — service-scoped application (DP-22) |
+| 24 | `FinancingRequest.platformReviewedById` | `User.id` | N:1 (optional) | — | The admin working the gate (R-4) |
+| 25 | `FinancingOffer.requestId` | `FinancingRequest.id` | N:1 (required) | Cascade | Offer answers request |
+| 26 | `FinancingOffer.createdById` | `User.id` | N:1 (required) | — | Financier staff (via OrganizationMember, DP-1) |
+| 27 | `FinancingOfferInstallment.offerId` | `FinancingOffer.id` | N:1 (required) | Cascade | Proposed schedule row |
+| 28 | `FinancingAgreement.offerId` (unique) | `FinancingOffer.id` | 1:1 (required) | — | The accepted offer; NO snapshot (DP-20) |
+| 29 | `FinancingEvent.agreementId` | `FinancingAgreement.id` | N:1 (required) | Cascade | Track-only ledger entry |
+| 30 | `FinancingEvent.reportedById` | `User.id` | N:1 (optional) | — | Reporting financier staff |
+| 31 | `FinancingFee.agreementId` | `FinancingAgreement.id` | N:1 (required) | Cascade | Platform commission row |
+| 32 | `AccreditationRequest.organizationId` | `Organization.id` | N:1 (required) | — | Applicant company (NOT nullable) |
+| 33 | `AccreditationRequest.submittedById` | `User.id` | N:1 (required) | — | Submitting org member |
+| 34 | `AccreditationRequest.serviceId` | `FinancierService.id` | N:1 (required) | — | ACCREDITATION-kind service (service-enforced) |
+| 35 | `AccreditationRequest.platformReviewedById` | `User.id` | N:1 (optional) | — | The admin working the gate (R-4) |
+| 36 | `AccreditationRequest.decidedById` | `User.id` | N:1 (optional) | — | Financier's deciding staff |
+| 37 | `AccreditationRequest.revokedById` | `User.id` | N:1 (optional) | — | Revoking staff (financier or platform) |
+| 38 | `FinancingRequest.targetId` (loose) | `Quote/Order/RfqLine.id` | N:1 (optional) | n/a | What the financing is for (Dispute pattern) |
+| 39 | `RequestAttachment.parentId` (+`parentType`) (loose) | `FinancingRequest/AccreditationRequest.id` | N:1 (required) | n/a | Loose parent — one table serves both request kinds (Dispute pattern) |
 
-"—" = onDelete not specified in FINANCIER_SCHEMA v4.0; Prisma defaults would apply (Restrict for
+"—" = onDelete not specified in FINANCIER_SCHEMA v5.0; Prisma defaults would apply (Restrict for
 required, SetNull for optional).
 
 ---
@@ -845,9 +939,11 @@ Owner-set invariants (DECISIONS.md) are marked D-xxx; financier ruling points DP
 4. **D-006 — Atomic numbering.** Every business number comes from `Sequence` via the service:
    RFQ (`Rfq.number`), QTE (`Quote.number`), DSP (`Dispute.number`), PY (`Payout.number`),
    format `PREFIX-YYYY-NNNNNN`. PLANNED additions: FIN → `FinancingRequest.number` (FR-),
-   AGR → `FinancingAgreement.number`. Client-side counters are forbidden.
+   AGR → `FinancingAgreement.number`, ACC → `AccreditationRequest.number` (ACC-).
+   Client-side counters are forbidden.
 5. **D-011 — No cron.** `Rfq.expiresAt`, `Quote.validUntil`, `Dispute.escalateAt`,
-   `RecurringRfq.nextRunAt` (and PLANNED `FinancingRequest.expiresAt`) are all consumed by lazy
+   `RecurringRfq.nextRunAt` (and PLANNED `FinancingRequest.expiresAt`, `FinancingOffer.validUntil`,
+   `AccreditationRequest.expiresAt`/`validUntil`) are all consumed by lazy
    sweeps triggered on traffic — never by timers.
 6. **OrderItem.payoutId is set-once.** Payout eligibility selects items where `payoutId IS NULL` AND
    order status ≠ CANCELLED AND order payment SUCCEEDED. Once attached, an item never re-settles.
@@ -860,28 +956,56 @@ Owner-set invariants (DECISIONS.md) are marked D-xxx; financier ruling points DP
 9. **FinancingAgreement is 1:1 with an offer.** `offerId` unique; no terms snapshot — the accepted
    offer and its installment rows are frozen instead (DP-20).
 10. **Single entry per data point (financier domain, R-2).** Applicant personal data lives only on
-    `User` (12 additive nullable columns); KYC documents once at user level
-    (`ApplicantDocument.requestId IS NULL`); per-application facts only on `FinancingRequest`;
-    money schedules only on the offer; status history only in `AuditLog`/`Notification` (DP-15).
-11. **Zero JSON in the financier domain (R-1 / DP-18).** All 17 planned models have zero Json
-    columns — every list is a child table (`FinancingProductAttribute/Requirement/Coverage`,
-    `FinancingOfferInstallment`, `FinancingRequestInvite`), every address is typed scalars.
-    Legacy Json columns elsewhere are FROZEN (see `06-data-dictionary.md` appendix).
-12. **One storage subsystem (DP-19).** `ApplicantDocument.mediaId → MediaAsset` — no
+    `User` (12 additive nullable columns); documents live ONCE at account level on
+    `AccountDocument` (uploaded + verified once, reused by every request type — see #20);
+    per-application facts only on `FinancingRequest`/`AccreditationRequest`; money schedules only
+    on the offer; status history only in `AuditLog`/`Notification` (DP-15).
+11. **Zero JSON in the financier domain (R-1 / DP-18).** All 18 planned models have zero Json
+    columns — every list is a child table (`FinancierServiceAttribute/Coverage`, `ConditionOption`,
+    `FinancingOfferInstallment`, `RequestAttachment`), every address is typed scalars, every
+    select option is a `ConditionOption` row. Legacy Json columns elsewhere are FROZEN (see
+    `06-data-dictionary.md` appendix).
+12. **One storage subsystem (DP-19).** `AccountDocument.mediaId → MediaAsset` — no
     storageKey/fileName/size duplication anywhere.
 13. **Purchase-time snapshots.** `OrderItem.title/image/variantName`, `RfqLine.productName/variantName`,
     `QuoteLine.variantName`, `Payout.commissionRate` — display/settlement data is frozen at write
     time against later catalog edits.
 14. **Uniqueness contract set.** `Review (productId,userId)`, `Favorite (userId,productId)`,
     `OrganizationMember (organizationId,userId)`, `PriceListEntry (priceListId,productId,minQuantity)`,
-    `RfqSetting (key,scopeType,scopeId)`, PLANNED `FinancingRequestInvite (requestId,organizationId)`,
-    `FinancingOfferInstallment (offerId,installmentNo)`, `FinancingProductAttribute
-    (productId,kind,position)`, `FinancingProductRequirement (productId,kind,value)`,
-    `FinancingProductCoverage (productId,regionName)`, `SupplierAccreditation (programId,organizationId)`.
+    `RfqSetting (key,scopeType,scopeId)`, PLANNED `FinancierServiceAttribute
+    (serviceId,kind,position)`, `FinancierServiceCoverage (serviceId,regionName)`,
+    `ConditionOption (conditionTemplateId,value)`, `ServiceRequirement
+    (serviceId,conditionTemplateId)`, `RequirementSubmission (financingRequestId,
+    serviceRequirementId)` + `(accreditationRequestId,serviceRequirementId)`,
+    `FinancingOfferInstallment (offerId,installmentNo)`, `AccreditationRequest
+    (serviceId,organizationId)`.
 15. **Media integrity.** `MediaAsset.sha256` unique — content-level dedupe; deletes are
     reference-checked by the storage pipeline.
 16. **Settings history survives deletion.** `SettingChange` is deliberately NOT FK-linked to
     `RfqSetting`; rollback (`rollbackOfId`) is itself logged.
+17. **THE PLATFORM VERIFICATION GATE (financier domain, R-4 / DP-23).** No financing or
+    accreditation request is EVER visible to a financier before `forwardedAt` is set — financier
+    inbox queries filter to `FORWARDED_TO_FINANCIER` and later states only, so a `SUBMITTED`
+    request is platform-private by construction. Incomplete or incorrect requests are
+    `RETURNED_FOR_COMPLETION` with per-requirement `RequirementSubmission.decisionNote`s and an
+    aggregate `returnedReason`.
+18. **Forward is blocked by the checklist (R-4).** The `FORWARDED_TO_FINANCIER` transition is
+    transaction-guarded: every `RequirementSubmission` whose `serviceRequirement.isRequired = true`
+    must be `VERIFIED` (or `WAIVED` with a `decisionNote`); `PENDING`/`SUBMITTED`/`REJECTED` items
+    block the transition.
+19. **One accreditation record per program per org.** `AccreditationRequest` carries
+    `@@unique([serviceId, organizationId])` — at most one accreditation record per financier
+    program per organization; renewals are NEW requests, allowed only after
+    EXPIRED/REVOKED/REJECTED/CANCELLED (service-enforced).
+20. **Documents verified once, reused everywhere (R-2 / DP-27).** An `AccountDocument` is
+    verified at account level (status + reviewedById/At) and then reused via
+    `RequirementSubmission.accountDocumentId` and `RequestAttachment.accountDocumentId` —
+    documents are never re-uploaded or re-verified per request.
+21. **Exactly-one parent on RequirementSubmission.** `financingRequestId XOR accreditationRequestId`
+    — both FKs are nullable, exactly one is set, enforced in the service layer; the composite
+    uniques `[financingRequestId, serviceRequirementId]` and
+    `[accreditationRequestId, serviceRequirementId]` keep one checklist row per requirement per
+    request.
 
 ---
 
@@ -1002,35 +1126,102 @@ stateDiagram-v2
     CANCELLED --> [*]
 ```
 
-### 5.7 PLANNED — FinancingRequest (`FinancingRequest.status`) — FINANCIER_SCHEMA §3.5/§5
+### 5.7 PLANNED — FinancingRequest v3 (`FinancingRequest.status`) — the platform verification gate (FINANCIER_SCHEMA v5.0 §5.1)
 
 ```mermaid
 stateDiagram-v2
     [*] --> DRAFT : wizard in progress
-    DRAFT --> SUBMITTED : submit (consentAt stamped)
-    SUBMITTED --> UNDER_REVIEW : financier credit analysis
-    UNDER_REVIEW --> INFO_REQUESTED : financier asks for missing docs/info
-    INFO_REQUESTED --> UNDER_REVIEW : docs supplied
-    UNDER_REVIEW --> OFFERED : approval materializes as a FinancingOffer
-    OFFERED --> ACCEPTED : buyer accepts one offer (siblings auto-decline, FinancingFee accrues)
-    OFFERED --> DECLINED_ALL : buyer declines every offer
-    SUBMITTED --> EXPIRED : lazy sweep at expiresAt (competitor auto-rejected)
-    UNDER_REVIEW --> EXPIRED : lazy sweep at expiresAt
-    INFO_REQUESTED --> EXPIRED : lazy sweep at expiresAt
-    OFFERED --> EXPIRED : lazy sweep at expiresAt
+    DRAFT --> SUBMITTED : submit (consentAt stamped, FR- number assigned)
     DRAFT --> CANCELLED : applicant cancels pre-acceptance
+    SUBMITTED --> UNDER_PLATFORM_REVIEW : admin opens the gate queue
+    UNDER_PLATFORM_REVIEW --> RETURNED_FOR_COMPLETION : items missing / incorrect (per-item notes)
+    RETURNED_FOR_COMPLETION --> UNDER_PLATFORM_REVIEW : applicant fixes + resubmits (re-verify)
+    UNDER_PLATFORM_REVIEW --> FORWARDED_TO_FINANCIER : ALL required items VERIFIED or WAIVED (R-4)
+    FORWARDED_TO_FINANCIER --> UNDER_FINANCIER_REVIEW : financier opens the request
+    FORWARDED_TO_FINANCIER --> DECLINED : financier declines with note
+    UNDER_FINANCIER_REVIEW --> OFFERED : offer sent
+    UNDER_FINANCIER_REVIEW --> DECLINED : financier declines with note
+    OFFERED --> ACCEPTED : applicant accepts (siblings auto-decline, FinancingFee accrues)
+    OFFERED --> DECLINED : applicant rejects / no acceptable offer
+    SUBMITTED --> EXPIRED : lazy sweep at expiresAt
+    UNDER_PLATFORM_REVIEW --> EXPIRED : lazy sweep at expiresAt
+    RETURNED_FOR_COMPLETION --> EXPIRED : lazy sweep at expiresAt
+    FORWARDED_TO_FINANCIER --> EXPIRED : lazy sweep at expiresAt
+    UNDER_FINANCIER_REVIEW --> EXPIRED : lazy sweep at expiresAt
+    OFFERED --> EXPIRED : lazy sweep at expiresAt
     SUBMITTED --> CANCELLED : applicant cancels pre-acceptance
-    UNDER_REVIEW --> CANCELLED : applicant cancels pre-acceptance
-    INFO_REQUESTED --> CANCELLED : applicant cancels pre-acceptance
-    OFFERED --> WITHDRAWN : post-offer withdrawal
+    UNDER_PLATFORM_REVIEW --> CANCELLED : applicant cancels pre-acceptance
+    RETURNED_FOR_COMPLETION --> CANCELLED : applicant cancels pre-acceptance
+    FORWARDED_TO_FINANCIER --> CANCELLED : applicant cancels pre-acceptance
+    UNDER_FINANCIER_REVIEW --> CANCELLED : applicant cancels pre-acceptance
+    OFFERED --> CANCELLED : applicant cancels pre-acceptance
     ACCEPTED --> [*]
-    DECLINED_ALL --> [*]
+    DECLINED --> [*]
     EXPIRED --> [*]
     CANCELLED --> [*]
-    WITHDRAWN --> [*]
 ```
 
-### 5.8 PLANNED — FinancingOffer (`FinancingOffer.status`)
+- `FORWARDED_TO_FINANCIER` is the ONLY state from which a financier inbox query can see a request
+  (queries filter to `FORWARDED_TO_FINANCIER` and later states — R-4/DP-23): a `SUBMITTED` request
+  is platform-private by construction; `forwardedAt` is stamped at the forward transition.
+- Re-submit after `RETURNED_FOR_COMPLETION` goes straight back to `UNDER_PLATFORM_REVIEW`
+  (previously VERIFIED items may be preserved when the resubmission did not touch their evidence).
+- On `ACCEPTED`: a `FinancingAgreement` (AGR-) is created from the accepted offer and a
+  `FinancingFee` (type SUCCESS) accrues.
+
+### 5.8 PLANNED — AccreditationRequest (`AccreditationRequest.status`) — FINANCIER_SCHEMA v5.0 §5.2 (DP-26)
+
+```mermaid
+stateDiagram-v2
+    [*] --> DRAFT : company starts on an ACCREDITATION-kind service
+    DRAFT --> SUBMITTED : submit (consentAt stamped, ACC- number assigned)
+    DRAFT --> CANCELLED : applicant cancels pre-decision
+    SUBMITTED --> UNDER_PLATFORM_REVIEW : admin opens the gate queue
+    UNDER_PLATFORM_REVIEW --> RETURNED_FOR_COMPLETION : items missing / incorrect
+    RETURNED_FOR_COMPLETION --> UNDER_PLATFORM_REVIEW : applicant completes + resubmits
+    UNDER_PLATFORM_REVIEW --> FORWARDED_TO_FINANCIER : ALL required items VERIFIED or WAIVED (R-4)
+    FORWARDED_TO_FINANCIER --> UNDER_FINANCIER_REVIEW : financier opens the request
+    UNDER_FINANCIER_REVIEW --> ACCREDITED : financier grants (accreditedAt + validUntil)
+    UNDER_FINANCIER_REVIEW --> REJECTED : financier rejects (decisionNote)
+    ACCREDITED --> EXPIRED : validUntil passes (lazy sweep)
+    ACCREDITED --> REVOKED : financier / platform revoke (revocationReason REQUIRED)
+    SUBMITTED --> EXPIRED : lazy sweep at expiresAt (pre-decision)
+    SUBMITTED --> CANCELLED : applicant cancels pre-decision
+    ACCREDITED --> [*]
+    REJECTED --> [*]
+    EXPIRED --> [*]
+    REVOKED --> [*]
+    CANCELLED --> [*]
+```
+
+`ACCREDITED` + `validUntil` in the future = a **live accreditation** → RFQ send/receive
+participation unlock with that financier + `autoPassAccredited` requirement auto-verification on
+the financier's other services (DP-26). Renewal = a NEW `AccreditationRequest` for the same
+service (the old record is EXPIRED/REVOKED); `@@unique([serviceId, organizationId])` permits
+exactly one record per financier program per organization.
+
+### 5.9 PLANNED — RequirementSubmission (`RequirementSubmission.status`) — the gate's verification unit (FINANCIER_SCHEMA v5.0 §5.3)
+
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING : checklist item created with the request
+    PENDING --> SUBMITTED : applicant supplies answer / attaches an AccountDocument
+    PENDING --> SUBMITTED : PROFILE_FIELD auto-evaluates true
+    PENDING --> VERIFIED : autoPassAccredited + live accreditation (system, verifiedById null)
+    SUBMITTED --> VERIFIED : platform verifies (verifiedAt + verifiedById stamped)
+    SUBMITTED --> REJECTED : platform rejects (decisionNote REQUIRED)
+    SUBMITTED --> WAIVED : platform waives an OPTIONAL item (decisionNote REQUIRED)
+    REJECTED --> SUBMITTED : applicant re-supplies (verifiedAt cleared)
+    VERIFIED --> [*]
+    REJECTED --> [*]
+    WAIVED --> [*]
+```
+
+Gate completeness rule (R-4): a request may move to `FORWARDED_TO_FINANCIER` only when every
+`RequirementSubmission` whose `serviceRequirement.isRequired = true` is `VERIFIED` (or `WAIVED`
+with a `decisionNote`); `PENDING`/`SUBMITTED`/`REJECTED` items block the transition.
+
+### 5.10 PLANNED — FinancingOffer (`FinancingOffer.status`)
 
 ```mermaid
 stateDiagram-v2
@@ -1046,7 +1237,7 @@ stateDiagram-v2
     WITHDRAWN --> [*]
 ```
 
-### 5.9 PLANNED — FinancingAgreement `fundingStatus` (financier-reported, D-002) and `status`
+### 5.11 PLANNED — FinancingAgreement `fundingStatus` (financier-reported, D-002) and `status`
 
 ```mermaid
 stateDiagram-v2
@@ -1098,11 +1289,16 @@ four artifact kinds atomically (D-006).
 
 ```
 User (applicant profile — 12 additive nullable columns, single entry)
- └─ FinancingRequest (FR-YYYY-NNNNNN via Sequence FIN)
+ └─ FinancingRequest v3 (FR-YYYY-NNNNNN via Sequence FIN)
+      │   serviceId REQUIRED → FinancierService (serviceKind = FINANCING, DP-22)
       │   targetType WORKING_CAPITAL | QUOTE | ORDER | RFQ_LINE → targetId (loose FK)
+      │   multiGroupId — sibling requests, one per selected financier's matching service (DP-25)
       │   typed ACTIVITY / UNDERWRITING / GUARANTEE columns; consentAt stamped at submit
-      ├─ ApplicantDocument (user-scope KYC once; request-scope evidence) → MediaAsset (mediaId)
-      ├─ FinancingRequestInvite (BUYER_SELECTED distribution rows → Organization)
+      │   THE GATE (R-4 / DP-23): platformReviewedBy/At · platformNote · returnedAt/Reason ·
+      │     forwardedAt — forward only when ALL required checklist items are VERIFIED/WAIVED
+      ├─ RequirementSubmission (one row per ServiceRequirement — the gate verifies item-by-item;
+      │    typed answers; accountDocumentId → AccountDocument, REUSED not re-uploaded)
+      ├─ RequestAttachment (free attachments → AccountDocument; loose parentType/parentId)
       └─ FinancingOffer (per financier; rateType/ratePercent/feeFlat/tenorMonths)
            ├─ FinancingOfferInstallment (installmentNo, dueDate, amount)
            └─ acceptance → FinancingAgreement (AGR-YYYY-NNNNNN via Sequence AGR)
@@ -1112,9 +1308,38 @@ User (applicant profile — 12 additive nullable columns, single entry)
                  └─ FinancingFee (SUCCESS | ORIGINATION | ACCREDITATION; ACCRUED → INVOICED
                       → PAID/WAIVED — invoiced externally per D-001/D-002)
 Substrate reuse: status history = AuditLog.summary + Notification (DP-15);
-settings = RfqSetting 'financing' panels; staff access = OrganizationMember (DP-1).
-Accreditation rail (Flow 4): AccreditationProgram → AccreditationCriterion (data) →
-SupplierAccreditation (per supplier org) → ApplicantDocument evidence (same subsystem).
+settings = RfqSetting 'financing' section (6 panels); staff access = OrganizationMember (DP-1);
+numbers = Sequence FIN/AGR/ACC.
+```
+
+### 6.3 PLANNED — requirements engine, accreditation and document-reuse chains
+
+```
+FinancierService (DP-22 — serviceKind FINANCING | ACCREDITATION)
+ └─ ServiceRequirement (per-service attachment: isRequired, displayOrder, instructions,
+      │   autoPassAccredited; @@unique([serviceId, conditionTemplateId]))
+      └─ ConditionTemplate (scope GENERAL — platform-curated library, organizationId null —
+           │   or FINANCIER — private to one financier org; R-5)
+           │   conditionType DOCUMENT | PROFILE_FIELD | DECLARATION | TEXT | NUMBER | DATE
+           │   | SELECT | MULTI_SELECT; profileFieldKey / documentType / validationMin/Max /
+           │   validityMonths / isRepeatable
+           └─ ConditionOption (SELECT / MULTI_SELECT choices — rows, never JSON; R-1)
+
+AccreditationRequest (ACC-YYYY-###### via Sequence ACC — DP-26, a MAIN service)
+ └─ organizationId (companies only) + serviceId (ACCREDITATION kind) + multiGroupId (DP-25)
+      ├─ RequirementSubmission ← ServiceRequirement → ConditionTemplate
+      │    (the SAME requirements engine as financing — one engine, both flows)
+      │    gate (R-4) → financier decision: ACCREDITED (accreditedAt + validUntil from
+      │    service.accreditationValidMonths) | REJECTED (decisionNote); REVOKED with reason;
+      │    renewal = a NEW request after EXPIRED/REVOKED (@@unique per service+org)
+      └─ live grant → RFQ send/receive unlock with that financier + autoPassAccredited
+           requirements auto-VERIFIED on the financier's other services
+
+AccountDocument (universal vault — DP-27: every user, optional org scope)
+ └─ mediaId → MediaAsset (ONE storage subsystem, DP-19); verified ONCE (PENDING → VERIFIED,
+      reviewedById/At, expiresAt freshness) then REUSED by:
+      ├─ RequirementSubmission.accountDocumentId (DOCUMENT-kind gate evidence)
+      └─ RequestAttachment.accountDocumentId (free attachments, loose parent)
 ```
 
 ---

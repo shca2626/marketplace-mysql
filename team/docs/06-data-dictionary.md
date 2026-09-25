@@ -2,12 +2,13 @@
 
 | | |
 |---|---|
-| **Version** | 1.0 |
+| **Version** | 1.1 |
 | **Date** | September 2026 |
 | **Audience** | Expert software engineers (Vendora core team) |
 | **Part A source** | `prisma/schema.prisma` (32 models — the schema of record; every field below is transcribed from it, none invented, none dropped) |
-| **Part B source** | `team/FINANCIER_SCHEMA.md` v4.0 §3 (17 planned models + additive `User` columns — **PLANNED — NOT IN DATABASE YET**) |
+| **Part B source** | `team/FINANCIER_SCHEMA.md` v5.0 §3 (18 planned models + additive `User` columns — **PLANNED — NOT IN DATABASE YET**) |
 | **Companion** | `01-domain-model.md` (ER diagrams, relationship inventory, state machines) |
+| **Changelog** | 1.1 (DOC-V5-e) — Part B, planned enum registry, field-count summary and appendix note rebuilt to FINANCIER_SCHEMA **v5.0** (D-015/D-016: services-not-products · platform verification gate · requirements engine · universal documents · accreditation as a main service · multi-financier sibling routing). Part A (existing schema) unchanged. |
 
 ---
 
@@ -45,7 +46,7 @@
 ## 2. Enum registry (read this first)
 
 Values are verbatim from schema comments (`prisma/schema.prisma`) and, for Part B, from
-FINANCIER_SCHEMA v4.0 §3–§4.
+FINANCIER_SCHEMA v5.0 §3–§6.
 
 | Enum | Values | Used by |
 |---|---|---|
@@ -86,33 +87,38 @@ FINANCIER_SCHEMA v4.0 §3–§4.
 | UserIdentityType (planned) | `NATIONAL_ID` \| `PASSPORT` \| `RESIDENCE_PERMIT` \| `OTHER` | `User.identityType` |
 | ResidenceType (planned) | `OWNED` \| `RENTED` | `User.residenceType` |
 | BranchKind | `BRANCH` \| `AGENT` \| `ATM` | `FinancierBranch.kind` |
-| FinancingCategory | B2B trio: `WORKING_CAPITAL` \| `INVOICE_FINANCING` \| `PO_FINANCING`; competitor taxonomy: `INVESTMENT` \| `RURAL` \| `ENERGY` \| `HOUSING` \| `FISHERIES` \| `AGRICULTURAL` \| `SEASONAL` \| `EQUIPMENT` \| `OTHER` | `FinancingProduct.category` |
-| FinancingSegment | `BUSINESS` \| `INDIVIDUAL` \| `BOTH` (DP-13) | `FinancingProduct.targetSegment` |
-| FinancingProductStatus | `ACTIVE` \| `DRAFT` \| `ARCHIVED` | `FinancingProduct.status` |
-| RateType | `MURABAHA_ANNUAL` \| `FIXED_ANNUAL` \| `FLAT_FEE` | `FinancingProduct.rateType`, `FinancingOffer.rateType` |
-| RepaymentFrequency | `MONTHLY` \| `QUARTERLY` \| `LUMP_SUM` | `FinancingProduct.repaymentFrequency` |
-| AttributeKind | `FEATURE` \| `ELIGIBILITY_CONDITION` | `FinancingProductAttribute.kind` |
-| RequirementKind | `COLLATERAL_ACCEPTED` \| `DOCUMENT_REQUIRED` | `FinancingProductRequirement.kind` |
+| ServiceKind | `FINANCING` \| `ACCREDITATION` (DP-22/DP-26) | `FinancierService.serviceKind` |
+| ServiceCategory | FINANCING kinds: `WORKING_CAPITAL` \| `INVOICE_FINANCING` \| `PO_FINANCING` \| `EQUIPMENT` \| `VEHICLE` \| `HOME` \| `EDUCATION` \| `AGRICULTURE` \| `MICROENTERPRISE` \| `SME` \| `OTHER`; ACCREDITATION kinds: `SUPPLIER_QUALIFICATION` \| `VENDOR_APPROVAL` (v1 uses `SUPPLIER_QUALIFICATION`) | `FinancierService.category` |
+| FinancingSegment | `BUSINESS` \| `INDIVIDUAL` \| `BOTH` (DP-13) | `FinancierService.targetSegment` |
+| ServiceStatus | `DRAFT` \| `ACTIVE` \| `ARCHIVED` | `FinancierService.status` |
+| RateType | `MURABAHA_ANNUAL` \| `FIXED_ANNUAL` \| `FLAT_FEE` | `FinancierService.rateType`, `FinancingOffer.rateType` |
+| RepaymentFrequency | `MONTHLY` \| `QUARTERLY` \| `LUMP_SUM` | `FinancierService.repaymentFrequency` |
+| AttributeKind | `FEATURE` \| `ELIGIBILITY_CONDITION` | `FinancierServiceAttribute.kind` |
+| ConditionScope | `GENERAL` \| `FINANCIER` (R-5 — platform library vs financier-private) | `ConditionTemplate.scope` |
+| ConditionType | `DOCUMENT` \| `PROFILE_FIELD` \| `DECLARATION` \| `TEXT` \| `NUMBER` \| `DATE` \| `SELECT` \| `MULTI_SELECT` (DP-24 — 8 typed kinds) | `ConditionTemplate.conditionType` |
 | FinancingTargetType | `WORKING_CAPITAL` \| `QUOTE` \| `ORDER` \| `RFQ_LINE` | `FinancingRequest.targetType` |
 | ActivityStatus | `NEW` \| `EXISTING` | `FinancingRequest.activityStatus` |
 | ActivityCategory | `INVESTMENT` \| `RURAL` \| `ENERGY` \| `HOUSING` \| `FISHERIES` \| `OTHER` (+ B2B trio & catalog extras) | `FinancingRequest.activityCategory` |
 | LocationType | `OWNED` \| `RENTED` | `FinancingRequest.activityLocationType` (and planned `User.residenceType`) |
-| GuaranteeType | `PERSONAL_GUARANTEE` \| `BANK_GUARANTEE` \| `GOLD` \| `COMMERCIAL` \| `MORTGAGE` \| `CONVERTIBLE_SECURITIES` \| `SELF_GUARANTEE` \| `OTHER` | `FinancingRequest.guaranteeType`, `FinancingOffer.collateralRequired`, `FinancingProductRequirement.value` (COLLATERAL_ACCEPTED) |
+| GuaranteeType | `PERSONAL_GUARANTEE` \| `BANK_GUARANTEE` \| `GOLD` \| `COMMERCIAL` \| `MORTGAGE` \| `CONVERTIBLE_SECURITIES` \| `SELF_GUARANTEE` \| `OTHER` | `FinancingRequest.guaranteeType`, `FinancingOffer.collateralRequired` |
 | GuaranteeStatus | `AVAILABLE` \| `PARTIALLY_AVAILABLE` \| `UNAVAILABLE` \| `OTHER` | `FinancingRequest.guaranteeStatus` |
-| DistributionMode | `OPEN` \| `BUYER_SELECTED` | `FinancingRequest.distributionMode` |
-| FinancingRequestStatus | `DRAFT` \| `SUBMITTED` \| `UNDER_REVIEW` \| `INFO_REQUESTED` \| `OFFERED` \| `ACCEPTED` \| `DECLINED_ALL` \| `EXPIRED` \| `CANCELLED` \| `WITHDRAWN` | `FinancingRequest.status` |
-| ApplicantDocumentType | user-scope: `ID_DOCUMENT`; request-scope: `BUSINESS_LICENSE` \| `FINANCIAL_STATEMENT` \| `BANK_STATEMENT` \| `TAX_REGISTRATION` \| `PROPERTY_PROOF` \| `INVOICE` \| `PURCHASE_ORDER` \| `GUARANTEE_DOC` \| `FEASIBILITY_STUDY` \| `OTHER`; accreditation-scope: per `AccreditationCriterion` | `ApplicantDocument.type`, `FinancingProductRequirement.value` (DOCUMENT_REQUIRED) |
-| ApplicantDocumentStatus | `PENDING` \| `VERIFIED` \| `REJECTED` | `ApplicantDocument.status` |
+| FinancingRequestStatus (v3) | `DRAFT` \| `SUBMITTED` \| `UNDER_PLATFORM_REVIEW` \| `RETURNED_FOR_COMPLETION` \| `FORWARDED_TO_FINANCIER` \| `UNDER_FINANCIER_REVIEW` \| `OFFERED` \| `ACCEPTED` \| `DECLINED` \| `EXPIRED` \| `CANCELLED` — 11 gate-first states (DP-23) | `FinancingRequest.status` |
+| RequirementSubmissionStatus | `PENDING` \| `SUBMITTED` \| `VERIFIED` \| `REJECTED` \| `WAIVED` | `RequirementSubmission.status` |
+| AccountDocumentType | `NATIONAL_ID` \| `PASSPORT` \| `RESIDENCE_PERMIT` \| `COMMERCIAL_REG` \| `TAX_CARD` \| `BUSINESS_LICENSE` \| `BANK_STATEMENT` \| `FINANCIAL_STATEMENT` \| `PROOF_OF_ADDRESS` \| `GUARANTEE_DOC` \| `FEASIBILITY_STUDY` \| `INVOICE` \| `PURCHASE_ORDER` \| `PROJECT_FILE` \| `OTHER` (15 values) | `AccountDocument.documentType`, `ConditionTemplate.documentType` |
+| AccountDocumentStatus | `PENDING` \| `VERIFIED` \| `REJECTED` | `AccountDocument.status` |
+| RequestAttachmentParentType | `FINANCING_REQUEST` \| `ACCREDITATION_REQUEST` | `RequestAttachment.parentType` |
+| RequestAttachmentKind | `GUARANTEE_DOC` \| `STUDY` \| `PROJECT_FILE` \| `OTHER` | `RequestAttachment.kind` |
 | FinancingOfferStatus | `DRAFT` \| `SENT` \| `ACCEPTED` \| `DECLINED` \| `EXPIRED` \| `WITHDRAWN` | `FinancingOffer.status` |
 | FundingStatus | `PENDING` \| `REPORTED_FUNDED` \| `REPORTED_SETTLED` — financier-REPORTED external money events (D-002) | `FinancingAgreement.fundingStatus` |
 | AgreementStatus | `ACTIVE` \| `COMPLETED` \| `DEFAULTED` \| `CANCELLED` | `FinancingAgreement.status` |
 | FinancingEventType | `DISBURSEMENT` \| `REPAYMENT` \| `EARLY_SETTLEMENT` \| `LATE_FEE` \| `NOTE` | `FinancingEvent.type` |
 | FinancingFeeType | `SUCCESS` \| `ORIGINATION` \| `ACCREDITATION` | `FinancingFee.type` |
 | FinancingFeeStatus | `ACCRUED` \| `INVOICED` \| `PAID` \| `WAIVED` | `FinancingFee.status` |
-| AccreditationCriterionKind | `REQUIRED_DOCUMENT` (value = ApplicantDocument.type) \| `MIN_TENURE_MONTHS` \| `MIN_MONTHLY_REVENUE` \| `MANUAL_CHECK` | `AccreditationCriterion.kind` |
-| SupplierAccreditationStatus | `PENDING` \| `UNDER_REVIEW` \| `VERIFIED` \| `REJECTED` \| `EXPIRED` | `SupplierAccreditation.status` |
-| Planned currency | ISO-4217, default `YER` | `FinancingProduct.currency`, `FinancingRequest.currency`, `FinancingOffer.currency` |
-| Planned notification types | `FINANCING_REQUEST_RECEIVED`, `OFFER_RECEIVED`, `OFFER_ACCEPTED`, `OFFER_DECLINED`, `OFFER_WITHDRAWN`, `DOC_VERIFIED`, `DOC_REJECTED`, `FEE_ACCRUED`, `AGREEMENT_STATUS_CHANGED`, `FINANCING_STATUS_CHANGED`; `linkView` += `financing` | `Notification.type`, `Notification.linkView` |
+| AccreditationRequestStatus | `DRAFT` \| `SUBMITTED` \| `UNDER_PLATFORM_REVIEW` \| `RETURNED_FOR_COMPLETION` \| `FORWARDED_TO_FINANCIER` \| `UNDER_FINANCIER_REVIEW` \| `ACCREDITED` \| `REJECTED` \| `EXPIRED` \| `REVOKED` \| `CANCELLED` — 11 states | `AccreditationRequest.status` |
+| Planned currency | ISO-4217, default `YER` | `FinancierService.currency`, `FinancingRequest.currency`, `FinancingOffer.currency` |
+| Planned sequence keys | `FIN` \| `AGR` \| `ACC` → `FR-YYYY-######` / `AGR-YYYY-######` / `ACC-YYYY-######` (D-006; offers stay id-addressed, DP-12) | `Sequence.key` |
+| Planned RfqSetting financing panels | 6 panels — `general` {enabled, requestExpiryDays, maxOffersPerRequest, platformReviewRequired (default TRUE — R-4), autoForwardWhenAllVerified} · `fees` {financierSuccessPercent (default 0.75, 0–5), originationPercentCap} · `requirements` {allowFinancierCustomConditions (default true), defaultValidityMonths, maxRequirementsPerService (default 40)} · `documents` {allowedTypes, maxSizeMb} · `intake` {requireConsent, wizardEnabled} · `accreditation` {defaultValidMonths (default 12), allowMultiFinancier (default true)} | `RfqSetting.value` (financing section) |
+| Planned notification types | `linkView` += `financing` \| `financier`; types: `PLATFORM_RETURNED_REQUEST`, `PLATFORM_FORWARDED_REQUEST`, `REQUIREMENT_VERIFIED`, `REQUIREMENT_REJECTED`, `DOCUMENT_VERIFIED`, `DOCUMENT_REJECTED`, `FINANCING_REQUEST_RECEIVED` (fired at forward), `OFFER_RECEIVED`, `OFFER_ACCEPTED`, `OFFER_DECLINED`, `OFFER_WITHDRAWN`, `ACCREDITATION_RECEIVED`, `ACCREDITATION_GRANTED`, `ACCREDITATION_REJECTED`, `ACCREDITATION_REVOKED`, `ACCREDITATION_EXPIRING`, `FEE_ACCRUED`, `AGREEMENT_STATUS_CHANGED`, `FINANCING_STATUS_CHANGED` | `Notification.type`, `Notification.linkView` |
 
 ---
 
@@ -764,7 +770,7 @@ Relations: none. Indexes: `[entityType, entityId]`, `[createdAt]`, `[actorType, 
 
 | field | Prisma type | MySQL type | null/default | description |
 |---|---|---|---|---|
-| key | String @id | VARCHAR(32) PK | required | Sequence key: RFQ \| QTE \| DSP \| PY (planned: FIN, AGR) |
+| key | String @id | VARCHAR(32) PK | required | Sequence key: RFQ \| QTE \| DSP \| PY (planned: FIN, AGR, ACC) |
 | value | Int @default(0) | INT | required, default 0 | Last issued number |
 
 Relations: none. Indexes: PK on `key`.
@@ -773,15 +779,36 @@ Relations: none. Indexes: PK on `key`.
 
 # Part B — PLANNED financier models — **NOT IN DATABASE YET**
 
-> Source: `team/FINANCIER_SCHEMA.md` v4.0 §3 (owner-gated; D-013). Zero Json columns in this
-> entire domain (R-1/DP-18). Field names/types are verbatim from the v4.0 model blocks; Prisma
-> type shown, MySQL per §1 conventions. **`onDelete` not annotated in v4.0 for several relations —
-> marked "—".** Prisma would default these to Restrict (required) / SetNull (optional).
+> Source: `team/FINANCIER_SCHEMA.md` **v5.0** §3 (owner-gated; D-013/D-016). Zero Json columns in
+> this entire domain (R-1/DP-18). Field names/types are verbatim from the v5.0 model blocks;
+> Prisma type shown, MySQL per §1 conventions. **`onDelete` not annotated in v5.0 for several
+> relations — marked "—".** Prisma would default these to Restrict (required) / SetNull
+> (optional).
+>
+> **Migration note — v4.0 → v5.0 planned model set (owner rulings D-015/D-016), renames vs
+> deletions explicit:**
+> - **RENAMED:** `FinancingProduct` → `FinancierService` — also EXTENDED (`serviceKind`,
+>   `summary`, `accreditationValidMonths`, `accreditationFeeAmount`; `amountMin`/`amountMax`
+>   now nullable) · `FinancingProductAttribute` → `FinancierServiceAttribute` ·
+>   `FinancingProductCoverage` → `FinancierServiceCoverage`.
+> - **REPLACED:** `ApplicantDocument` → `AccountDocument` (universal user+org vault, DP-27) +
+>   thin `RequestAttachment` link · `AccreditationProgram`/`AccreditationCriterion`/
+>   `SupplierAccreditation` → `FinancierService(serviceKind = ACCREDITATION)` + the same
+>   requirements engine + `AccreditationRequest` (full lifecycle incl. the platform gate).
+> - **DELETED:** `FinancingProductRequirement` (superseded by the requirements engine, DP-24) ·
+>   `FinancingRequestInvite` (superseded by sibling requests sharing `multiGroupId`, DP-25; open
+>   distribution deferred, DP-28).
+> - **NEW:** `ConditionTemplate` · `ConditionOption` · `ServiceRequirement` ·
+>   `RequirementSubmission` · `AccountDocument` · `RequestAttachment` · `AccreditationRequest`.
+>
+> Grouped below: services catalog (B.2–B.4) · requirements engine (B.5–B.8) · requests — financing
+> AND accreditation, both through the platform gate (B.9–B.14) · documents (B.15–B.16).
 
 ## B.1 User — additive applicant profile columns (the ONLY existing model whose columns change)
 
 All 12 columns are nullable; B2C buyers unaffected until they apply for financing (DP-14).
-Existing User fields and relations are unchanged (see A.1).
+Existing User fields and relations are unchanged (see A.1). Treatment unchanged from v4.0 —
+v5.0 keeps these 12 scalars exactly as they were (FINANCIER_SCHEMA §3.1).
 
 | field | Prisma type | MySQL type | null/default | description |
 |---|---|---|---|---|
@@ -798,12 +825,22 @@ Existing User fields and relations are unchanged (see A.1).
 | residenceDistrict | String? @db.VarChar(120) | VARCHAR(120) | optional | Residence district |
 | residenceType | String? @db.VarChar(16) | VARCHAR(16) | optional | ResidenceType enum — OWNED \| RENTED |
 
-Additive relations (pure Prisma back-relation declarations): `applicantDocuments`→
-ApplicantDocument ("ApplicantDocuments"), `documentsReviewed`→ApplicantDocument
-("ApplicantDocumentsReviewedBy"), `financingRequests`→FinancingRequest ("FinancingRequests"),
-`financingOffers`→FinancingOffer ("FinancingOffers").
+Additive relations (pure Prisma back-relation declarations, v5.0 §3.1):
+`accountDocuments`→AccountDocument ("AccountDocumentsOwner"), `documentsReviewed`→
+AccountDocument ("AccountDocumentsReviewedBy"), `financingRequests`→FinancingRequest
+("FinancingRequests"), `financingOffers`→FinancingOffer ("FinancingOffers"),
+`financingEventsReported`→FinancingEvent ("FinancingEventsReportedBy"),
+`accreditationsSubmitted`→AccreditationRequest ("AccreditationsSubmitted"),
+`accreditationsDecided`→AccreditationRequest ("AccreditationsDecidedBy"),
+`accreditationsRevoked`→AccreditationRequest ("AccreditationsRevokedBy"),
+`gateReviewsFinancing`→FinancingRequest ("FinancingPlatformReviews"),
+`gateReviewsAccreditation`→AccreditationRequest ("AccreditationPlatformReviews"),
+`submissionsVerified`→RequirementSubmission ("RequirementSubmissionsVerifiedBy"),
+`conditionTemplatesCreated`→ConditionTemplate ("ConditionTemplatesCreatedBy").
 
-## B.2 FinancierProfile — slim: financing facts ONLY; identity lives on Organization
+## Services catalog (B.2–B.4) — financier identity, branches, and THE offering
+
+### B.2 FinancierProfile — slim: financing facts ONLY; identity lives on Organization
 
 | field | Prisma type | MySQL type | null/default | description |
 |---|---|---|---|---|
@@ -815,16 +852,17 @@ ApplicantDocument ("ApplicantDocuments"), `documentsReviewed`→ApplicantDocumen
 | logoUrl | String? @db.VarChar(512) | VARCHAR(512) | optional | MediaAsset-backed URL (existing pattern: User.image) |
 | contactEmail | String? @db.VarChar(255) | VARCHAR(255) | optional | Public contact email |
 | contactPhone | String? @db.VarChar(40) | VARCHAR(40) | optional | Public contact phone |
-| minTicket | Decimal? @db.Decimal(12, 2) | DECIMAL(12,2) | optional | Routing hint; product-level ranges remain authoritative |
+| minTicket | Decimal? @db.Decimal(12, 2) | DECIMAL(12,2) | optional | Routing hint; service-level ranges remain authoritative |
 | maxTicket | Decimal? @db.Decimal(12, 2) | DECIMAL(12,2) | optional | Routing hint |
 | viewCount | Int @default(0) | INT | required, default 0 | Public profile stats |
 | createdAt | DateTime @default(now()) | DATETIME(3) | required, default now() | Creation |
 | updatedAt | DateTime @updatedAt | DATETIME(3) | required | Last update |
 
 Relations: `organization`→Organization (1:1, Cascade), `branches`→FinancierBranch,
-`products`→FinancingProduct. Indexes: `[organizationId]` (plus unique).
+`services`→FinancierService, `conditionTemplates`→ConditionTemplate
+("FinancierConditionTemplates"). Indexes: `[organizationId]` (plus unique).
 
-## B.3 FinancierBranch — typed address columns (no Json, no geo tables)
+### B.3 FinancierBranch — typed address columns (no Json, no geo tables)
 
 | field | Prisma type | MySQL type | null/default | description |
 |---|---|---|---|---|
@@ -843,24 +881,31 @@ Relations: `organization`→Organization (1:1, Cascade), `branches`→FinancierB
 | createdAt | DateTime @default(now()) | DATETIME(3) | required, default now() | Creation |
 | updatedAt | DateTime @updatedAt | DATETIME(3) | required | Last update |
 
-Relations: `financierProfile`→FinancierProfile (Cascade). Indexes: `[financierProfileId, isActive]`.
+Relations: `financierProfile`→FinancierProfile (Cascade). Indexes:
+`[financierProfileId, isActive]`.
 
-## B.4 FinancingProduct + three trait child tables
+### B.4 FinancierService — THE offering (services, not products — DP-22)
 
-### FinancingProduct
+A financier's catalog consists of SERVICES. A service is either a **FINANCING** service
+(working capital, invoice financing, PO financing, equipment, vehicle, …) or an
+**ACCREDITATION** service (the financier's supplier-qualification program — its acceptance
+requirements live on it). Every application — financing or accreditation — targets exactly
+ONE service, which is what keeps the requirements checklist ALWAYS well-defined (R-4).
 
 | field | Prisma type | MySQL type | null/default | description |
 |---|---|---|---|---|
 | id | String @id @default(cuid()) | VARCHAR(191) PK | required, default cuid | Identifier |
 | financierProfileId | String | VARCHAR(191) | required | FK → FinancierProfile.id (Cascade) |
-| name | String @db.VarChar(160) | VARCHAR(160) | required | Product name |
+| serviceKind | String @db.VarChar(16) | VARCHAR(16) | required | ServiceKind enum — FINANCING \| ACCREDITATION (DP-22/DP-26) |
+| category | String @db.VarChar(24) | VARCHAR(24) | required | ServiceCategory enum — FINANCING kinds (11) or ACCREDITATION kinds (see registry) |
+| name | String @db.VarChar(160) | VARCHAR(160) | required | Service name |
+| summary | String? @db.VarChar(500) | VARCHAR(500) | optional | One-line card text |
 | description | String? @db.Text | TEXT | optional | Description + features prose |
-| category | String @db.VarChar(24) | VARCHAR(24) | required | FinancingCategory enum (B2B trio + competitor taxonomy) |
 | targetSegment | String? @db.VarChar(16) | VARCHAR(16) | optional | FinancingSegment enum (DP-13) |
-| status | String @default("ACTIVE") @db.VarChar(16) | VARCHAR(16) | required, default ACTIVE | FinancingProductStatus enum |
+| status | String @default("ACTIVE") @db.VarChar(16) | VARCHAR(16) | required, default ACTIVE | ServiceStatus enum — DRAFT \| ACTIVE \| ARCHIVED |
 | currency | String @default("YER") @db.VarChar(3) | VARCHAR(3) | required, default YER | ISO-4217; NO currency table |
-| amountMin | Decimal @db.Decimal(12, 2) | DECIMAL(12,2) | required | Minimum financing amount (competitor's currency.min folds here) |
-| amountMax | Decimal @db.Decimal(12, 2) | DECIMAL(12,2) | required | Maximum financing amount |
+| amountMin | Decimal? @db.Decimal(12, 2) | DECIMAL(12,2) | optional | Null = open (ACCREDITATION kinds) |
+| amountMax | Decimal? @db.Decimal(12, 2) | DECIMAL(12,2) | optional | Competitor's currency.min/max folds HERE |
 | rateType | String? @db.VarChar(24) | VARCHAR(24) | optional | RateType enum |
 | rateMax | Decimal? @db.Decimal(6, 3) | DECIMAL(6,3) | optional | e.g. 30.000 = 30%/yr cap (murabaha) |
 | feeFlat | Decimal? @db.Decimal(12, 2) | DECIMAL(12,2) | optional | Flat fee |
@@ -870,66 +915,174 @@ Relations: `financierProfile`→FinancierProfile (Cascade). Indexes: `[financier
 | gracePeriodDays | Int? | INT | optional | Grace period |
 | shariaCompliant | Boolean @default(false) | TINYINT(1) | required, default false | Islamic-finance flag |
 | processingDays | Int? | INT | optional | Processing time |
-| viewCount | Int @default(0) | INT | required, default 0 | Product page stats |
+| accreditationValidMonths | Int? | INT | optional | ACCREDITATION kind: lifetime of the grant once ACCREDITED |
+| accreditationFeeAmount | Decimal? @db.Decimal(12, 2) | DECIMAL(12,2) | optional | ACCREDITATION kind: fee (invoiced externally, D-002) |
+| viewCount | Int @default(0) | INT | required, default 0 | Service page stats |
 | createdAt | DateTime @default(now()) | DATETIME(3) | required, default now() | Creation |
 | updatedAt | DateTime @updatedAt | DATETIME(3) | required | Last update |
 
-Relations: `financierProfile`→FinancierProfile (Cascade), `attributes`, `requirements`,
-`coverage`, `requests`→FinancingRequest. Indexes: `[financierProfileId, status]`,
-`[category, status]`.
+Relations: `financierProfile`→FinancierProfile (Cascade), `attributes`→
+FinancierServiceAttribute, `coverage`→FinancierServiceCoverage, `requirements`→
+ServiceRequirement, `financingRequests`→FinancingRequest (serviceKind = FINANCING, enforced
+in service layer), `accreditationRequests`→AccreditationRequest (serviceKind = ACCREDITATION,
+enforced in service layer). Indexes: `[financierProfileId, status]`,
+`[serviceKind, category, status]`.
 
-### FinancingProductAttribute
+#### FinancierServiceAttribute — text-bullet traits (competitor "features" + "eligibility conditions" list)
 
 | field | Prisma type | MySQL type | null/default | description |
 |---|---|---|---|---|
 | id | String @id @default(cuid()) | VARCHAR(191) PK | required, default cuid | Identifier |
-| productId | String | VARCHAR(191) | required | FK → FinancingProduct.id (Cascade) |
+| serviceId | String | VARCHAR(191) | required | FK → FinancierService.id (Cascade) |
 | kind | String @db.VarChar(24) | VARCHAR(24) | required | AttributeKind enum — FEATURE \| ELIGIBILITY_CONDITION |
 | position | Int @default(0) | INT | required, default 0 | Sort position |
 | text | String @db.VarChar(500) | VARCHAR(500) | required | Bullet text |
 
-Relations: `product`→FinancingProduct (Cascade). Indexes: unique `[productId, kind, position]`,
-`[productId, kind]`.
+Relations: `service`→FinancierService (Cascade). Indexes: unique `[serviceId, kind, position]`,
+`[serviceId, kind]`.
 
-### FinancingProductRequirement
-
-| field | Prisma type | MySQL type | null/default | description |
-|---|---|---|---|---|
-| id | String @id @default(cuid()) | VARCHAR(191) PK | required, default cuid | Identifier |
-| productId | String | VARCHAR(191) | required | FK → FinancingProduct.id (Cascade) |
-| kind | String @db.VarChar(24) | VARCHAR(24) | required | RequirementKind enum |
-| value | String @db.VarChar(32) | VARCHAR(32) | required | Validated: collateral enum \| ApplicantDocument.type enum |
-
-Relations: `product`→FinancingProduct (Cascade). Indexes: unique `[productId, kind, value]`,
-`[productId, kind]`.
-
-### FinancingProductCoverage
+#### FinancierServiceCoverage — geographic coverage, region NAMES (DP-16: no geo tables in v1)
 
 | field | Prisma type | MySQL type | null/default | description |
 |---|---|---|---|---|
 | id | String @id @default(cuid()) | VARCHAR(191) PK | required, default cuid | Identifier |
-| productId | String | VARCHAR(191) | required | FK → FinancingProduct.id (Cascade) |
+| serviceId | String | VARCHAR(191) | required | FK → FinancierService.id (Cascade) |
 | regionName | String @db.VarChar(120) | VARCHAR(120) | required | Normalized (trim/case-fold) at write; matched case-insensitively vs FinancingRequest.activityCity |
 
-Relations: `product`→FinancingProduct (Cascade). Indexes: unique `[productId, regionName]`,
-`[productId]`.
+Relations: `service`→FinancierService (Cascade). Indexes: unique `[serviceId, regionName]`,
+`[serviceId]`.
 
-## B.5 FinancingRequest — the application (FR-YYYY-NNNNNN via Sequence 'FIN')
+## Requirements engine (B.5–B.8) — ConditionTemplate · ConditionOption · ServiceRequirement · RequirementSubmission (R-5, DP-24)
+
+Two flavors (R-5): templates with `scope = GENERAL` form the platform-curated shared library
+(used by many financiers on many services); templates with `scope = FINANCIER` are private to
+one financier. Both attach to a financier's service via `ServiceRequirement` rows — ONE
+definition, many attachments. Eight typed condition kinds cover documents, profile completeness,
+declarations, free answers, and choices — with zero JSON (options are `ConditionOption` rows).
+
+### B.5 ConditionTemplate — the condition definition
 
 | field | Prisma type | MySQL type | null/default | description |
 |---|---|---|---|---|
 | id | String @id @default(cuid()) | VARCHAR(191) PK | required, default cuid | Identifier |
-| number | String @unique @db.VarChar(32) | VARCHAR(32) | required, unique | FR-YYYY-NNNNNN |
+| scope | String @db.VarChar(16) | VARCHAR(16) | required | ConditionScope enum — GENERAL \| FINANCIER (R-5) |
+| organizationId | String? | VARCHAR(191) | optional | FK → Organization.id (—) — null = GENERAL (platform library, admin-managed); set = FINANCIER (private to that org) |
+| conditionType | String @db.VarChar(16) | VARCHAR(16) | required | ConditionType enum — 8 kinds (see registry) |
+| code | String? @db.VarChar(32) | VARCHAR(32) | optional | Stable ref, e.g. "COM-REG" (uniqueness service-enforced — MySQL allows NULL dupes) |
+| title | String @db.VarChar(160) | VARCHAR(160) | required | e.g. "Valid commercial registration" |
+| description | String? @db.Text | TEXT | optional | Instructions shown to the applicant |
+| profileFieldKey | String? @db.VarChar(64) | VARCHAR(64) | optional | PROFILE_FIELD only — closed zod set: user.phone \| user.identityNumber \| user.dateOfBirth \| org.taxId \| org.registrationNumber \| org.industry |
+| documentType | String? @db.VarChar(32) | VARCHAR(32) | optional | DOCUMENT only — expected AccountDocument.documentType |
+| validationMin | Decimal? @db.Decimal(12, 2) | DECIMAL(12,2) | optional | NUMBER only — inclusive lower bound |
+| validationMax | Decimal? @db.Decimal(12, 2) | DECIMAL(12,2) | optional | NUMBER only — inclusive upper bound |
+| validityMonths | Int? | INT | optional | Evidence freshness window (e.g. bank statement ≤ 3 months old) |
+| isRepeatable | Boolean @default(false) | TINYINT(1) | required, default false | DOCUMENT only — multiple docs allowed (e.g. 6× monthly statements) |
+| isActive | Boolean @default(true) | TINYINT(1) | required, default true | Library visibility |
+| createdById | String | VARCHAR(191) | required | FK → User.id (—) — admin (GENERAL) or financier staff (FINANCIER) |
+| createdAt | DateTime @default(now()) | DATETIME(3) | required, default now() | Creation |
+| updatedAt | DateTime @updatedAt | DATETIME(3) | required | Last update |
+
+Relations: `organization`→Organization ("FinancierConditionTemplates"), `createdBy`→User
+("ConditionTemplatesCreatedBy"), `options`→ConditionOption, `serviceRequirements`→
+ServiceRequirement. Indexes: `[scope, organizationId, isActive]`, `[conditionType, isActive]`.
+
+Worked example: `ConditionTemplate(scope = GENERAL, conditionType = DOCUMENT, documentType =
+COMMERCIAL_REG, title = "Valid commercial registration")` — attached to three financiers'
+services as three `ServiceRequirement` rows (different `isRequired`/`instructions` per
+service); each financier also adds their own `scope = FINANCIER` templates that nobody else
+can see or attach.
+
+### B.6 ConditionOption — SELECT / MULTI_SELECT choices as rows (R-1)
+
+| field | Prisma type | MySQL type | null/default | description |
+|---|---|---|---|---|
+| id | String @id @default(cuid()) | VARCHAR(191) PK | required, default cuid | Identifier |
+| conditionTemplateId | String | VARCHAR(191) | required | FK → ConditionTemplate.id (Cascade) |
+| value | String @db.VarChar(160) | VARCHAR(160) | required | Stored + displayed (e.g. "Sana'a") |
+| position | Int @default(0) | INT | required, default 0 | Sort position |
+
+Relations: `conditionTemplate`→ConditionTemplate (Cascade). Indexes: unique
+`[conditionTemplateId, value]`, `[conditionTemplateId, position]`.
+
+### B.7 ServiceRequirement — ONE template attached to ONE service, with per-service config
+
+| field | Prisma type | MySQL type | null/default | description |
+|---|---|---|---|---|
+| id | String @id @default(cuid()) | VARCHAR(191) PK | required, default cuid | Identifier |
+| serviceId | String | VARCHAR(191) | required | FK → FinancierService.id (Cascade) |
+| conditionTemplateId | String | VARCHAR(191) | required | FK → ConditionTemplate.id (—) |
+| isRequired | Boolean @default(true) | TINYINT(1) | required, default true | Optional conditions inform but never gate |
+| displayOrder | Int @default(0) | INT | required, default 0 | Sort position |
+| instructions | String? @db.VarChar(500) | VARCHAR(500) | optional | Financier's per-service override text |
+| autoPassAccredited | Boolean @default(false) | TINYINT(1) | required, default false | Auto-VERIFIED when the applicant org holds a live accreditation from THIS financier (DP-26) |
+| isActive | Boolean @default(true) | TINYINT(1) | required, default true | Attachment visibility |
+| createdAt | DateTime @default(now()) | DATETIME(3) | required, default now() | Creation |
+| updatedAt | DateTime @updatedAt | DATETIME(3) | required | Last update |
+
+Relations: `service`→FinancierService (Cascade), `conditionTemplate`→ConditionTemplate,
+`submissions`→RequirementSubmission. Indexes: unique `[serviceId, conditionTemplateId]`,
+`[serviceId, isActive, displayOrder]`.
+
+### B.8 RequirementSubmission — per-request checklist row; THE GATE's verification unit
+
+One row per (request × service-requirement). This is what the platform admin verifies
+item-by-item, and what must be all-VERIFIED (or WAIVED with a note) before the request can be
+forwarded (R-4). Answers are TYPED columns — zero JSON (R-1).
+
+| field | Prisma type | MySQL type | null/default | description |
+|---|---|---|---|---|
+| id | String @id @default(cuid()) | VARCHAR(191) PK | required, default cuid | Identifier |
+| serviceRequirementId | String | VARCHAR(191) | required | FK → ServiceRequirement.id (Cascade) |
+| financingRequestId | String? | VARCHAR(191) | optional | FK → FinancingRequest.id (Cascade) — parent XOR with accreditationRequestId (service-enforced) |
+| accreditationRequestId | String? | VARCHAR(191) | optional | FK → AccreditationRequest.id (Cascade) — parent XOR with financingRequestId (service-enforced) |
+| status | String @default("PENDING") @db.VarChar(16) | VARCHAR(16) | required, default PENDING | RequirementSubmissionStatus enum — PENDING \| SUBMITTED \| VERIFIED \| REJECTED \| WAIVED |
+| valueText | String? @db.VarChar(500) | VARCHAR(500) | optional | TEXT / DECLARATION / SELECT answers |
+| valueNumber | Decimal? @db.Decimal(12, 2) | DECIMAL(12,2) | optional | NUMBER answers |
+| valueDate | DateTime? | DATETIME(3) | optional | DATE answers |
+| accountDocumentId | String? | VARCHAR(191) | optional | FK → AccountDocument.id (—) — DOCUMENT evidence; REUSE of a vault doc (R-2) |
+| submittedAt | DateTime? | DATETIME(3) | optional | Applicant supply time |
+| verifiedAt | DateTime? | DATETIME(3) | optional | Platform verdict time |
+| verifiedById | String? | VARCHAR(191) | optional | FK → User.id (—) — the platform admin (or system for autoPass) |
+| decisionNote | String? @db.VarChar(500) | VARCHAR(500) | optional | Rejection/waiver reason — REQUIRED in REJECTED/WAIVED; shown to applicant |
+| createdAt | DateTime @default(now()) | DATETIME(3) | required, default now() | Creation |
+| updatedAt | DateTime @updatedAt | DATETIME(3) | required | Last update |
+
+Relations: `serviceRequirement`→ServiceRequirement (Cascade), `financingRequest`→
+FinancingRequest (Cascade), `accreditationRequest`→AccreditationRequest (Cascade),
+`accountDocument`→AccountDocument, `verifiedBy`→User ("RequirementSubmissionsVerifiedBy").
+Indexes: unique `[financingRequestId, serviceRequirementId]`, unique
+`[accreditationRequestId, serviceRequirementId]`, `[status]`.
+
+**Parent rule:** exactly ONE of `financingRequestId` / `accreditationRequestId` is set
+(service-enforced; both FKs keep cascade integrity).
+
+**Gate completeness rule (service-layer, R-4):** a request may move to FORWARDED_TO_FINANCIER
+only when every RequirementSubmission whose `serviceRequirement.isRequired = true` is VERIFIED
+(or WAIVED with a decisionNote); PENDING/SUBMITTED/REJECTED items block the transition.
+
+## Requests (B.9–B.14) — financing AND accreditation, both through the platform gate (R-4, DP-23)
+
+No financing or accreditation request is EVER visible to a financier until platform management
+has verified all required conditions; financier inbox queries filter FORWARDED_TO_FINANCIER and
+later states only. Status machines (11 states each, gate-first): FINANCIER_SCHEMA §5.1–§5.2.
+
+### B.9 FinancingRequest v3 — the financing application (FR-YYYY-###### via Sequence 'FIN')
+
+| field | Prisma type | MySQL type | null/default | description |
+|---|---|---|---|---|
+| id | String @id @default(cuid()) | VARCHAR(191) PK | required, default cuid | Identifier |
+| number | String @unique @db.VarChar(32) | VARCHAR(32) | required, unique | FR-YYYY-###### |
 | organizationId | String? | VARCHAR(191) | optional | FK → Organization.id (—) — applicant org (B2B); null = individual (DP-13) |
 | createdById | String | VARCHAR(191) | required | FK → User.id — submitting member or the individual |
-| productId | String? | VARCHAR(191) | optional | FK → FinancingProduct.id (—) — direct application ("طلب تمويل" CTA) |
+| serviceId | String | VARCHAR(191) | required | FK → FinancierService.id (—) — serviceKind = FINANCING enforced in service layer (DP-22) |
 | targetType | String @db.VarChar(16) | VARCHAR(16) | required | FinancingTargetType enum — WORKING_CAPITAL \| QUOTE \| ORDER \| RFQ_LINE |
 | targetId | String? @db.VarChar(64) | VARCHAR(64) | optional | Loose FK → Quote/Order/RfqLine id (Dispute pattern) |
+| multiGroupId | String? @db.VarChar(32) | VARCHAR(32) | optional | Multi-financier routing (DP-25) — null = EXCLUSIVE; set = sibling requests share the group |
 | activityStatus | String? @db.VarChar(16) | VARCHAR(16) | optional | ActivityStatus enum — NEW \| EXISTING |
 | activityName | String? @db.VarChar(160) | VARCHAR(160) | optional | e.g. "Grocery store" |
 | activityDescription | String? @db.Text | TEXT | optional | Free description |
 | activityStartDate | DateTime? | DATETIME(3) | optional | Null = not started yet |
-| activityCity | String? @db.VarChar(120) | VARCHAR(120) | optional | Matches product coverage (string, DP-16) |
+| activityCity | String? @db.VarChar(120) | VARCHAR(120) | optional | Matches service coverage (string, DP-16) |
 | activityDistrict | String? @db.VarChar(120) | VARCHAR(120) | optional | District |
 | activityAddress | String? @db.VarChar(255) | VARCHAR(255) | optional | Street address |
 | activityLocationType | String? @db.VarChar(16) | VARCHAR(16) | optional | LocationType enum — OWNED \| RENTED |
@@ -950,54 +1103,36 @@ Relations: `product`→FinancingProduct (Cascade). Indexes: unique `[productId, 
 | guaranteeStatusOther | String? @db.VarChar(160) | VARCHAR(160) | optional | Free text companion when OTHER |
 | applicantNotes | String? @db.Text | TEXT | optional | Wizard notes field |
 | consentAt | DateTime? | DATETIME(3) | optional | Step-1 data-transfer consent + terms, stamped at submit |
-| distributionMode | String @default("OPEN") @db.VarChar(16) | VARCHAR(16) | required, default OPEN | DistributionMode enum |
-| status | String @default("DRAFT") @db.VarChar(16) | VARCHAR(16) | required, default DRAFT | FinancingRequestStatus enum |
+| platformReviewedById | String? | VARCHAR(191) | optional | FK → User.id (—) — the admin working the gate (DP-23) |
+| platformReviewedAt | DateTime? | DATETIME(3) | optional | Gate review time |
+| platformNote | String? @db.Text | TEXT | optional | Public-to-applicant review summary |
+| returnedAt | DateTime? | DATETIME(3) | optional | Set when RETURNED_FOR_COMPLETION |
+| returnedReason | String? @db.VarChar(500) | VARCHAR(500) | optional | Aggregate missing/incorrect note (per-item notes on RequirementSubmission.decisionNote) |
+| forwardedAt | DateTime? | DATETIME(3) | optional | Set when the gate PASSED — financier visibility starts HERE (R-4) |
+| status | String @default("DRAFT") @db.VarChar(24) | VARCHAR(24) | required, default DRAFT | FinancingRequestStatus v3 enum — 11 gate-first states (§5.1) |
 | expiresAt | DateTime? | DATETIME(3) | optional | Lazy-sweep expiry (D-011) |
 | submittedAt | DateTime? | DATETIME(3) | optional | Submission time |
 | closedAt | DateTime? | DATETIME(3) | optional | Terminal time |
 | createdAt | DateTime @default(now()) | DATETIME(3) | required, default now() | Creation |
 | updatedAt | DateTime @updatedAt | DATETIME(3) | required | Last update |
 
-Relations: `organization`→Organization, `createdBy`→User ("FinancingRequests"), `product`→
-FinancingProduct, `documents`→ApplicantDocument, `invites`→FinancingRequestInvite,
-`offers`→FinancingOffer. Indexes: `[organizationId, status]`, `[createdById, createdAt]`,
-`[status, createdAt]`, `[productId]`, `[targetType, targetId]`, `[activityCity]`.
+Relations: `organization`→Organization ("FinancingRequestsByOrg"), `createdBy`→User
+("FinancingRequests"), `service`→FinancierService, `platformReviewedBy`→User
+("FinancingPlatformReviews"), `submissions`→RequirementSubmission, `offers`→FinancingOffer.
+Indexes: `[organizationId, status]`, `[createdById, createdAt]`, `[status, createdAt]` (gate
+queue: SUBMITTED + UNDER_PLATFORM_REVIEW), `[serviceId]`, `[multiGroupId]`,
+`[targetType, targetId]`, `[activityCity]`.
 
-## B.6 FinancingRequestInvite — BUYER_SELECTED distribution as rows, not JSON
+Notes: `serviceId` is REQUIRED — applications are service-scoped (DP-22). Multi-financier
+routing (DP-25): EXCLUSIVE = `multiGroupId` null (this request goes to the service's owning
+financier only); MULTI = the wizard created N sibling requests (one per selected financier's
+matching service) sharing the groupId, grouped for side-by-side offer comparison. v3's
+`businessInfo` Json is DELETED (R-1/R-3: industry/registration come from Organization, financial
+evidence arrives as typed AccountDocuments).
 
-| field | Prisma type | MySQL type | null/default | description |
-|---|---|---|---|---|
-| id | String @id @default(cuid()) | VARCHAR(191) PK | required, default cuid | Identifier |
-| requestId | String | VARCHAR(191) | required | FK → FinancingRequest.id (Cascade) |
-| organizationId | String | VARCHAR(191) | required | FK → Organization.id (—) — the invited financier org |
-| createdAt | DateTime @default(now()) | DATETIME(3) | required, default now() | Creation |
+### B.10 FinancingOffer + installments — the financier's proposal; schedule as rows (R-1)
 
-Relations: `request`→FinancingRequest (Cascade), `organization`→Organization.
-Indexes: unique `[requestId, organizationId]`, `[organizationId]`.
-
-## B.7 ApplicantDocument — ONE document subsystem over MediaAsset
-
-| field | Prisma type | MySQL type | null/default | description |
-|---|---|---|---|---|
-| id | String @id @default(cuid()) | VARCHAR(191) PK | required, default cuid | Identifier |
-| userId | String | VARCHAR(191) | required | FK → User.id (Cascade) — owner/uploader, ALWAYS set |
-| requestId | String? | VARCHAR(191) | optional | FK → FinancingRequest.id (Cascade) — null = user-level KYC (uploaded ONCE, reused) |
-| accreditationId | String? | VARCHAR(191) | optional | FK → SupplierAccreditation.id (—) — set = accreditation evidence (Flow 4) |
-| mediaId | String | VARCHAR(191) | required | FK → MediaAsset.id (—) — THE storage entry (DP-19) |
-| type | String @db.VarChar(32) | VARCHAR(32) | required | ApplicantDocumentType enum (scope-dependent) |
-| status | String @default("PENDING") @db.VarChar(16) | VARCHAR(16) | required, default PENDING | ApplicantDocumentStatus enum |
-| reviewedById | String? | VARCHAR(191) | optional | FK → User.id (—) — verifying staff |
-| reviewedAt | DateTime? | DATETIME(3) | optional | Verification time |
-| note | String? @db.Text | TEXT | optional | Verification / rejection note |
-| createdAt | DateTime @default(now()) | DATETIME(3) | required, default now() | Creation |
-
-Relations: `user`→User (Cascade), `request`→FinancingRequest (Cascade), `accreditation`→
-SupplierAccreditation, `media`→MediaAsset, `reviewedBy`→User. Indexes: `[userId]`,
-`[requestId]`, `[accreditationId]`, `[userId, type, status]`, `[mediaId]`.
-
-## B.8 FinancingOffer + installments
-
-### FinancingOffer
+#### FinancingOffer
 
 | field | Prisma type | MySQL type | null/default | description |
 |---|---|---|---|---|
@@ -1025,7 +1160,11 @@ Relations: `request`→FinancingRequest (Cascade), `createdBy`→User ("Financin
 `installments`→FinancingOfferInstallment, `agreement`→FinancingAgreement (1:1 back-relation).
 Indexes: `[requestId, status]`.
 
-### FinancingOfferInstallment
+Offer comparison & tracking: within one request the financier may send multiple offers
+(revised terms); ACROSS financiers the applicant compares the latest SENT offer of each sibling
+request sharing a `multiGroupId` — both surfaces render from these rows, no snapshot table.
+
+#### FinancingOfferInstallment
 
 | field | Prisma type | MySQL type | null/default | description |
 |---|---|---|---|---|
@@ -1038,12 +1177,12 @@ Indexes: `[requestId, status]`.
 Relations: `offer`→FinancingOffer (Cascade). Indexes: unique `[offerId, installmentNo]`,
 `[offerId, dueDate]`.
 
-## B.9 FinancingAgreement — references the accepted offer; NO snapshot (DP-20)
+### B.11 FinancingAgreement — references the accepted offer; NO snapshot (DP-20)
 
 | field | Prisma type | MySQL type | null/default | description |
 |---|---|---|---|---|
 | id | String @id @default(cuid()) | VARCHAR(191) PK | required, default cuid | Identifier |
-| number | String @unique @db.VarChar(32) | VARCHAR(32) | required, unique | AGR-YYYY-NNNNNN via Sequence 'AGR' |
+| number | String @unique @db.VarChar(32) | VARCHAR(32) | required, unique | AGR-YYYY-###### via Sequence 'AGR' |
 | offerId | String @unique | VARCHAR(191) | required, unique | FK → FinancingOffer.id (—) — the ACCEPTED offer; its rows (incl. installments) are frozen by the service |
 | fundingStatus | String @default("PENDING") @db.VarChar(24) | VARCHAR(24) | required, default PENDING | FundingStatus enum — financier-REPORTED external money events (D-002) |
 | status | String @default("ACTIVE") @db.VarChar(16) | VARCHAR(16) | required, default ACTIVE | AgreementStatus enum |
@@ -1056,7 +1195,10 @@ Relations: `offer`→FinancingOffer (Cascade). Indexes: unique `[offerId, instal
 Relations: `offer`→FinancingOffer (1:1), `events`→FinancingEvent, `fees`→FinancingFee.
 Indexes: `[status]`.
 
-## B.10 FinancingEvent — track-only ledger (D-002)
+NO termsSnapshot: the service FREEZES the accepted offer (status lock + installment rows
+immutable); the agreement references, never copies (R-2).
+
+### B.12 FinancingEvent — track-only ledger (D-002)
 
 | field | Prisma type | MySQL type | null/default | description |
 |---|---|---|---|---|
@@ -1069,10 +1211,10 @@ Indexes: `[status]`.
 | reportedById | String? | VARCHAR(191) | optional | FK → User.id (—) — financier staff who reported it |
 | createdAt | DateTime @default(now()) | DATETIME(3) | required, default now() | Creation |
 
-Relations: `agreement`→FinancingAgreement (Cascade), `reportedBy`→User ("FinancingEventsReportedBy").
-Indexes: `[agreementId, eventDate]`.
+Relations: `agreement`→FinancingAgreement (Cascade), `reportedBy`→User
+("FinancingEventsReportedBy"). Indexes: `[agreementId, eventDate]`.
 
-## B.11 FinancingFee — commission accounting, invoiced externally (D-001/002)
+### B.13 FinancingFee — commission accounting, invoiced externally (D-001/002)
 
 | field | Prisma type | MySQL type | null/default | description |
 |---|---|---|---|---|
@@ -1091,58 +1233,104 @@ Indexes: `[agreementId, eventDate]`.
 Relations: `agreement`→FinancingAgreement (Cascade). Indexes: `[agreementId, type, status]`,
 `[status, createdAt]`.
 
-## B.12 Accreditation (Flow 4)
+### B.14 AccreditationRequest — the qualification & accreditation flow, a MAIN service (ACC-YYYY-###### via Sequence 'ACC'; DP-26)
 
-### AccreditationProgram
+A company seeks qualification/accreditation by a financier: it selects the financier, completes
+any missing requirements not already in its profile, the PLATFORM verifies and forwards once
+all conditions are met, and the financier grants or rejects. The grant lives ON the request
+(`status = ACCREDITED` + `validUntil`) — no separate grant entity (single entry). A live
+accreditation unlocks RFQ send/receive participation with that financier and auto-passes
+`autoPassAccredited` requirements on the financier's other services.
 
 | field | Prisma type | MySQL type | null/default | description |
 |---|---|---|---|---|
 | id | String @id @default(cuid()) | VARCHAR(191) PK | required, default cuid | Identifier |
-| financierProfileId | String | VARCHAR(191) | required | FK → FinancierProfile.id (Cascade) |
-| name | String @db.VarChar(160) | VARCHAR(160) | required | Program name |
-| description | String? @db.Text | TEXT | optional | Program description |
-| feeAmount | Decimal? @db.Decimal(12, 2) | DECIMAL(12,2) | optional | Accreditation fee (external invoice) |
-| validMonths | Int? | INT | optional | Accreditation lifetime once verified |
-| active | Boolean @default(true) | TINYINT(1) | required, default true | Enabled flag |
+| number | String @unique @db.VarChar(32) | VARCHAR(32) | required, unique | ACC-YYYY-###### via Sequence 'ACC' |
+| organizationId | String | VARCHAR(191) | required | FK → Organization.id (—) — the applicant company (companies only; individuals use financing) |
+| submittedById | String | VARCHAR(191) | required | FK → User.id (—) — org member user |
+| serviceId | String | VARCHAR(191) | required | FK → FinancierService.id (—) — serviceKind = ACCREDITATION enforced in service layer (DP-26) |
+| multiGroupId | String? @db.VarChar(32) | VARCHAR(32) | optional | Multi-financier routing (DP-25) — sibling accreditation requests share the group |
+| scopeNotes | String? @db.VarChar(500) | VARCHAR(500) | optional | What the accreditation covers (e.g. "IT equipment suppliers") |
+| consentAt | DateTime? | DATETIME(3) | optional | Data-transfer consent, stamped at submit |
+| platformReviewedById | String? | VARCHAR(191) | optional | FK → User.id (—) — the admin working the gate (same fields as FinancingRequest) |
+| platformReviewedAt | DateTime? | DATETIME(3) | optional | Gate review time |
+| platformNote | String? @db.Text | TEXT | optional | Public-to-applicant review summary |
+| returnedAt | DateTime? | DATETIME(3) | optional | Set when RETURNED_FOR_COMPLETION |
+| returnedReason | String? @db.VarChar(500) | VARCHAR(500) | optional | Aggregate missing/incorrect note (per-item notes on RequirementSubmission.decisionNote) |
+| forwardedAt | DateTime? | DATETIME(3) | optional | Set when the gate PASSED — financier visibility starts HERE (R-4) |
+| status | String @default("DRAFT") @db.VarChar(24) | VARCHAR(24) | required, default DRAFT | AccreditationRequestStatus enum — 11 states (§5.2) |
+| submittedAt | DateTime? | DATETIME(3) | optional | Submission time |
+| decidedById | String? | VARCHAR(191) | optional | FK → User.id (—) — the financier's deciding staff user |
+| decidedAt | DateTime? | DATETIME(3) | optional | Decision time |
+| decisionNote | String? @db.VarChar(500) | VARCHAR(500) | optional | Financier's grant/reject note |
+| accreditedAt | DateTime? | DATETIME(3) | optional | Grant stamp (ACCREDITED only) |
+| validUntil | DateTime? | DATETIME(3) | optional | Grant lifetime — service.accreditationValidMonths default |
+| revokedById | String? | VARCHAR(191) | optional | FK → User.id (—) — revocation (financier or platform admin) |
+| revokedAt | DateTime? | DATETIME(3) | optional | Revocation time |
+| revocationReason | String? @db.VarChar(500) | VARCHAR(500) | optional | Reason REQUIRED on revoke |
+| expiresAt | DateTime? | DATETIME(3) | optional | REQUEST-level expiry (pre-decision), lazy sweep |
 | createdAt | DateTime @default(now()) | DATETIME(3) | required, default now() | Creation |
 | updatedAt | DateTime @updatedAt | DATETIME(3) | required | Last update |
 
-Relations: `financierProfile`→FinancierProfile (Cascade), `criteria`→AccreditationCriterion,
-`accreditations`→SupplierAccreditation. Indexes: `[financierProfileId, active]`.
+Relations: `organization`→Organization ("AccreditationRequestsByOrg"), `submittedBy`→User
+("AccreditationsSubmitted"), `service`→FinancierService, `platformReviewedBy`→User
+("AccreditationPlatformReviews"), `decidedBy`→User ("AccreditationsDecidedBy"), `revokedBy`→
+User ("AccreditationsRevokedBy"), `submissions`→RequirementSubmission. Indexes: unique
+`[serviceId, organizationId]` (one accreditation record per financier-program per org;
+renewals allowed after EXPIRED/REVOKED/REJECTED/CANCELLED — service-enforced, Prisma partial
+unique unavailable), `[organizationId, status]`, `[status, createdAt]`, `[multiGroupId]`,
+`[validUntil]`.
 
-### AccreditationCriterion
+## Documents (B.15–B.16) — universal vault + request links (DP-27)
+
+Document management for ALL users and accounts: every user — buyer, seller, financier staff,
+individual applicant — and every organization owns a document vault. KYC evidence is uploaded
+ONCE, verified ONCE by the platform, and reused by every financing / accreditation / general
+KYC flow. Requests never own document bytes; they REFERENCE.
+
+### B.15 AccountDocument — ONE document subsystem over MediaAsset, for all users and orgs
 
 | field | Prisma type | MySQL type | null/default | description |
 |---|---|---|---|---|
 | id | String @id @default(cuid()) | VARCHAR(191) PK | required, default cuid | Identifier |
-| programId | String | VARCHAR(191) | required | FK → AccreditationProgram.id (Cascade) |
-| kind | String @db.VarChar(24) | VARCHAR(24) | required | AccreditationCriterionKind enum |
-| value | String? @db.VarChar(160) | VARCHAR(160) | optional | Typed per kind; zod-validated per kind |
-| label | String @db.VarChar(160) | VARCHAR(160) | required | Human checklist line |
-| position | Int @default(0) | INT | required, default 0 | Sort position |
-
-Relations: `program`→AccreditationProgram (Cascade). Indexes: `[programId]`.
-
-### SupplierAccreditation
-
-| field | Prisma type | MySQL type | null/default | description |
-|---|---|---|---|---|
-| id | String @id @default(cuid()) | VARCHAR(191) PK | required, default cuid | Identifier |
-| programId | String | VARCHAR(191) | required | FK → AccreditationProgram.id (Cascade) |
-| organizationId | String | VARCHAR(191) | required | FK → Organization.id (—) — the supplier org applying |
-| status | String @default("PENDING") @db.VarChar(16) | VARCHAR(16) | required, default PENDING | SupplierAccreditationStatus enum |
-| submittedById | String | VARCHAR(191) | required | FK → User.id (—) — submitting member |
-| reviewedById | String? | VARCHAR(191) | optional | FK → User.id (—) — reviewing staff |
-| verifiedAt | DateTime? | DATETIME(3) | optional | Verification time |
-| expiresAt | DateTime? | DATETIME(3) | optional | Expiry (program validMonths) |
-| note | String? @db.Text | TEXT | optional | Review note |
+| userId | String | VARCHAR(191) | required | FK → User.id (Cascade) — owner/uploader, ALWAYS set (all users, not just applicants) |
+| organizationId | String? | VARCHAR(191) | optional | FK → Organization.id (—) — org-scope docs (company registry papers); null = personal |
+| mediaId | String | VARCHAR(191) | required | FK → MediaAsset.id (—) — THE storage entry (DP-19) |
+| documentType | String @db.VarChar(32) | VARCHAR(32) | required | AccountDocumentType enum — 15 values (see registry) |
+| title | String? @db.VarChar(160) | VARCHAR(160) | optional | Display title |
+| issuedAt | DateTime? | DATETIME(3) | optional | Document's own issue date |
+| expiresAt | DateTime? | DATETIME(3) | optional | Freshness vs ConditionTemplate.validityMonths |
+| status | String @default("PENDING") @db.VarChar(16) | VARCHAR(16) | required, default PENDING | AccountDocumentStatus enum — PENDING \| VERIFIED \| REJECTED |
+| reviewedById | String? | VARCHAR(191) | optional | FK → User.id (—) — verifying staff |
+| reviewedAt | DateTime? | DATETIME(3) | optional | Verification time |
+| note | String? @db.Text | TEXT | optional | Verification / rejection note |
+| isActive | Boolean @default(true) | TINYINT(1) | required, default true | Soft-delete (replaced by a newer version of the doc) |
 | createdAt | DateTime @default(now()) | DATETIME(3) | required, default now() | Creation |
 | updatedAt | DateTime @updatedAt | DATETIME(3) | required | Last update |
 
-Relations: `program`→AccreditationProgram (Cascade), `organization`→Organization, `submittedBy`→
-User ("SupplierAccreditationsSubmitted"), `reviewedBy`→User ("SupplierAccreditationsReviewed"),
-`documents`→ApplicantDocument. Indexes: unique `[programId, organizationId]`,
-`[organizationId, status]`.
+Relations: `user`→User (Cascade, "AccountDocumentsOwner"), `organization`→Organization
+("OrganizationAccountDocuments"), `media`→MediaAsset ("AccountDocumentMedia"),
+`reviewedBy`→User ("AccountDocumentsReviewedBy"), `submissions`→RequirementSubmission (reuse
+links from request checklists). Indexes: `[userId, documentType, status]`,
+`[organizationId]`, `[mediaId]`.
+
+### B.16 RequestAttachment — free-form request attachments (loose-parent pattern)
+
+Wizard field 20 (guarantee documents, studies, project files) NOT tied to a specific
+requirement. Loose-parent pattern (Dispute precedent) so ONE table serves both request types;
+the document itself still lives in AccountDocument (R-2).
+
+| field | Prisma type | MySQL type | null/default | description |
+|---|---|---|---|---|
+| id | String @id @default(cuid()) | VARCHAR(191) PK | required, default cuid | Identifier |
+| parentType | String @db.VarChar(24) | VARCHAR(24) | required | RequestAttachmentParentType enum — FINANCING_REQUEST \| ACCREDITATION_REQUEST |
+| parentId | String @db.VarChar(64) | VARCHAR(64) | required | Loose FK → FinancingRequest.id / AccreditationRequest.id (Dispute pattern) |
+| accountDocumentId | String | VARCHAR(191) | required | FK → AccountDocument.id (Cascade) — the document lives in the vault (R-2) |
+| kind | String @db.VarChar(24) | VARCHAR(24) | required | RequestAttachmentKind enum — GUARANTEE_DOC \| STUDY \| PROJECT_FILE \| OTHER |
+| createdAt | DateTime @default(now()) | DATETIME(3) | required, default now() | Creation |
+
+Relations: `accountDocument`→AccountDocument (Cascade, "RequestAttachmentDocument").
+Indexes: `[parentType, parentId]`, `[accountDocumentId]`.
 
 ---
 
@@ -1172,22 +1360,23 @@ Scalar columns per model (relation fields excluded; unique/index constraints not
 | AuditLog | 9 | Sequence | 2 |
 | | | **Total (32 models)** | **368** |
 
-**Part B — planned (source: FINANCIER_SCHEMA v4.0 §3):**
+**Part B — planned (source: FINANCIER_SCHEMA v5.0 §3):**
 
 | model | fields | model | fields |
 |---|---|---|---|
-| User additive | 12 | FinancingRequestInvite | 4 |
-| FinancierProfile | 13 | ApplicantDocument | 11 |
-| FinancierBranch | 14 | FinancingOffer | 19 |
-| FinancingProduct | 22 | FinancingOfferInstallment | 5 |
-| FinancingProductAttribute | 5 | FinancingAgreement | 10 |
-| FinancingProductRequirement | 4 | FinancingEvent | 8 |
-| FinancingProductCoverage | 3 | FinancingFee | 11 |
-| FinancingRequest | 39 | AccreditationProgram | 9 |
-| AccreditationCriterion | 6 | SupplierAccreditation | 11 |
-| | | **Total planned** | **206** (194 in 17 new tables + 12 User additive) |
+| User additive | 12 | FinancingRequest | 45 |
+| FinancierProfile | 13 | FinancingOffer | 19 |
+| FinancierBranch | 14 | FinancingOfferInstallment | 5 |
+| FinancierService | 26 | FinancingAgreement | 10 |
+| FinancierServiceAttribute | 5 | FinancingEvent | 8 |
+| FinancierServiceCoverage | 3 | FinancingFee | 11 |
+| ConditionTemplate | 17 | AccreditationRequest | 27 |
+| ConditionOption | 4 | AccountDocument | 15 |
+| ServiceRequirement | 10 | RequestAttachment | 6 |
+| RequirementSubmission | 15 | | |
+| | | **Total planned** | **265** (253 in 18 new tables + 12 User additive) |
 
-**Grand total after financier implementation: 574 scalar columns** (32 existing + 17 planned
+**Grand total after financier implementation: 633 scalar columns** (32 existing + 18 planned
 models + User extension).
 
 ---
@@ -1214,9 +1403,9 @@ future project only. One-line sketch of what normalization would eventually look
 | 12 | `RfqSetting.value` | JSON-in-Text | Panel fields document | `RfqSettingField (settingKey, scopeType, scopeId, field, value)` — naturally aligned with `SettingChange.field` |
 
 The financier domain (Part B) deliberately demonstrates the target style everywhere: lists as
-child tables (`FinancingProductAttribute/Requirement/Coverage`, `FinancingOfferInstallment`,
-`FinancingRequestInvite`), addresses as typed scalars (`FinancierBranch`, `User.residence*`),
-schedules as rows.
+child tables (`FinancierServiceAttribute/Coverage`, `ConditionOption`, `FinancingOfferInstallment`,
+`RequestAttachment`), addresses as typed scalars (`FinancierBranch`, `User.residence*`),
+schedules as rows, condition options as rows — never JSON.
 
 ---
 

@@ -2,7 +2,9 @@
 
 Companion to [`openapi.yaml`](./openapi.yaml) (OpenAPI 3.1.0). Everything here was verified by
 reading every `route.ts` under `src/app/api/**` (88 route files). Audience: engineers adding or
-consuming API surface. Last verified against the tree on this documentation round (task DOC-4).
+consuming API surface. Last verified against the tree on this documentation round (task
+DOC-4; the planned financier surface in section 6 + `openapi.yaml` was rebuilt to
+FINANCIER_SCHEMA v5.0 in task DOC-V5-c — still PLANNED, not implemented).
 
 ---
 
@@ -297,37 +299,111 @@ mutating without CSRF — see section 3).
 
 ---
 
-## 6. Planned endpoints — Financier domain (PLANNED, not implemented)
+## 6. Planned endpoints — Financier domain v5.0 (PLANNED, not implemented)
 
-Source: `team/FINANCIER_SCHEMA.md` v4.0 (models §3, lifecycle §5, settings §6) and
-`team/FINANCIER_PLAN.md` (FIN-3). Every path carries `x-planned: true` in `openapi.yaml`;
-request bodies use FINANCIER_SCHEMA field names exactly. Schemas here are summary-level —
-the full field-level truth lives in FINANCIER_SCHEMA.
+Source: `team/FINANCIER_SCHEMA.md` **v5.0** (services-not-products · platform verification
+gate · requirements engine · universal documents · accreditation as a main service — D-015)
+and `team/FINANCIER_PLAN.md` **v2.0 §6** (API surface). Every path carries `x-planned: true`
+in `openapi.yaml` under one of five planned tags — `Financing (planned)`,
+`Financier Console (planned)`, `Accreditation (planned)`, `Documents (planned)`,
+`Financing Admin (planned)` — and request/response bodies use FINANCIER_SCHEMA v5.0 field
+names exactly. Schemas here are summary-level; the field-level truth lives in
+FINANCIER_SCHEMA. The v4 surface (FinancingProduct, request invites, open distribution) is
+superseded — see D-015/D-016 and DP-28.
+
+### 6.1 Services & requirements — financier console
 
 | Endpoint | Methods | Actor | Purpose |
 |---|---|---|---|
-| `/api/financing/wizard` | GET | pub | Intake configuration for the 3-step wizard (enums, settings, document rules) |
-| `/api/financing/requests` | GET, POST | user / applicant | List my requests (applicant or distributed-financier view) / submit wizard result |
-| `/api/financing/requests/{id}` | GET, DELETE | parties | Request detail / cancel pre-acceptance |
-| `/api/financing/requests/{id}/documents` | GET, POST | applicant | List / attach evidence (ApplicantDocument over MediaAsset) |
-| `/api/financing/requests/{id}/offers` | GET, POST | applicant / financier staff | Compare offers / submit an offer with installment schedule |
-| `/api/financing/offers/{id}` | PATCH | financier staff | Edit / withdraw offer; report funded-settled |
-| `/api/financing/offers/{id}/accept` | POST | applicant | Accept one offer (siblings auto-decline, fee accrues, agreement created) |
-| `/api/financing/offers/{id}/decline` | POST | applicant | Decline an offer |
-| `/api/financing/agreements/{id}` | GET | parties | Agreement detail (frozen offer, installments, events, fees) |
-| `/api/financing/agreements/{id}/events` | POST | financier staff | Report external money events (track-only ledger, D-002) |
-| `/api/financing/fees` | GET, PATCH | admin | Commission accounting list / mark invoiced-paid-waived |
-| `/api/financiers` | GET | pub | Public financier directory (DP-10) |
-| `/api/financiers/{id}` | GET | pub | Public financier profile (branches, stats, contact) |
-| `/api/financiers/{id}/products` | GET | pub | Financing product list (amounts, rates, tenor, coverage) |
+| `/api/financier/services` | GET, POST | financier OWNER/ADMIN | List own services (+requirement counts) / create (`serviceKind` FINANCING\|ACCREDITATION, `category`, terms…) |
+| `/api/financier/services/{id}` | PATCH | financier OWNER/ADMIN | Update / archive a service (status DRAFT\|ACTIVE\|ARCHIVED) |
+| `/api/financier/conditions` | GET, POST | financier OWNER/ADMIN | Searchable own-private + GENERAL condition library / create private `ConditionTemplate` (+options) |
+| `/api/financier/conditions/{id}` | PATCH | financier OWNER/ADMIN | Update / deactivate a template (own FINANCIER scope only) |
+| `/api/financier/services/{id}/requirements` | POST | financier OWNER/ADMIN | Attach a template (`isRequired`, `displayOrder`, `instructions`, `autoPassAccredited`) |
+| `/api/financier/services/{id}/requirements/{reqId}` | PATCH, DELETE | financier OWNER/ADMIN | Update ordering/config · deactivate / detach (submissions preserved) |
 
-Key request field names (submit wizard, `POST /api/financing/requests`): `activityStatus`,
-`capitalAmount`, `monthlyInstallmentCapacity`, `previousFinancing`, `ownContributionAmount`,
-`otherIncomeSources`, `activityCategory`, `activityStartDate`, `activityName`,
-`activityAddress`, `activityCity`, `activityDistrict`, `activityDescription`,
-`amountRequested`, `currency`, `purpose`, `tenorRequestedMonths`, `activityLocationType`,
-`guaranteeType`, `guaranteeStatus`, `applicantNotes`, `consent` (+ `targetType`, `targetId`,
-`productId`, `organizationId`, `distributionMode`).
+### 6.2 Applications — applicant
+
+| Endpoint | Methods | Actor | Purpose |
+|---|---|---|---|
+| `/api/financing/services` | GET | pub | Public directory of ACTIVE services (DP-10) |
+| `/api/financing/services/{id}` | GET | pub | Service detail incl. composed requirements (labels only) |
+| `/api/financing/requests` | GET, POST | user (applicant) | Own (org) list + `multiGroupId` grouping / create (`serviceId`, wizard payload, submissions) |
+| `/api/financing/requests/{id}` | GET, PATCH | user (requester) | Detail: checklist verdicts + offers + status history / cancel · resubmit-after-return (updates items) |
+| `/api/financing/offers/{id}/accept` | POST | user (applicant) | Accept an offer (siblings auto-decline, fee accrues, AGR- agreement created) |
+| `/api/financing/offers/{id}/decline` | POST | user (applicant) | Decline an offer |
+
+### 6.3 Accreditation — applicant companies
+
+| Endpoint | Methods | Actor | Purpose |
+|---|---|---|---|
+| `/api/accreditation/requests` | GET, POST | user (org member) | Own org list / create (`serviceId` of ACCREDITATION kind, `scopeNotes`, `consent`, submissions) |
+| `/api/accreditation/requests/{id}` | GET | user (org member) | Detail (checklist verdicts + decision fields) |
+| `/api/accreditation/valid` | GET | user (org member) | Own org's live accreditations (ACCREDITED + `validUntil` in the future — RFQ-unlock check) |
+
+### 6.4 Documents center — all users (universal, DP-27)
+
+| Endpoint | Methods | Actor | Purpose |
+|---|---|---|---|
+| `/api/documents` | GET, POST | user | Own vault (user + org-scope) / multipart upload → `AccountDocument` (MediaAsset-backed, `mediaId`) |
+| `/api/documents/{id}` | PATCH | user (owner) | Replace / deactivate (meta: `title`, `issuedAt`, `expiresAt`; `isActive` soft-delete) |
+
+### 6.5 Financier inbox (gate-enforced: FORWARDED+ only)
+
+| Endpoint | Methods | Actor | Purpose |
+|---|---|---|---|
+| `/api/financier/requests` | GET | financier staff | FORWARDED+ financing requests — the query structurally excludes pre-forward states (R-4) |
+| `/api/financier/requests/{id}` | GET | financier staff | Detail incl. checklist verdicts (pre-forward requests 404) |
+| `/api/financier/requests/{id}/offers` | POST | financier staff | Submit an offer (+installment schedule rows) |
+| `/api/financier/requests/{id}/decision` | POST | financier staff | Decline a request with a note |
+| `/api/financier/accreditations/{id}/decision` | POST | financier staff | Grant \| reject \| revoke an accreditation (reason required on reject/revoke) |
+| `/api/financier/offers/{id}` | PATCH | financier staff | Withdraw an offer (accepted offers are frozen — DP-20) |
+| `/api/financier/agreements/{id}/events` | POST | financier staff | Report funding/repayment events (track-only ledger, D-002) |
+
+### 6.6 Admin — the gate + governance
+
+| Endpoint | Methods | Actor | Purpose |
+|---|---|---|---|
+| `/api/admin/financing/queue` | GET | admin | Gate queue (both request types, filterable by type/status) |
+| `/api/admin/financing/requests/{id}` | GET | admin | Full dossier (applicant profile + checklist + docs) |
+| `/api/admin/financing/requests/{id}/submissions/{sid}` | POST | admin | Verify \| reject \| waive one checklist item (note required on reject/waive) |
+| `/api/admin/financing/requests/{id}/return` | POST | admin | Return the request to the applicant (aggregate reason) |
+| `/api/admin/financing/requests/{id}/forward` | POST | admin | Forward to the financier — **409 unless all required items VERIFIED/WAIVED (R-4)** |
+| `/api/admin/financing/institutions` | GET | admin | List financiers (BANK/MFI/EWALLET orgs + profile + service counts) |
+| `/api/admin/financing/institutions/{id}` | PATCH | admin | Verify / suspend / reactivate a financier |
+| `/api/admin/financing/fees/{id}` | PATCH | admin | Mark a fee invoiced / paid / waive |
+| `/api/admin/financing/conditions` | GET, POST | admin | GENERAL conditions library — searchable / create template (+options) |
+| `/api/admin/financing/conditions/{id}` | PATCH | admin | Update / deactivate a GENERAL template |
+| `/api/admin/documents/{id}` | PATCH | admin | Verify / reject any user's `AccountDocument` (note required on reject) |
+
+### 6.7 v5 planned conventions
+
+- **Gate semantics (DP-23 / R-4).** `POST /api/admin/financing/requests/{id}/forward`
+  returns **409 CONFLICT** unless every required `RequirementSubmission` is `VERIFIED` or
+  `WAIVED` (with a decision note) — incomplete or incorrect requests must be **returned**
+  to the applicant instead, never forwarded. Financier inbox queries
+  (`GET /api/financier/requests*`) structurally exclude pre-forward states: a `SUBMITTED`
+  request is platform-private by construction.
+- **Admin routes** follow the existing conventions: `requireAdmin`, `assertSameOrigin` CSRF
+  and inline rate-limit buckets on every mutation (sections 3–4).
+- **Documents uploads** reuse the existing media upload pattern (section 1.4): multipart
+  over the MediaAsset pipeline, `201 {documents, errors}` on partial failure, **422** when
+  every file fails.
+- **Sequences (D-006):** financing requests `FR-YYYY-######` (`FIN`), agreements
+  `AGR-YYYY-######` (`AGR`), accreditation requests `ACC-YYYY-######` (`ACC`); offers stay
+  id-addressed (DP-12).
+
+Key request field names (create, `POST /api/financing/requests`): `serviceId`, `targetType`,
+`targetId`, `multiGroupId`, `activityStatus`, `activityName`, `activityDescription`,
+`activityStartDate`, `activityCity`, `activityDistrict`, `activityAddress`,
+`activityLocationType`, `activityCategory`, `activityCategoryOther`, `capitalAmount`,
+`ownContributionAmount`, `monthlyInstallmentCapacity`, `previousFinancing`,
+`otherIncomeSources`, `amountRequested`, `currency`, `purpose`, `tenorRequestedMonths`,
+`guaranteeType`, `guaranteeTypeOther`, `guaranteeStatus`, `guaranteeStatusOther`,
+`applicantNotes`, `consent` (stamps `consentAt`), plus `submissions[]`
+(`serviceRequirementId` + typed `valueText` / `valueNumber` / `valueDate` /
+`accountDocumentId`) and free `attachments[]` (`accountDocumentId`, `kind`) —
+FINANCIER_SCHEMA v5.0 §3.8/§3.6 field names exactly.
 
 Design notes binding these to the existing contract:
 
@@ -335,10 +411,9 @@ Design notes binding these to the existing contract:
   roles on BANK/MFI/EWALLET organizations (no new global role — DP-1).
 - Mutations are specified to follow the platform CSRF policy (assertSameOrigin) and the
   `{error}` error model.
-- Numbers: requests `FR-YYYY-######` (Sequence `FIN`), agreements `AGR-YYYY-######`
-  (Sequence `AGR`); offers stay id-addressed (DP-12).
-- Money is never held on platform (D-002); fees accrue at acceptance and are marked PAID by
-  an admin.
+- Money is never held on platform (D-002); fees accrue at acceptance and are marked
+  INVOICED / PAID / WAIVED by an admin. Multi-financier routing = sibling requests sharing
+  `multiGroupId` (DP-25); v4's open-to-matching distribution is deferred (DP-28).
 
 ---
 
@@ -356,7 +431,7 @@ Current rules:
    must tolerate additional response fields (the serializers already evolve additively).
 3. When an external (non-SPA) consumer appears, introduce `/api/v1/...` route nesting and
    freeze this contract as the v0 baseline. Until then, `info.version` in `openapi.yaml`
-   tracks the documentation round (1.0.0 at DOC-4), not the deployed API.
+   tracks the documentation round (1.0.0 at DOC-4, 1.1.0 at DOC-V5-c), not the deployed API.
 4. Planned financing endpoints (section 6) will land under their own path prefixes; they do
    not alter any existing path.
 
@@ -373,8 +448,10 @@ Process for any change that touches `src/app/api/**`:
    `enforceRateLimit` are called, and the response shape (or the service call that produces it).
 2. **Update `openapi.yaml`**: path + method entry, summary, tags, `security`
    (omit / `cookieAuth`), parameters, requestBody schema, responses with the status codes the
-   code actually returns. Planned-but-unimplemented endpoints go under the
-   `Financing (planned)` tag with `x-planned: true` and summary-level schemas.
+   code actually returns. Planned-but-unimplemented endpoints go under one of the five
+   planned tags (`Financing (planned)`, `Financier Console (planned)`, `Accreditation
+   (planned)`, `Documents (planned)`, `Financing Admin (planned)`) with `x-planned: true`
+   and summary-level schemas.
 3. **Update this document's tables** in the same change: coverage matrix (section 5),
    CSRF list (section 3), rate limits (section 4), pagination envelopes (section 2).
 4. **Validate the YAML** before committing:
@@ -385,5 +462,5 @@ Process for any change that touches `src/app/api/**`:
 
    Watch for: unquoted scalars containing `: ` (quote them or use block scalars), flow-style
    tag lists containing colons (`tags: ['Admin: Quotes']`), and undefined `$ref`s.
-5. When a planned endpoint is implemented, remove `x-planned: true`, move it out of the
-   `Financing (planned)` tag into its real domain tag, and add a coverage-matrix row.
+5. When a planned endpoint is implemented, remove `x-planned: true`, move it out of its
+   planned tag into its real domain tag, and add a coverage-matrix row.

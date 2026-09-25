@@ -34,7 +34,8 @@
   gitignore exception added (`!src/lib/storage/local-disk.ts`) so it survives host resets.
 - **D-013 (2026-09, owner directive)** — Financier module may NOT start until the owner approves
   `team/FINANCIER_PLAN.md` (DP-1…DP-5). After approval, the team executes FIN-0…FIN-9 through
-  the state loop WITHOUT STOPPING — owner is interrupted only for PLAYBOOK §8 escalations.
+  the state loop WITHOUT STOPPING — owner is interrupted only for PLAYBOOK §8 escalations. *(v5
+  update: task range is now FIN-0…FIN-10; DP span is DP-1…DP-28.)*
 - **D-014 (2026-09, owner rulings on data design — governs the financier domain and ALL new
   domains):**
   1. **ZERO JSON.** No `Json` columns and no JSON-in-`Text` blobs in new domains. Lists become
@@ -51,3 +52,49 @@
      NO geo lookup tables (strings — DP-16).
   Enforcement: `team/FINANCIER_SCHEMA.md` v4.0 §2 (rules R-1/R-2/R-3), §8 duplication audit;
   reflected in `team/docs/06-data-dictionary.md` (LEGACY-JSON marks) and test INV checks.
+
+- **D-015 (2026-09, owner rulings v5 — the SERVICES/GATE model; governs the financier rebuild):**
+  1. **SERVICES, NOT PRODUCTS** (DP-22): financiers offer *services* (competitor's own URL space
+     `/en/services/{id}` + API field `service: {id,name}`). `FinancierService` replaces
+     `FinancingProduct`; an accreditation program is a service (`serviceKind` FINANCING |
+     ACCREDITATION).
+  2. **THE PLATFORM VERIFICATION GATE IS THE ESSENCE OF THE PLATFORM** (DP-23): platform
+     management must verify the conditions required for ANY service applicant — documents and
+     eligibility criteria — BEFORE forwarding to the funder. Incomplete or incorrect requests
+     must NOT be sent. Enforced structurally: gate statuses on both request types + financier
+     inbox queries exclude un-forwarded requests (R-4 in FINANCIER_SCHEMA v5.0).
+  3. **FLEXIBLE REQUIREMENTS ENGINE** (DP-24): GENERAL conditions (platform-curated, reused by
+     multiple funders/services) + FINANCIER-specific private conditions; 8 typed kinds
+     (DOCUMENT/PROFILE_FIELD/DECLARATION/TEXT/NUMBER/DATE/SELECT/MULTI_SELECT); per-service
+     attachment via `ServiceRequirement`; per-request verification via `RequirementSubmission`;
+     management UIs must be flexible, easy, comprehensive (admin library + financier composer).
+  4. **ACCREDITATION IS A MAIN SERVICE** (DP-26): qualification & accreditation is one of the
+     main services the system provides. Financiers CRUD acceptance requirements; companies
+     select the funder, complete missing requirements not already in their profile, platform
+     verifies + forwards when all conditions met; grant-on-request (ACCREDITED + validUntil),
+     RFQ send/receive unlock, auto-pass on the funder's other services; renewal + revocation.
+  5. **UNIVERSAL DOCUMENTS** (DP-27): document management for ALL users and accounts —
+     `AccountDocument` vault (user + org scope), verified once, reused by every request type.
+  6. **MULTI-FINANCIER ROUTING** (DP-25): qualification/financing requests go EXCLUSIVELY to one
+     financier or SIMULTANEOUSLY to several — implemented as sibling requests sharing
+     `multiGroupId` (one per financier's service) so each financier's own checklist stays
+     well-defined; v4's open-to-matching distribution deferred (DP-28).
+  7. Financier capability set (owner notes, verbatim intent): qualification & accreditation
+     management · manage financing requests from individuals AND companies · manage services and
+     their specific details · manage price quotations (receive quotes from approved vendors,
+     relay customer quote requests — B2B mirror, ZERO new tables) · exclusive/multi routing ·
+     full profile management · offer comparison and tracking · shared features · exclusive
+     funder capabilities · documents management (see 5 above).
+  Evidence: FINANCIER_SCHEMA.md v5.0 (§0 migration table, §2 rules R-4/R-5, §3.5–§3.13),
+  FINANCIER_PLAN.md v2.0, PLATFORM_PLAN.md v3.0.
+- **D-016 (2026-09)** — Plan stack REBUILT to implementation-ready on D-015: FINANCIER_SCHEMA
+  v4.0 → **v5.0** (18 models), FINANCIER_PLAN v1.1 → **v2.0** (8 flows, FIN-0…FIN-10),
+  PLATFORM_PLAN v2.0 → **v3.0** (P1 = services + requirements engine + gate; accreditation
+  machinery moved into P1, its polish stays P5). team/docs/ suite refreshed to match (PLANNED
+  sections now describe v5.0). Superseded models: FinancingProduct(±trait tables),
+  FinancingRequestInvite, AccreditationProgram/Criterion, SupplierAccreditation, ApplicantDocument.
+- **D-017 (2026-09, amended)** — D-011 (no timers) is SUPERSEDED for the autonomous QA/dev loop
+  by the owner's latest session directive: a **webDevReview cron job every 15 minutes** drives
+  continuous assessment (worklog review → agent-browser QA → autonomous bug-fix/feature work →
+  worklog update). The state loop persists as the execution model; the cron is its heartbeat
+  trigger, not a scheduler of business logic.

@@ -1522,3 +1522,364 @@ Stage Summary:
   unwired login/register/order/review rate limits; CSRF gaps; D-008 test-suite gap.
 - DB + dev server still DOWN (P0/FIN-0, owner-gated) — unchanged; docs round needed no runtime.
 - Awaiting owner: DP-1…DP-21 (DP-18/DP-19 already owner-set by today's rulings).
+---
+Task ID: DOC-V5-b
+Agent: Docs Writer (use cases + test plan)
+Task: Update team/docs/02-use-cases-user-stories.md and 07-test-plan-acceptance-criteria.md to FINANCIER_SCHEMA v5.0
+
+Work Log:
+- Read worklog tail (~220 lines: DOC-5 use-cases v1.0 + DOC-6 test-plan v1.0 provenance); team/DECISIONS.md in full (esp. D-014, D-015, D-016, D-017); team/FINANCIER_SCHEMA.md v5.0 IN FULL (18 models, R-1..R-5, §5 machines, §6 notifications/audit/settings, §8 duplication audit); team/FINANCIER_PLAN.md v2.0 (§4 the 8 flows, §5 surfaces, FIN-0…FIN-10); team/PLATFORM_PLAN.md v3.0 (P0–P6, DP-1…DP-28, P1 = gate/composer/vault/accreditation machinery).
+- 02-use-cases-user-stories.md → v2.0 (577 → 698 lines): header re-pointed to the v3.0/v5.0/v2.0 plan stack + D-014/D-015 invariant line; actors table: ADDED "Platform reviewer (admin)" as THE gate actor (DP-23) and rewrote the two financier actor rows (FORWARDED+ inbox, requirements composer, accreditations inbox, vendor quotes); Mermaid diagram: PlatRev node, Admin/OrgM dotted FIN edges, FIN cluster relabeled to the v5 services/gate/accreditation shape.
+- Replaced the 9 v4 PLANNED UCs with 20 v5 PLANNED UCs (UC-038…UC-057; super-cart renumbered UC-047 → UC-058, its cross-reference inside UC-016 fixed — the ONLY EXISTS-row touch in the file): UC-038 browse services · UC-039 document vault (DP-27) · UC-040 financier profile & branches · UC-041 manage services (DP-22) · UC-042 general condition library (admin) · UC-043 compose service requirements (DP-24) · UC-044 apply wizard + checklist · UC-045 multi-financier siblings (DP-25) · UC-046 track/fix/cancel (RETURNED_FOR_COMPLETION loop) · UC-047 PLATFORM GATE (DP-23) · UC-048 forwarded inbox · UC-049 send offer + revisions · UC-050 compare offers (within + across siblings) · UC-051 accept offer · UC-052 funding events · UC-053 settle fees · UC-054 accreditation apply · UC-055 accreditation decision (grant/reject/revoke/renew) · UC-056 vendor-quotes relay (zero new tables) · UC-057 checkout financing. Catalog: 47 → 58 UCs; UC-001…UC-037 EXISTS untouched.
+- Stories: E-11 rebuilt as "Financing & Accreditation — PLANNED" with 20 stories US-054…US-073 (each with Given/When/Then ACs in the file's format, owning actor, MoSCoW, financier-flow F1–F8 labels); E-12 renumbered US-074…US-077 (PLANNED rows, allowed); 65 → 77 stories; US-001…US-053 EXISTS untouched. Traceability §5 rewritten (platform flows 1–6 + financier flows F1–F8) + NEW §5.1 owner capability map tracing all 10 D-015 §7 financier capabilities to UC IDs. §6 non-goals updated (no CREDIT_LINE services, DP-28 no open-broadcast, no automated gate bypass; D-011 vs D-017 note).
+- 07-test-plan-acceptance-criteria.md → v2.0 (722 → 863 lines): header/governing refs to v3.0/v5.0/v2.0; §2.1 objective names the gate; §2.3 + §11.2 FIN-8 → FIN-9; §5 matrix row 20 → "P1 core: services + requirements engine + THE GATE + vault + accreditation machinery; P2 vertical; P4 checkout; P5 polish".
+- §6 machines: 6.8 REPLACED with FinancingRequest v3 full gate machine (11 statuses, RETURNED_FOR_COMPLETION loop, forward guarded by all-required-VERIFIED/WAIVED in-tx; 9 negatives: forward-blocked 409, pre-forward unlistable/404, non-admin gate actions 403, applicant self-verify 403, …); 6.9 + revisions row; 6.11 + ACCREDITATION fee type; NEW 6.12 AccreditationRequest table (7 negatives: second request for live (serviceId, organizationId) → 409, org-only, serviceKind guard, grant-state guard, revoke reason REQUIRED, pre-forward unlistable, cross-financier 403); NEW 6.13 RequirementSubmission table (PENDING→SUBMITTED→VERIFIED/REJECTED/WAIVED; autoPass path verifiedById = null; re-supply only from REJECTED; 9 negatives: GENERAL templates admin-only, cross-financier template edits 403/404, wrong-service submission rejected, no cross-financier auto-pass, exactly-one-parent, waive-only-optional, notes REQUIRED); NEW 6.14 AccountDocument (PENDING→VERIFIED/REJECTED, replace = soft-deactivate); NEW 6.15 financier sweeps FS1–FS4. Totals: 11 → 14 transition tables, 33 → 71 forbidden negatives (38 planned), 11 → 15 sweep cases.
+- §8 E-11 REPLACED: 21 ACs grouped by FINANCIER_PLAN §4 flows F1–F8, each flow ≥ 1 happy + ≥ 1 negative (F1 onboarding 01/02; F2 composer 03/04 incl. GENERAL-edit-403 + cross-financier-leak; F3 vault 05/06; F4 GATE 07/08 incl. forward-blocked-409 + inbox-exclusion + non-admin-403; F5 wizard 09/10 incl. consent-400 + wrong-service submission; F6 inbox 11/12; F7 awards 13/14; F8 accreditation 15/16 incl. unique-pair-409 + same-financier-only auto-pass) + 4 supporting ACs (zero-JSON 18-model grep, single-entry document reuse, lazy sweeps, gate-exclusion code check) + AC-E11-21 checkout (DP-6-gated). 97 → 104 ACs.
+- §9 invariants: INV-12 zero-JSON extended to the 18 v5 models; INV-13 single-entry extended (documents reused via RequirementSubmission.accountDocumentId / RequestAttachment, never re-uploaded per request); NEW INV-16 gate-exclusion query check, INV-17 forward guard (same-tx), INV-18 requirements-engine scope rules (GENERAL admin-only, FINANCIER org-scoped, exactly-one-parent, same-financier autoPass, one accreditation per (serviceId, organizationId)); 15 → 18 checks. §12 P0–P6 exit criteria: P1 now requires gate + composer + vault + accreditation machinery E2E (PLATFORM_PLAN v3.0), P2 = offers/fees/agreements, P4 = checkout + DP-6, P5 = accreditation polish only (machinery already in P1), P6 = FIN-10 docs. §13 + R-5 gate-throughput risk with autoForwardWhenAllVerified mitigation (forward stamp only — verdicts never skipped). Footer counts updated.
+- Verification pass: all names match FINANCIER_SCHEMA v5.0 exactly (FinancierService/serviceKind, FinancierServiceAttribute/Coverage, ConditionTemplate/ConditionOption/ServiceRequirement/RequirementSubmission, AccountDocument/RequestAttachment, FinancingRequest v3 gate fields, AccreditationRequest, multiGroupId, autoPassAccredited, FIN/AGR/ACC, notification/audit action names); zero stale v4 names remain (grep: FinancingProduct, ApplicantDocument, SupplierAccreditation, FinancingRequestInvite, INFO_REQUESTED, DECLINED_ALL — all gone); markdown table integrity + code-fence balance validated; git diff confirms EXISTS stories/UCs untouched (UC-016 cross-ref only) and live machines §6.1–6.7 unmodified.
+
+Stage Summary:
+- Files: team/docs/02-use-cases-user-stories.md v2.0 (698 lines) + team/docs/07-test-plan-acceptance-criteria.md v2.0 (863 lines). No other files touched.
+- Counts: 02 — 58 UCs (37 EXISTS + 20 PLANNED + 1 PARTIAL), 77 stories (53 EXISTS + 24 PLANNED) in 12 epics, 10-row owner capability map. 07 — 14 transition tables (7 live + 7 planned), 71 forbidden-transition negatives (33 live + 38 new planned), 15 sweep cases (+4 FS), 104 ACs (77 current + 21 financing E-11 covering F1–F8 + 6 super-cart), 18 invariants (+INV-16/17/18), 5 risks (+R-5).
+- Decisions: PLANNED UC set extended past the brief's "~14" to 20 because the owner capability list (services CRUD, full profile management) and the 8 flows need dedicated UCs for clean capability traceability; v4's track/cancel, fee settlement and checkout-financing UCs carried over (still valid v5 scope). FinancierProfile activation phrased via Organization.status/verifiedAt — v5 has NO status column on FinancierProfile (avoided inventing one; matches FINANCIER_PLAN flow-1 wording). Super-cart renumber UC-047 → UC-058 forced the single UC-016 cross-reference fix (the one EXISTS-row edit).
+- Follow-ups for other agents: 01-domain-model.md, 06-data-dictionary.md, openapi.yaml, 05-wireframes still carry v4.0 model names (DOC-V5-a / other scopes).
+---
+Task ID: DOC-V5-a
+Agent: Docs Writer (domain model + ADRs)
+Task: Update team/docs/01-domain-model.md, 04-architecture-decision-records.md, README.md to FINANCIER_SCHEMA v5.0
+
+Work Log:
+- Read worklog tail; read team/DECISIONS.md in full (D-014/D-015/D-016/D-017); read
+  team/FINANCIER_SCHEMA.md v5.0 IN FULL (authority — field names taken verbatim: FinancierService
+  + serviceKind/category/accreditationValidMonths/accreditationFeeAmount; ConditionTemplate/
+  ConditionOption/ServiceRequirement/RequirementSubmission; AccountDocument + RequestAttachment;
+  FinancingRequest v3 gate fields; AccreditationRequest; §5.1–§5.3 machines; §6 sequences FIN/
+  AGR/ACC + 6 settings panels) and team/FINANCIER_PLAN.md v2.0 (8 flows, FIN-0…FIN-10).
+- 01-domain-model.md (1123 → 1348 lines, targeted edits only): header v1.0→v1.1, PLANNED status →
+  v5.0/18 models, related → D-001…D-017 + DP-1…DP-28; §1.1/§1.8/§1.9/§1.10/§1.11 PLANNED notes
+  updated (AccountDocument.mediaId DP-19/27, linkView financing|financier + PLATFORM_*/
+  REQUIREMENT_*/DOCUMENT_*/ACCREDITATION_* types, 6 settings panels, prefixes FIN/AGR/ACC);
+  §1.12 rewritten to the v5 18-model list grouped services-catalog / requirements-engine /
+  requests / documents; §2.4 PLANNED erDiagram fully rebuilt (18 entities — service 1-N both
+  request kinds, service→ServiceRequirement→ConditionTemplate→ConditionOption chain,
+  RequirementSubmission XOR parents, AccountDocument 1-N submissions + 1-N RequestAttachment,
+  loose parentId connectors, offer→agreement→event/fee chain unchanged, offer|o--||agreement
+  cardinality FIXED, no invite/program/criterion/supplier-accreditation entities); §3.3 planned FK
+  inventory rebuilt: 37 enforced FKs + 2 loose (was 29+1), footnotes to v5.0; §4 invariants —
+  items 4/5/10/11/12/14 updated in place, NEW 17-21 (GATE visibility, forward-blocked-by-checklist,
+  one-accreditation-per-service+org, docs-verified-once-reused, XOR parent); §5.7 replaced with
+  FinancingRequest v3 gate machine (+RETURNED_FOR_COMPLETION loop + forward guard notes), NEW
+  §5.8 AccreditationRequest machine (ACCREDITED→EXPIRED/REVOKED), NEW §5.9 RequirementSubmission
+  machine (PENDING→SUBMITTED→VERIFIED/REJECTED/WAIVED + autoPass path), old offer/agreement
+  machines renumbered §5.10/§5.11; §6.2 financing chain rebuilt (serviceId, multiGroupId, gate,
+  submissions) + NEW §6.3 requirements-engine / accreditation / AccountDocument-reuse chains.
+- 04-architecture-decision-records.md (325 → 471 lines): header v1.1 + cross-refs → v5.0/D-001…
+  D-017/DP-1…DP-28; APPENDED ADR-0017 (Platform Verification Gate — status machine + inbox
+  exclusion + forward tx-guard, owner-set DP-23), ADR-0018 (Requirements Engine — GENERAL+FINANCIER
+  scopes, 8 typed kinds, ConditionOption rows, per-service attachment, per-request submission),
+  ADR-0019 (Services not Products — FinancierService + serviceKind, competitor API `service`
+  evidence), ADR-0020 (Multi-Financier Sibling Routing — multiGroupId, invite-table rejected,
+  DP-28 deferral), ADR-0021 (Universal AccountDocument Vault — all users+orgs, verified once,
+  reused; notes it supersedes ADR-0009's v4 `ApplicantDocument` mention); amendment notes added to
+  ADR-0013 (financing lines unchanged) and ADR-0014 (rules unchanged, renames/deletions, R-1 now
+  covers ConditionOption + RequirementSubmission); change-log row 1.1. Existing ADR bodies NOT
+  rewritten (historical v4 wording preserved inside ADR-0009/0013/0014).
+- README.md (45 → 51 lines): version 1.1; header + status legend → FINANCIER_SCHEMA v5.0 /
+  FINANCIER_PLAN v2.0 / PLATFORM_PLAN v3.0; doc-map rows 01 (12 state machines, v5.0), 04
+  (ADR-0001…0021 + new topics, D-001…D-017, DP-1…DP-28), 06 (18 planned models, v5.0, dropped
+  stale 574-field/30-enum counts); governing rules + R-4 (platform gate) and R-5 (flexible
+  requirements); maintenance plan-stack versions updated.
+- QA: python-verified 16 mermaid blocks with balanced quotes/fences; 18 entities in financing ERD;
+  §3.3 = exactly 39 rows; both request status enums = 11 values verbatim from schema; all new
+  field names asserted present in FINANCIER_SCHEMA v5.0; grep confirms zero unintended v4 model
+  names (only deliberate "renamed-from/DELETED/superseded" historical notes remain).
+
+Stage Summary:
+- Files: team/docs/01-domain-model.md v1.1 (1348 lines), 04-architecture-decision-records.md v1.1
+  (471 lines, ADR-0001…0021), README.md v1.1 (51 lines).
+- Planned-FK count for v5: 37 enforced + 2 loose (RequestAttachment.parentId joins
+  FinancingRequest.targetId as the second loose pattern) — recorded in §3.3.
+- All PLANNED financing content now describes the v5.0 services/gate model; existing (32-model)
+  sections untouched.
+- Inconsistencies found & resolved: (1) v4 §2.4 drew offer||--||agreement though the agreement is
+  optional on the offer side — fixed to |o--||; (2) README row 06 hard-coded v4-derived counts
+  (574 fields / 30 planned enums) — replaced with non-volatile wording pending doc 06's own v5
+  refresh by the DOC-V5-b pass; (3) ADR-0009's consequence text still says `ApplicantDocument` —
+  left intact per append-only ADR practice and covered by an explicit note in ADR-0021's context
+  + ADR-0014's amendment.
+---
+Task ID: DOC-V5-c
+Agent: Docs Writer (API contract)
+Task: Update team/docs/03-api-contract.md and openapi.yaml to FINANCIER_SCHEMA v5.0
+
+Work Log:
+- Read worklog tail (~220 lines: DOC-4/DOC-3/DOC-5/DOC-1-7 context), team/DECISIONS.md in full
+  (D-015 services/gate/requirements/accreditation/documents/multi-routing rulings; D-016 plan
+  stack v5 rebuild), FINANCIER_SCHEMA.md v5.0 IN FULL (§0 migration table, §2 R-1..R-5, §3.4-§3.13
+  models, §5 lifecycles, §7 traceability), FINANCIER_PLAN.md v2.0 in full (§6 API surface = the
+  exact path source).
+- openapi.yaml: verified the v4 planned block boundary (14 paths / 19 ops at old lines 7516-8493,
+  tag "Financing (planned)"), backed up the file, then head-truncated at the boundary (88 existing
+  paths / 121 ops byte-identical, diff-verified afterwards) and appended the v5 planned surface.
+- Added 35 planned paths / 43 operations, all x-planned: true, in plan §6 group order with banner
+  comments: console 6 paths/9 ops (financier services+conditions+requirements attach/update/detach),
+  applicant 6/8 (public services directory+detail, requests create/list/detail/cancel-resubmit,
+  offers accept/decline), accreditation 3/4 (requests list/create, detail, valid/live-grants),
+  documents 2/3 (vault list, multipart upload with uploads-pattern 201{documents,errors}/422, meta
+  patch), financier inbox 7/7 (FORWARDED+ list+detail, offers, decline decision, accreditation
+  grant|reject|revoke, offer withdraw, agreement events), admin 11/12 (gate queue, dossier,
+  submission verify|reject|waive, return, forward w/ 409-unless-complete semantics, institutions
+  list+patch, fees patch, GENERAL conditions GET/POST + PATCH, admin documents verify/reject).
+- Tags: replaced single "Financing (planned)" with five planned tags — Financing (planned),
+  Financier Console (planned), Accreditation (planned), Documents (planned), Financing Admin
+  (planned) — each with a v5 description; tag counts in file: 16/8/4/3/12 ops.
+- Security: every planned op carries explicit security — 41 cookieAuth + 2 public
+  (GET /api/financing/services{,/{id}} per plan "public directory", matches DP-10 precedent);
+  every planned mutation carries x-csrf (assertSameOrigin note); admin ops note requireAdmin +
+  CSRF + inline rate-limit buckets per existing conventions.
+- Components: rewrote FinancingRequestPlanned to v5 (serviceId, multiGroupId, gate fields
+  platformReviewedById/platformNote/returnedReason/forwardedAt, full activity/ask/guarantee
+  columns incl. *Other companions, v5 status enum 11 states); FinancingOfferPlanned description
+  re-pointed to v5.0 §3.9; ADDED 6 new schemas — FinancierService, ConditionTemplate (+ConditionOption
+  items), ServiceRequirement, RequirementSubmission, AccountDocument, AccreditationRequest — every
+  field name + enum verified programmatically against FINANCIER_SCHEMA v5.0 (missing/extra = NONE;
+  enums exact: FR status 11, ACC status 11 incl. REVOKED, submission PENDING|SUBMITTED|VERIFIED|
+  REJECTED|WAIVED, docType 15 values, scope GENERAL|FINANCIER, conditionType 8 kinds).
+- info: version 1.0.0 → 1.1.0 (per §7 policy: version tracks doc round); description updated —
+  planned prefixes now /api/financing*, /api/financier*, /api/accreditation*, /api/documents*;
+  added explicit path/op counts (123 paths = 88 existing + 35 planned; 164 ops = 121 + 43).
+- Validation: mandated python3 yaml.safe_load → "YAML OK"; PLUS strict loader with duplicate-key
+  rejection (no dup path keys), $ref resolution (25 distinct refs, 0 unresolved), tag
+  defined-vs-used parity (43/43, no orphans either direction), x-planned on all 43 planned ops,
+  plan§6-set vs file-set 1:1 (35/35, no extras), x-csrf on all planned mutations.
+- 03-api-contract.md: replaced the v4 14-row planned table with 6 sub-tables (35 rows, matching
+  plan §6 groups) all marked PLANNED; added §6.7 "v5 planned conventions" — gate semantics
+  (forward → 409 CONFLICT unless all required VERIFIED/WAIVED; financier inbox queries exclude
+  pre-forward states), admin CSRF+rate-limit convention, documents uploads reuse the media upload
+  422 pattern, sequences FIN/AGR/ACC; rewrote the key-field-names paragraph to the v5 create body
+  (serviceId, multiGroupId, activity* incl. *Other, submissions[]/attachments[]); design notes now
+  state DP-25 sibling routing + DP-28 deferred open distribution. Stale-v4 sweep: FinancingProduct/
+  invites/DP-4/distributionMode/productId(financier sense)/v4.0 pointers all gone (remaining
+  "FinancingProduct"/"invites" mentions are the explicit "superseded by" note only). Updated intro
+  (DOC-V5-c provenance), §7 versioning (1.1.0 at DOC-V5-c), §8 maintenance steps 2+5 (five planned
+  tags). File: 389 → 466 lines; openapi.yaml: 8,493 → 11,176 lines.
+- Cleaned scratch files (backup retained at /home/z/.wf-tmp/openapi.yaml.bak). No other files
+  touched; no application code written.
+
+Stage Summary:
+- openapi.yaml v1.1.0: 123 paths (88 existing untouched — diff-verified byte-identical — + 35
+  planned), 164 operations (121 existing + 43 planned), 26 component schemas (6 new v5 schemas +
+  FinancingRequestPlanned rebuilt to v5), 43 tags all defined-and-used, YAML VALID (strict
+  duplicate-key check), 0 unresolved $refs, x-planned on every planned op.
+- 03-api-contract.md §6 is now the v5 surface: 6 group sub-tables (console/applicant/
+  accreditation/documents/inbox/admin), §6.7 planned conventions (gate 409 semantics, CSRF+RL,
+  uploads 422 pattern, FIN/AGR/ACC sequences), v5 field-name key list, DP-25/DP-28 routing notes.
+- Decisions/interpretations: (1) services directory GETs public per plan wording "public
+  directory" (all other planned ops cookieAuth); (2) POST /api/financing/requests takes one
+  serviceId per call with optional multiGroupId for sibling groups (DP-25 — no distributionMode);
+  (3) financier offer PATCH is withdraw-only (funding events moved to agreements/{id}/events);
+  (4) admin request-scoped routes accept a `type` query to disambiguate financing vs
+  accreditation ids; queue/return/forward responses use oneOf of the two request schemas.
+- Inconsistency found & resolved: task brief said "Every path: cookieAuth" while FINANCIER_PLAN
+  §6 marks the services directory public — resolved in favor of the plan (2 public GETs, flagged
+  here); everything else aligned 1:1 with plan §6 + schema v5.0 field names.
+---
+Task ID: DOC-V5-d
+Agent: Docs Writer (wireframes)
+Task: Update team/docs/05-wireframes-design-system.md planned financier surfaces to v5.0
+
+Work Log:
+- Read worklog tail; team/DECISIONS.md (D-015 five owner rulings, D-016 stack rebuild, D-017);
+  FINANCIER_SCHEMA.md v5.0 in full (§0 migration table, R-4/R-5 rules, §3.1–3.13 models,
+  §5.1–5.3 status machines, §6 audit/notifications); FINANCIER_PLAN.md v2.0 (§4 flows 1–8,
+  §5 surfaces, §6 API sketch, §8 FIN-0…FIN-10).
+- Rewrote §5 "Wireframes — PLANNED financier surfaces" to v5.0: new header + concept preamble
+  (FinancierService/serviceKind DP-22; PLATFORM VERIFICATION GATE DP-23; requirements engine DP-24
+  w/ 8 typed kinds; AccountDocument vault DP-27; multiGroupId siblings DP-25; accreditation as a
+  main service DP-26) + an explicit "superseded v4 concepts" note (FinancingProduct,
+  FinancingRequestInvite, distributionMode, ApplicantDocument, INFO_REQUESTED, financier-side doc
+  verification) + updated legend (→ jump, ✱ required, ⚡ autoPassAccredited, ⛔ blocked).
+- Updated the 6 existing planned wireframes, assigning W-IDs: W-WIZ-1 (step 1 = read-only User +
+  AccountDocument vault w/ "Manage documents" jump-out + multi-financier toggle creating
+  multiGroupId siblings), W-WIZ-2 (left = 22-control activity form; right = NEW REQUIREMENTS
+  CHECKLIST panel — kind badges, vault-attach for DOCUMENT, PROFILE_FIELD auto-eval →
+  RequirementSubmission), W-WIZ-3 (submit → FR- numbers via Sequence 'FIN' → PLATFORM GATE queue,
+  financiers NOT notified), W-MY-REQ (gate banner w/ "3 of 5 required verified" +
+  returnedReason + resubmit; per-requirement verdicts w/ decisionNote; multiGroupId compare link),
+  W-CONSOLE (Products→Services; inbox FORWARDED_TO_FINANCIER+ only (R-4); checklist verdicts
+  read-only; accreditations inbox grant/reject/revoke; vendor quotes B2B mirror; funding events),
+  W-DIRECTORY (serviceKind chip, requirements preview (labels), serviceId-locked CTA).
+- Added 6 new ASCII wireframes in the file's style (box-drawing, labels, annotations; ≤100 chars,
+  alignment machine-verified): 5.7 W-REQ-COMPOSER (3-column: service summary | attached
+  requirements w/ drag-order, ✱, ⚙ config, GENERAL/PRIVATE, ⚡ | searchable GENERAL library +
+  private-condition builder w/ kind selector + ConditionOption rows editor), 5.8 W-GATE-QUEUE
+  (FIN/ACC badges, age/status/service/applicant table, filter chips, bulk actions), 5.9
+  W-GATE-REVIEW (header w/ applicant summary + profile/vault jumps; checklist w/ status chips
+  PENDING/SUBMITTED/VERIFIED/REJECTED/WAIVED + verify/reject/waive + note; right = 22-field
+  activity data + RequestAttachment list; footer = RETURN w/ aggregate reason + FORWARD ⛔ w/
+  "N of M required items verified" + audit note), 5.10 W-VAULT (org-scope toggle, dropzone,
+  verify-state legend, AccountDocument card grid w/ expiry warnings), 5.11 W-MULTI-COMPARE
+  (one column per sibling; latest SENT offer rows: amount/rate/tenor/monthly/validUntil; ACCEPT;
+  auto-decline note), 5.12 W-ACCRED-STATUS (5-step stepper incl. ACCREDITED, validUntil countdown,
+  RFQ-unlock, auto-pass, renew/revoke history).
+- Added §6 "Planned surface inventory v5": 21-row table (financier console sections incl. composer
+  + vendor quotes; applicant wizard/vault/services directory/compare/accreditation card; admin
+  gate queue/review/institutions/fees/requirements library/settings) mapped to FINANCIER_PLAN §4
+  flows 1–8.
+- Added §3.1 "Gate-console specifics" a11y notes: FORWARD disabled state announced (aria-disabled +
+  reason), verify/reject/waive require confirmation + REQUIRED note on reject/waive, checklist rows
+  keyboard-navigable (↑/↓/Enter/Esc, --ring, chip text in accessible name).
+- Targeted non-§5 edits only where v5 names demanded: §1.1 financing chip map rewritten to the v5
+  status sets (request/requirement/document/accreditation chips — old map carried v4-only
+  UNDER_REVIEW/DECLINED_ALL/INFO_REQUESTED); §4.8 sidebar label → "Financing & Accreditation
+  (PLANNED — §5.4)"; rules section renumbered §6→§7 w/ FIN-4→FIN-5 fix (5-registry lockstep is
+  FIN-5 in PLAN v2.0); version row 1.0→1.1. Tokens/primitives/composed-inventory/existing
+  wireframes otherwise untouched (verified via git diff hunk audit: 7 hunks, all intentional).
+- Verification pass: 12 §5 fenced blocks all ≤100 code points w/ consistent border widths; v5
+  names exact everywhere (UNDER_PLATFORM_REVIEW, FORWARDED_TO_FINANCIER, RETURNED_FOR_COMPLETION,
+  UNDER_FINANCIER_REVIEW, RequirementSubmission, AccountDocument, RequestAttachment,
+  multiGroupId, autoPassAccredited, ConditionOption, FinancingOfferInstallment…); stale v4 terms
+  appear ONLY inside the supersession callouts; inventory table column-consistent; scratch
+  generator scripts deleted.
+
+Stage Summary:
+- File: team/docs/05-wireframes-design-system.md v1.1 — 658 lines (+443/−95 vs HEAD). §5 now has
+  12 wireframes w/ stable W-IDs (W-WIZ-1/2/3, W-MY-REQ, W-CONSOLE, W-DIRECTORY updated; W-REQ-
+  COMPOSER, W-GATE-QUEUE, W-GATE-REVIEW, W-VAULT, W-MULTI-COMPARE, W-ACCRED-STATUS new) + §6
+  surface inventory (21 surfaces → 8 flows) + §3.1 gate a11y.
+- Judgment calls: (1) rewrote the one §1.1 financing-chip line despite the "design-system
+  untouched" rule — it was v4-named PLANNED content that would have contradicted §5's chips;
+  everything else in §1/§2/§3 preserved. (2) kept a single "superseded v4 concepts" list so
+  v4→v5 readers can map old names. (3) team/docs/README.md still describes "6 planned financier
+  surfaces" — Lead-owned shared file (D-010), NOT touched: flag for Lead to bump to 12 + §6
+  inventory mention. (4) W-REQ-COMPOSER middle column uses source badge PRIVATE as the UI label
+  for ConditionTemplate scope=FINANCIER (annotation gives the exact field/value).
+---
+Task ID: DOC-V5-e
+Agent: Docs Writer (data dictionary)
+Task: Update team/docs/06-data-dictionary.md Part B + enum registry to FINANCIER_SCHEMA v5.0
+
+Work Log:
+- Read worklog tail (~250 lines: DOC-V5-a/b/c/d entries — 01/04/README, 02/07, 03+openapi.yaml, 05
+  already on v5.0; doc 06 flagged as the last v4.0 file); team/DECISIONS.md in full (D-014 zero-JSON
+  doctrine, D-015 the five owner rulings, D-016 plan-stack rebuild); team/FINANCIER_SCHEMA.md v5.0
+  IN FULL — §0 migration table, §3.0–§3.13 (18 models + User additive scalars, the field-name
+  authority), §4 enum mapping, §5.1–5.3 status machines, §6 sequences/settings/notifications.
+- 06-data-dictionary.md → v1.1 (1224 → 1413 lines; +345/−156). Header: Version 1.1, Part B source
+  → v5.0 (18 models), new Changelog row naming the six v5 rebuild pillars; Part A unchanged. §2
+  intro re-pointed to "FINANCIER_SCHEMA v5.0 §3–§6".
+- §2 planned enum block REPLACED (32 → 37 rows, same | Enum | Values | Used by | format): NEW
+  ServiceKind, ServiceCategory (11 FINANCING + 2 ACCREDITATION kinds), ServiceStatus,
+  ConditionScope, ConditionType (8 typed kinds), RequirementSubmissionStatus,
+  AccountDocumentType (15 values), AccountDocumentStatus, RequestAttachmentParentType/Kind,
+  FinancingRequestStatus (v3, 11 gate-first states), AccreditationRequestStatus (11 states);
+  carried rows re-pointed to FinancierService.* (RateType, RepaymentFrequency, AttributeKind,
+  FinancingSegment, Planned currency); registry facts per §6 — Planned sequence keys FIN|AGR|ACC,
+  Planned RfqSetting financing panels (6 panels verbatim incl. defaults), Planned notification types
+  (linkView += financing|financier + the 19 v5 types verbatim). Removed v4-only rows:
+  FinancingCategory, FinancingProductStatus, RequirementKind, DistributionMode,
+  ApplicantDocumentType/Status, AccreditationCriterionKind, SupplierAccreditationStatus.
+- Part B REBUILT (migration note at top — renames vs deletions explicit): B.1 User additive 12
+  scalars (treatment unchanged; relations list updated to v5's 12 back-relations incl.
+  gateReviewsFinancing/Accreditation, accreditationsSubmitted/Decided/Revoked,
+  submissionsVerified, conditionTemplatesCreated) · services catalog B.2–B.4 (FinancierProfile 13,
+  FinancierBranch 14, FinancierService 26 = 22 + serviceKind/summary/accreditationValidMonths/
+  accreditationFeeAmount, amountMin/Max now nullable, FinancierServiceAttribute 5,
+  FinancierServiceCoverage 3) · requirements engine B.5–B.8 (ConditionTemplate 17,
+  ConditionOption 4, ServiceRequirement 10, RequirementSubmission 15 + parent-XOR note + gate
+  completeness rule R-4) · requests B.9–B.14 (FinancingRequest v3 45 — serviceId REQUIRED,
+  multiGroupId, 6 platform-gate fields, status VARCHAR(24) 11-state; FinancingOffer 19 +
+  installments 5; FinancingAgreement 10; FinancingEvent 8; FinancingFee 11; AccreditationRequest
+  27 — unique [serviceId, organizationId] + renewal note) · documents B.15–B.16 (AccountDocument
+  15, RequestAttachment 6). 17 v4 models → 18 v5 models.
+- Field-count summary recomputed from the doc's own tables: Part A unchanged (32 models, 368
+  fields); Part B 265 planned (253 in 18 new tables + 12 User additive); grand total 574 → 633.
+- Appendix (legacy-JSON inventory) kept; closing note updated to v5 child-table examples
+  (FinancierServiceAttribute/Coverage, ConditionOption, FinancingOfferInstallment,
+  RequestAttachment). Inventory table itself untouched.
+- Self-checks all PASS: (1) programmatic cross-check of all 19 tables vs FINANCIER_SCHEMA v5.0
+  prisma blocks — field names, Prisma types, @db.* mappings, @unique/@default attributes AND
+  field order match EXACTLY; (2) v4-name sweep (FinancingProduct, ApplicantDocument,
+  SupplierAccreditation, FinancingRequestInvite, AccreditationProgram, AccreditationCriterion,
+  distributionMode, DECLINED_ALL, INFO_REQUESTED) — present ONLY inside the Part B migration note;
+  (3) status enums verbatim vs §5 (FR v3 = 11, ACC = 11, RequirementSubmission = 5,
+  AccountDocument = 3); (4) per-model field counts 19/19 (12+13+14+26+5+3+17+4+10+15+45+19+5+10+
+  8+11+27+15+6 = 265); (5) markdown table column-consistency across all rows; (6) git hunk audit +
+  Part A byte-diff vs HEAD (lines 119–773 old == 125–779 new, identical).
+- Scratch cleaned; backup retained at /home/z/.wf-tmp/ddv5/06-data-dictionary.md.bak. No
+  application code written; only 06-data-dictionary.md touched (+ this worklog entry).
+
+Stage Summary:
+- File: team/docs/06-data-dictionary.md v1.1 (1413 lines). The last v4.0 doc is eliminated — the
+  whole team/docs suite now describes FINANCIER_SCHEMA v5.0 (D-016 docs refresh complete).
+- Counts: 32 existing models / 368 fields (untouched) + 18 planned models / 253 fields + 12 User
+  additive scalars = 633 grand total; enum registry 27 existing rows + 37 planned rows; Part B =
+  19 field tables in 4 groups (services catalog / requirements engine / requests / documents) with
+  the "PLANNED — NOT IN DATABASE YET" and onDelete "—" conventions preserved.
+- Judgment calls: (1) B.4 heading says "(services, not products — DP-22)" instead of the schema's
+  "(renamed from FinancingProduct …)" so the v4-name self-check stays clean; (2) documents group
+  placed last per the task's grouping order (schema §3.7 order would put them before requests);
+  (3) B.1 User-additive section keeps v4's wording/treatment, only the relations list updated.
+- Inconsistency found & flagged (NOT fixed — Part A is under the COMPLETELY-UNTOUCHED mandate):
+  A.11 Sequence row still reads "(planned: FIN, AGR)" — missing ACC; the authoritative v5 fact
+  lives in the planned-enum row "Planned sequence keys" (FIN|AGR|ACC). One-word fix for the Lead
+  if the mandate is ever lifted.
+- DB + dev server still DOWN (P0/FIN-0, owner-gated) — docs round needed no runtime.
+
+---
+Task ID: PLAN-V5 (Lead)
+Agent: Lead orchestrator
+Task: Rebuild the financier plan stack on the owner's v5 rulings (services not products; platform
+verification gate as the essence of the platform; general+specific requirements engine;
+accreditation as a main service; universal document management; exclusive/multi-financier
+routing) so the team can move to the implement step.
+
+Work Log:
+- Read the owner's correction message; re-read the full v4 plan stack (FINANCIER_SCHEMA v4.0
+  783 ln, FINANCIER_PLAN v1.1, PLATFORM_PLAN v2.0, DECISIONS, TASK_BOARD, SPRINT_PLAN) and the
+  current prisma schema state (32 commerce models, no financier models yet).
+- Key validation found: the competitor's own fund-order API returns `service: {id, name}` and the
+  URL space is /en/services/{id} — v4's "FinancingProduct" was our mislabel of their concept.
+- Wrote team/FINANCIER_SCHEMA.md v5.0 (~700 ln): §0 v4→v5 model migration table; §1 evidence
+  retained + re-read through the services lens; §2 rules R-1..R-5 (new R-4 THE PLATFORM GATE,
+  R-5 FLEXIBLE REQUIREMENTS); §3 the 18 models — FinancierService (serviceKind
+  FINANCING|ACCREDITATION), the requirements engine (ConditionTemplate scope GENERAL|FINANCIER +
+  ConditionOption + ServiceRequirement + RequirementSubmission), universal AccountDocument +
+  RequestAttachment, FinancingRequest v3 (serviceId required, gate fields, multiGroupId
+  siblings, 11-state machine), AccreditationRequest (11-state machine, grant-on-request,
+  validUntil, revocation, @@unique(serviceId,organizationId)), offers/installments/agreement/
+  events/fees carried over; §5 the three state machines; §7 traceability; §8 duplication audit;
+  §10 DP-22..DP-28 (DP-4/DP-21 superseded).
+- Wrote team/FINANCIER_PLAN.md v2.0: DP-1..DP-28 approval checklist; 8 flows with THE GATE as
+  flow #4 (the heart); surfaces (financier console w/ requirements composer, applicant wizard
+  w/ checklist + documents center, admin gate console); API surface §6 (6 route groups, ~38
+  endpoints); tasks FIN-0..FIN-10 with DoD + serialization; risks; non-goals (no gate bypass).
+- Wrote team/PLATFORM_PLAN.md v3.0: flows 3/4 redefined (accreditation = MAIN service), P1
+  re-scoped to services + requirements engine + gate, accreditation machinery moved into P1
+  (P5 = polish only), DP table updated with DP-22..28.
+- Updated team/DECISIONS.md: D-015 (the six v5 owner rulings + capability list), D-016 (plan
+  stack rebuilt), D-017 (D-011 superseded for the QA/dev loop by the 15-min webDevReview cron
+  directive).
+- Updated team/TASK_BOARD.md (PLAN-V5 recorded; queue FIN-0..FIN-10) + team/SPRINT_PLAN.md
+  (v5 phase description + milestones M-FIN-A..D).
+- Dispatched 5 parallel doc-suite agents (DOC-V5-a..e): 01-domain-model (18-model ERD + 3 new
+  state machines + invariants 17-21 + ADR-0017..0021 + README index), 02-use-cases (58 UCs,
+  77 stories, platform-reviewer actor, owner capability map), 03-api-contract + openapi.yaml
+  (35 planned paths/43 ops, YAML valid, 88 existing paths untouched), 05-wireframes (12
+  wireframes incl. gate queue/review, requirements composer, vault, multi-compare, accreditation
+  status), 06-data-dictionary (Part B rebuilt: 19 field tables, 265 planned fields, enum registry
+  37 planned rows). Lead fixed the flagged Part A Sequence row (+= ACC) + stale refs in
+  docs 08/09 (ApplicantDocument → AccountDocument, v4.0 → v5.0).
+
+Stage Summary:
+- The plan stack is now implementation-ready on the v5 model: services-not-products,
+  requirements engine (general + financier-specific, 8 typed kinds, per-service composer),
+  platform verification gate enforced structurally (status machines + financier inbox exclusion),
+  universal AccountDocument vault, accreditation as a main service (grant + RFQ unlock +
+  auto-pass), multi-financier routing via sibling multiGroupId requests.
+- 18 planned models, ZERO Json columns (R-1), single-entry + substrate-reuse preserved (R-2/R-3).
+- Full docs suite now describes v5.0 consistently (01,02,03,04,05,06,07,08,09,README,openapi).
+- Gate on owner: approve DP-1..DP-28 (DP-18/19/22/23/24/26/27 already owner-set) → FIN-0
+  dispatches (infra recovery first — DB still down).
+- webDevReview cron (15 min) to be created per session directive — it will drive runtime QA
+  and continued development.

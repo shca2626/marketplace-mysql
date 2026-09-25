@@ -133,9 +133,9 @@ in review.
 
 ### 3.4 PLANNED financier authorization
 
-From `team/FINANCIER_SCHEMA.md` v4.0: financier staff access is scoped to
-the requests routed to them; KYC documents (`ApplicantDocument` →
-`MediaAsset`) are visible only for those requests; admin has override.
+From `team/FINANCIER_SCHEMA.md` v5.0: financier staff access is scoped to
+FORWARDED+ requests (the platform gate excludes un-forwarded ones — DP-23); KYC documents
+(`AccountDocument` → `MediaAsset`, vault reuse) are visible only for those requests; admin has override.
 Verification transitions (PENDING/VERIFIED/REJECTED) must record a reviewer.
 **None of this is implemented yet** — it is a design requirement this
 document holds the module to (see §12, P2).
@@ -342,9 +342,9 @@ usage):
 | Payment `reference`, `instructions` | `Payment` | Buyer (instructions snapshot) + admin |
 | Uploaded images (+ original filename, sanitized) | `MediaAsset` | Public media URLs (immutable keys), owner + admin libraries |
 
-PLANNED applicant PII (financier schema v4.0 — **not yet in the DB**):
+PLANNED applicant PII (financier schema v5.0 — **not yet in the DB**):
 date of birth, gender, marital status, nationality, identity type/number,
-residence, plus KYC documents (`ApplicantDocument` → `MediaAsset`,
+residence, plus KYC documents (`AccountDocument` → `MediaAsset`,
 PENDING/VERIFIED/REJECTED with reviewer) and a consent timestamp
 (`consentAt`). This is identity-grade PII, far beyond today's inventory.
 

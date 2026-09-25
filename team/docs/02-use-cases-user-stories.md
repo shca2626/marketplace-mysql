@@ -1,10 +1,10 @@
 # Vendora — Use Cases & User Stories
 
-> **Version 1.0 · September 2026 · Audience:** engineering and product stakeholders (expert level).
+> **Version 2.0 · September 2026 · Audience:** engineering and product stakeholders (expert level).
 > Scope: Vendora unified commerce platform (B2C + B2B) — single-route SPA (`/` with `?view=` routing), roles BUYER / SELLER / ADMIN plus org membership roles OWNER / ADMIN / BUYER / APPROVER / VIEWER.
-> Statuses are grounded in the verified capability map (2026-09 code recon) and the plan stack: `team/PLATFORM_PLAN.md` v2.0 (six business flows, phases P0–P6) and `team/FINANCIER_SCHEMA.md` v4.0. Nothing marked EXISTS is PARTIAL/PLANNED in those sources.
+> Statuses are grounded in the verified capability map (2026-09 code recon) and the plan stack: `team/PLATFORM_PLAN.md` v3.0 (six business flows, phases P0–P6), `team/FINANCIER_SCHEMA.md` **v5.0** (18 models — services, platform gate, requirements engine; the authority for all PLANNED names below) and `team/FINANCIER_PLAN.md` v2.0 (8 financier flows, FIN-0…FIN-10). Nothing marked EXISTS is PARTIAL/PLANNED in those sources.
 > Status legend: **EXISTS** (implemented), **PARTIAL** (backbone exists, deltas pending), **PLANNED** (per PLATFORM_PLAN phases).
-> Invariants respected throughout: D-001 (platform is orchestrator, never merchant of record, never holds inventory), D-002 (settlement external — never lends/holds funds; commission on success), D-011 (no cron — state machines + lazy sweeps only).
+> Invariants respected throughout: D-001 (platform is orchestrator, never merchant of record, never holds inventory), D-002 (settlement external — never lends/holds funds; commission on success), D-011 (no cron drives business logic — state machines + lazy sweeps only; the D-017 heartbeat is QA-only), D-014 (zero JSON / single entry / reuse the substrate), D-015 (services-not-products · **platform verification gate** · flexible requirements · accreditation as a MAIN service · universal documents · exclusive/multi routing).
 
 ---
 
@@ -18,8 +18,9 @@
 | Seller / Vendor | Registered user with global role SELLER (one seller profile) | Sell products, quote RFQs, fulfill orders, earn, resolve disputes, source from other suppliers (Flow 6) | `?view=seller` console: products/variants/media, bulk import/export, orders, earnings, disputes, RFQ inbox; may also post RFQs as a buyer |
 | Admin | Platform operator (global role ADMIN) | Govern vendors, catalog, orders, payments, payouts, pricing, RFQ settings, disputes, audit | `?view=admin` all tabs: overview, vendors, products, orders, organizations, pricing, coupons, payments, payouts, RFQs, disputes, audit logs, settings (incl. storefront theme + 7-section/22-panel RFQ settings with history/rollback), slides |
 | System | Server-side state machines and lazy sweeps (no UI, never an authenticated principal) | Keep lifecycle state consistent without cron: quote/RFQ/dispute expiry, dispute auto-resolution, recurring RFQ re-issue, notification emission | Runs inside module services on request-triggered sweeps (D-011); audit-log rows on transitions |
-| Financier staff — PLANNED | OWNER/ADMIN member of an organization with orgType BANK / MFI / EWALLET and an ACTIVE FinancierProfile (no new global role — DP-1) | Review financing requests, request info/documents, issue offers, report funding events | PLANNED `?view=financier`: inbox, request detail, offer composer, my offers |
-| Financier admin — PLANNED | OWNER/ADMIN of a financier org | Manage financing products (rates, fees, ranges, tenor), run accreditation programs | PLANNED `?view=financier` profile & products; accreditation program definition |
+| Financier staff — PLANNED | OWNER/ADMIN member of an organization with orgType BANK / MFI / EWALLET and a verified (ACTIVE) profile (no new global role — DP-1) | Work the FORWARDED+ requests inbox (pre-forward requests are structurally invisible — R-4), send offers + revisions, decide accreditations, report funding events, relay vendor quotes | PLANNED `?view=financier`: dashboard, requests inbox (FORWARDED_TO_FINANCIER and later states only), accreditations inbox, offer composer + my offers, vendor quotes, profile |
+| Financier admin — PLANNED | OWNER/ADMIN of a financier org | Manage FinancierService rows of both kinds (serviceKind FINANCING / ACCREDITATION), compose requirements from the GENERAL library + private conditions, manage branches | PLANNED `?view=financier` services + requirements composer, profile & branches; accreditation program definition |
+| Platform reviewer (admin) — PLANNED | Platform operator working the financing admin tab — THE GATE actor (global role ADMIN; DP-23) | Verify/reject/waive every requirement item on financing AND accreditation requests, return incomplete requests with reasons, forward only fully-verified ones, verify vault documents | PLANNED `?view=admin&tab=financing`: Review queue (THE GATE — dossier + per-item verdicts + return/forward), Institutions, Monitor, Fees, Requirements library, Settings |
 
 ---
 
@@ -34,6 +35,7 @@ flowchart LR
   OrgM(["Org member — OWNER / ADMIN / BUYER / APPROVER / VIEWER"])
   Seller(["Seller / Vendor"])
   Admin(["Admin"])
+  PlatRev(["Platform reviewer (admin) — PLANNED"])
   Sys(["System — state machines + lazy sweeps"])
   FinS(["Financier staff — PLANNED"])
   FinA(["Financier admin — PLANNED"])
@@ -71,10 +73,10 @@ flowchart LR
     M2["Payment capture, payouts, coupons"]
     M3["Settings + history/rollback, storefront theme, audit"]
   end
-  subgraph FIN ["Financing — PLANNED"]
-    F1["3-step wizard application"]
-    F2["Inbox review, info requests, offers"]
-    F3["Acceptance, agreements, fees, accreditation, checkout financing"]
+  subgraph FIN ["Financing & Accreditation — PLANNED"]
+    F1["Services directory · document vault · 3-step wizard + requirements checklist"]
+    F2["Requirements composer · THE PLATFORM GATE · forwarded inbox · offers"]
+    F3["Comparison · agreements · fees · accreditation · vendor quotes"]
   end
 
   Guest --> ACC
@@ -92,6 +94,9 @@ flowchart LR
   Sys --> RFQ
   Buyer -.-> FIN
   Seller -.-> FIN
+  OrgM -.-> FIN
+  Admin -.-> FIN
+  PlatRev -.-> FIN
   FinS -.-> FIN
   FinA -.-> FIN
   Sys -.-> FIN
@@ -101,7 +106,7 @@ flowchart LR
 
 ## 3. Use-case catalog
 
-47 use cases. Main success scenarios are terse; alternatives and extensions are noted inline where they carry domain weight.
+58 use cases. Main success scenarios are terse; alternatives and extensions are noted inline where they carry domain weight.
 
 | ID | Use case | Primary actor | Precondition | Main success scenario | Postcondition | Status |
 |---|---|---|---|---|---|---|
@@ -120,7 +125,7 @@ flowchart LR
 | UC-013 | Run lazy sweeps & auto-resolution | System | Sweep-triggering request occurs; settings windows defined | 1) Sweep executes on access 2) Quotes/RFQs past validity expire 3) Disputes past configured window auto-resolve 4) Parties notified | Terminal states reached without cron (D-011); audit rows written | EXISTS |
 | UC-014 | Create RFQ | Buyer / org member | Signed in | 1) Entry from product page (line prefilled) or business view (free lines) 2) Add lines: product/spec, quantity, target price, notes 3) Submit | RFQ- number assigned; eligible sellers computed and notified | EXISTS |
 | UC-015 | Submit quote | Seller | RFQ open; seller eligible | 1) Open RFQ from inbox 2) Compose quote (unit price, payment terms, validity) 3) Send | QTE- quote SENT; buyer notified | EXISTS |
-| UC-016 | Review & compare quotes | Buyer | RFQ has ≥ 1 quote | 1) Open RFQ detail 2) Review quote cards — price, NET/payment terms, validity windows, seller reputation — on one page 3) Optionally negotiate via messages | Buyer able to rank offers. (Consolidated multi-line compare grid is Flow 2 — see UC-047) | EXISTS |
+| UC-016 | Review & compare quotes | Buyer | RFQ has ≥ 1 quote | 1) Open RFQ detail 2) Review quote cards — price, NET/payment terms, validity windows, seller reputation — on one page 3) Optionally negotiate via messages | Buyer able to rank offers. (Consolidated multi-line compare grid is Flow 2 — see UC-058) | EXISTS |
 | UC-017 | Accept quote, convert to order | Buyer (APPROVER if above threshold) | RFQ has open quote | 1) Press accept 2) If org order above threshold: approval request routed first 3) On approval, quote ACCEPTED and sibling quotes auto-declined 4) Convert accepted quote to order | Order created PENDING_PAYMENT with quote terms; quote locked | EXISTS |
 | UC-018 | Exchange RFQ messages | Buyer / Seller | Both parties on same RFQ | 1) Open RFQ thread 2) Post message 3) Counterparty notified | Thread persisted; notification sent | EXISTS |
 | UC-019 | Schedule recurring RFQ | Org member | Signed in with org | 1) Define recurring schedule (cadence, lines) 2) Activate | System re-issues RFQ per cadence via lazy sweep | EXISTS |
@@ -142,22 +147,33 @@ flowchart LR
 | UC-035 | Manage coupons | Admin | Admin session | 1) Create coupon (type, value, window, usage cap) 2) Monitor redemptions | Coupon redeemable at checkout; abuse capped | EXISTS |
 | UC-036 | Review audit log | Admin | Admin session | 1) Open audit logs 2) Filter by action, actor, time | Immutable trail of governed actions visible | EXISTS |
 | UC-037 | Read notifications | Any signed-in user | Signed in | 1) Bell shows unread count 2) Open list 3) Click item → deep link to the relevant view | Item marked read; user routed to context | EXISTS |
-| UC-038 | Apply for financing (3-step wizard) | Buyer / org member (seller org for Flow 3) | Signed in; entry from product, quote/order, or business view | 1) Step 1 — profile & KYC review (read-only, single entry; edit profile) + consent checkbox (consentAt) 2) Step 2 — 22-field activity/financing form (activity status, capital, installment capacity, previous financing, activity type/name/address/city/district, amount, currency, purpose, guarantee type/status, attachments, notes) 3) Step 3 — review by reference + terms agreement 4) Submit | FR- number assigned; status SUBMITTED; request distributed to matching verified financiers | PLANNED |
-| UC-039 | Track & cancel my financing requests | Applicant | Request exists | 1) Open "My financing requests" 2) Review status history 3) Cancel before acceptance | Request CANCELLED / WITHDRAWN; financiers notified | PLANNED |
-| UC-040 | Review financing inbox; request info | Financier staff | Financier org ACTIVE | 1) Open `?view=financier` inbox 2) Open request detail (target quote/order context) 3) Take UNDER_REVIEW 4) Ext: request missing documents/info → INFO_REQUESTED; applicant uploads via document subsystem | Request state advanced; applicant notified | PLANNED |
-| UC-041 | Issue financing offer | Financier staff | Underwriting complete | 1) Compose offer — rate, fees, tenor, installment schedule, validity 2) Send | Offer SENT; request OFFERED; applicant notified | PLANNED |
-| UC-042 | Compare & accept financing offer | Applicant | ≥ 1 live offer | 1) Open request offers 2) Compare side-by-side 3) Accept best | Sibling offers auto-DECLINE; request ACCEPTED; agreement created (AGR-); FinancingFee ACCRUED | PLANNED |
-| UC-043 | Report agreement funding events | Financier staff | Agreement ACTIVE | 1) Report disbursement / repayment events from financier console | Events recorded in track-only ledger — money moves externally, platform never holds funds (D-002) | PLANNED |
-| UC-044 | Settle financing fees | Admin | Fees ACCRUED | 1) Open admin fee console 2) Mark INVOICED (external invoice issued) 3) Mark PAID (external collection confirmed) | Fee lifecycle closed; audit rows written | PLANNED |
-| UC-045 | Run accreditation program | Financier admin + Seller | Program defined | 1) Financier defines program criteria (data) 2) Seller submits documents 3) Financier/admin verifies 4) Accreditation fee invoiced 5) Auto-pass flag applies to future financing requests | Supplier accredited; verification reusable | PLANNED |
-| UC-046 | Finance at checkout | Buyer | Checkout with eligible order (Flow 5; gated on DP-6 track-only ruling) | 1) At checkout choose financing 2) FinancingRequest created against the order 3) Financier approves and pays supplier directly 4) Repayment events tracked only | Financed order proceeds; commission + origination fee recorded; no funds touch the platform | PLANNED |
-| UC-047 | Compose super-cart mixed-line RFQ | Buyer | Cart or RFQ composer with mixed lines (Flow 2) | 1) Compose one RFQ with N typed lines (PRODUCT / SERVICE / FINANCING / LOGISTICS / INSURANCE) 2) Lines routed to typed provider pools 3) Providers quote only their line 4) Buyer accepts best per line 5) Multi-party order with per-line commission | One RFQ, many provider deals, per-line commission | PARTIAL (RFQ backbone, multi-seller orders, per-item commission exist; typed lines, routing pools, per-line accept, consolidated compare are PLANNED — phase P3) |
+| UC-038 | Browse financier services | Guest / any applicant | Financier orgs verified (ACTIVE); services ACTIVE | 1) Open the services directory (or a financier's public profile) 2) Filter by serviceKind / category / coverage 3) Open a service detail — summary, amounts (amountMin/amountMax), rate type + rateMax, tenor, features + eligibility bullets (FinancierServiceAttribute), coverage regions, composed requirements list (labels only) 4) Press "Apply" (auth-gated, serviceId fixed) | Applicant on a service page with the target service chosen | PLANNED |
+| UC-039 | Manage document vault | Any user; org member for org-scope docs | Signed in (documents center — DP-27, ALL users) | 1) Open the documents center 2) Upload a document (documentType e.g. NATIONAL_ID / COMMERCIAL_REG / TAX_CARD / BANK_STATEMENT) → AccountDocument (mediaId → MediaAsset — uploaded ONCE) 3) Set metadata (title, issuedAt, expiresAt) 4) Platform admin verifies each document once (PENDING → VERIFIED) 5) Replace with a newer version (isActive soft-delete) | Document verified once at account level, reused by every request; expiry tracked | PLANNED |
+| UC-040 | Manage financier profile & branches | Financier admin | Financier org verified (financier flow 1) | 1) Open `?view=financier` profile 2) Edit FinancierProfile financing facts (about, licenseNumber, regulator, logo, contact, min/max ticket) 3) CRUD FinancierBranch rows (BRANCH / AGENT / ATM, typed address) | Public profile + branches current; legal identity stays on Organization (R-3) | PLANNED |
+| UC-041 | Manage financier services (services, not products — DP-22) | Financier admin | Financier org ACTIVE | 1) Create FinancierService (serviceKind FINANCING or ACCREDITATION; category; amountMin/amountMax, rateType/rateMax, tenorMin/MaxMonths, repaymentFrequency) 2) Add attributes (FEATURE / ELIGIBILITY_CONDITION bullets) + coverage regions 3) For ACCREDITATION kind: accreditationValidMonths + accreditationFeeAmount 4) Publish / archive | Service ACTIVE in the directory; every application targets exactly one service | PLANNED |
+| UC-042 | Manage general condition library | Admin | Admin session | 1) Open admin financing → requirements library 2) Create ConditionTemplate (scope GENERAL; conditionType DOCUMENT / PROFILE_FIELD / DECLARATION / TEXT / NUMBER / DATE / SELECT / MULTI_SELECT) 3) For SELECT / MULTI_SELECT: add ConditionOption rows (never a JSON blob) 4) Set documentType / profileFieldKey / validationMin/Max / validityMonths / isRepeatable 5) Deactivate without losing attachments | One reusable definition many financiers attach (R-5); GENERAL scope is admin-only | PLANNED |
+| UC-043 | Compose service requirements | Financier admin | Own financier org; FinancierService exists | 1) Open the requirements composer on a service 2) Pick conditions from the GENERAL library (searchable, typed) 3) Create private conditions (scope FINANCIER — invisible to other financiers) 4) Attach via ServiceRequirement rows: isRequired, displayOrder, per-service instructions, autoPassAccredited 5) Reorder live; deactivate without losing submissions | The service's checklist is well-defined and versioned; private conditions never leak | PLANNED |
+| UC-044 | Apply for a financing service (3-step wizard + checklist) | Applicant — individual (DP-13) or org member | Signed in; ACTIVE FinancierService (serviceKind FINANCING) | 1) Step 1 — profile + document vault render read-only ("Edit profile" / "Manage documents" jump-outs); consent checkbox → consentAt 2) Step 2 — 22-field activity/financing form (typed FinancingRequest columns) + the service's REQUIREMENTS CHECKLIST (RequirementSubmission rows: typed answers per condition kind; DOCUMENT items attach vault docs; PROFILE_FIELD auto-evaluates) 3) Step 3 — review by reference + terms 4) Submit | FR- number assigned; status SUBMITTED; enters the platform gate queue — never a financier inbox | PLANNED |
+| UC-045 | Apply to multiple financiers (sibling requests) | Applicant | Two+ financiers offer matching services | 1) In the wizard choose "apply to multiple financiers" 2) Select N services (one per financier) 3) One wizard session creates N sibling FinancingRequests sharing a multiGroupId, each with its own service checklist 4) Submit all | Sibling group created for side-by-side offer comparison; EXCLUSIVE = single request (multiGroupId null) | PLANNED |
+| UC-046 | Track, fix & cancel my requests | Applicant | Own request exists | 1) Open "My financing requests" 2) Review gate status + per-requirement verdicts + decisionNotes 3) If RETURNED_FOR_COMPLETION: fix the flagged items (re-supply REJECTED items, attach missing docs) and resubmit → UNDER_PLATFORM_REVIEW 4) Cancel any pre-acceptance request | Applicant always knows exactly what is missing; resubmission re-enters the gate | PLANNED |
+| UC-047 | Platform gate review (THE GATE — DP-23) | Platform reviewer (admin) | Request SUBMITTED | 1) Open admin financing → review queue (financing + accreditation) 2) Open the dossier: applicant profile + the service's full checklist (GENERAL + FINANCIER items labeled) + submitted answers + attached documents 3) Verify / reject (decisionNote required) / waive (optional items only, note required) each RequirementSubmission 4) Return the whole request with an aggregate reason → RETURNED_FOR_COMPLETION 5) Forward ONLY when every required item is VERIFIED/WAIVED → FORWARDED_TO_FINANCIER | Incomplete or incorrect requests never reach a financier (R-4); every action audited + notified | PLANNED |
+| UC-048 | Review forwarded requests | Financier staff | Requests FORWARDED_TO_FINANCIER or later (inbox structurally excludes pre-forward states) | 1) Open `?view=financier` inbox 2) Open a request detail (checklist verdicts included) → UNDER_FINANCIER_REVIEW 3) Ext: decline with note → DECLINED | Financier sees only gate-passed requests; decisions recorded | PLANNED |
+| UC-049 | Send financing offer (+ revisions) | Financier staff | Request UNDER_FINANCIER_REVIEW | 1) Compose offer — amount, rate, fees, tenor, validity + FinancingOfferInstallment rows 2) Send → request OFFERED 3) Ext: send a revised offer — all offers remain comparable to the applicant | Offer SENT with schedule; applicant notified OFFER_RECEIVED | PLANNED |
+| UC-050 | Compare offers | Applicant | ≥ 1 SENT offer on own request | 1) Open request detail 2) Compare offer revisions within the request side-by-side 3) Across a multiGroupId: compare each sibling request's latest SENT offer | Applicant can rank offers within a request and across financiers | PLANNED |
+| UC-051 | Accept offer | Applicant | Live SENT offer | 1) Choose the winning offer 2) Accept → FinancingAgreement (AGR-) created referencing the FROZEN offer (DP-20); FinancingFee SUCCESS ACCRUED; sibling offers (in the request and across the multiGroupId) auto-DECLINED | Request ACCEPTED; fee accrues; money never touches the platform (D-002) | PLANNED |
+| UC-052 | Report agreement funding events | Financier staff | Agreement ACTIVE | 1) Report DISBURSEMENT / REPAYMENT / EARLY_SETTLEMENT / LATE_FEE / NOTE events 2) fundingStatus advances PENDING → REPORTED_FUNDED → REPORTED_SETTLED | Track-only ledger — the platform records, never holds or moves funds (D-002) | PLANNED |
+| UC-053 | Settle financing fees | Admin | Fees ACCRUED (SUCCESS / ORIGINATION / ACCREDITATION) | 1) Open admin fees console 2) Mark INVOICED (external invoice issued) 3) Mark PAID (external collection confirmed) 4) Ext: waive | Fee lifecycle closed with audit rows; collection is always external (D-002) | PLANNED |
+| UC-054 | Apply for accreditation | Org member (companies only) | FinancierService with serviceKind ACCREDITATION is ACTIVE; no live accreditation record for (serviceId, organizationId) | 1) Pick the financier's accreditation service 2) Complete the checklist (vault-aware — items already satisfied by verified AccountDocuments are marked) 3) Consent + submit → ACC- number, SUBMITTED 4) Platform gate (UC-047) verifies + forwards | Accreditation request in the gate queue; exactly one record per (serviceId, organizationId) | PLANNED |
+| UC-055 | Decide accreditation (grant / reject / revoke / renew) | Financier admin (platform admin may revoke) | Accreditation request FORWARDED_TO_FINANCIER | 1) Open the accreditations inbox 2) Grant → ACCREDITED (accreditedAt + validUntil from service.accreditationValidMonths) or reject with note 3) Revoke any time (revocationReason required) 4) Renewal = a NEW AccreditationRequest after EXPIRED / REVOKED / REJECTED / CANCELLED | Live grant unlocks RFQ participation with that financier + auto-passes autoPassAccredited requirements on their other services (DP-26) | PLANNED |
+| UC-056 | Relay vendor quotes | Financier staff | Live accreditations exist at this financier | 1) From the financier console open vendor quotes 2) Create / relay RFQs to accredited vendors ("approved vendors" = orgs with live ACCREDITED AccreditationRequest) 3) Receive quotes through the existing RFQ engine 4) Relay customer quote requests to those companies | Financier participates in B2B sourcing with ZERO new tables (existing Rfq/Quote engine) | PLANNED |
+| UC-057 | Finance at checkout | Buyer | Checkout with eligible order (platform flow 5; gated on DP-6 track-only ruling) | 1) At checkout choose financing 2) FinancingRequest created against the order (targetType ORDER) 3) Passes the same platform gate 4) Financier approves and pays the supplier directly; repayment tracked only | Financed order proceeds; commission + origination fee recorded; no funds touch the platform | PLANNED |
+| UC-058 | Compose super-cart mixed-line RFQ | Buyer | Cart or RFQ composer with mixed lines (platform flow 2) | 1) Compose one RFQ with N typed lines (PRODUCT / SERVICE / FINANCING / LOGISTICS / INSURANCE) 2) Lines routed to typed provider pools 3) Providers quote only their line 4) Buyer accepts best per line 5) Multi-party order with per-line commission | One RFQ, many provider deals, per-line commission | PARTIAL (RFQ backbone, multi-seller orders, per-item commission exist; typed lines, routing pools, per-line accept, consolidated compare are PLANNED — phase P3) |
 
 ---
 
 ## 4. User stories with acceptance criteria
 
-12 epics, 65 stories. Each story: narrative, Given/When/Then acceptance criteria, MoSCoW priority, status. All money-handling stories respect D-002 (platform records, never holds or moves buyer↔vendor or financier funds).
+12 epics, 77 stories. Each story: narrative, Given/When/Then acceptance criteria, MoSCoW priority, status. All money-handling stories respect D-002 (platform records, never holds or moves buyer↔vendor or financier funds).
 
 ### E-01 Account
 
@@ -443,73 +459,151 @@ As a seller/admin, I want uploads deduplicated by content hash and converted to 
 - Given an identical file uploaded twice, when the second upload lands, then it resolves to the existing asset (sha256 match) instead of a duplicate.
 - Given any uploaded image, when it is stored, then it is served in the normalized webp pipeline.
 
-### E-11 Financing — PLANNED (Flows 3, 4, 5)
+### E-11 Financing & Accreditation — PLANNED (financier flows F1–F8; platform flows 3, 4, 5)
 
-**US-054 — Apply for working capital via 3-step wizard** · Must · PLANNED (Flow 3)
-As a seller org owner, I want to apply for financing through a 3-step wizard, so that my application is complete and consistent before submission.
-- Given an ACTIVE seller org and a signed-in member, when I open the wizard, then step 1 renders my profile and KYC documents read-only with an edit-profile path and a consent checkbox (consentAt recorded).
-- Given step 1 consent, when I proceed to step 2, then the 22-field activity/financing form (activity status, capital, installment capacity, previous financing, contribution, other income, activity type/name/description/start date/address/city/district/location type, amount, currency, purpose, guarantee type/status, attachments, notes) is captured into typed columns with attachments as dual-scope documents.
-- Given step 2 is complete, when I reach step 3, then everything renders by reference (no profile data copied) and submission requires the terms checkbox.
-- Given submission, when it succeeds, then a FR- number is assigned, the request is SUBMITTED and distributed to matching verified financiers, and it appears in "My financing requests" with status history.
-- Given my request is pre-acceptance, when I cancel it, then it becomes CANCELLED/WITHDRAWN and the financiers are notified.
+**US-054 — Browse & choose a financing service** · Should · PLANNED (F2 public surface)
+As an applicant, I want to browse financiers' services with amounts, rates and requirements, so that I choose the right service before applying.
+- Given the services directory, when I filter by serviceKind / category / coverage, then only ACTIVE services of verified financiers are listed.
+- Given a service detail, when I open it, then amounts (amountMin/amountMax), rate type and cap, tenor, features + eligibility bullets, coverage regions and the composed requirements labels render.
+- Given I am not signed in, when I press "Apply", then I am asked to authenticate before the wizard opens.
 
-**US-055 — Financier reviews inbox & requests information** · Must · PLANNED (Flow 3)
-As financier staff, I want a distributed-request inbox with full applicant context, so that I can underwrite without chasing data over email.
-- Given my financier org is ACTIVE, when I open `?view=financier`, then I see requests distributed to us whose ticket range and product type match.
-- Given a request, when I open its detail, then the target (quote/order/working capital) and applicant activity data are visible by reference.
-- Given information or documents are missing, when I request them, then the request becomes INFO_REQUESTED and the applicant is notified; on re-submission it returns to review.
+**US-055 — Manage my document vault** · Must · PLANNED (F3 — DP-27)
+As any user, I want a personal and organizational document vault, so that my KYC evidence is uploaded and verified once and reused by every request.
+- Given the documents center, when I upload a NATIONAL_ID document, then an AccountDocument row is created (mediaId → MediaAsset) with status PENDING.
+- Given a PENDING document, when the platform admin verifies it, then it becomes VERIFIED with reviewedById/reviewedAt and I am notified DOCUMENT_VERIFIED.
+- Given a document with expiresAt approaching, when the vault renders, then freshness versus the condition's validityMonths is visible.
+- Given a verified document, when I upload a replacement, then the old row is soft-deactivated (isActive=false) — never duplicated.
+- Given a documentType outside settings `documents.allowedTypes` or a file over `maxSizeMb`, when I upload, then it is rejected with a reason.
 
-**US-056 — Issue an offer with installment schedule** · Must · PLANNED (Flow 3)
-As financier staff, I want to issue a binding offer with rate, fees, tenor, installments and validity, so that the applicant can decide on complete terms.
-- Given a request under review, when I compose an offer with its installment schedule and send it, then the request becomes OFFERED and the applicant is notified.
-- Given an offer past its validity, when a lazy sweep runs, then it expires without cron (D-011).
+**US-056 — Financier sets up profile & branches** · Must · PLANNED (F1)
+As a financier admin, I want to manage our financing profile and branches, so that applicants see accurate institution data.
+- Given our org is verified as BANK / MFI / EWALLET, when I open the financier console profile, then FinancierProfile financing facts (about, licenseNumber, regulator, contact, tickets) and FinancierBranch rows are editable.
+- Given any legal-identity fact (name, legal name, status, verifiedAt), when the profile saves, then it lives on Organization only — the profile never duplicates it (R-3).
 
-**US-057 — Compare & accept an offer** · Must · PLANNED (Flow 3)
-As an applicant, I want to compare all live offers side-by-side and accept one, so that I choose the best financing for my business.
-- Given my request has multiple offers, when I open the compare view, then rate, fees, tenor and installment schedules are shown side-by-side.
-- Given I accept an offer, when acceptance is processed, then sibling offers auto-DECLINE, the request becomes ACCEPTED, an agreement (AGR-) is created and a platform success fee is ACCRUED on the financed amount.
-- Given I decline all offers, when the last one is declined, then the request reaches DECLINED_ALL.
+**US-057 — Manage services (both kinds)** · Must · PLANNED (F2 — DP-22)
+As a financier admin, I want to publish FINANCING and ACCREDITATION services, so that applicants apply to exactly what we offer.
+- Given the services section, when I create a FINANCING service with category, amounts, rates, tenor and coverage, then it appears in the public directory once ACTIVE.
+- Given an accreditation program, when I create the service, then accreditationValidMonths and accreditationFeeAmount are captured and the service is listed as an ACCREDITATION-kind offering.
+- Given an archived service, when applicants browse, then it is no longer offered while existing requests keep their composed checklist.
 
-**US-058 — Report agreement funding events (track-only)** · Must · PLANNED (Flow 3)
-As financier staff, I want to report disbursement and repayment events on the agreement, so that both parties see progress — while the money never touches the platform.
-- Given an ACTIVE agreement, when I report a funding or repayment event, then it is recorded in the track-only ledger with timestamp and amount.
-- Given any agreement, when its funding status is updated, then the platform only records it — it never holds, lends or moves funds (D-002).
+**US-058 — Curate the general condition library** · Must · PLANNED (F2 — admin, DP-24)
+As an admin, I want to curate a shared library of general conditions, so that financiers reuse one definition instead of retyping it.
+- Given the admin requirements library, when I create a GENERAL ConditionTemplate (e.g. conditionType DOCUMENT + documentType COMMERCIAL_REG, validityMonths 3), then any financier can attach it to any of their services.
+- Given a SELECT condition, when I define it, then its choices are ConditionOption rows — never a JSON blob (R-1).
+- Given a GENERAL template, when a non-admin attempts to edit it, then the API refuses (admin-only scope).
 
-**US-059 — Settle financing fees externally** · Must · PLANNED (Flow 3)
-As an admin, I want to invoice and reconcile the platform's financing fees, so that revenue is collected without the platform touching financing money.
-- Given accepted offers, when fees accrue, then they appear as ACCRUED rows (percentage × financed amount, 0–5% configurable).
-- Given an accrued fee, when I mark it INVOICED, then the external invoice reference is recorded.
-- Given the external payment lands, when I mark it PAID, then the fee closes as PAID with an audit row — collection is external, never automated by the platform.
+**US-059 — Compose service requirements** · Must · PLANNED (F2 — DP-24)
+As a financier admin, I want to attach general and private conditions per service, so that each service has a precise, ordered checklist.
+- Given the composer, when I attach a GENERAL template, then a ServiceRequirement row is created with isRequired, displayOrder, my per-service instructions and the autoPassAccredited flag.
+- Given no library condition fits, when I create a private one (scope FINANCIER — all 8 typed kinds, incl. NUMBER with validationMin/Max), then only my organization can see or attach it.
+- Given another financier's private condition id, when I attempt to attach it, then it is not offered and direct API use is refused.
+- Given live requirements, when I reorder or deactivate, then in-flight submissions are preserved (deactivation, never deletion).
 
-**US-060 — Run an accreditation program** · Should · PLANNED (Flow 4)
-As a financier admin, I want to define accreditation programs that suppliers can complete, so that verified suppliers get faster financing and I get a fee.
-- Given program criteria defined as data, when a supplier applies with documents, then a SupplierAccreditation is created for verification.
-- Given documents meet the criteria, when I verify the accreditation, then the supplier is accredited, the accreditation fee is invoiced externally, and an auto-pass flag applies to the supplier's future financing requests.
+**US-060 — Apply for a financing service (3-step wizard)** · Must · PLANNED (F5)
+As an applicant — individual or company member — I want a 3-step wizard with the service's requirements checklist, so that my request is complete before it reaches the platform gate.
+- Given an ACTIVE service, when I open the wizard, then step 1 renders my profile and document vault read-only with "Edit profile" / "Manage documents" jump-outs and requires the data-transfer consent (consentAt stamped at submit).
+- Given step 2, when I fill the 22-field activity form (activity status, capital, installment capacity, previous financing, contribution, other income, activity type/name/description/start date/address/city/district/location type, amount, currency, purpose, guarantee type/status, attachments, notes) and the checklist, then every answer lands in a typed FinancingRequest column, a RequirementSubmission row (valueText / valueNumber / valueDate / accountDocumentId) or a free RequestAttachment link (→ AccountDocument) — zero JSON.
+- Given a DOCUMENT condition, when my vault already holds a verified matching document, then it is attached by reference — no re-upload.
+- Given a PROFILE_FIELD condition, when my profile contains the field, then the item auto-evaluates to SUBMITTED.
+- Given step 3, when I submit, then an FR- number is assigned, the request is SUBMITTED and enters the gate queue — no financier can see it yet.
 
-**US-061 — Finance at checkout** · Should · PLANNED (Flow 5 — gated on DP-6 track-only ruling)
+**US-061 — Apply to multiple financiers** · Should · PLANNED (F5 — DP-25)
+As an applicant, I want to apply to several financiers in one session, so that I receive comparable offers.
+- Given the wizard with multiple matching services selected, when I submit, then N sibling FinancingRequests are created sharing a multiGroupId (one per financier's service), each with its own checklist.
+- Given an exclusive application, when I apply to a single service, then multiGroupId stays null (EXCLUSIVE routing).
+- Given a sibling group, when I view my requests, then siblings are grouped for side-by-side tracking and later offer comparison.
+
+**US-062 — Track gate status, fix & cancel** · Must · PLANNED (F4/F5)
+As an applicant, I want per-requirement verdicts and the ability to fix returned requests, so that I can complete exactly what is missing.
+- Given my request UNDER_PLATFORM_REVIEW, when the gate verifies or rejects items, then I see per-item VERIFIED / REJECTED verdicts with decisionNotes (REQUIREMENT_VERIFIED / REQUIREMENT_REJECTED notifications).
+- Given a RETURNED_FOR_COMPLETION request with returnedReason, when I fix the flagged items and resubmit, then the request re-enters UNDER_PLATFORM_REVIEW (previously VERIFIED items may be preserved).
+- Given a REJECTED item, when I re-supply evidence, then it returns to SUBMITTED with verifiedAt cleared.
+- Given any pre-acceptance request, when I cancel, then it becomes CANCELLED and any notified parties are informed.
+
+**US-063 — Work the platform gate** · Must · PLANNED (F4 — DP-23, the essence of the platform)
+As a platform reviewer, I want a queue with full dossiers and per-item verdicts, so that only complete, correct requests ever reach financiers.
+- Given the admin review queue, when I open it, then SUBMITTED / UNDER_PLATFORM_REVIEW / RETURNED_FOR_COMPLETION requests of both types (financing + accreditation) are listed with filters.
+- Given a dossier, when I verify an item, then the RequirementSubmission becomes VERIFIED (verifiedById / verifiedAt stamped) and the applicant is notified.
+- Given an item, when I reject it, then a decisionNote is required and the applicant sees exactly what to fix.
+- Given an optional item, when I waive it, then it becomes WAIVED with a note.
+- Given any required item still PENDING / SUBMITTED / REJECTED, when I attempt to forward, then the action is blocked (409) — incomplete or incorrect requests are never sent.
+- Given all required items VERIFIED / WAIVED, when I forward, then the request becomes FORWARDED_TO_FINANCIER with forwardedAt set, the financier is notified (FINANCING_REQUEST_RECEIVED / ACCREDITATION_RECEIVED) and every step is audited.
+
+**US-064 — Review forwarded requests** · Must · PLANNED (F6)
+As financier staff, I want an inbox of gate-passed requests only, so that I underwrite complete files without chasing data.
+- Given my financier console, when I open the inbox, then only FORWARDED_TO_FINANCIER and later states are listed — pre-forward requests are structurally excluded (R-4).
+- Given a forwarded request, when I open it, then the checklist verdicts and attached documents render and the request moves to UNDER_FINANCIER_REVIEW.
+- Given a request I do not want, when I decline with a note, then the request becomes DECLINED and the applicant is notified.
+
+**US-065 — Send offers & revisions** · Must · PLANNED (F6)
+As financier staff, I want to send binding offers with installment schedules and revise them, so that the applicant decides on complete terms.
+- Given a request UNDER_FINANCIER_REVIEW, when I compose an offer (amount, rate, fee, tenor, validity + installment rows) and send, then the request becomes OFFERED and the applicant is notified OFFER_RECEIVED.
+- Given a sent offer, when I send a revision, then both offers remain visible and comparable to the applicant.
+- Given an offer past its validUntil, when a lazy sweep runs, then it expires without cron (D-011).
+
+**US-066 — Compare offers** · Must · PLANNED (F7)
+As an applicant, I want to compare offers within a request and across financiers, so that I award the best overall terms.
+- Given my request with multiple offers (revisions), when I open the compare view, then rate, fees, tenor and installment schedules render side-by-side.
+- Given a multiGroupId sibling group, when I open the group comparison, then each sibling's latest SENT offer is compared across financiers.
+
+**US-067 — Accept an offer** · Must · PLANNED (F7)
+As an applicant, I want to accept the winning offer, so that the financing closes and the platform records its fee.
+- Given a live SENT offer, when I accept, then it becomes ACCEPTED, a FinancingAgreement (AGR-) is created referencing the frozen offer (DP-20) and a FinancingFee is ACCRUED (success % × amount, default 0.75%).
+- Given sibling offers in my request or across my multiGroupId, when one offer is accepted, then the others auto-DECLINE.
+- Given an expired or already-accepted offer, when I attempt to accept, then the API returns 409.
+
+**US-068 — Report funding events (track-only)** · Must · PLANNED (F7)
+As financier staff, I want to report disbursement and repayment events, so that progress is visible — while money never touches the platform.
+- Given an ACTIVE agreement, when I report a DISBURSEMENT or REPAYMENT event, then a typed FinancingEvent row is recorded and fundingStatus advances (PENDING → REPORTED_FUNDED → REPORTED_SETTLED).
+- Given any agreement, when its events are inspected, then they are records only — no money-movement code path exists (D-002).
+
+**US-069 — Settle financing fees externally** · Must · PLANNED (F7)
+As an admin, I want to invoice and reconcile financing fees, so that platform revenue is collected without touching financing money.
+- Given fees ACCRUED (SUCCESS / ORIGINATION / ACCREDITATION types), when I mark INVOICED and then PAID, then the lifecycle closes with audit rows and external-settlement semantics only.
+- Given any fee, when collection is attempted, then it is always external — no automated collection path exists (D-002).
+
+**US-070 — Apply for accreditation** · Must · PLANNED (F8 — DP-26)
+As an org member, I want to apply to a financier's accreditation service, so that my company becomes an approved vendor of that financier.
+- Given a financier's ACCREDITATION-kind service, when I apply, then the vault-aware checklist marks items my verified AccountDocuments already satisfy.
+- Given submission, when it succeeds, then an ACC- number is assigned and the request enters the same platform gate (flow 4).
+- Given my org already holds a live accreditation record for that (serviceId, organizationId) pair, when I attempt a second request, then it is rejected.
+
+**US-071 — Decide accreditation (grant / reject / revoke / renew)** · Must · PLANNED (F8)
+As a financier admin, I want to grant, reject or revoke accreditations and receive renewals, so that my accredited vendor pool stays current.
+- Given a forwarded accreditation request, when I grant it, then it becomes ACCREDITED with accreditedAt + validUntil (from service.accreditationValidMonths) and the org is notified ACCREDITATION_GRANTED.
+- Given a live grant, when the org trades with us, then RFQ send/receive participation with that financier is unlocked ("approved vendors" for the vendor-quotes relay).
+- Given an autoPassAccredited requirement on our other service, when an accredited org applies, then the item is auto-VERIFIED (verifiedById = null).
+- Given misuse, when I revoke with the required reason, then the grant becomes REVOKED and the unlock/auto-pass effects stop.
+- Given expiry, when the org wants to continue, then a NEW AccreditationRequest is submitted (renewal = new request).
+
+**US-072 — Relay vendor quotes** · Should · PLANNED (F8 vendor-quotes capability)
+As financier staff, I want to request quotes from our accredited vendors and relay customer quote requests to them, so that we source through the same B2B engine.
+- Given our accredited vendors (orgs with live ACCREDITED records), when I create an RFQ, then it routes to those orgs through the existing RFQ engine — zero new tables.
+- Given a customer quote request, when I relay it, then vendors respond through the existing quote flow we already use as a buyer.
+
+**US-073 — Finance at checkout** · Should · PLANNED (platform flow 5; gated on DP-6 track-only ruling)
 As a buyer, I want to finance my order at checkout, so that I can buy now and repay the financier over time.
-- Given an eligible order at checkout, when I choose financing, then a FinancingRequest is created against that order and matching financiers respond.
-- Given a financing offer accepted before the checkout window closes, when the financier confirms, then the order proceeds and the financier pays the supplier directly.
+- Given an eligible order at checkout, when I choose financing, then a FinancingRequest is created against the order (targetType ORDER) and passes the same platform gate.
 - Given the financed order completes, when repayment events are reported, then they are recorded in the track-only ledger — the platform records but never holds funds, and earns commission plus an invoiced origination fee.
 
 ### E-12 Super-Cart — PLANNED (Flow 2)
 
-**US-062 — Compose a mixed-line RFQ** · Must · PLANNED
+**US-074 — Compose a mixed-line RFQ** · Must · PLANNED
 As a buyer, I want one RFQ containing product, service, financing, logistics and insurance lines, so that a complex project is sourced in a single request.
 - Given my cart or the RFQ composer, when I add lines of different types, then each line carries its own lineType (PRODUCT / SERVICE / FINANCING / LOGISTICS / INSURANCE) and its line-specific fields.
 - Given I submit the mixed RFQ, when it opens, then all lines are visible to their respective provider pools only.
 
-**US-063 — Typed provider pools & per-line routing** · Must · PLANNED
+**US-075 — Typed provider pools & per-line routing** · Must · PLANNED
 As a buyer, I want each line routed only to providers of its type, so that sellers quote goods, financiers quote financing, and so on.
 - Given a FINANCING line, when routing runs, then only verified financier organizations in range see and may quote that line.
 - Given a PRODUCT line, when routing runs, then only eligible sellers of that product see the line.
 
-**US-064 — Accept best per line into a multi-party order** · Must · PLANNED
+**US-076 — Accept best per line into a multi-party order** · Must · PLANNED
 As a buyer, I want to accept the best quote on each line independently, so that one RFQ closes as one multi-party deal with per-line commission.
 - Given per-line quotes on my RFQ, when I accept one quote per line, then a single multi-party order is created with one item group per winning provider.
 - Given the order settles, when payouts are generated, then commission is computed per line and each provider's net equals their line gross minus their line commission.
 
-**US-065 — Consolidated quote comparison** · Should · PLANNED
+**US-077 — Consolidated quote comparison** · Should · PLANNED
 As a buyer, I want a consolidated comparison grid across all lines and their quotes, so that I can optimize the whole basket, not just each line.
 - Given multiple lines with multiple quotes, when I open the comparison, then quotes are comparable per line and a basket total per provider combination is shown.
 - Given I accept the basket, when per-line acceptance completes, then the multi-party order reflects exactly the compared selection.
@@ -518,7 +612,7 @@ As a buyer, I want a consolidated comparison grid across all lines and their quo
 
 ## 5. Traceability — story → use case → business flow
 
-Business flows per PLATFORM_PLAN §1: **1** B2C direct purchase (EXISTS) · **2** Super-Cart mixed-line RFQ (PARTIAL) · **3** Supplier→Financier working capital (PLANNED) · **4** Accreditation-as-a-Service (PLANNED) · **5** Customer→Financing→Supplier checkout financing (PLANNED) · **6** Supplier→Supplier B2B sourcing (EXISTS ~95%). "—" = cross-cutting foundation.
+Business flows per PLATFORM_PLAN v3.0 §1: **1** B2C direct purchase (EXISTS) · **2** Super-Cart mixed-line RFQ (PARTIAL) · **3** Applicant→Financier working capital (PLANNED) · **4** Qualification & Accreditation, a MAIN service (PLANNED — DP-26) · **5** Customer→Financing→Supplier checkout financing (PLANNED, DP-6-gated) · **6** Supplier→Supplier B2B sourcing (EXISTS ~95%). E-11 stories additionally trace to the FINANCIER_PLAN v2.0 §4 financier flows: **F1** institution onboarding · **F2** service & requirements setup · **F3** applicant document vault prep · **F4** THE PLATFORM GATE · **F5** financing wizard · **F6** financier responds · **F7** applicant awards & tracking · **F8** accreditation lifecycle. "—" = cross-cutting foundation.
 
 | Stories | Use cases | Flow(s) |
 |---|---|---|
@@ -555,15 +649,42 @@ Business flows per PLATFORM_PLAN §1: **1** B2C direct purchase (EXISTS) · **2*
 | US-049 | UC-035 | 1 |
 | US-050 | UC-036 | all |
 | US-051, US-052 | UC-037 | all |
-| US-054 | UC-038, UC-039 | 3 |
-| US-055 | UC-040 | 3 |
-| US-056 | UC-041 | 3 |
-| US-057 | UC-042 | 3, 5 |
-| US-058 | UC-043 | 3, 5 |
-| US-059 | UC-044 | 3, 4, 5 |
-| US-060 | UC-045 | 4 |
-| US-061 | UC-046 | 5 |
-| US-062 – US-065 | UC-047 | 2 |
+| US-054 | UC-038 | 3 · F2 |
+| US-055 | UC-039 | 3, 4, 5 · F3 |
+| US-056 | UC-040 | 3 · F1 |
+| US-057 | UC-041 | 3, 4 · F2 |
+| US-058 | UC-042 | 3, 4 · F2 |
+| US-059 | UC-043 | 3, 4 · F2 |
+| US-060 | UC-044 | 3, 5 · F5 |
+| US-061 | UC-045 | 3 · F5 |
+| US-062 | UC-046 | 3, 4, 5 · F4, F5 |
+| US-063 | UC-047 | 3, 4, 5 · F4 |
+| US-064 | UC-048 | 3 · F6 |
+| US-065 | UC-049 | 3 · F6 |
+| US-066 | UC-050 | 3 · F7 |
+| US-067 | UC-051 | 3 · F7 |
+| US-068 | UC-052 | 3 · F7 |
+| US-069 | UC-053 | 3, 5 · F7 |
+| US-070 | UC-054 | 4 · F8 |
+| US-071 | UC-055 | 4 · F8 |
+| US-072 | UC-056 | 6 · F8 |
+| US-073 | UC-057 | 5 |
+| US-074 – US-077 | UC-058 | 2 |
+
+### 5.1 Owner capability map — financier capability list → use cases (D-015 §7)
+
+| Owner capability (financier module) | UC coverage | Notes |
+|---|---|---|
+| Qualification & accreditation management | UC-041 (ACCREDITATION-kind service), UC-043, UC-054, UC-055 | One engine serves financing + accreditation (DP-26); the grant lives on AccreditationRequest (ACCREDITED + validUntil) |
+| Manage financing requests from individuals AND companies | UC-044, UC-046 | `FinancingRequest.organizationId` nullable — individuals (DP-13); org members — companies |
+| Manage services and their specific details | UC-041 (+ UC-040, UC-043) | Services, not products (DP-22); both serviceKind values; traits via FinancierServiceAttribute / FinancierServiceCoverage |
+| Quotations management (receive quotes from approved vendors, relay customer quote requests) | UC-056 (+ existing UC-014–UC-018 engine) | ZERO new tables — the existing Rfq/Quote engine; "approved vendors" = orgs with live ACCREDITED accreditation at that financier |
+| Exclusive / multi routing | UC-044 (EXCLUSIVE — single request, multiGroupId null), UC-045 (MULTI — siblings sharing multiGroupId) | DP-25; v4's open-broadcast distribution deferred (DP-28) |
+| Full profile management | UC-040 (+ admin org lifecycle UC-029 adjacent) | Identity stays on Organization; FinancierProfile carries financing facts only (R-3) |
+| Offer comparison and tracking | UC-046, UC-050, UC-051, UC-052 | Revisions within a request + latest SENT offer per sibling across multiGroupId; funding events track-only (D-002) |
+| Shared features | UC-039 (universal vault), UC-037 (notifications — EXISTS), UC-056 (shared RFQ engine) | Platform substrate reused (R-3): MediaAsset, Sequence, AuditLog/Notification, RfqSetting |
+| Exclusive funder capabilities | UC-043 (private FINANCIER-scope conditions), UC-044 (exclusive requests), UC-055 (RFQ unlock + autoPassAccredited) | Private conditions never leak across financiers; auto-pass only with a live grant from the SAME financier |
+| Documents management | UC-039 | AccountDocument for ALL users + orgs (DP-27), verified once, reused by every request type via accountDocumentId links |
 
 ---
 
@@ -573,5 +694,5 @@ Business flows per PLATFORM_PLAN §1: **1** B2C direct purchase (EXISTS) · **2*
 - **No SaaS multi-tenancy (D-003).** No tenantId anywhere, no platform-of-platforms, one operator.
 - **Entertainment top-ups are out of scope.** The competitor's top-up vertical is B2C retail, not Vendora's B2B/B2C trade model.
 - **Education center & success stories are deferred (DP-9).** Competitor-inspired content layer is a P6-tail decision, not part of these use cases.
-- Related financier non-goals (per FINANCIER_PLAN): no credit scoring, no wallets or escrow, no automated fee collection, no FX, no CREDIT_LINE products in v1.
-- **No time-based automation (D-011):** all lifecycle progression is state-machine + lazy-sweep; no cron drives any flow in this document.
+- Related financier non-goals (per FINANCIER_PLAN v2.0 §10): no credit scoring, no wallets or escrow, no automated fee collection, no FX, no CREDIT_LINE services in v1, no open-broadcast distribution (DP-28 — requests are service-scoped), and **no automated gate bypass** — the platform ALWAYS verifies (DP-23); automation may only pre-fill verdicts, never skip review.
+- **No time-based automation (D-011):** all lifecycle progression is state-machine + lazy-sweep; no cron drives any business flow in this document (the D-017 webDevReview heartbeat drives the QA/dev loop only, never business logic).

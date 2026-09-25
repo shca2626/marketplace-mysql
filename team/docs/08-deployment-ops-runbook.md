@@ -440,7 +440,7 @@ and `team/FINANCIER_PLAN.md` — module not yet built, this is the pre-flight)
 
 ```
 [ ] Financier domain models pushed (db:generate + db:push, additive)
-[ ] User applicant columns + ApplicantDocument live (PII columns nullable)
+[ ] User applicant columns + AccountDocument vault live (PII columns nullable)
 [ ] Seed financiers (bun run db:seed extension or dedicated seeder)
 [ ] RfqSetting: financing panels configured (platform scope first)
 [ ] Payouts-style admin surfaces: fee ACCRUED → INVOICED → PAID transitions
