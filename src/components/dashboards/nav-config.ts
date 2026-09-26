@@ -29,6 +29,10 @@ import {
   Receipt,
   Banknote,
   Wallet,
+  Inbox,
+  ListChecks,
+  HandCoins,
+  BadgeCheck,
 } from 'lucide-react'
 import type { View, ViewParams } from '@/store/marketplace'
 
@@ -193,6 +197,12 @@ export const BUYER_NAV: NavConfig = {
       ],
     },
     {
+      label: 'Financing',
+      items: [
+        { key: 'financing', label: 'Financing & Accreditation', icon: Wallet, description: 'Services, applications, documents & agreements', view: 'financing' },
+      ],
+    },
+    {
       label: 'Shopping Activity',
       items: [
         { key: 'orders', label: 'Orders', icon: Package, description: 'Purchases, tracking & invoices', view: 'orders' },
@@ -204,8 +214,58 @@ export const BUYER_NAV: NavConfig = {
     account: { title: 'Account Dashboard', description: 'Your profile, security and everything you do on Vendora.' },
     rfqs: { title: 'My RFQs', description: 'Requests for quote, negotiations and recurring schedules.' },
     business: { title: 'Business Account', description: 'Your organization, team members and contract pricing.' },
+    financing: { title: 'Financing & Accreditation', description: 'Apply for financing, track applications and manage your document vault.' },
     orders: { title: 'My Orders', description: 'Purchases, delivery tracking and invoices.' },
     favorites: { title: 'Favorites', description: 'Products you saved for later.' },
+  },
+}
+
+// ── Financier console (FIN-5) ────────────────────────────────────────────────
+// Guarded by org membership (OWNER/ADMIN of a BANK/MFI/EWALLET organization) —
+// no global role. Sections drive local state inside financier-view.
+
+export const FINANCIER_NAV: NavConfig = {
+  consoleName: 'Financier Console',
+  roleLabel: 'Institution Staff',
+  groups: [
+    {
+      label: 'Overview',
+      items: [
+        { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, description: 'Inbox, offers & program health' },
+      ],
+    },
+    {
+      label: 'Offering',
+      items: [
+        { key: 'services', label: 'Services', icon: Banknote, description: 'Financing & accreditation services CRUD' },
+        { key: 'requirements', label: 'Requirements', icon: ListChecks, description: 'Per-service requirements composer' },
+      ],
+    },
+    {
+      label: 'Pipeline',
+      items: [
+        { key: 'inbox', label: 'Requests Inbox', icon: Inbox, description: 'Platform-verified financing requests' },
+        { key: 'offers', label: 'Offers', icon: HandCoins, description: 'Compose, send & withdraw offers' },
+        { key: 'accreditations', label: 'Accreditations', icon: BadgeCheck, description: 'Grant, reject & revoke programs' },
+      ],
+    },
+    {
+      label: 'Portfolio',
+      items: [
+        { key: 'agreements', label: 'Agreements', icon: ScrollText, description: 'Funding status & event reporting' },
+        { key: 'profile', label: 'Institution Profile', icon: Building2, description: 'Org facts & financier profile' },
+      ],
+    },
+  ],
+  titles: {
+    dashboard: { title: 'Financier Dashboard', description: 'Verified applications, offers and accreditation programs at a glance.' },
+    services: { title: 'Services', description: 'Your financing and accreditation offerings — terms, coverage and features.' },
+    requirements: { title: 'Requirements Composer', description: 'Attach conditions from the platform library or your own private templates.' },
+    inbox: { title: 'Requests Inbox', description: 'Applications that passed the platform verification gate — nothing else can reach you.' },
+    offers: { title: 'Offers', description: 'Compose binding offers with installment schedules, send and withdraw.' },
+    accreditations: { title: 'Accreditations', description: 'Forwarded accreditation requests — grant, reject or revoke.' },
+    agreements: { title: 'Agreements', description: 'Accepted offers — report funding progress and money events (track-only).' },
+    profile: { title: 'Institution Profile', description: 'Your organization, license and contact facts on Vendora.' },
   },
 }
 

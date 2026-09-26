@@ -551,3 +551,361 @@ export interface AdminStats {
     firstItemImage: string | null
   }[]
 }
+
+// ── Financier module DTOs (FIN-5/6/7 — mirror the server serializers in
+//    src/server/modules/financing/*; kept as pure client-side types) ──
+
+export interface ServiceAttributeDTO {
+  id: string
+  kind: string
+  position: number
+  text: string
+}
+
+export interface ServiceCoverageDTO {
+  id: string
+  regionName: string
+}
+
+export interface FinancierServiceDTO {
+  id: string
+  financierProfileId: string
+  financierOrgId: string
+  financierOrgName: string
+  financierOrgStatus: string
+  serviceKind: string
+  category: string
+  name: string
+  summary: string | null
+  description: string | null
+  targetSegment: string | null
+  status: string
+  currency: string
+  amountMin: number | null
+  amountMax: number | null
+  rateType: string | null
+  rateMax: number | null
+  feeFlat: number | null
+  tenorMinMonths: number | null
+  tenorMaxMonths: number | null
+  repaymentFrequency: string | null
+  gracePeriodDays: number | null
+  shariaCompliant: boolean
+  processingDays: number | null
+  accreditationValidMonths: number | null
+  accreditationFeeAmount: number | null
+  viewCount: number
+  createdAt: string
+  updatedAt: string
+  attributes: ServiceAttributeDTO[]
+  coverage: ServiceCoverageDTO[]
+  requirementCount?: number
+}
+
+export interface PublicServiceDetailDTO extends FinancierServiceDTO {
+  requirementsPreview: {
+    id: string
+    isRequired: boolean
+    title: string
+    conditionType: string
+    instructions: string | null
+  }[]
+}
+
+export interface ConditionOptionDTO {
+  id: string
+  value: string
+  position: number
+}
+
+export interface ConditionTemplateDTO {
+  id: string
+  scope: string // GENERAL | FINANCIER
+  organizationId: string | null
+  organizationName: string | null
+  conditionType: string // DOCUMENT | PROFILE_FIELD | DECLARATION | TEXT | NUMBER | DATE | SELECT | MULTI_SELECT
+  code: string | null
+  title: string
+  description: string | null
+  profileFieldKey: string | null
+  documentType: string | null
+  validationMin: number | null
+  validationMax: number | null
+  validityMonths: number | null
+  isRepeatable: boolean
+  isActive: boolean
+  attachmentCount: number
+  options: ConditionOptionDTO[]
+  createdAt: string
+}
+
+export interface ServiceRequirementDTO {
+  id: string
+  serviceId: string
+  conditionTemplateId: string
+  isRequired: boolean
+  displayOrder: number
+  instructions: string | null
+  autoPassAccredited: boolean
+  isActive: boolean
+  template: ConditionTemplateDTO
+}
+
+export interface RequirementSubmissionDTO {
+  id: string
+  serviceRequirementId: string
+  financingRequestId: string | null
+  accreditationRequestId: string | null
+  status: string // PENDING | SUBMITTED | VERIFIED | REJECTED | WAIVED
+  valueText: string | null
+  valueNumber: number | null
+  valueDate: string | null
+  accountDocumentId: string | null
+  submittedAt: string | null
+  verifiedAt: string | null
+  verifiedById: string | null
+  decisionNote: string | null
+  requirement: {
+    id: string
+    isRequired: boolean
+    displayOrder: number
+    instructions: string | null
+    autoPassAccredited: boolean
+    template: {
+      id: string
+      scope: string
+      conditionType: string
+      code: string | null
+      title: string
+      description: string | null
+      documentType: string | null
+      validationMin: number | null
+      validationMax: number | null
+      options: { id: string; value: string }[]
+    }
+  }
+  createdAt: string
+}
+
+export interface GateStatusDTO {
+  totalRequired: number
+  verified: number
+  waived: number
+  missing: { submissionId: string; title: string; status: string }[]
+  canForward: boolean
+}
+
+export interface FinancingRequestSummaryDTO {
+  id: string
+  number: string
+  status: string
+  organizationId: string | null
+  organizationName: string | null
+  applicant: { id: string; name: string; email: string }
+  serviceId: string
+  serviceName: string
+  serviceKind: string
+  financierOrgId: string
+  financierOrgName: string
+  targetType: string
+  multiGroupId: string | null
+  amountRequested: number
+  currency: string
+  activityName: string | null
+  activityCity: string | null
+  purpose: string | null
+  consentAt: string | null
+  submittedAt: string | null
+  forwardedAt: string | null
+  returnedAt: string | null
+  returnedReason: string | null
+  expiresAt: string | null
+  closedAt: string | null
+  createdAt: string
+  submissionStats?: { total: number; verified: number; missing: number }
+  offerCount?: number
+  bestOffer?: { id: string; amount: number; status: string } | null
+}
+
+export interface FinancingRequestDetailDTO extends FinancingRequestSummaryDTO {
+  platformReviewedById: string | null
+  platformReviewedAt: string | null
+  platformNote: string | null
+  submissions: RequirementSubmissionDTO[]
+  gate: GateStatusDTO
+  offers?: FinancingOfferDTO[]
+}
+
+export interface OfferInstallmentDTO {
+  id: string
+  installmentNo: number
+  dueDate: string
+  amount: number
+}
+
+export interface FinancingOfferDTO {
+  id: string
+  requestId: string
+  requestNumber: string
+  amount: number
+  currency: string
+  rateType: string | null
+  ratePercent: number | null
+  feeFlat: number | null
+  tenorMonths: number
+  collateralRequired: string | null
+  notes: string | null
+  validUntil: string | null
+  status: string
+  sentAt: string | null
+  acceptedAt: string | null
+  declinedAt: string | null
+  withdrawnAt: string | null
+  createdAt: string
+  createdBy: { id: string; name: string }
+  installments: OfferInstallmentDTO[]
+}
+
+export interface FinancingEventDTO {
+  id: string
+  agreementId: string
+  type: string // DISBURSEMENT | REPAYMENT | EARLY_SETTLEMENT | LATE_FEE | NOTE
+  eventDate: string
+  amount: number | null
+  note: string | null
+  reportedById: string | null
+  createdAt: string
+}
+
+export interface FinancingFeeDTO {
+  id: string
+  agreementId: string
+  type: string
+  baseAmount: number
+  percentApplied: number
+  amount: number
+  status: string // ACCRUED | INVOICED | PAID | WAIVED
+  invoicedAt: string | null
+  paidAt: string | null
+  createdAt: string
+}
+
+export interface FinancingAgreementDTO {
+  id: string
+  number: string
+  offerId: string
+  fundingStatus: string
+  status: string
+  acceptedAt: string
+  fundedReportedAt: string | null
+  settledReportedAt: string | null
+  createdAt: string
+  request: {
+    id: string
+    number: string
+    serviceName: string
+    applicantName: string
+    applicantEmail: string
+    organizationName: string | null
+    financierOrgId: string
+    financierOrgName: string
+  }
+  offer: FinancingOfferDTO
+  events: FinancingEventDTO[]
+  fees: FinancingFeeDTO[]
+}
+
+export interface AccreditationRequestSummaryDTO {
+  id: string
+  number: string
+  status: string
+  organizationId: string
+  organizationName: string
+  submittedBy: { id: string; name: string; email: string }
+  serviceId: string
+  serviceName: string
+  financierOrgId: string
+  financierOrgName: string
+  multiGroupId: string | null
+  scopeNotes: string | null
+  consentAt: string | null
+  submittedAt: string | null
+  forwardedAt: string | null
+  returnedAt: string | null
+  returnedReason: string | null
+  decidedAt: string | null
+  decisionNote: string | null
+  accreditedAt: string | null
+  validUntil: string | null
+  revokedAt: string | null
+  revocationReason: string | null
+  expiresAt: string | null
+  createdAt: string
+  isLive: boolean
+}
+
+export interface AccreditationRequestDetailDTO extends AccreditationRequestSummaryDTO {
+  platformReviewedById: string | null
+  platformReviewedAt: string | null
+  platformNote: string | null
+  submissions: RequirementSubmissionDTO[]
+  gate: GateStatusDTO
+}
+
+export interface AccountDocumentDTO {
+  id: string
+  userId: string
+  userName: string
+  organizationId: string | null
+  organizationName: string | null
+  documentType: string
+  title: string | null
+  issuedAt: string | null
+  expiresAt: string | null
+  status: string // PENDING | VERIFIED | REJECTED
+  reviewedById: string | null
+  reviewedAt: string | null
+  note: string | null
+  isActive: boolean
+  media: MediaAssetDTO | null
+  createdAt: string
+}
+
+export interface FinancierInstitutionDTO {
+  organizationId: string
+  name: string
+  slug: string
+  orgType: string
+  status: string
+  verifiedAt: string | null
+  profile: {
+    id: string
+    licenseNumber: string | null
+    regulator: string | null
+    contactEmail: string | null
+    contactPhone: string | null
+    minTicket: number | null
+    maxTicket: number | null
+    branchCount: number
+  }
+  stats: {
+    services: number
+    activeServices: number
+    requestsForwarded: number
+    liveAccreditations: number
+    feesAccrued: number
+    feesPaid: number
+  }
+  createdAt: string
+}
+
+export interface FinancierProfileFactsDTO {
+  about: string | null
+  licenseNumber: string | null
+  regulator: string | null
+  contactEmail: string | null
+  contactPhone: string | null
+  minTicket: number | null
+  maxTicket: number | null
+  viewCount: number
+}

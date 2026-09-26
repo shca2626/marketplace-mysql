@@ -2252,3 +2252,105 @@ Stage Summary:
 - NEXT: FIN-5/6/7 frontend chain (financier console w/ requirements composer, applicant wizard
   w/ checklist + documents center, admin gate console) — dispatched to the frontend agent with
   the placeholders in financing-view.tsx / financier-view.tsx as the entry points.
+
+---
+Task ID: FIN-5 (Dev — frontend chain)
+Agent: Frontend developer (financier module)
+Task: Financier console ?view=financier — full console replacing the FIN-1
+placeholder: org-membership gate, FINANCIER_NAV registry entry, 8 sections
+(dashboard, services CRUD, requirements composer, inbox, offers,
+accreditations, agreements, profile).
+
+Work Log:
+- Registries: FINANCIER_NAV added to nav-config.ts (Dashboard · Services ·
+  Requirements · Inbox · Offers · Accreditations · Agreements · Profile; all
+  local-state sections — view/'financier' itself was already in the 5
+  registries from FIN-1). BUYER_NAV gained the Financing & Accreditation
+  entry early (used by the QA login flow; full surface lands with FIN-6).
+- Types: 18 client DTOs appended to src/lib/types.ts (FinancierServiceDTO +
+  PublicServiceDetailDTO, ConditionTemplate/Option, ServiceRequirement,
+  RequirementSubmission, FinancingRequest Summary/Detail + GateStatus,
+  FinancingOffer + Installments, FinancingAgreement/Event/Fee,
+  AccreditationRequest Summary/Detail, AccountDocument,
+  FinancierInstitution, FinancierProfileFacts) — pure mirrors of the server
+  serializers.
+- Shared kit: src/components/marketplace/financing/financing-shared.tsx —
+  apiRequest + toastApiError, 11 status palettes (FIN/ACC/OFFER/SUBMISSION/
+  DOC/SERVICE/FUNDING/AGREEMENT/FEE/KIND/ORG_TYPE — semantic colors, no
+  blue/indigo), value-set label maps (15 document types, 8 condition types,
+  6 profile fields, categories, rate types), formatters, EmptyState,
+  LabeledValue, ConditionTypeBadge, ScopeBadge, GateMeter, useDebounced,
+  isoToDateInput.
+- One read-only backend addition (judgment call — the API surface had no
+  way for a financier to read its own FinancierProfile facts, but FIN-5 DoD
+  lists them in the Profile section): GET /api/financier/profile returns
+  org + profile facts for the caller's institution via
+  requireFinancierContext (no mutations, follows route conventions).
+- Sections (src/components/marketplace/financier/):
+  - dashboard-section: 6 count tiles (awaiting review / offers out /
+    accreditations / active services / agreements / accepted) + latest
+    gate-passed requests + accreditation queue + platform explainer.
+  - services-section: service cards (kind badge, category, amount range,
+    rate cap, tenor, repayment, sharia chip, requirement/region/bullet
+    counts, view count) + create/edit dialog (kind-dependent fields),
+    publish/unpublish toggle, archive (soft, confirm dialog), features +
+    eligibility bullet editor (one per line → POST attributes), coverage
+    editor (free regions + quick-pick chips → POST coverage).
+  - requirements-section: service picker → composer with the wireframe
+    W-REQ-COMPOSER layout — attached requirements list (reorder ↑↓,
+    required toggle, autoPassAccredited toggle, per-service instructions
+    editor, soft detach w/ preserved submissions), searchable condition
+    library picker (GENERAL + own PRIVATE, type filter, sticky group
+    headers), attach config dialog, and the private-condition builder
+    (8 typed kinds; DOCUMENT→documentType, PROFILE_FIELD→profileFieldKey,
+    NUMBER→min/max, SELECT/MULTI_SELECT→option rows editor, validity
+    months, optional immediate attach).
+  - inbox-section: R-4 banner + request cards (number, applicant + org,
+    service, amount, gate-passed chip, multiGroup, offer count) → drill-in
+    detail: header dossier, read-only platform-verified checklist (verdict
+    chips + decisionNotes + verifiedAt + DOCUMENT/typed answer details),
+    Start review (FORWARDED→UNDER_FINANCIER_REVIEW), decline w/ note, offer
+    composer (amount, rateType/rate%, fee, tenor, collateral, validUntil,
+    installment builder rows w/ auto-generate equal monthly schedule,
+    save-draft vs send) and offers panel (frozen installments table,
+    withdraw SENT).
+  - offers-section: the offer pipeline (actionable statuses or any offers)
+    reusing the inbox detail.
+  - accreditations-section: forwarded ACC cards + decided list → detail
+    (scope, gate meter, checklist, live-grant facts) + decision dialogs:
+    grant (validMonths + optional note), reject (note required), revoke
+    (reason required).
+  - agreements-section: agreement cards → expanded frozen installment
+    schedule + event timeline + funding status buttons
+    (REPORTED_FUNDED/REPORTED_SETTLED) + money-event dialog (5 typed
+    events, date/amount/note, optional close status).
+  - profile-section: identity card (orgType/status/verified chips, about,
+    org facts), FinancierProfile facts (license, regulator, contact,
+    ticket range), offering stats tiles.
+- financier-view.tsx: guard = signed-in + OWNER/ADMIN member of a
+  BANK/MFI/EWALLET org (via /api/organizations + myRole), session-loading
+  full-page skeleton, SignInRequired / AccessDenied states, section switch
+  in DashboardLayout.
+- QA (agent-browser, session fin-frontend-qa): kuraimi login → console
+  loads (1 awaiting review FIN-2026-000002, 2 active services) → Services
+  (both cards render w/ ranges + badges) → Requirements composer (6
+  attached conditions incl. GENERAL + PRIVATE scopes) → inbox → opened
+  FIN-2026-000002 → Start review → composed + sent a 7,500,000 YER
+  Murabaha 17%/6mo offer w/ generated 6-row installment schedule →
+  request OFFERED, offers panel shows 2 SENT offers → accreditations
+  inbox renders empty state (ACC-2026-000001 mid-gate structurally
+  invisible — R-4 confirmed) → profile renders license/regulator/tickets
+  via the new route → demo login (non-financier) → AccessDenied → mobile
+  390px drawer nav OK. agent-browser errors: ZERO. Screenshots:
+  /tmp/qa-fin5.png + /tmp/qa-fin5-mobile.png. bun run lint CLEAN; tsc
+  scoped clean.
+- Data after QA: FIN-2026-000002 now has 2 SENT offers (seeded 6.4M +
+  QA 7.5M) and status OFFERED.
+
+Stage Summary:
+- FIN-5 COMPLETE — DoD met (services + composer exercised, forwarded-only
+  inbox demonstrated, offer sent end-to-end, accreditation decision UI in
+  place; grant E2E completes in FIN-7 QA once ACC-2026-000001 is forwarded).
+- NEXT: FIN-6 — applicant surfaces (services directory, 3-step wizard,
+  my requests + multiGroup compare, accreditation, documents center,
+  agreements).
