@@ -1883,3 +1883,41 @@ Stage Summary:
   dispatches (infra recovery first — DB still down).
 - webDevReview cron (15 min) to be created per session directive — it will drive runtime QA
   and continued development.
+
+---
+Task ID: APPROVAL-V5 (Lead)
+Agent: Lead orchestrator
+Task: Record the owner's DP-1…DP-28 approval on the v5 plan stack, verify the URL→file/path
+data-type fix, save and commit (owner directives: approve DP-1…DP-28, fix URL→file/path types,
+always commit).
+
+Work Log:
+- Verified the URL→file/path data-type fix landed complete in the committed v5 schema (commit
+  5f66f7b / PLAN-V5): `AccountDocument.mediaId → MediaAsset` is THE storage entry ("← THE
+  storage entry: MediaAsset carries fileName/mime/size/sha256/renditions"), `RequestAttachment`
+  links via AccountDocument, no URL-string document columns anywhere in the 18 planned models;
+  the only url-named field is `FinancierProfile.logoUrl` — a MediaAsset-backed display string
+  following the existing `User.image` pattern (sanctioned). Diff-verified vs the v4 era
+  (ApplicantDocument rename + storage-key duplication eliminated per DP-19).
+- FINANCIER_PLAN.md: §0 checklist header now carries the OWNER APPROVED banner (2026-09-26, all
+  DP-1…DP-28); footer status flipped from "AWAITING OWNER APPROVAL" → "APPROVED" with the
+  approval→TASK_BOARD→FIN-0→run-to-FIN-10 chain.
+- TASK_BOARD.md: APPROVAL-V5 row added to the completed table (records DP-5 infra-recovery +
+  DP-6 track-only-ledger as carried inside the approval, plus the URL-fix verification); gate
+  section flipped to "CLEAR (owner)"; queue header now "EXECUTING (FIN-0 → FIN-10, no further
+  stops)".
+- DECISIONS.md: D-018 appended — DP-1…DP-28 approved 2026-09-26; DP-5 reseed-as-demo-data +
+  DP-6 flow-5 track-only wording carried; FIN-0→FIN-10 authorized without stopping; standing
+  directives recorded (URL→file/path norm via mediaId→MediaAsset; ALWAYS COMMIT every completed
+  task).
+- SPRINT_PLAN.md: phase header → "APPROVED — EXECUTING"; M-FIN-A milestone marked ✓ (2026-09-26,
+  D-018).
+- This commit message is a proper named commit (APPROVAL-V5) per the always-commit directive.
+
+Stage Summary:
+- The entire v5 plan stack is now owner-approved and unblocked: no owner gates remain on the
+  FIN loop. Milestone M-FIN-A achieved.
+- Next: FIN-0 infra recovery (Lead) — DB file absent (db/dev.db wiped by host reset), dev server
+  down, .env stale. DoD: `db:push` + seed → `/api/products?limit=1` returns data, login 200,
+  server survives boundaries. Then FIN-1 (schema v5.0, 18 models + seeds).
+- Runtime still DOWN at this commit — recovery dispatched immediately after.

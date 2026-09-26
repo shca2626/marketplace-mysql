@@ -15,6 +15,9 @@
 
 ## 0. Approval checklist — what you are agreeing to
 
+> **OWNER APPROVED — 2026-09-26 (all DP-1…DP-28; see DECISIONS D-018).** Checklist retained
+> below as the authoritative record of what was approved.
+
 | # | Decision | Recommendation |
 |---|---|---|
 | **DP-1** | Financier identity = Organization with `orgType` BANK/MFI/EWALLET + `FinancierProfile`; staff = org members (OWNER/ADMIN). No new global role. | **YES** |
@@ -301,6 +304,6 @@ essence of the platform's operation); automation may only pre-fill verdicts, nev
 
 ---
 
-**Status: AWAITING OWNER APPROVAL (DP-1…DP-28 — DP-18/19/22/23/24/26/27 are already owner-set
-rulings; DP-4 superseded by DP-28).**
-On approval → TASK_BOARD updated → FIN-0 dispatched immediately → loop runs to FIN-10 without stopping.
+**Status: APPROVED — DP-1…DP-28 (owner approval 2026-09-26, DECISIONS D-018; DP-18/19/22/23/24/26/27
+were owner-set rulings; DP-4 superseded by DP-28).**
+Approval recorded → TASK_BOARD updated → FIN-0 dispatched → loop runs to FIN-10 without stopping.

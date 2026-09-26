@@ -98,3 +98,14 @@
   continuous assessment (worklog review → agent-browser QA → autonomous bug-fix/feature work →
   worklog update). The state loop persists as the execution model; the cron is its heartbeat
   trigger, not a scheduler of business logic.
+- **D-018 (2026-09-26, owner)** — **DP-1…DP-28 APPROVED** on the v5 plan stack (PLATFORM_PLAN
+  v3.0 + FINANCIER_SCHEMA v5.0 + FINANCIER_PLAN v2.0). The approval explicitly carries:
+  (a) DP-5 — infrastructure recovery authorized: reseed with demo data only (pre-reset data
+  already lost, unrecoverable); (b) DP-6 — Flow-5 ledger is TRACK-ONLY (amends D-002 wording
+  before P4). The team is authorized to run FIN-0 → FIN-10 **without stopping for further
+  approvals**; the 15-min webDevReview heartbeat (D-017) drives QA/progress. Standing session
+  directives recorded with this approval: (1) URL→file/path data types are the norm for all
+  document/media storage — every planned doc model links `mediaId → MediaAsset`, never a
+  URL-string column (verified in schema v5.0; only display-denormalized `logoUrl` follows the
+  existing `User.image` pattern); (2) **ALWAYS COMMIT** — every completed task lands as a named
+  git commit immediately.
