@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
+  ArrowLeft,
   BadgeCheck,
   BadgePercent,
   Check,
@@ -10,6 +11,7 @@ import {
   FileText,
   Heart,
   Package,
+  PackageSearch,
   RotateCcw,
   Ruler,
   Share2,
@@ -89,7 +91,7 @@ export function ProductView() {
   const openAuth = useMarketplace((s) => s.openAuth)
   const trackView = useMarketplace((s) => s.trackView)
 
-  const { data, loading, setData } = useApi<ProductDetailResponse>(
+  const { data, loading, error, setData } = useApi<ProductDetailResponse>(
     productId ? `/api/products/${productId}` : null
   )
 
@@ -385,6 +387,40 @@ export function ProductView() {
     } finally {
       setSubmittingReview(false)
     }
+  }
+
+  // Not-found state: the fetch finished but there is no product (deleted,
+  // archived by a suspended vendor, or a stale link). Previously this showed
+  // the skeleton forever (parked backlog: "Product 404 infinite skeleton").
+  if (!loading && !product) {
+    return (
+      <div className="mx-auto flex max-w-xl flex-col items-center px-4 py-20 text-center">
+        <div className="rounded-full bg-muted p-5">
+          <PackageSearch size={36} className="text-primary/70" aria-hidden />
+        </div>
+        <h1 className="mt-6 text-2xl font-semibold tracking-tight">
+          Product not found
+        </h1>
+        <p className="mt-2 max-w-sm text-balance text-muted-foreground">
+          {error ?? "This listing is no longer available — it may have been removed or the link is out of date."}
+        </p>
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+          <button
+            onClick={() => navigate('catalog')}
+            className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground transition-transform hover:scale-[1.02] active:scale-[0.98]"
+          >
+            <ArrowLeft size={16} aria-hidden />
+            Browse the catalog
+          </button>
+          <button
+            onClick={() => navigate('home')}
+            className="inline-flex h-11 items-center rounded-xl border bg-background px-5 text-sm font-medium transition-colors hover:bg-muted"
+          >
+            Back to home
+          </button>
+        </div>
+      </div>
+    )
   }
 
   if (loading || !product) {

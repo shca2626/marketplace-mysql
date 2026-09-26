@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireUser } from '@/server/guards'
 import { decideApproval, ApprovalServiceError } from '@/server/modules/approvals/service'
+import { assertSameOrigin } from '@/lib/http'
 
 const decideSchema = z.object({
   action: z.enum(['APPROVE', 'REJECT']),
@@ -11,6 +12,9 @@ const decideSchema = z.object({
 // POST /api/approvals/[id]/decide — approve or reject a pending request.
 // OWNER/ADMIN/APPROVER members only; requesters can never decide their own.
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
   const { user, error } = await requireUser()
   if (error) return error
   try {

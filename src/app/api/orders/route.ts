@@ -7,6 +7,8 @@ import { computePricing } from '@/lib/pricing'
 import { findActiveCoupon, type ActiveCoupon } from '@/server/modules/coupons/service'
 import { needsApproval, createOrderApprovalRequest, notifyOrderApprovalRequested } from '@/server/modules/approvals/service'
 import { ensurePayment, succeedPayment } from '@/server/modules/payments/service'
+import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
+import { RATE_LIMITS } from '@/lib/rate-limit'
 
 const checkoutSchema = z.object({
   items: z
@@ -31,8 +33,15 @@ const checkoutSchema = z.object({
 // POST /api/orders — checkout
 export async function POST(req: NextRequest) {
   try {
+    // CSRF + checkout throttling (money route)
+    const csrf = assertSameOrigin(req)
+    if (csrf) return csrf
+
     const user = await getSessionUser()
     if (!user) return NextResponse.json({ error: 'Please sign in to place an order' }, { status: 401 })
+
+    const rl = enforceRateLimit(req, 'order', RATE_LIMITS.order, user.id)
+    if (rl) return rl
 
     const body = await req.json()
     const parsed = checkoutSchema.safeParse(body)

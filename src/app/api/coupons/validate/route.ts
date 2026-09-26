@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/auth'
 import { couponDiscount } from '@/lib/pricing'
 import { findActiveCoupon } from '@/server/modules/coupons/service'
+import { assertSameOrigin } from '@/lib/http'
 
 const validateSchema = z.object({
   code: z.string().trim().min(1).max(24),
@@ -14,6 +15,8 @@ const validateSchema = z.object({
 // Display-only convenience; POST /api/orders re-validates authoritatively.
 export async function POST(req: NextRequest) {
   try {
+    const csrf = assertSameOrigin(req)
+    if (csrf) return csrf
     const body = await req.json()
     const parsed = validateSchema.safeParse(body)
     if (!parsed.success) {

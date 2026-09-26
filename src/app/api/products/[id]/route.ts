@@ -5,6 +5,8 @@ import { getSessionUser } from '@/lib/auth'
 import { favoriteIdsFor, productInclude, serializeProduct, serializeReview } from '@/lib/serialize'
 import { ensureUniqueSlug, productFormSchema } from '@/server/modules/products/service'
 import { recordAudit } from '@/server/modules/audit/service'
+import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
+import { RATE_LIMITS } from '@/lib/rate-limit'
 
 // GET /api/products/[id] — product detail with reviews. Products of
 // suspended vendors are hidden from the public (404); the owner (via seller
@@ -72,11 +74,17 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 // surface; regular sellers keep using PUT for full edits of their own rows.
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
+    const csrf = assertSameOrigin(req)
+    if (csrf) return csrf
+
     const { id } = await ctx.params
     const user = await getSessionUser()
     if (!user) return NextResponse.json({ error: 'Please sign in first' }, { status: 401 })
     if (user.role !== 'ADMIN')
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+
+    const rl = enforceRateLimit(req, 'productWrite', RATE_LIMITS.productWrite, user.id)
+    if (rl) return rl
 
     const parsed = z
       .object({
@@ -120,9 +128,15 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 // Variants are replaced atomically.
 export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
+    const csrf = assertSameOrigin(req)
+    if (csrf) return csrf
+
     const { id } = await ctx.params
     const user = await getSessionUser()
     if (!user) return NextResponse.json({ error: 'Please sign in first' }, { status: 401 })
+
+    const rl = enforceRateLimit(req, 'productWrite', RATE_LIMITS.productWrite, user.id)
+    if (rl) return rl
 
     const product = await db.product.findUnique({ where: { id } })
     if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
@@ -237,9 +251,15 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
 // override — admin takedown archives rows with order history, deletes the rest)
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
+    const csrf = assertSameOrigin(req)
+    if (csrf) return csrf
+
     const { id } = await ctx.params
     const user = await getSessionUser()
     if (!user) return NextResponse.json({ error: 'Please sign in first' }, { status: 401 })
+
+    const rl = enforceRateLimit(req, 'productWrite', RATE_LIMITS.productWrite, user.id)
+    if (rl) return rl
 
     const product = await db.product.findUnique({ where: { id } })
     if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 })

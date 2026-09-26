@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/server/guards'
 import { respondToQuote, RfqServiceError } from '@/server/modules/rfq/service'
+import { assertSameOrigin } from '@/lib/http'
 
 // POST /api/quotes/[id]/decline — requester declines a quote (others stay open)
-export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
   const { user, error } = await requireUser()
   if (error) return error
   try {

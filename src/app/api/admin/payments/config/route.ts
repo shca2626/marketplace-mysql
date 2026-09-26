@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/server/guards'
 import { checkoutMethods, getPaymentsConfig, updatePaymentsConfig } from '@/server/modules/payments/service'
+import { assertSameOrigin } from '@/lib/http'
 
 // GET /api/admin/payments/config — bank-transfer details + offered methods.
 export async function GET() {
@@ -13,6 +14,9 @@ export async function GET() {
 // PUT /api/admin/payments/config — update the bank details buyers see when
 // choosing bank transfer at checkout.
 export async function PUT(req: NextRequest) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
   const { error } = await requireAdmin()
   if (error) return error
   try {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireUser } from '@/server/guards'
 import { createOrganization, listMyOrganizations, OrgServiceError } from '@/server/modules/organizations/service'
+import { assertSameOrigin } from '@/lib/http'
 
 const createOrgSchema = z.object({
   name: z.string().trim().min(2, 'Business name must be at least 2 characters').max(120),
@@ -27,6 +28,9 @@ export async function GET() {
 
 // POST /api/organizations — register a business account (requester becomes OWNER)
 export async function POST(req: NextRequest) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
   const { user, error } = await requireUser()
   if (error) return error
   try {

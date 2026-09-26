@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireUser } from '@/server/guards'
 import { addOrganizationMember, OrgServiceError } from '@/server/modules/organizations/service'
+import { assertSameOrigin } from '@/lib/http'
 
 const addMemberSchema = z.object({
   email: z.string().trim().email('Enter a valid email'),
@@ -11,6 +12,9 @@ const addMemberSchema = z.object({
 
 // POST /api/organizations/[id]/members — OWNER/ADMIN adds an existing user
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
   const { user, error } = await requireUser()
   if (error) return error
   try {

@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/server/guards'
 import { adminCapturePayment, PaymentServiceError } from '@/server/modules/payments/service'
+import { assertSameOrigin } from '@/lib/http'
 
 // POST /api/admin/payments/[id]/capture — operator confirms the money arrived
 // (bank transfer slip / settled invoice). Flips the payment to SUCCEEDED and
 // the order to PAID (cart orders); notifies the buyer; writes an audit row.
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
   const { user, error } = await requireAdmin()
   if (error) return error
   try {

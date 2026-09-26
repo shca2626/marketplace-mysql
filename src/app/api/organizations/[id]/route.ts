@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireUser } from '@/server/guards'
 import { getOrganization, updateApprovalThreshold, OrgServiceError } from '@/server/modules/organizations/service'
+import { assertSameOrigin } from '@/lib/http'
 
 // GET /api/organizations/[id] — detail (members + groups); member or admin only
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -27,6 +28,9 @@ const thresholdSchema = z.object({
 // PATCH /api/organizations/[id] — owner/admin self-service approval policy.
 // Sets (or clears with null) the purchase-approval threshold for the org.
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
   const { user, error } = await requireUser()
   if (error) return error
   try {

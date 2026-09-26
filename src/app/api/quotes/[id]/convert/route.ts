@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireUser } from '@/server/guards'
 import { convertQuoteToOrder, RfqServiceError } from '@/server/modules/rfq/service'
+import { assertSameOrigin } from '@/lib/http'
 
 const convertSchema = z.object({
   poNumber: z.string().trim().max(40).optional().nullable(),
@@ -17,6 +18,9 @@ const convertSchema = z.object({
 // (B2B invoiced order: PROCESSING + payment terms, stock decremented, quote
 // CONVERTED, RFQ ORDERED).
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
   const { user, error } = await requireUser()
   if (error) return error
   try {

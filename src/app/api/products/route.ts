@@ -4,6 +4,8 @@ import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/auth'
 import { favoriteIdsFor, productInclude, serializeProduct } from '@/lib/serialize'
 import { ensureUniqueSlug, productFormSchema, slugify, createProduct } from '@/server/modules/products/service'
+import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
+import { RATE_LIMITS } from '@/lib/rate-limit'
 
 // GET /api/products — list with filters/search/sort/pagination.
 // All filtering, search, sorting and pagination happen in SQL (TD-03 resolved);
@@ -131,6 +133,9 @@ export async function GET(req: NextRequest) {
 // in good standing (not suspended) to publish.
 export async function POST(req: NextRequest) {
   try {
+    const csrf = assertSameOrigin(req)
+    if (csrf) return csrf
+
     const user = await getSessionUser()
     if (!user) return NextResponse.json({ error: 'Please sign in first' }, { status: 401 })
     if (user.role !== 'SELLER' && user.role !== 'ADMIN')
@@ -140,6 +145,9 @@ export async function POST(req: NextRequest) {
         { error: 'Your vendor account is suspended — products cannot be published' },
         { status: 403 }
       )
+
+    const rl = enforceRateLimit(req, 'productWrite', RATE_LIMITS.productWrite, user.id)
+    if (rl) return rl
 
     const body = await req.json()
     const parsed = productFormSchema.safeParse(body)

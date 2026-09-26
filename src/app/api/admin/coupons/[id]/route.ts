@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAdmin } from '@/server/guards'
 import { adminDeleteCoupon, adminUpdateCoupon, CouponServiceError } from '@/server/modules/coupons/service'
+import { assertSameOrigin } from '@/lib/http'
 
 const updateSchema = z.object({
   description: z.string().trim().min(3).max(160).optional(),
@@ -13,6 +14,9 @@ const updateSchema = z.object({
 
 // PATCH /api/admin/coupons/[id]
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
   const { user, error } = await requireAdmin()
   if (error) return error
   try {

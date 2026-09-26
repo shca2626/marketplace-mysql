@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireUser } from '@/server/guards'
 import { createQuote, RfqServiceError } from '@/server/modules/rfq/service'
+import { assertSameOrigin } from '@/lib/http'
 
 const quoteSchema = z.object({
   lines: z
@@ -26,6 +27,9 @@ const quoteSchema = z.object({
 // POST /api/rfqs/[id]/quotes — issue a quote against an RFQ.
 // ADMIN can quote anything; SELLERs can only quote their own products.
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
   const { user, error } = await requireUser()
   if (error) return error
   try {

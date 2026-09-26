@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/server/guards'
 import { getPayoutsConfig, updatePayoutsConfig, PayoutServiceError } from '@/server/modules/payouts/service'
+import { assertSameOrigin } from '@/lib/http'
 
 // GET /api/admin/payouts/config — platform default commission percent.
 export async function GET() {
@@ -12,6 +13,9 @@ export async function GET() {
 // PUT /api/admin/payouts/config — set the platform default commission percent
 // (0-90). Vendors without a per-vendor override settle at this rate.
 export async function PUT(req: NextRequest) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
   const { error } = await requireAdmin()
   if (error) return error
   try {

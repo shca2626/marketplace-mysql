@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSessionUser } from '@/lib/auth'
 import { buyerPayOrder, PaymentServiceError } from '@/server/modules/payments/service'
+import { assertSameOrigin } from '@/lib/http'
 
 const paySchema = z.object({
   method: z.enum(['CARD', 'BANK_TRANSFER', 'INVOICE']).optional(),
@@ -13,6 +14,8 @@ const paySchema = z.object({
 // transfer reference for operator confirmation.
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
+    const csrf = assertSameOrigin(req)
+    if (csrf) return csrf
     const user = await getSessionUser()
     if (!user) return NextResponse.json({ error: 'Please sign in first' }, { status: 401 })
     const { id } = await ctx.params

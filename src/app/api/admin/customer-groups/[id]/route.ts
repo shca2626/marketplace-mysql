@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAdmin } from '@/server/guards'
 import { adminDeleteGroup, adminUpdateGroup, GroupServiceError } from '@/server/modules/customer-groups/service'
+import { assertSameOrigin } from '@/lib/http'
 
 const updateSchema = z.object({
   name: z.string().trim().min(2).max(120).optional(),
@@ -12,6 +13,9 @@ const updateSchema = z.object({
 
 // PATCH /api/admin/customer-groups/[id]
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
   const { user, error } = await requireAdmin()
   if (error) return error
   try {

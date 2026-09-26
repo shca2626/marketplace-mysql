@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAdmin } from '@/server/guards'
 import { adminCreateCoupon, adminListCoupons, CouponServiceError } from '@/server/modules/coupons/service'
+import { assertSameOrigin } from '@/lib/http'
 
 const createSchema = z.object({
   code: z.string().trim().min(3).max(24),
@@ -26,6 +27,9 @@ export async function GET() {
 
 // POST /api/admin/coupons
 export async function POST(req: NextRequest) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
   const { user, error } = await requireAdmin()
   if (error) return error
   try {

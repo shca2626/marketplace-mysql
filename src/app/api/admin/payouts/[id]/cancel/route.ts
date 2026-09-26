@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/server/guards'
 import { cancelPayout, PayoutServiceError } from '@/server/modules/payouts/service'
+import { assertSameOrigin } from '@/lib/http'
 
 // POST /api/admin/payouts/[id]/cancel — void a pending payout; its order items
 // return to the unsettled pool for a corrected batch.
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
   const { user, error } = await requireAdmin()
   if (error) return error
   try {

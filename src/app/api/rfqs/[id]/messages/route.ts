@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireUser } from '@/server/guards'
 import { listRfqMessages, postRfqMessage, RfqServiceError } from '@/server/modules/rfq/service'
+import { assertSameOrigin } from '@/lib/http'
 
 const postSchema = z.object({
   body: z.string().trim().min(1, 'Message cannot be empty').max(4000),
@@ -27,6 +28,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 
 // POST /api/rfqs/[id]/messages — post to the thread (closed on terminal states).
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
   const { user, error } = await requireUser()
   if (error) return error
   try {

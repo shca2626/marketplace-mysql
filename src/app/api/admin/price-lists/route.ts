@@ -32,9 +32,13 @@ export async function GET() {
     return NextResponse.json({ error: 'Failed to load price lists' }, { status: 500 })
   }
 }
+import { assertSameOrigin } from '@/lib/http'
 
 // POST /api/admin/price-lists
 export async function POST(req: NextRequest) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
   const { user, error } = await requireAdmin()
   if (error) return error
   try {

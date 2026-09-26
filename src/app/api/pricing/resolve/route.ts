@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireUser } from '@/server/guards'
 import { buildBuyerContext, resolvePrices } from '@/server/modules/pricing/resolver'
+import { assertSameOrigin } from '@/lib/http'
 
 const resolveSchema = z.object({
   items: z
@@ -21,6 +22,9 @@ const resolveSchema = z.object({
 // (CONTRACT | GROUP | RETAIL) and savings. This is what powers "your price"
 // displays on product pages and quantity-aware B2B pricing.
 export async function POST(req: NextRequest) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
   const { user, error } = await requireUser()
   if (error) return error
   try {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAdmin } from '@/server/guards'
 import { applyVendorAction, VendorServiceError } from '@/server/modules/vendors/service'
+import { assertSameOrigin } from '@/lib/http'
 
 const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('verify') }),
@@ -16,6 +17,9 @@ const actionSchema = z.discriminatedUnion('action', [
 // control marketplace visibility + sign-in; set-commission overrides the
 // payout commission rate for this vendor (null = platform default).
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
   const { user, error } = await requireAdmin()
   if (error) return error
   try {

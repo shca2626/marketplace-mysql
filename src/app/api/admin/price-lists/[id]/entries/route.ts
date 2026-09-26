@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAdmin } from '@/server/guards'
 import { adminReplaceEntries, PriceListServiceError } from '@/server/modules/price-lists/service'
+import { assertSameOrigin } from '@/lib/http'
 
 const entriesSchema = z.object({
   entries: z
@@ -17,6 +18,9 @@ const entriesSchema = z.object({
 
 // PUT /api/admin/price-lists/[id]/entries — transactional full ladder replace
 export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
   const { user, error } = await requireAdmin()
   if (error) return error
   try {

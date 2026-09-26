@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to load organizations' }, { status: 500 })
   }
 }
+import { assertSameOrigin } from '@/lib/http'
 
 const createSchema = z.object({
   name: z.string().trim().min(2).max(160),
@@ -44,6 +45,9 @@ const createSchema = z.object({
 
 // POST /api/admin/organizations — create a business account on behalf of the platform
 export async function POST(req: NextRequest) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
   const { user, error } = await requireAdmin()
   if (error) return error
   try {

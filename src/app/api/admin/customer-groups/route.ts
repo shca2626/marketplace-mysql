@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAdmin } from '@/server/guards'
 import { adminCreateGroup, adminListGroups, GroupServiceError } from '@/server/modules/customer-groups/service'
+import { assertSameOrigin } from '@/lib/http'
 
 const createSchema = z.object({
   name: z.string().trim().min(2).max(120),
@@ -25,6 +26,9 @@ export async function GET() {
 
 // POST /api/admin/customer-groups
 export async function POST(req: NextRequest) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
   const { user, error } = await requireAdmin()
   if (error) return error
   try {

@@ -25,6 +25,9 @@ const updateSchema = z.object({
 
 // PATCH /api/admin/organizations/[id] — profile, verification, credit config, group mapping
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
   const { user, error } = await requireAdmin()
   if (error) return error
   try {
@@ -44,6 +47,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ error: 'Failed to update organization' }, { status: 500 })
   }
 }
+import { assertSameOrigin } from '@/lib/http'
 
 // DELETE /api/admin/organizations/[id] — only orgs without trading history
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {

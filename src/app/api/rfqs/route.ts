@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireUser } from '@/server/guards'
 import { createRfq, listMyRfqs, RfqServiceError } from '@/server/modules/rfq/service'
+import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 
 const lineSchema = z
   .object({
@@ -42,8 +43,16 @@ export async function GET(req: NextRequest) {
 
 // POST /api/rfqs — create a new RFQ draft
 export async function POST(req: NextRequest) {
+  // CSRF + creation throttle (RFQs can fan out notifications to vendors)
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
   const { user, error } = await requireUser()
   if (error) return error
+
+  const rl = enforceRateLimit(req, 'rfq:create', { limit: 20, windowMs: 10 * 60_000 }, user.id)
+  if (rl) return rl
+
   try {
     const body = await req.json()
     const parsed = createRfqSchema.safeParse(body)

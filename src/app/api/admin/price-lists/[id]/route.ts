@@ -33,9 +33,13 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: 'Failed to load price list' }, { status: 500 })
   }
 }
+import { assertSameOrigin } from '@/lib/http'
 
 // PATCH /api/admin/price-lists/[id]
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
   const { user, error } = await requireAdmin()
   if (error) return error
   try {

@@ -3,6 +3,8 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/auth'
 import { productInclude, serializeProduct, serializeReview } from '@/lib/serialize'
+import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
+import { RATE_LIMITS } from '@/lib/rate-limit'
 
 const reviewSchema = z.object({
   productId: z.string(),
@@ -13,8 +15,14 @@ const reviewSchema = z.object({
 // POST /api/reviews — create or update a review
 export async function POST(req: NextRequest) {
   try {
+    const csrf = assertSameOrigin(req)
+    if (csrf) return csrf
+
     const user = await getSessionUser()
     if (!user) return NextResponse.json({ error: 'Please sign in to leave a review' }, { status: 401 })
+
+    const rl = enforceRateLimit(req, 'review', RATE_LIMITS.review, user.id)
+    if (rl) return rl
 
     const body = await req.json()
     const parsed = reviewSchema.safeParse(body)

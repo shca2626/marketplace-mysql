@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/auth'
 import { productInclude, serializeProduct } from '@/lib/serialize'
+import { assertSameOrigin } from '@/lib/http'
 
 // GET /api/favorites — my wishlist products
 export async function GET() {
@@ -28,6 +29,8 @@ export async function GET() {
 // POST /api/favorites — toggle favorite
 export async function POST(req: NextRequest) {
   try {
+    const csrf = assertSameOrigin(req)
+    if (csrf) return csrf
     const user = await getSessionUser()
     if (!user) return NextResponse.json({ error: 'Please sign in to save favorites' }, { status: 401 })
 

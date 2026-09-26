@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/server/guards'
 import { generatePayout, PayoutServiceError } from '@/server/modules/payouts/service'
+import { assertSameOrigin } from '@/lib/http'
 
 // POST /api/admin/payouts/generate — settle every paid, unsettled order item
 // of one vendor into a new payout batch (atomically stamps OrderItem.payoutId).
 export async function POST(req: NextRequest) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
   const { user, error } = await requireAdmin()
   if (error) return error
   try {

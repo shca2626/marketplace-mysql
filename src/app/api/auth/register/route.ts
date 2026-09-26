@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { hashPassword, setSessionCookie, toSessionUser } from '@/lib/auth'
+import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
+import { RATE_LIMITS } from '@/lib/rate-limit'
+import { recordAudit } from '@/server/modules/audit/service'
 
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').max(60),
@@ -13,6 +16,12 @@ const registerSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    // CSRF + per-IP creation throttling (account-farming damping)
+    const csrf = assertSameOrigin(req)
+    if (csrf) return csrf
+    const rl = enforceRateLimit(req, 'register', RATE_LIMITS.register)
+    if (rl) return rl
+
     const body = await req.json()
     const parsed = registerSchema.safeParse(body)
     if (!parsed.success) {
@@ -36,6 +45,15 @@ export async function POST(req: NextRequest) {
         role,
         storeName: role === 'SELLER' ? storeName || `${name}'s Store` : null,
       },
+    })
+
+    await recordAudit({
+      actorId: user.id,
+      actorType: 'USER',
+      action: 'USER_REGISTERED',
+      entityType: 'User',
+      entityId: user.id,
+      summary: `New ${role.toLowerCase()} registered: ${user.email}`,
     })
 
     await setSessionCookie(user.id)

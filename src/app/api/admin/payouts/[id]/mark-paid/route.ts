@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/server/guards'
 import { markPayoutPaid, PayoutServiceError } from '@/server/modules/payouts/service'
+import { assertSameOrigin } from '@/lib/http'
 
 // POST /api/admin/payouts/[id]/mark-paid — the wire transfer went out.
 // Notifies the vendor, writes an audit row.
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
   const { user, error } = await requireAdmin()
   if (error) return error
   try {

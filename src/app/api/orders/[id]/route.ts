@@ -5,6 +5,7 @@ import { getSessionUser } from '@/lib/auth'
 import { serializeOrder } from '@/lib/serialize'
 import { cancelApprovalForOrder } from '@/server/modules/approvals/service'
 import { cancelPaymentForOrder } from '@/server/modules/payments/service'
+import { assertSameOrigin } from '@/lib/http'
 
 const STATUS_FLOW = ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED']
 
@@ -37,6 +38,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 // PATCH /api/orders/[id] — seller advances fulfillment status, OR buyer cancels a PAID order
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
+    const csrf = assertSameOrigin(req)
+    if (csrf) return csrf
     const { id } = await ctx.params
     const user = await getSessionUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
