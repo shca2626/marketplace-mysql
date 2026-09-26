@@ -2454,3 +2454,34 @@ Stage Summary:
   applicant side.
 - NEXT: FIN-8 (sweeps E2E + bell routing + audit completeness) → FIN-9 (full regression)
   → FIN-10 (docs refresh).
+
+---
+Task ID: FIN-8 (Lead)
+Agent: Lead orchestrator
+Task: Governance polish — sweeps end-to-end, notification bell routing, audit completeness.
+
+Work Log:
+- Sweeps: verified the lazy sweep pattern is wired at 8 read-path sites in
+  financing/{requests,accreditation}.ts (mirrors the dispute sweep). Live E2E: created
+  FR-TEST-EXP w/ expiresAt 10 days in the past + status SUBMITTED → GET /api/financing/requests
+  → status EXPIRED (sweep fired on read). Test row cleaned up after.
+- ACCREDITATION_EXPIRING reminders: covered by the FIN-3 smoke (75/75 incl. 7-day window +
+  idempotency) — ACC-1's own validUntil is 2027 so no live firing expected.
+- Bell routing (linkView 'financing'/'financier' from FIN-1 + the 19 new notification types):
+  live click-through verified — demo's bell → "Request FIN-2026-000003 passed verification" →
+  navigates to ?view=financing&request=<linkId> and the request opens (deep-link consumed by
+  the financing console). Financier notifications (FINANCING_REQUEST_RECEIVED etc.) route to
+  the financier console. (QA note: agent-browser ref clicks on bell rows go stale — the eval
+  click inside the popover works; recorded in worklog FIN-6 too.)
+- Audit completeness: audit-tab entity filter extended w/ the 10 financing entity types
+  (FinancingRequest, AccreditationRequest, FinancingOffer, FinancingAgreement, FinancingFee,
+  RequirementSubmission, AccountDocument, FinancierService, ConditionTemplate) + action
+  suggestions extended w/ the 19 financier actions from FINANCIER_SCHEMA §6 (incl.
+  ACCREDITATION_SUBMITTED which the seed used). Live check: 54 FinancingRequest audit rows;
+  REQUEST_FORWARDED ×12 — every gate action from the QA chain is audited.
+- QA: lint clean; zero console errors.
+
+Stage Summary:
+- FIN-8 COMPLETE — DoD met: expiry E2E, bell click-through E2E, audit rows for every gate
+  action (with the filter/suggestions to find them).
+- NEXT: FIN-9 full regression (8 flows + core commerce via agent-browser) → FIN-10 docs.

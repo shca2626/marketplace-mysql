@@ -39,6 +39,15 @@ const ENTITY_TYPES = [
   { value: 'PriceList', label: 'Price lists' },
   { value: 'CustomerGroup', label: 'Customer groups' },
   { value: 'Coupon', label: 'Coupons' },
+  { value: 'FinancingRequest', label: 'Financing requests' },
+  { value: 'AccreditationRequest', label: 'Accreditation requests' },
+  { value: 'FinancingOffer', label: 'Financing offers' },
+  { value: 'FinancingAgreement', label: 'Financing agreements' },
+  { value: 'FinancingFee', label: 'Financing fees' },
+  { value: 'RequirementSubmission', label: 'Requirement submissions' },
+  { value: 'AccountDocument', label: 'Vault documents' },
+  { value: 'FinancierService', label: 'Financier services' },
+  { value: 'ConditionTemplate', label: 'Condition templates' },
 ]
 
 const ACTOR_TYPES = [
@@ -67,6 +76,27 @@ const ACTION_SUGGESTIONS = [
   'GROUP_UPDATED',
   'COUPON_CREATED',
   'COUPON_DELETED',
+  // ── financier module (FINANCIER_SCHEMA §6) ──
+  'PLATFORM_REVIEW_STARTED',
+  'REQUEST_RETURNED',
+  'REQUEST_FORWARDED',
+  'REQUIREMENT_VERIFIED',
+  'REQUIREMENT_REJECTED',
+  'REQUIREMENT_WAIVED',
+  'DOCUMENT_VERIFIED',
+  'DOCUMENT_REJECTED',
+  'ACCREDITATION_SUBMITTED',
+  'ACCREDITATION_GRANTED',
+  'ACCREDITATION_REJECTED',
+  'ACCREDITATION_REVOKED',
+  'OFFER_SENT',
+  'OFFER_ACCEPTED',
+  'OFFER_DECLINED',
+  'OFFER_WITHDRAWN',
+  'FEE_ACCRUED',
+  'FEE_INVOICED',
+  'FEE_PAID',
+  'FINANCING_STATUS_CHANGED',
 ]
 
 const PAGE_SIZE = 50
