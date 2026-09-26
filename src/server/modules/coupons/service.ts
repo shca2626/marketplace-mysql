@@ -30,7 +30,7 @@ function serializeCoupon(c: {
   code: string
   description: string
   percentOff: number
-  minSubtotal: { toNumber(): number }
+  minSubtotal: number
   firstOrderOnly: boolean
   active: boolean
   createdAt: Date
@@ -40,7 +40,7 @@ function serializeCoupon(c: {
     code: c.code,
     description: c.description,
     percentOff: c.percentOff,
-    minSubtotal: c.minSubtotal.toNumber(),
+    minSubtotal: c.minSubtotal,
     firstOrderOnly: c.firstOrderOnly,
     active: c.active,
     createdAt: c.createdAt.toISOString(),
@@ -57,7 +57,7 @@ export async function findActiveCoupon(rawCode: string): Promise<ActiveCoupon | 
     description: coupon.description,
     percentOff: coupon.percentOff,
     firstOrderOnly: coupon.firstOrderOnly,
-    minSubtotal: coupon.minSubtotal.toNumber(),
+    minSubtotal: coupon.minSubtotal,
   }
 }
 

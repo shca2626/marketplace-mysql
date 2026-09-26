@@ -1921,3 +1921,67 @@ Stage Summary:
   down, .env stale. DoD: `db:push` + seed → `/api/products?limit=1` returns data, login 200,
   server survives boundaries. Then FIN-1 (schema v5.0, 18 models + seeds).
 - Runtime still DOWN at this commit — recovery dispatched immediately after.
+
+---
+Task ID: FIN-0 (Lead)
+Agent: Lead orchestrator
+Task: Infra recovery after host reset (DP-5, approved inside D-018) — DB + dev server back up,
+DoD met. Executed immediately after APPROVAL-V5 per the plan's no-stop authorization.
+
+Work Log:
+- Situation: no MySQL/MariaDB binary or service exists in the container (host reset wiped the
+  user-space MariaDB install + datadir AGAIN — second occurrence). The mysql-provider schema
+  (167 @db attrs, Decimal/Json fields) pointed at a dead engine; .env already held the SQLite
+  file URL (stale mismatch).
+- DECISION (aligned with the platform mandate "Prisma SQLite client only"): PERMANENTLY
+  converted the stack to SQLite instead of re-downloading 433MB of MariaDB that the next host
+  reset would wipe again. This kills the whole disaster class: db/custom.db lives INSIDE the
+  git-tracked project directory and is trivially re-seedable (`db:push` + seeds).
+- prisma/schema.prisma: provider mysql→sqlite; stripped all 167 @db.VarChar/@db.Text/@db.Decimal
+  attrs; Decimal→Float (17 fields); Json?→String? (Organization.billingAddress,
+  AuditLog.metadata — JSON-in-text, D-014 convention). prisma format + validate PASS.
+- Code fixes for the type changes: removed all 27 `.toNumber()` calls (6 files: quotes pdf,
+  coupons, organizations, price-lists, pricing resolver, rfq service) + the 9 structural
+  `{ toNumber(): number }` type members → `number`; audit/service.ts stringifies metadata on
+  write; admin/audit-logs route safe-parses on read; seed-demo billingAddress/metadata now
+  JSON.stringify; stale mysql comments updated (disputes.ts, seed headers).
+- RESTORED src/lib/storage/local-disk.ts (LocalDiskStorage adapter — was wiped AGAIN because it
+  was never committed despite the .gitignore negation working; check-ignore confirms line 45
+  `!src/lib/storage/local-disk.ts` wins over the `local-*` pattern). Rebuilt from the
+  StorageAdapter contract + FIX-1 spec: key validation (no ../, no absolute, no \, no NUL,
+  segment-regex) → INVALID_KEY, put/get/getOrNull/exists/delete/absolutePath, root =
+  STORAGE_ROOT ?? ./uploads. THIS TIME IT IS COMMITTED.
+- uploads/ added to .gitignore (media binaries on disk, not for git).
+- Generated 4 hero banners (banner-main/tech/home/sell.png, 1344x768, warm artisan palette) via
+  image-generation CLI into .seed-assets/ (also wiped), then `bun scripts/seed-settings.ts`:
+  settings row + 4 BannerSlides pushed through the REAL media pipeline (sharp → webp
+  renditions, MediaAsset rows, /api/media URLs).
+- Dead mysql infra deleted: scripts/db-provider.ts (the flip script — its "Aiven MySQL" plan is
+  dead and it would not handle Decimal/Json anyway), scripts/mysql.ts, scripts/recovery/*
+  (433MB download runbook — obsolete), prisma/schema.mysql.prisma (typed backup of the dead
+  engine). scripts/db-status.ts rewritten as a single-provider SQLite checker (provider guard +
+  stale dev-server detection + live counts).
+- Recovery sequence: prisma generate → db:push → seed-demo (FULL demo state: 14 users, 6
+  categories, 26 products, 77 reviews, 14 orders, 1 org, 2 price lists, 5 RFQs, 4 quotes, 19
+  audit rows) → seed-settings → dev server up via double-fork `(setsid bun run dev &)`.
+- QA: lint CLEAN; /api/products?limit=1 returns data ✓; login 200 ✓; GET / 200 ✓;
+  agent-browser E2E: homepage renders (hero banner + 6 categories + featured picks, zero
+  console/page errors), sign-in modal → demo login → authed header (notifications + account
+  menu), add-to-cart ✓, cart view w/ qty controls + checkout ✓; banner media 200 image/webp
+  68KB ✓; traversal /api/media/..%2f..%2fpackage.json → 404 ✓; sticky footer (mt-auto, natural
+  push on 8235px long page) ✓; mobile 390x844 + desktop 1440x900 layouts hold ✓.
+- webDevReview cron heartbeat (D-017) re-created: job 416691, every 15 minutes (was lost with
+  the session).
+
+Stage Summary:
+- FIN-0 COMPLETE — DoD met (products API data, login 200, server survives). The platform is
+  back online on SQLite with the full demo state.
+- MySQL is GONE permanently (D-014-aligned, platform mandate): single provider sqlite,
+  zero flip tooling left. Future resets: `bun run db:push` + seeds — minutes, no downloads.
+- Committing local-disk.ts this time closes the recurring "storage adapter lost" failure
+  (2 host resets, 2 losses — now versioned).
+- NEXT: FIN-1 — schema v5.0 (18 financier models per FINANCIER_SCHEMA §3, ZERO Json, FIN/AGR/
+  ACC sequences, financing settings group, additive User scalars) + seeds. Note for FIN-1:
+  the v5 schema doc uses @db.VarChar annotations in its model blocks — when implementing on
+  SQLite, drop the @db attrs (the docs' field names/types/relations are the authority, not the
+  mysql-native attrs).

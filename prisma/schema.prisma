@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -17,94 +17,94 @@ datasource db {
 // ═══════════════════════════════════════════════════════════════════════════
 
 model User {
-  id        String     @id @default(cuid())
-  email     String     @unique @db.VarChar(255)
-  password  String     @db.VarChar(255)
-  name      String     @db.VarChar(255)
-  image     String?    @db.VarChar(512)
-  role      String     @default("BUYER") @db.VarChar(16) // BUYER | SELLER | ADMIN
-  status    String     @default("ACTIVE") @db.VarChar(16) // ACTIVE | SUSPENDED — platform-controlled vendor lifecycle
-  suspendedAt DateTime?
-  storeName String?    @db.VarChar(120)
-  storeBio  String?    @db.Text
+  id             String    @id @default(cuid())
+  email          String    @unique
+  password       String
+  name           String
+  image          String?
+  role           String    @default("BUYER") // BUYER | SELLER | ADMIN
+  status         String    @default("ACTIVE") // ACTIVE | SUSPENDED — platform-controlled vendor lifecycle
+  suspendedAt    DateTime?
+  storeName      String?
+  storeBio       String?
   commissionRate Float? // vendor payout commission override (percent); null = platform default
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  products    Product[]
-  orders      Order[]
-  reviews     Review[]
-  favorites   Favorite[]
-  memberships OrganizationMember[]
-  groups      CustomerGroup[] @relation("UserCustomerGroups")
-  rfqs        Rfq[]
-  quotesIssued Quote[]        @relation("QuoteCreatedBy")
-  rfqMessages RfqMessage[]    @relation("RfqMessages")
-  approvalsRequested ApprovalRequest[] @relation("ApprovalRequester")
-  approvalsDecided   ApprovalRequest[] @relation("ApprovalDecider")
-  notifications      Notification[]    @relation("Notifications")
+  products           Product[]
+  orders             Order[]
+  reviews            Review[]
+  favorites          Favorite[]
+  memberships        OrganizationMember[]
+  groups             CustomerGroup[]      @relation("UserCustomerGroups")
+  rfqs               Rfq[]
+  quotesIssued       Quote[]              @relation("QuoteCreatedBy")
+  rfqMessages        RfqMessage[]         @relation("RfqMessages")
+  approvalsRequested ApprovalRequest[]    @relation("ApprovalRequester")
+  approvalsDecided   ApprovalRequest[]    @relation("ApprovalDecider")
+  notifications      Notification[]       @relation("Notifications")
   verifiedAt         DateTime? // platform verification stamp (KYC-lite); enables routing auto-approve + distribution filters
-  settingChanges    SettingChange[]  @relation("SettingChangeUser")
-  disputesRaised    Dispute[]   @relation("DisputeRaisedBy")
-  disputesAgainst   Dispute[]   @relation("DisputeSeller")
-  disputesResolved  Dispute[]   @relation("DisputeResolver")
+  settingChanges     SettingChange[]      @relation("SettingChangeUser")
+  disputesRaised     Dispute[]            @relation("DisputeRaisedBy")
+  disputesAgainst    Dispute[]            @relation("DisputeSeller")
+  disputesResolved   Dispute[]            @relation("DisputeResolver")
   recurringSchedules RecurringRfq[]
-  mediaAssets      MediaAsset[] @relation("MediaAssets")
-  paymentsCaptured Payment[]  @relation("PaymentsCapturedBy")
-  payouts          Payout[]   @relation("PayoutSeller")
+  mediaAssets        MediaAsset[]         @relation("MediaAssets")
+  paymentsCaptured   Payment[]            @relation("PaymentsCapturedBy")
+  payouts            Payout[]             @relation("PayoutSeller")
 
   @@index([role])
 }
 
 model Category {
   id       String    @id @default(cuid())
-  name     String    @db.VarChar(120)
-  slug     String    @unique @db.VarChar(120)
-  icon     String?   @db.VarChar(64)
+  name     String
+  slug     String    @unique
+  icon     String?
   products Product[]
 }
 
 model Product {
-  id             String     @id @default(cuid())
-  title          String     @db.VarChar(160)
-  description    String     @db.Text
+  id             String   @id @default(cuid())
+  title          String
+  description    String
   price          Float // retail list price (fallback of the pricing pipeline)
   compareAtPrice Float?
-  images         String     @default("[]") @db.Text // JSON string array of URLs
+  images         String   @default("[]") // JSON string array of URLs
   categoryId     String
-  category       Category   @relation(fields: [categoryId], references: [id])
+  category       Category @relation(fields: [categoryId], references: [id])
   sellerId       String
-  seller         User       @relation(fields: [sellerId], references: [id])
-  stock          Int        @default(10) // total units; with variants = sum of variant stock
-  soldCount      Int        @default(0)
-  rating         Float      @default(0)
-  reviewCount    Int        @default(0)
-  featured       Boolean    @default(false)
+  seller         User     @relation(fields: [sellerId], references: [id])
+  stock          Int      @default(10) // total units; with variants = sum of variant stock
+  soldCount      Int      @default(0)
+  rating         Float    @default(0)
+  reviewCount    Int      @default(0)
+  featured       Boolean  @default(false)
 
   // ── Commerce details (product form: Pricing / Details / Shipping / SEO) ──
-  sku              String?  @db.VarChar(64)
-  barcode          String?  @db.VarChar(64)
-  videoUrl         String?  @db.VarChar(512)
-  highlights       String?  @db.Text // JSON array of bullet strings (About this item)
-  specs            String?  @db.Text // JSON array of {label, value} (Specifications)
-  materials        String?  @db.VarChar(500)
-  care             String?  @db.VarChar(500)
-  weightGrams      Int?
-  lengthCm         Float?
-  widthCm          Float?
-  heightCm         Float?
-  processingDays   Int? // handling time before dispatch
-  freeShipping     Boolean  @default(false)
-  shippingFee      Float? // flat rate; ignored when freeShipping = true
-  shippingPolicy   String?  @db.VarChar(1000)
-  slug             String? @unique @db.VarChar(180) // SEO handle / future deep links
-  metaTitle        String?  @db.VarChar(150)
-  metaDescription  String?  @db.VarChar(320)
-  moq              Int?     // minimum order quantity enforced by RFQ commercial rules (null = none)
-  priceTiers       String?  @db.Text // JSON [{from,to,price}] quantity-break ladder applied in quotes
-  status         String     @default("ACTIVE") @db.VarChar(16) // ACTIVE | DRAFT | ARCHIVED
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  sku             String?
+  barcode         String?
+  videoUrl        String?
+  highlights      String? // JSON array of bullet strings (About this item)
+  specs           String? // JSON array of {label, value} (Specifications)
+  materials       String?
+  care            String?
+  weightGrams     Int?
+  lengthCm        Float?
+  widthCm         Float?
+  heightCm        Float?
+  processingDays  Int? // handling time before dispatch
+  freeShipping    Boolean  @default(false)
+  shippingFee     Float? // flat rate; ignored when freeShipping = true
+  shippingPolicy  String?
+  slug            String?  @unique // SEO handle / future deep links
+  metaTitle       String?
+  metaDescription String?
+  moq             Int? // minimum order quantity enforced by RFQ commercial rules (null = none)
+  priceTiers      String? // JSON [{from,to,price}] quantity-break ladder applied in quotes
+  status          String   @default("ACTIVE") // ACTIVE | DRAFT | ARCHIVED
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   reviews          Review[]
   favorites        Favorite[]
@@ -126,26 +126,26 @@ model Order {
   buyer     User        @relation(fields: [buyerId], references: [id])
   items     OrderItem[]
   total     Float
-  status    String      @default("PAID") @db.VarChar(16) // PENDING_PAYMENT | PENDING_APPROVAL | PAID | PROCESSING | SHIPPED | DELIVERED | CANCELLED
-  fullName  String      @db.VarChar(120)
-  address   String      @db.VarChar(255)
-  city      String      @db.VarChar(120)
-  country   String      @db.VarChar(120)
-  zip       String      @db.VarChar(32)
-  phone     String?     @db.VarChar(40)
+  status    String      @default("PAID") // PENDING_PAYMENT | PENDING_APPROVAL | PAID | PROCESSING | SHIPPED | DELIVERED | CANCELLED
+  fullName  String
+  address   String
+  city      String
+  country   String
+  zip       String
+  phone     String?
   createdAt DateTime    @default(now())
 
   // ── B2B extensions (all optional so the B2C fast path is unchanged) ──
-  organizationId String? // purchasing organization (B2B context)
-  organization   Organization? @relation(fields: [organizationId], references: [id])
-  poNumber       String? @db.VarChar(40) // buyer purchase-order reference
-  costCenter     String? @db.VarChar(60)
-  paymentTerms   String? @db.VarChar(24) // e.g. NET-30; null = paid at checkout
-  sourceType     String? @db.VarChar(12) // CART | RFQ
-  sourceQuoteId  String? @unique // quote that produced this order
+  organizationId  String? // purchasing organization (B2B context)
+  organization    Organization?    @relation(fields: [organizationId], references: [id])
+  poNumber        String? // buyer purchase-order reference
+  costCenter      String?
+  paymentTerms    String? // e.g. NET-30; null = paid at checkout
+  sourceType      String? // CART | RFQ
+  sourceQuoteId   String?          @unique // quote that produced this order
   approvalRequest ApprovalRequest?
-  payment        Payment?
-  disputes Dispute[]
+  payment         Payment?
+  disputes        Dispute[]
 
   @@index([buyerId, createdAt])
   @@index([status])
@@ -153,18 +153,18 @@ model Order {
 }
 
 model OrderItem {
-  id        String   @id @default(cuid())
-  orderId   String
-  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId String
-  product   Product  @relation(fields: [productId], references: [id])
-  sellerId  String
-  quantity  Int
-  price     Float
-  title     String   @db.VarChar(255) // snapshot of product title at purchase time
-  image     String?  @db.VarChar(512) // snapshot of first product image
+  id          String  @id @default(cuid())
+  orderId     String
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product @relation(fields: [productId], references: [id])
+  sellerId    String
+  quantity    Int
+  price       Float
+  title       String // snapshot of product title at purchase time
+  image       String? // snapshot of first product image
   variantId   String? // purchased ProductVariant (null = base product)
-  variantName String? @db.VarChar(200) // snapshot of variant label at purchase time
+  variantName String? // snapshot of variant label at purchase time
   payoutId    String? // set when this item's revenue was settled into a seller payout
   payout      Payout? @relation(fields: [payoutId], references: [id])
 
@@ -178,15 +178,15 @@ model ProductVariant {
   id             String   @id @default(cuid())
   productId      String
   product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  name           String   @db.VarChar(200) // display label, e.g. M / Black
-  options        String   @db.Text // JSON map Size -> M, Color -> Black
+  name           String // display label, e.g. M / Black
+  options        String // JSON map Size -> M, Color -> Black
   price          Float? // null = inherit product price
   compareAtPrice Float?
   stock          Int      @default(0)
-  sku            String?  @db.VarChar(64)
+  sku            String?
   position       Int      @default(0)
   isActive       Boolean  @default(true)
-  image          String?  @db.VarChar(512) // uploaded-media variant image URL
+  image          String? // uploaded-media variant image URL
   createdAt      DateTime @default(now())
 
   @@index([productId, isActive])
@@ -199,7 +199,7 @@ model Review {
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   rating    Int // 1..5
-  comment   String   @db.Text
+  comment   String
   verified  Boolean  @default(false)
   createdAt DateTime @default(now())
 
@@ -227,29 +227,29 @@ model Favorite {
 
 model Organization {
   id                 String    @id @default(cuid())
-  name               String    @db.VarChar(160)
-  slug               String    @unique @db.VarChar(180)
-  orgType            String    @default("COMPANY") @db.VarChar(16) // COMPANY | BANK | MFI | EWALLET — settings scope key
-  legalName          String?   @db.VarChar(200)
-  taxId              String?   @db.VarChar(60) // VAT / EIN
-  registrationNumber String?   @db.VarChar(60)
-  industry           String?   @db.VarChar(80)
-  website            String?   @db.VarChar(255)
-  billingAddress     Json?
-  status             String    @default("PENDING_VERIFICATION") @db.VarChar(24) // PENDING_VERIFICATION | ACTIVE | SUSPENDED | REJECTED
+  name               String
+  slug               String    @unique
+  orgType            String    @default("COMPANY") // COMPANY | BANK | MFI | EWALLET — settings scope key
+  legalName          String?
+  taxId              String? // VAT / EIN
+  registrationNumber String?
+  industry           String?
+  website            String?
+  billingAddress     String?
+  status             String    @default("PENDING_VERIFICATION") // PENDING_VERIFICATION | ACTIVE | SUSPENDED | REJECTED
   verifiedAt         DateTime?
   creditTermsDays    Int       @default(0) // 0 = prepaid; 30 = NET-30 invoicing
-  creditLimit        Decimal   @default(0) @db.Decimal(12, 2)
-  approvalThreshold Decimal?  @db.Decimal(12, 2) // orders/quote-accepts at or above this total placed by BUYER-role members require org approval (null = off)
-  notes              String?   @db.Text
+  creditLimit        Float     @default(0)
+  approvalThreshold  Float? // orders/quote-accepts at or above this total placed by BUYER-role members require org approval (null = off)
+  notes              String?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  members    OrganizationMember[]
-  priceLists PriceList[]
-  rfqs       Rfq[]
-  orders     Order[]
-  groups     CustomerGroup[] @relation("OrganizationCustomerGroups")
+  members          OrganizationMember[]
+  priceLists       PriceList[]
+  rfqs             Rfq[]
+  orders           Order[]
+  groups           CustomerGroup[]      @relation("OrganizationCustomerGroups")
   approvalRequests ApprovalRequest[]
 
   @@index([status])
@@ -260,8 +260,8 @@ model OrganizationMember {
   id             String       @id @default(cuid())
   organizationId String
   userId         String
-  role           String       @default("BUYER") @db.VarChar(16) // OWNER | ADMIN | BUYER | APPROVER | VIEWER
-  jobTitle       String?      @db.VarChar(80)
+  role           String       @default("BUYER") // OWNER | ADMIN | BUYER | APPROVER | VIEWER
+  jobTitle       String?
   createdAt      DateTime     @default(now())
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -273,16 +273,16 @@ model OrganizationMember {
 // Buyer segmentation that pricing and future promotions hang off. Works for
 // B2C segments (e.g. VIP retail) and B2B tiers (e.g. wholesale-tier-1).
 model CustomerGroup {
-  id          String         @id @default(cuid())
-  key         String         @unique @db.VarChar(60)
-  name        String         @db.VarChar(120)
-  description String?         @db.Text
-  priority    Int            @default(0) // higher wins when several groups apply
-  isDefault   Boolean        @default(false)
-  createdAt   DateTime       @default(now())
-  users       User[]         @relation("UserCustomerGroups")
+  id            String         @id @default(cuid())
+  key           String         @unique
+  name          String
+  description   String?
+  priority      Int            @default(0) // higher wins when several groups apply
+  isDefault     Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  users         User[]         @relation("UserCustomerGroups")
   organizations Organization[] @relation("OrganizationCustomerGroups")
-  priceLists  PriceList[]
+  priceLists    PriceList[]
 
   @@index([isDefault])
 }
@@ -294,21 +294,21 @@ model CustomerGroup {
 // ─────────────────────────────────────────────────────────────────────────────
 
 model PriceList {
-  id              String    @id @default(cuid())
-  name            String    @db.VarChar(160)
-  description     String?   @db.Text
-  scope           String    @db.VarChar(16) // ORG | GROUP | CHANNEL
-  status          String    @default("ACTIVE") @db.VarChar(16) // ACTIVE | DRAFT | ARCHIVED
-  priority        Int       @default(0)
-  currency        String    @default("USD") @db.VarChar(3)
+  id              String         @id @default(cuid())
+  name            String
+  description     String?
+  scope           String // ORG | GROUP | CHANNEL
+  status          String         @default("ACTIVE") // ACTIVE | DRAFT | ARCHIVED
+  priority        Int            @default(0)
+  currency        String         @default("USD")
   startsAt        DateTime?
   endsAt          DateTime?
   organizationId  String?
-  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization    Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   customerGroupId String?
   customerGroup   CustomerGroup? @relation(fields: [customerGroupId], references: [id], onDelete: Cascade)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   entries PriceListEntry[]
 
@@ -318,13 +318,13 @@ model PriceList {
 }
 
 model PriceListEntry {
-  id          String     @id @default(cuid())
+  id          String    @id @default(cuid())
   priceListId String
   productId   String
-  minQuantity Int        @default(1) // ladder step: applies from this quantity up
-  unitPrice   Decimal     @db.Decimal(12, 2)
-  priceList   PriceList   @relation(fields: [priceListId], references: [id], onDelete: Cascade)
-  product     Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  minQuantity Int       @default(1) // ladder step: applies from this quantity up
+  unitPrice   Float
+  priceList   PriceList @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([priceListId, productId, minQuantity])
   @@index([productId])
@@ -338,26 +338,26 @@ model PriceListEntry {
 // ─────────────────────────────────────────────────────────────────────────────
 
 model Rfq {
-  id             String    @id @default(cuid())
-  number         String    @unique @db.VarChar(32)
-  userId         String
-  organizationId String?
-  title          String?   @db.VarChar(160)
-  description    String?   @db.Text
-  status         String    @default("DRAFT") @db.VarChar(16) // DRAFT | SUBMITTED | UNDER_REVIEW | QUOTED | ACCEPTED | REJECTED | CANCELLED | EXPIRED | ORDERED
-  submittedAt    DateTime?
-  respondedAt    DateTime?
-  closedAt       DateTime?
-  expiresAt      DateTime? // RFQ deadline (expiry settings; null = no deadline)
-  extendedCount  Int       @default(0) // buyer extensions used against the max-extensions rule
-  sourceRecurringId String? @db.VarChar(64) // loose FK: the RecurringRfq schedule that spawned this run
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  user           User          @relation(fields: [userId], references: [id])
-  organization   Organization? @relation(fields: [organizationId], references: [id])
+  id                String        @id @default(cuid())
+  number            String        @unique
+  userId            String
+  organizationId    String?
+  title             String?
+  description       String?
+  status            String        @default("DRAFT") // DRAFT | SUBMITTED | UNDER_REVIEW | QUOTED | ACCEPTED | REJECTED | CANCELLED | EXPIRED | ORDERED
+  submittedAt       DateTime?
+  respondedAt       DateTime?
+  closedAt          DateTime?
+  expiresAt         DateTime? // RFQ deadline (expiry settings; null = no deadline)
+  extendedCount     Int           @default(0) // buyer extensions used against the max-extensions rule
+  sourceRecurringId String? // loose FK: the RecurringRfq schedule that spawned this run
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  user              User          @relation(fields: [userId], references: [id])
+  organization      Organization? @relation(fields: [organizationId], references: [id])
 
-  lines  RfqLine[]
-  quotes Quote[]
+  lines    RfqLine[]
+  quotes   Quote[]
   messages RfqMessage[]
 
   @@index([userId, createdAt])
@@ -366,18 +366,18 @@ model Rfq {
 }
 
 model RfqLine {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   rfqId       String
   productId   String? // null = open/free item ("250 units of something like this")
-  productName String    @db.VarChar(200) // snapshot title / free description
-  sku         String?   @db.VarChar(80)
-  variantId   String?   @db.VarChar(64) // referenced catalog variant (optional)
-  variantName String?   @db.VarChar(160) // snapshot "Color: Black / Bundle: Duo"
+  productName String // snapshot title / free description
+  sku         String?
+  variantId   String? // referenced catalog variant (optional)
+  variantName String? // snapshot "Color: Black / Bundle: Duo"
   quantity    Int
-  targetPrice Decimal?  @db.Decimal(12, 2) // buyer's target unit price (optional)
-  notes       String?   @db.Text
-  rfq         Rfq       @relation(fields: [rfqId], references: [id], onDelete: Cascade)
-  product     Product?  @relation(fields: [productId], references: [id])
+  targetPrice Float? // buyer's target unit price (optional)
+  notes       String?
+  rfq         Rfq      @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  product     Product? @relation(fields: [productId], references: [id])
 
   quoteLines QuoteLine[]
 
@@ -388,30 +388,30 @@ model RfqLine {
 
 model Quote {
   id            String    @id @default(cuid())
-  number        String    @unique @db.VarChar(32)
+  number        String    @unique
   rfqId         String
   createdById   String // admin or seller who issued the quote
   sellerId      String? // fulfilling seller (null = platform-facilitated)
-  status        String    @default("SENT") @db.VarChar(16) // DRAFT | SENT | PENDING_REVIEW | ACCEPTED | DECLINED | REJECTED | EXPIRED | CONVERTED | WITHDRAWN
-  currency      String    @default("USD") @db.VarChar(3)
-  subtotal      Decimal   @db.Decimal(12, 2)
-  discountTotal Decimal   @default(0) @db.Decimal(12, 2)
-  shippingTotal Decimal   @default(0) @db.Decimal(12, 2)
-  taxTotal      Decimal   @default(0) @db.Decimal(12, 2)
-  total         Decimal   @db.Decimal(12, 2)
-  paymentTerms  String?   @db.VarChar(24) // e.g. NET-30
+  status        String    @default("SENT") // DRAFT | SENT | PENDING_REVIEW | ACCEPTED | DECLINED | REJECTED | EXPIRED | CONVERTED | WITHDRAWN
+  currency      String    @default("USD")
+  subtotal      Float
+  discountTotal Float     @default(0)
+  shippingTotal Float     @default(0)
+  taxTotal      Float     @default(0)
+  total         Float
+  paymentTerms  String? // e.g. NET-30
   validUntil    DateTime?
-  notes         String?   @db.Text
+  notes         String?
   sentAt        DateTime?
   acceptedAt    DateTime?
   declinedAt    DateTime?
   convertedAt   DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-  rfq           Rfq  @relation(fields: [rfqId], references: [id], onDelete: Cascade)
-  createdBy     User @relation("QuoteCreatedBy", fields: [createdById], references: [id])
+  rfq           Rfq       @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  createdBy     User      @relation("QuoteCreatedBy", fields: [createdById], references: [id])
 
-  lines QuoteLine[]
+  lines            QuoteLine[]
   approvalRequests ApprovalRequest[] @relation("ApprovalQuote")
 
   @@index([rfqId])
@@ -422,22 +422,22 @@ model Quote {
 // order (cart checkout) or a quote acceptance reaches the org's approval
 // threshold. OWNER/ADMIN/APPROVER members decide; requesters never self-approve.
 model ApprovalRequest {
-  id             String       @id @default(cuid())
+  id             String    @id @default(cuid())
   organizationId String
-  type           String       @db.VarChar(16) // ORDER | QUOTE_ACCEPT
-  orderId        String?      @unique // set for ORDER
-  quoteId        String?      @unique // set for QUOTE_ACCEPT
+  type           String // ORDER | QUOTE_ACCEPT
+  orderId        String?   @unique // set for ORDER
+  quoteId        String?   @unique // set for QUOTE_ACCEPT
   rfqId          String? // owning RFQ context (QUOTE_ACCEPT)
   requesterId    String
-  amount         Decimal      @db.Decimal(12, 2)
-  note           String?      @db.VarChar(500) // requester's justification
-  status         String       @default("PENDING") @db.VarChar(12) // PENDING | APPROVED | REJECTED | CANCELLED
+  amount         Float
+  note           String? // requester's justification
+  status         String    @default("PENDING") // PENDING | APPROVED | REJECTED | CANCELLED
   decidedById    String?
   decidedAt      DateTime?
-  decisionNote   String?      @db.VarChar(500)
-  createdAt      DateTime     @default(now())
+  decisionNote   String?
+  createdAt      DateTime  @default(now())
 
-  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   order        Order?       @relation(fields: [orderId], references: [id])
   quote        Quote?       @relation("ApprovalQuote", fields: [quoteId], references: [id])
   requester    User         @relation("ApprovalRequester", fields: [requesterId], references: [id])
@@ -452,13 +452,13 @@ model QuoteLine {
   quoteId     String
   rfqLineId   String?
   productId   String
-  variantId   String?  @db.VarChar(64) // quoted variant (mirrors the RFQ line)
-  variantName String?   @db.VarChar(160) // snapshot at quote time
+  variantId   String? // quoted variant (mirrors the RFQ line)
+  variantName String? // snapshot at quote time
   quantity    Int
-  unitPrice   Decimal  @db.Decimal(12, 2)
-  quote       Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  unitPrice   Float
+  quote       Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
   rfqLine     RfqLine? @relation(fields: [rfqLineId], references: [id])
-  product     Product @relation(fields: [productId], references: [id])
+  product     Product  @relation(fields: [productId], references: [id])
 
   @@index([quoteId])
   @@index([productId])
@@ -470,11 +470,11 @@ model QuoteLine {
 model Notification {
   id        String    @id @default(cuid())
   userId    String
-  type      String    @db.VarChar(32) // RFQ_SUBMITTED_SELLER | RFQ_QUOTE_RECEIVED | RFQ_QUOTE_ACCEPTED | RFQ_QUOTE_DECLINED | RFQ_QUOTE_WITHDRAWN | RFQ_QUOTE_CONVERTED | RFQ_STATUS | RFQ_MESSAGE | APPROVAL_REQUESTED | APPROVAL_DECIDED
-  title     String    @db.VarChar(160)
-  body      String?   @db.VarChar(400)
-  linkView  String    @db.VarChar(32) // SPA destination: rfq | orders | business | seller
-  linkId    String?   @db.VarChar(64) // rfqId / orderId / approval context id
+  type      String // RFQ_SUBMITTED_SELLER | RFQ_QUOTE_RECEIVED | RFQ_QUOTE_ACCEPTED | RFQ_QUOTE_DECLINED | RFQ_QUOTE_WITHDRAWN | RFQ_QUOTE_CONVERTED | RFQ_STATUS | RFQ_MESSAGE | APPROVAL_REQUESTED | APPROVAL_DECIDED
+  title     String
+  body      String?
+  linkView  String // SPA destination: rfq | orders | business | seller
+  linkId    String? // rfqId / orderId / approval context id
   readAt    DateTime?
   createdAt DateTime  @default(now())
   user      User      @relation("Notifications", fields: [userId], references: [id], onDelete: Cascade)
@@ -489,7 +489,7 @@ model RfqMessage {
   id        String   @id @default(cuid())
   rfqId     String
   authorId  String
-  body      String   @db.Text
+  body      String
   createdAt DateTime @default(now())
   rfq       Rfq      @relation(fields: [rfqId], references: [id], onDelete: Cascade)
   author    User     @relation("RfqMessages", fields: [authorId], references: [id])
@@ -504,18 +504,18 @@ model RfqMessage {
 // ─────────────────────────────────────────────────────────────────────────────
 
 model MediaAsset {
-  id            String   @id @default(cuid())
-  key           String   @unique @db.VarChar(180) // storage base key (no extension)
-  originalName  String   @db.VarChar(255)
-  mime          String   @db.VarChar(64)
-  size          Int
-  width         Int?
-  height        Int?
-  sha256        String   @unique @db.VarChar(64)
-  variants      String?  @db.Text // JSON {thumb,medium,large,full} storage keys
-  uploadedById   String
-  uploadedBy    User     @relation("MediaAssets", fields: [uploadedById], references: [id])
-  createdAt     DateTime @default(now())
+  id           String   @id @default(cuid())
+  key          String   @unique // storage base key (no extension)
+  originalName String
+  mime         String
+  size         Int
+  width        Int?
+  height       Int?
+  sha256       String   @unique
+  variants     String? // JSON {thumb,medium,large,full} storage keys
+  uploadedById String
+  uploadedBy   User     @relation("MediaAssets", fields: [uploadedById], references: [id])
+  createdAt    DateTime @default(now())
 
   @@index([uploadedById, createdAt])
 }
@@ -528,30 +528,30 @@ model MediaAsset {
 // ─────────────────────────────────────────────────────────────────────────────
 
 model Dispute {
-  id              String    @id @default(cuid())
-  number          String    @unique @db.VarChar(32) // DSP-2026-000001
-  orderId         String
-  order           Order     @relation(fields: [orderId], references: [id])
-  raisedById      String // buyer (or admin acting for them)
-  raisedBy        User      @relation("DisputeRaisedBy", fields: [raisedById], references: [id])
-  sellerId        String // the disputed seller
-  seller          User      @relation("DisputeSeller", fields: [sellerId], references: [id])
-  rfqId           String?   @db.VarChar(64) // loose FK: RFQ context when the order came from a quote
-  reason          String    @db.VarChar(32) // NOT_AS_DESCRIBED | DAMAGED | LATE_DELIVERY | WRONG_QUANTITY | QUALITY_ISSUE | PAYMENT_NOT_RECEIVED | OTHER
-  description     String    @db.Text
-  amount          Decimal?  @db.Decimal(12, 2) // claimed amount (partial resolution support)
-  status          String    @default("OPEN") @db.VarChar(16) // OPEN | SELLER_RESPONDED | ESCALATED | RESOLVED | CLOSED | CANCELLED
-  sellerResponse  String?   @db.Text
+  id                String    @id @default(cuid())
+  number            String    @unique // DSP-2026-000001
+  orderId           String
+  order             Order     @relation(fields: [orderId], references: [id])
+  raisedById        String // buyer (or admin acting for them)
+  raisedBy          User      @relation("DisputeRaisedBy", fields: [raisedById], references: [id])
+  sellerId          String // the disputed seller
+  seller            User      @relation("DisputeSeller", fields: [sellerId], references: [id])
+  rfqId             String? // loose FK: RFQ context when the order came from a quote
+  reason            String // NOT_AS_DESCRIBED | DAMAGED | LATE_DELIVERY | WRONG_QUANTITY | QUALITY_ISSUE | PAYMENT_NOT_RECEIVED | OTHER
+  description       String
+  amount            Float? // claimed amount (partial resolution support)
+  status            String    @default("OPEN") // OPEN | SELLER_RESPONDED | ESCALATED | RESOLVED | CLOSED | CANCELLED
+  sellerResponse    String?
   sellerRespondedAt DateTime?
-  escalateAt      DateTime? // autoEscalateDays deadline while unresolved
-  outcome         String?   @db.VarChar(24) // FULL_REFUND | PARTIAL_REFUND | REPLACEMENT | REPAIR | NO_ACTION | SELLER_PENALTY
-  resolutionNote   String?  @db.Text
-  resolvedById    String?
-  resolvedBy      User?     @relation("DisputeResolver", fields: [resolvedById], references: [id])
-  resolvedAt      DateTime?
-  closedAt        DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  escalateAt        DateTime? // autoEscalateDays deadline while unresolved
+  outcome           String? // FULL_REFUND | PARTIAL_REFUND | REPLACEMENT | REPAIR | NO_ACTION | SELLER_PENALTY
+  resolutionNote    String?
+  resolvedById      String?
+  resolvedBy        User?     @relation("DisputeResolver", fields: [resolvedById], references: [id])
+  resolvedAt        DateTime?
+  closedAt          DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@index([status, createdAt])
   @@index([raisedById])
@@ -566,26 +566,26 @@ model Dispute {
 // ─────────────────────────────────────────────────────────────────────────────
 
 model RecurringRfq {
-  id               String    @id @default(cuid())
-  userId           String
-  user             User      @relation(fields: [userId], references: [id])
-  organizationId   String?   @db.VarChar(64) // loose FK: org context for settings resolution
-  title            String?   @db.VarChar(160)
-  description      String?   @db.Text
-  frequency        String    @db.VarChar(16) // WEEKLY | BIWEEKLY | MONTHLY | QUARTERLY | CUSTOM
-  intervalDays     Int       @default(0) // CUSTOM: every N days
-  lines            String    @db.Text // JSON snapshot of line inputs [{productId, variantId, productName, quantity, targetPrice, notes}]
-  recipientIds     String?   @db.Text // JSON array of seller ids (keepSameRecipients)
-  active           Boolean   @default(true)
-  pausedUntil      DateTime?
-  lastRunAt        DateTime?
-  nextRunAt        DateTime
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id])
+  organizationId    String? // loose FK: org context for settings resolution
+  title             String?
+  description       String?
+  frequency         String // WEEKLY | BIWEEKLY | MONTHLY | QUARTERLY | CUSTOM
+  intervalDays      Int       @default(0) // CUSTOM: every N days
+  lines             String // JSON snapshot of line inputs [{productId, variantId, productName, quantity, targetPrice, notes}]
+  recipientIds      String? // JSON array of seller ids (keepSameRecipients)
+  active            Boolean   @default(true)
+  pausedUntil       DateTime?
+  lastRunAt         DateTime?
+  nextRunAt         DateTime
   previewNotifiedAt DateTime? // notifyBeforeHours heads-up sent flag
-  emptyCycles      Int       @default(0) // consecutive spawned runs with zero quotes
-  runCount         Int       @default(0)
-  lastRfqId        String?   @db.VarChar(64)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  emptyCycles       Int       @default(0) // consecutive spawned runs with zero quotes
+  runCount          Int       @default(0)
+  lastRfqId         String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@index([userId])
   @@index([active, nextRunAt])
@@ -603,17 +603,17 @@ model Payment {
   id           String    @id @default(cuid())
   orderId      String    @unique
   order        Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  method       String    @db.VarChar(16) // CARD | BANK_TRANSFER | INVOICE
-  status       String    @default("PENDING") @db.VarChar(16) // PENDING | SUCCEEDED | FAILED | CANCELLED
-  amount       Decimal   @db.Decimal(12, 2)
-  currency     String    @default("USD") @db.VarChar(3)
-  reference    String?   @db.VarChar(160) // buyer-supplied transfer reference / gateway txn id
-  instructions String?   @db.VarChar(600) // manual-payment instructions snapshot for the buyer
+  method       String // CARD | BANK_TRANSFER | INVOICE
+  status       String    @default("PENDING") // PENDING | SUCCEEDED | FAILED | CANCELLED
+  amount       Float
+  currency     String    @default("USD")
+  reference    String? // buyer-supplied transfer reference / gateway txn id
+  instructions String? // manual-payment instructions snapshot for the buyer
   dueAt        DateTime? // INVOICE: NET-terms due date
   paidAt       DateTime?
   capturedById String?
   capturedBy   User?     @relation("PaymentsCapturedBy", fields: [capturedById], references: [id])
-  note        String?   @db.VarChar(500) // admin note on capture / failure
+  note         String? // admin note on capture / failure
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -630,22 +630,22 @@ model Payment {
 // ─────────────────────────────────────────────────────────────────────────────
 
 model Payout {
-  id             String   @id @default(cuid())
-  number         String   @unique @db.VarChar(32) // PY-2026-000001
+  id             String    @id @default(cuid())
+  number         String    @unique // PY-2026-000001
   sellerId       String
-  seller         User     @relation("PayoutSeller", fields: [sellerId], references: [id])
+  seller         User      @relation("PayoutSeller", fields: [sellerId], references: [id])
   periodStart    DateTime
   periodEnd      DateTime
-  itemCount      Int      @default(0)
-  grossAmount    Decimal  @default(0) @db.Decimal(12, 2)
-  commissionRate Float    // percent actually applied (snapshot)
-  commission     Decimal  @default(0) @db.Decimal(12, 2)
-  netAmount      Decimal  @default(0) @db.Decimal(12, 2)
-  status         String   @default("PENDING") @db.VarChar(12) // PENDING | PAID | CANCELLED
+  itemCount      Int       @default(0)
+  grossAmount    Float     @default(0)
+  commissionRate Float // percent actually applied (snapshot)
+  commission     Float     @default(0)
+  netAmount      Float     @default(0)
+  status         String    @default("PENDING") // PENDING | PAID | CANCELLED
   paidAt         DateTime?
-  note           String?   @db.VarChar(500)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  note           String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   items OrderItem[]
 
@@ -660,12 +660,12 @@ model Payout {
 model AuditLog {
   id         String   @id @default(cuid())
   actorId    String? // loose FK: SYSTEM entries have no user
-  actorType  String   @db.VarChar(16) // USER | SELLER | ADMIN | SYSTEM
-  action     String   @db.VarChar(64) // e.g. ORG_VERIFIED, RFQ_SUBMITTED, PRICELIST_UPDATED
-  entityType String   @db.VarChar(48)
-  entityId   String?  @db.VarChar(64)
-  summary    String?  @db.Text
-  metadata   Json?
+  actorType  String // USER | SELLER | ADMIN | SYSTEM
+  action     String // e.g. ORG_VERIFIED, RFQ_SUBMITTED, PRICELIST_UPDATED
+  entityType String
+  entityId   String?
+  summary    String?
+  metadata   String?
   createdAt  DateTime @default(now())
 
   @@index([entityType, entityId])
@@ -674,7 +674,7 @@ model AuditLog {
 }
 
 model Sequence {
-  key   String @id @db.VarChar(32)
+  key   String @id
   value Int    @default(0)
 }
 
@@ -684,21 +684,21 @@ model Sequence {
 
 // Generic platform-level documents (storefront config today).
 model PlatformSetting {
-  key       String   @id @db.VarChar(64)
-  value     String   @db.Text // JSON document
+  key       String   @id
+  value     String // JSON document
   updatedAt DateTime @updatedAt
 }
 
 // Hero banner slides (admin-managed, position-ordered).
 model BannerSlide {
   id          String   @id @default(cuid())
-  eyebrow     String?  @db.VarChar(120)
-  title       String?  @db.VarChar(200)
-  subtitle    String?  @db.VarChar(400)
-  image       String   @db.VarChar(512)
-  ctaLabel    String?  @db.VarChar(80)
-  ctaView     String?  @db.VarChar(32)
-  ctaCategory String?  @db.VarChar(191)
+  eyebrow     String?
+  title       String?
+  subtitle    String?
+  image       String
+  ctaLabel    String?
+  ctaView     String?
+  ctaCategory String?
   position    Int      @default(0)
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())
@@ -712,10 +712,10 @@ model BannerSlide {
 // "" at platform scope; otherwise the org/type/category/region identifier.
 model RfqSetting {
   id          String   @id @default(cuid())
-  key         String   @db.VarChar(64) // panel key, e.g. "quoteRouting"
-  scopeType   String   @db.VarChar(16) // PLATFORM | ORG_TYPE | ORG | CATEGORY | REGION
-  scopeId     String   @default("") @db.VarChar(64)
-  value       String   @db.Text // JSON document of the panel's fields
+  key         String // panel key, e.g. "quoteRouting"
+  scopeType   String // PLATFORM | ORG_TYPE | ORG | CATEGORY | REGION
+  scopeId     String   @default("")
+  value       String // JSON document of the panel's fields
   updatedById String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -728,33 +728,33 @@ model RfqSetting {
 // restores oldValue and is itself logged (rollbackOf chain). Deliberately NOT
 // FK-linked to RfqSetting so history survives override deletion.
 model SettingChange {
-  id           String     @id @default(cuid())
-  settingKey   String     @db.VarChar(64)
-  scopeType    String     @db.VarChar(16)
-  scopeId      String     @default("") @db.VarChar(64)
-  field        String     @db.VarChar(100) // field path within the panel
-  oldValue     String?    @db.Text
-  newValue     String?    @db.Text
+  id           String   @id @default(cuid())
+  settingKey   String
+  scopeType    String
+  scopeId      String   @default("")
+  field        String // field path within the panel
+  oldValue     String?
+  newValue     String?
   userId       String
-  rollbackOfId String?    @db.VarChar(64) // set when this change reverts an earlier one
-  createdAt    DateTime   @default(now())
+  rollbackOfId String? // set when this change reverts an earlier one
+  createdAt    DateTime @default(now())
 
-  user        User         @relation("SettingChangeUser", fields: [userId], references: [id])
+  user User @relation("SettingChangeUser", fields: [userId], references: [id])
 
   @@index([settingKey, scopeType, scopeId, createdAt])
 }
 
 // Coupons moved from hardcoded constants to data (admin-managed).
 model Coupon {
-  id            String   @id @default(cuid())
-  code          String   @unique @db.VarChar(24)
-  description   String   @db.VarChar(160)
-  percentOff    Int
-  minSubtotal   Decimal  @default(0) @db.Decimal(10, 2)
-  firstOrderOnly Boolean @default(false)
-  active        Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id             String   @id @default(cuid())
+  code           String   @unique
+  description    String
+  percentOff     Int
+  minSubtotal    Float    @default(0)
+  firstOrderOnly Boolean  @default(false)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([active])
 }

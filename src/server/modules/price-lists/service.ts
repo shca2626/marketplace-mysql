@@ -56,7 +56,7 @@ function serializeList(
       productId: e.productId,
       productTitle: e.product?.title,
       minQuantity: e.minQuantity,
-      unitPrice: e.unitPrice.toNumber(),
+      unitPrice: e.unitPrice,
     })),
   }
 }
@@ -270,6 +270,6 @@ export async function adminReplaceEntries(
     productId: e.productId,
     productTitle: e.product.title,
     minQuantity: e.minQuantity,
-    unitPrice: e.unitPrice.toNumber(),
+    unitPrice: e.unitPrice,
   }))
 }

@@ -4,7 +4,7 @@
  * - Number sequences (RFQ / QTE)
  * - Migrates the legacy hardcoded WELCOME10 coupon into the DB (admin-managed)
  *
- * Run: DATABASE_URL="mysql://..." bun scripts/seed-b2b.ts
+ * Run: bun scripts/seed-b2b.ts (SQLite via .env)
  */
 import { PrismaClient } from '@prisma/client'
 

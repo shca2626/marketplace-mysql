@@ -158,7 +158,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       line1 = candidate
     }
     const overflow = title.slice(line1.length).trim()
-    const price = l.unitPrice.toNumber()
+    const price = l.unitPrice
     text(page, font, 9.5, M + 8, y - 8, line1)
     if (overflow) text(page, font, 8, M + 8, y - 19, `${overflow.slice(0, 64)}…`, MUTED)
     text(page, font, 9.5, colQty, y - 8, String(l.quantity))
@@ -172,17 +172,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   // Totals
   y -= 8
   const totals: [string, string, boolean][] = [
-    ['Subtotal', usd(quote.subtotal.toNumber()), false],
-    ...(quote.discountTotal.toNumber() > 0
-      ? [['Discount', `− ${usd(quote.discountTotal.toNumber())}`, false] as [string, string, boolean]]
+    ['Subtotal', usd(quote.subtotal), false],
+    ...(quote.discountTotal > 0
+      ? [['Discount', `− ${usd(quote.discountTotal)}`, false] as [string, string, boolean]]
       : []),
-    ...(quote.shippingTotal.toNumber() > 0
-      ? [['Shipping', usd(quote.shippingTotal.toNumber()), false] as [string, string, boolean]]
+    ...(quote.shippingTotal > 0
+      ? [['Shipping', usd(quote.shippingTotal), false] as [string, string, boolean]]
       : []),
-    ...(quote.taxTotal.toNumber() > 0
-      ? [['Tax', usd(quote.taxTotal.toNumber()), false] as [string, string, boolean]]
+    ...(quote.taxTotal > 0
+      ? [['Tax', usd(quote.taxTotal), false] as [string, string, boolean]]
       : []),
-    ['Total', usd(quote.total.toNumber()), true],
+    ['Total', usd(quote.total), true],
   ]
   for (const [label, value, strong] of totals) {
     const f = strong ? bold : font

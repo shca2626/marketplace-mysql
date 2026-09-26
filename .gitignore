@@ -64,3 +64,4 @@ server.log
 /qa-*.png
 db/custom.db
 db/search-results/
+uploads/

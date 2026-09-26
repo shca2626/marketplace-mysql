@@ -3,6 +3,16 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/server/guards'
 import type { AuditLogDTO } from '@/lib/types'
 
+// JSON-in-text (SQLite): metadata is stored serialized — parse for the client.
+const parseMetadata = (s: string | null): unknown => {
+  if (!s) return null
+  try {
+    return JSON.parse(s)
+  } catch {
+    return s
+  }
+}
+
 // GET /api/admin/audit-logs — paginated platform audit trail
 export async function GET(req: NextRequest) {
   const { error } = await requireAdmin()
@@ -39,7 +49,7 @@ export async function GET(req: NextRequest) {
       entityType: l.entityType,
       entityId: l.entityId,
       summary: l.summary,
-      metadata: l.metadata,
+      metadata: parseMetadata(l.metadata),
       createdAt: l.createdAt.toISOString(),
     }))
 

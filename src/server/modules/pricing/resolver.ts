@@ -164,7 +164,7 @@ export async function resolvePrices(
       )
       if (ladder.length === 0) continue
       const best = ladder.reduce((a, b) => (b.minQuantity > a.minQuantity ? b : a))
-      const unitPrice = best.unitPrice.toNumber()
+      const unitPrice = best.unitPrice
       resolved = {
         productId: item.productId,
         quantity: item.quantity,

@@ -66,7 +66,7 @@ function serializeRfqLine(l: {
   variantId?: string | null
   variantName?: string | null
   quantity: number
-  targetPrice: { toNumber(): number } | null
+  targetPrice: number | null
   notes: string | null
   product: {
     id: string
@@ -87,7 +87,7 @@ function serializeRfqLine(l: {
     variantId: l.variantId ?? null,
     variantName: l.variantName ?? null,
     quantity: l.quantity,
-    targetPrice: l.targetPrice ? l.targetPrice.toNumber() : null,
+    targetPrice: l.targetPrice ? l.targetPrice : null,
     notes: l.notes,
     sellerName: l.product?.seller ? (l.product.seller.storeName ?? l.product.seller.name) : null,
     product: l.product
@@ -129,11 +129,11 @@ function serializeQuote(q: {
   rfqId: string
   status: string
   currency: string
-  subtotal: { toNumber(): number }
-  discountTotal: { toNumber(): number }
-  shippingTotal: { toNumber(): number }
-  taxTotal: { toNumber(): number }
-  total: { toNumber(): number }
+  subtotal: number
+  discountTotal: number
+  shippingTotal: number
+  taxTotal: number
+  total: number
   paymentTerms: string | null
   validUntil: Date | null
   notes: string | null
@@ -149,7 +149,7 @@ function serializeQuote(q: {
     variantId?: string | null
     variantName?: string | null
     quantity: number
-    unitPrice: { toNumber(): number }
+    unitPrice: number
     product: { title: string; images: string } | null
   }[]
 }): QuoteDTO {
@@ -159,11 +159,11 @@ function serializeQuote(q: {
     rfqId: q.rfqId,
     status: q.status,
     currency: q.currency,
-    subtotal: q.subtotal.toNumber(),
-    discountTotal: q.discountTotal.toNumber(),
-    shippingTotal: q.shippingTotal.toNumber(),
-    taxTotal: q.taxTotal.toNumber(),
-    total: q.total.toNumber(),
+    subtotal: q.subtotal,
+    discountTotal: q.discountTotal,
+    shippingTotal: q.shippingTotal,
+    taxTotal: q.taxTotal,
+    total: q.total,
     paymentTerms: q.paymentTerms,
     validUntil: q.validUntil?.toISOString() ?? null,
     notes: q.notes,
@@ -174,7 +174,7 @@ function serializeQuote(q: {
     createdBy: { id: q.createdBy.id, name: q.createdBy.name },
     sellerId: q.sellerId,
     lines: q.lines.map((l): QuoteLineDTO => {
-      const unitPrice = l.unitPrice.toNumber()
+      const unitPrice = l.unitPrice
       return {
         id: l.id,
         productId: l.productId,
@@ -1593,7 +1593,7 @@ export async function convertQuoteToOrder(
     const created = await tx.order.create({
       data: {
         buyerId: quote.rfq.userId,
-        total: quote.total.toNumber(),
+        total: quote.total,
         status: 'PROCESSING', // B2B invoiced order — payment on terms, not prepaid
         fullName: shipping.fullName,
         address: shipping.address,
@@ -1613,7 +1613,7 @@ export async function convertQuoteToOrder(
             variantId: l.variantId ?? null,
             variantName: l.variantName ?? null,
             quantity: l.quantity,
-            price: l.unitPrice.toNumber(),
+            price: l.unitPrice,
             title: l.variantName ? `${l.product.title} — ${l.variantName}` : l.product.title,
             image: firstImage(l.product.images),
           })),
@@ -1647,7 +1647,7 @@ export async function convertQuoteToOrder(
     // INVOICE payment with the due date so the payments console can chase it.
     await ensurePayment(tx, {
       orderId: created.id,
-      amount: quote.total.toNumber(),
+      amount: quote.total,
       method: 'INVOICE',
       paymentTerms: quote.paymentTerms,
       orderRef: input.poNumber?.trim().slice(0, 40) || created.id.slice(-8).toUpperCase(),
@@ -1662,7 +1662,7 @@ export async function convertQuoteToOrder(
     action: 'QUOTE_CONVERTED',
     entityType: 'Quote',
     entityId: quote.id,
-    summary: `Quote ${quote.number} converted to order (${quote.total.toNumber().toFixed(2)} USD)`,
+    summary: `Quote ${quote.number} converted to order (${quote.total.toFixed(2)} USD)`,
     metadata: { rfqId: quote.rfqId, orderId: order.id },
   })
 

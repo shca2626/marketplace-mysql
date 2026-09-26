@@ -6,8 +6,7 @@
  * Not for production environments with real data.
  *
  * Usage:
- *   DATABASE_URL="mysql://vendora:VendoraDb_2025_Prod@127.0.0.1:3306/vendora" \
- *     bun scripts/seed-demo.ts
+ *   bun scripts/seed-demo.ts        (DATABASE_URL from .env — SQLite file db/custom.db)
  *
  * Restores the demo state documented in worklog entries B2B-1 / 5-a / 5-b:
  *   Accounts
@@ -909,13 +908,14 @@ async function main() {
       registrationNumber: 'OR-2019-114852',
       industry: 'Industrial Supplies',
       website: 'https://acme.example.com',
-      billingAddress: {
+      // JSON-in-text (SQLite): billingAddress is stored as a serialized JSON string.
+      billingAddress: JSON.stringify({
         line1: '500 Commerce Blvd',
         city: 'Portland',
         state: 'OR',
         country: 'United States',
         zip: '97205',
-      } as Prisma.InputJsonValue,
+      }),
       status: 'ACTIVE',
       verifiedAt: daysAgo(10),
       creditTermsDays: 45,
@@ -1229,7 +1229,7 @@ async function main() {
         entityId,
         summary,
         createdAt,
-        metadata: (metadata ?? undefined) as never,
+        metadata: metadata === undefined ? undefined : JSON.stringify(metadata),
       },
     })
   await audit(buyer.id, 'USER', 'ORG_CREATED', 'Organization', acme.id, 'Acme Trading Co registered as a business account', daysAgo(10, 9))
