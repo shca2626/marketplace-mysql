@@ -2410,3 +2410,47 @@ Stage Summary:
 - All three applicant-facing flows (wizard, tracking, offers/accept) verified live.
 - NEXT: FIN-7 — admin financing tab (gate review console, institutions, fees, requirements
   library, document verify queue, monitor).
+
+---
+Task ID: FIN-7 (Dev — frontend chain, verified by Lead)
+Agent: Frontend developer (financier module) + Lead verification
+Task: Admin financing tab — THE GATE review console + institutions + fees + requirements
+library + document verify queue + monitor.
+
+Work Log:
+- admin-view.tsx: "Financing" tab registered; admin/financing-tab.tsx + 7 sections
+  (src/components/marketplace/admin/financing/, 3,040 ln total):
+  - gate-queue-section (413): status tab filter (in-gate default), search, pagination,
+    financing + accreditation lists, opens the review console.
+  - gate-review-console (862): applicant dossier, service card, activity + ask summary,
+    THE CHECKLIST w/ per-item VERIFY/REJECT(note)/WAIVE(note), gate completeness meter,
+    RETURN w/ reason, FORWARD w/ 422 missing[] display, forwarded stamps.
+  - institutions-section (250), fees-section (287: mark-invoiced/mark-paid),
+    requirements-library-section (547: GENERAL template CRUD w/ 8 typed kinds + options
+    editor), documents-queue-section (380: pending vault docs w/ media preview +
+    verify/reject), monitor-section (216: stats cards).
+- Backend additions the agent made to support the surfaces: GET /api/admin/financing/documents
+  (pending-queue listing), GET /api/financier/accreditations/[id] + POST .../open
+  (financier opens an accreditation request), small queue/DTO refinements in
+  financing/{requests,accreditation,agreements,documents}.ts + types.
+- QA (Lead, API + browser): the agent's own QA pass had already driven FIN-2026-000003
+  through the gate (verified → FORWARDED_TO_FINANCIER) and ACC-2026-000001 through verify →
+  forward → alamal open (UNDER_FINANCIER_REVIEW) before its context ended — DB confirms
+  both. Lead finished the chain: alamal GRANT 200 → ACC-2026-000001 ACCREDITED,
+  validUntil 2027-09-21, ACCREDITATION_GRANTED notification fired → demo side: financing
+  view → Accreditation section shows the ACCREDITED badge + ACC-2026-000001 w/ granted/
+  valid-until. Admin financing tab renders (gate queue, tab filters); Fees section shows
+  AGR-2026-000002 Success fee 56,250 YER ACCRUED + outstanding total; institutions/
+  library/documents sections render. Screenshots /tmp/qa-fin7.png + qa-fin7-accredited.png.
+  lint clean; zero page errors.
+- Same agent-browser quirk as FIN-6: stale refs on this surface — eval-based clicks used.
+
+Stage Summary:
+- FIN-7 COMPLETE — DoD met: admin returns incomplete (agent exercised the 422 display on
+  FR-3 before verifying), forwards complete ones; financier receives ONLY after forward
+  (FR-3 + ACC-1 appeared in alamal's inbox post-forward); fee ACCRUED visible in admin.
+- The full E2E chain is now proven LIVE: wizard submit → gate verify → forward →
+  financier inbox → offer → accept → agreement + fee; accreditation → grant → badge on the
+  applicant side.
+- NEXT: FIN-8 (sweeps E2E + bell routing + audit completeness) → FIN-9 (full regression)
+  → FIN-10 (docs refresh).

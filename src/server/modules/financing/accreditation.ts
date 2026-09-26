@@ -87,6 +87,8 @@ export interface AccreditationRequestSummaryDTO {
   expiresAt: string | null
   createdAt: string
   isLive: boolean
+  /** Queue-only progress column (additive — FIN-7). */
+  submissionStats?: { total: number; verified: number; missing: number }
 }
 
 export interface AccreditationRequestDetailDTO extends AccreditationRequestSummaryDTO {
@@ -677,7 +679,36 @@ export async function adminAccreditationQueue(filter?: {
     }),
     db.accreditationRequest.count({ where }),
   ])
-  return { requests: rows.map((r) => serializeAccreditation(r as never)), total, page, limit }
+  // Checklist progress per row (W-GATE-QUEUE "items" column — FIN-7).
+  const ids = rows.map((r) => r.id)
+  const subs = ids.length
+    ? await db.requirementSubmission.findMany({
+        where: { accreditationRequestId: { in: ids } },
+        select: {
+          accreditationRequestId: true,
+          status: true,
+          serviceRequirement: { select: { isRequired: true } },
+        },
+      })
+    : []
+  const statsByReq = new Map<string, { total: number; verified: number; missing: number }>()
+  for (const s of subs) {
+    if (!s.serviceRequirement.isRequired || !s.accreditationRequestId) continue
+    const st = statsByReq.get(s.accreditationRequestId) ?? { total: 0, verified: 0, missing: 0 }
+    st.total += 1
+    if (s.status === 'VERIFIED' || s.status === 'WAIVED') st.verified += 1
+    else st.missing += 1
+    statsByReq.set(s.accreditationRequestId, st)
+  }
+  return {
+    requests: rows.map((r) => ({
+      ...serializeAccreditation(r as never),
+      submissionStats: statsByReq.get(r.id) ?? { total: 0, verified: 0, missing: 0 },
+    })),
+    total,
+    page,
+    limit,
+  }
 }
 
 // ── Financier console ────────────────────────────────────────────────────────

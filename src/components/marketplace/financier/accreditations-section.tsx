@@ -13,6 +13,7 @@ import {
   BadgeCheck,
   Ban,
   CheckCircle2,
+  Eye,
   FileText,
   Loader2,
   RotateCcw,
@@ -182,6 +183,7 @@ function AccreditationDetail({ requestId, onBack }: { requestId: string; onBack:
   )
   const [decision, setDecision] = useState<Decision>(null)
   const [busy, setBusy] = useState(false)
+  const [openBusy, setOpenBusy] = useState(false)
 
   const r = data?.request
 
@@ -206,12 +208,33 @@ function AccreditationDetail({ requestId, onBack }: { requestId: string; onBack:
   }
 
   const actionable = ['FORWARDED_TO_FINANCIER', 'UNDER_FINANCIER_REVIEW'].includes(r.status)
+  const canOpen = r.status === 'FORWARDED_TO_FINANCIER'
+
+  const openReview = async () => {
+    setOpenBusy(true)
+    const res = await apiRequest(`/api/financier/accreditations/${requestId}/open`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    })
+    setOpenBusy(false)
+    if (!res.ok) return toastApiError(res.error, 'Could not start review')
+    toast({ title: 'Review started', description: `${r.number} is now under your review.` })
+    void refetch()
+  }
 
   return (
     <div className="space-y-5">
-      <Button variant="outline" className="rounded-xl" onClick={onBack}>
-        <ArrowLeft size={14} className="mr-1.5" /> Back to accreditations
-      </Button>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Button variant="outline" className="rounded-xl" onClick={onBack}>
+          <ArrowLeft size={14} className="mr-1.5" /> Back to accreditations
+        </Button>
+        {canOpen && (
+          <Button className="rounded-xl" onClick={() => void openReview()} disabled={openBusy}>
+            {openBusy ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Eye size={14} className="mr-1.5" />}
+            Start review
+          </Button>
+        )}
+      </div>
 
       <Card>
         <CardContent className="space-y-4 p-4 sm:p-6">

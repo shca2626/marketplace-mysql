@@ -26,6 +26,7 @@ import { AdminProductsTab } from './admin/products-tab'
 import { AdminOrdersTab } from './admin/orders-tab'
 import { PaymentsTab } from './admin/payments-tab'
 import { PayoutsTab } from './admin/payouts-tab'
+import { FinancingTab } from './admin/financing-tab'
 import { AdminSettings } from './admin-settings'
 import { RfqSettings } from './admin/settings/rfq-settings'
 
@@ -53,6 +54,7 @@ function AdminDashboard() {
       {activeSection === 'orders' && <AdminOrdersTab />}
       {activeSection === 'payments' && <PaymentsTab />}
       {activeSection === 'payouts' && <PayoutsTab />}
+      {activeSection === 'financing' && <FinancingTab />}
       {activeSection === 'organizations' && <OrganizationsTab />}
       {activeSection === 'pricing' && <PricingTab />}
       {activeSection === 'coupons' && <CouponsTab />}

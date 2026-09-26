@@ -833,7 +833,37 @@ export async function adminGateQueue(filter?: {
     }),
     db.financingRequest.count({ where }),
   ])
-  return { requests: rows.map((r) => serializeSummaryInner(r as never)), total, page, limit }
+  // Checklist progress per row (W-GATE-QUEUE "items" column — FIN-7): one
+  // extra query for the page's ids; REQUIRED items only (gate semantics).
+  const ids = rows.map((r) => r.id)
+  const subs = ids.length
+    ? await db.requirementSubmission.findMany({
+        where: { financingRequestId: { in: ids } },
+        select: {
+          financingRequestId: true,
+          status: true,
+          serviceRequirement: { select: { isRequired: true } },
+        },
+      })
+    : []
+  const statsByReq = new Map<string, { total: number; verified: number; missing: number }>()
+  for (const s of subs) {
+    if (!s.serviceRequirement.isRequired || !s.financingRequestId) continue
+    const st = statsByReq.get(s.financingRequestId) ?? { total: 0, verified: 0, missing: 0 }
+    st.total += 1
+    if (s.status === 'VERIFIED' || s.status === 'WAIVED') st.verified += 1
+    else st.missing += 1
+    statsByReq.set(s.financingRequestId, st)
+  }
+  return {
+    requests: rows.map((r) => ({
+      ...serializeSummaryInner(r as never),
+      submissionStats: statsByReq.get(r.id) ?? { total: 0, verified: 0, missing: 0 },
+    })),
+    total,
+    page,
+    limit,
+  }
 }
 
 export async function adminGetFinancingRequest(requestId: string): Promise<FinancingRequestDetailDTO> {

@@ -204,6 +204,34 @@ export async function listAccountDocuments(
   return rows.map((r) => serializeDoc(r as never))
 }
 
+// ── Admin: platform-wide vault queue (FIN-7 gate console) ───────────────────
+
+/**
+ * Admin listing across ALL vault documents (DP-27 verification queue): the
+ * gate console's Documents section (status=PENDING) + the review console's
+ * per-applicant doc lookup (?userId=). Read-only, owner info included.
+ */
+export async function adminListDocuments(filter?: {
+  status?: string
+  userId?: string
+  organizationId?: string
+  documentType?: string
+}): Promise<AccountDocumentDTO[]> {
+  const rows = await db.accountDocument.findMany({
+    where: {
+      isActive: true,
+      ...(filter?.status ? { status: filter.status } : {}),
+      ...(filter?.userId ? { userId: filter.userId } : {}),
+      ...(filter?.organizationId ? { organizationId: filter.organizationId } : {}),
+      ...(filter?.documentType ? { documentType: filter.documentType } : {}),
+    },
+    include: docInclude,
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+  })
+  return rows.map((r) => serializeDoc(r as never))
+}
+
 export async function getAccountDocument(
   userId: string,
   documentId: string,

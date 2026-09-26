@@ -45,6 +45,13 @@ export interface FinancingFeeDTO {
   invoicedAt: string | null
   paidAt: string | null
   createdAt: string
+  /** Admin console context (additive — FIN-7): which agreement/request owes it. */
+  agreement?: {
+    number: string
+    requestNumber: string
+    applicantName: string
+    financierOrgName: string
+  }
 }
 
 export interface FinancingAgreementDTO {
@@ -404,14 +411,46 @@ export async function updateAgreementStatus(
 
 // ── Admin fee console (ACCRUED → INVOICED → PAID — invoiced externally) ────
 
-export async function adminListFees(filter?: { status?: string }): Promise<FinancingFeeDTO[]> {
-  const fees = await db.financingFee.findMany({
-    where: filter?.status ? { status: filter.status } : undefined,
-    include: { agreement: { include: { offer: { include: { request: { select: { number: true } } } } } } },
-    orderBy: { createdAt: 'desc' },
-    take: 200,
-  })
-  return fees.map((f) => ({
+// Fee rows carry agreement context for the admin table (AGR number, request,
+// applicant, financier) — additive DTO field (FIN-7).
+const feeAgreementInclude = {
+  agreement: {
+    include: {
+      offer: {
+        include: {
+          request: {
+            select: {
+              number: true,
+              organization: { select: { name: true } },
+              createdBy: { select: { name: true } },
+              service: { select: { financierProfile: { select: { organization: { select: { name: true } } } } } },
+            },
+          },
+        },
+      },
+    },
+  },
+} as const
+
+type FeeWithAgreement = Awaited<
+  ReturnType<typeof db.financingFee.findFirstOrThrow>
+> & {
+  agreement?: {
+    number: string
+    offer?: {
+      request?: {
+        number: string
+        organization?: { name: string } | null
+        createdBy?: { name: string }
+        service?: { financierProfile?: { organization?: { name: string } } }
+      }
+    }
+  }
+}
+
+function serializeFeeWithAgreement(f: FeeWithAgreement): FinancingFeeDTO {
+  const req = f.agreement?.offer?.request
+  return {
     id: f.id,
     agreementId: f.agreementId,
     type: f.type,
@@ -422,7 +461,27 @@ export async function adminListFees(filter?: { status?: string }): Promise<Finan
     invoicedAt: iso(f.invoicedAt),
     paidAt: iso(f.paidAt),
     createdAt: f.createdAt.toISOString(),
-  }))
+    ...(f.agreement
+      ? {
+          agreement: {
+            number: f.agreement.number,
+            requestNumber: req?.number ?? '—',
+            applicantName: req?.organization?.name ?? req?.createdBy?.name ?? '—',
+            financierOrgName: req?.service?.financierProfile?.organization?.name ?? '—',
+          },
+        }
+      : {}),
+  }
+}
+
+export async function adminListFees(filter?: { status?: string }): Promise<FinancingFeeDTO[]> {
+  const fees = await db.financingFee.findMany({
+    where: filter?.status ? { status: filter.status } : undefined,
+    include: feeAgreementInclude,
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+  })
+  return fees.map((f) => serializeFeeWithAgreement(f as never))
 }
 
 export async function adminMarkFee(
@@ -452,17 +511,9 @@ export async function adminMarkFee(
     summary: `Fee ${feeId.slice(-8)} (${fee.type}) ${action === 'MARK_INVOICED' ? 'marked invoiced' : action === 'MARK_PAID' ? 'marked paid' : 'waived'}`,
     metadata: { action, amount: fee.amount },
   })
-  const updated = await db.financingFee.findUniqueOrThrow({ where: { id: feeId } })
-  return {
-    id: updated.id,
-    agreementId: updated.agreementId,
-    type: updated.type,
-    baseAmount: updated.baseAmount,
-    percentApplied: updated.percentApplied,
-    amount: updated.amount,
-    status: updated.status,
-    invoicedAt: iso(updated.invoicedAt),
-    paidAt: iso(updated.paidAt),
-    createdAt: updated.createdAt.toISOString(),
-  }
+  const updated = await db.financingFee.findUniqueOrThrow({
+    where: { id: feeId },
+    include: feeAgreementInclude,
+  })
+  return serializeFeeWithAgreement(updated as never)
 }

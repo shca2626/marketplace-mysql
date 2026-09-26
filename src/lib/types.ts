@@ -810,6 +810,13 @@ export interface FinancingFeeDTO {
   invoicedAt: string | null
   paidAt: string | null
   createdAt: string
+  /** Admin fee console context (additive — FIN-7). */
+  agreement?: {
+    number: string
+    requestNumber: string
+    applicantName: string
+    financierOrgName: string
+  }
 }
 
 export interface FinancingAgreementDTO {
@@ -864,6 +871,8 @@ export interface AccreditationRequestSummaryDTO {
   expiresAt: string | null
   createdAt: string
   isLive: boolean
+  /** Queue-only progress column (additive — FIN-7). */
+  submissionStats?: { total: number; verified: number; missing: number }
 }
 
 export interface AccreditationRequestDetailDTO extends AccreditationRequestSummaryDTO {
@@ -872,6 +881,18 @@ export interface AccreditationRequestDetailDTO extends AccreditationRequestSumma
   platformNote: string | null
   submissions: RequirementSubmissionDTO[]
   gate: GateStatusDTO
+}
+
+/** GET /api/admin/financing/gate envelope (FIN-7) — both request kinds. */
+export interface AdminGateQueueResponseDTO {
+  financing: { requests: FinancingRequestSummaryDTO[]; total: number; page: number; limit: number }
+  accreditation: { requests: AccreditationRequestSummaryDTO[]; total: number; page: number; limit: number }
+}
+
+/** GET /api/admin/financing/gate/[id] envelope (FIN-7). */
+export interface AdminGateDossierResponseDTO {
+  requestType: 'FINANCING' | 'ACCREDITATION'
+  request: FinancingRequestDetailDTO | AccreditationRequestDetailDTO
 }
 
 export interface AccountDocumentDTO {
