@@ -2204,3 +2204,51 @@ Stage Summary:
   offers/accept, accreditation, documents center, financier console incl. inbox/offers/
   agreements/decisions, admin gate queue + submissions verdicts + return/forward + institutions
   + fees + GENERAL library + document verify) with GateBlockedError → 422 {error, missing}.
+
+---
+Task ID: FIN-4 (Dev — backend chain, verified by Lead)
+Agent: Backend developer (financier module) + Lead verification
+Task: API routes per FINANCIER_PLAN §6 — the full financing API surface on top of the FIN-2/3
+services (routes written by the agent before its context ended; verified + committed by the Lead).
+
+Work Log:
+- 56 route files across 5 groups + the services glue (src/server/modules/financing/services.ts,
+  704 ln — DTO shapes + pagination + applicant/financier/admin view assembly):
+  - /api/financing/services (public directory: list w/ kind/category/city filters + [id] detail
+    w/ attributes, coverage, requirements preview) · /api/financing/requests (applicant: mine
+    w/ multiGroup sibling grouping, create single+multi, [id] detail incl. checklist + gate
+    status + offers, submit w/ wizard answers, resubmit re-supply, cancel pre-forward, offers
+    accept/decline) · /api/financing/agreements (applicant view).
+  - /api/financier/* (org-scoped console): services CRUD + attributes + coverage, conditions
+    library (GENERAL + own private) + options, requirements attach/update/detach, requests
+    inbox (R-4 structural exclusion) + open + decline, offers create/withdraw, accreditations
+    inbox + grant/reject/revoke, agreements + funding-status + events.
+  - /api/accreditation/requests (applicant org) + /api/accreditation/valid (public badge data:
+    live grants for an org).
+  - /api/documents (vault: upload multipart through the media pipeline, list user+org scope,
+    meta, soft-delete).
+  - /api/admin/financing/* (gate console: queue w/ status+search+pagination, [id] dossier,
+    submissions verdict action VERIFY/REJECT/WAIVE w/ autoForwardWhenAllVerified follow-through,
+    requests return/forward — GateBlockedError serialized as 422 {error, missing[]}; institutions
+    list + verify/suspend; fees + mark-invoiced/mark-paid; GENERAL condition library CRUD;
+    documents verify/reject).
+- Conventions: zod validation, assertSameOrigin CSRF on mutating routes, per-user rate limits on
+  verdicts/submits/money routes, FinancingError → status envelope, no server actions.
+- Lead verification (curl, cookie jars): public services 200 (4 services) · kuraimi inbox
+  returns ONLY FR-2026-000002 (gate exclusion negative test PASS — FR-2026-000001 invisible) ·
+  forward on incomplete FR-1 → 422 w/ 5 missing items (DP-23 message verbatim) · per-item verify
+  → forward still 422 (4 missing) · admin RETURN → demo RESUBMIT w/ answers (SELECT option +
+  NUMBER + DECLARATION validated; wrong-type answer rejected with field-specific message) →
+  verify ×4 → FORWARD 200 · alamal inbox now shows FIN-2026-000001 FORWARDED_TO_FINANCIER ·
+  FINANCING_REQUEST_RECEIVED notification created for the financier · lint clean · home 200.
+- Full state after verification: FR-2026-000001 FORWARDED (both financiers' inboxes have live
+  content), FR-2026-000002 forwarded w/ SENT offer, ACC-2026-000001 mid-gate.
+
+Stage Summary:
+- FIN-4 COMPLETE — the whole API surface is live: 56 routes, guards enforced, gate exclusion
+  proven by negative test, the golden path (blocked → return → resubmit → verify → forward →
+  financier receives + notified) exercised end-to-end over HTTP.
+- Backend chain FIN-2/3/4 done (75/75 + 20/20 service smokes + API-level QA above).
+- NEXT: FIN-5/6/7 frontend chain (financier console w/ requirements composer, applicant wizard
+  w/ checklist + documents center, admin gate console) — dispatched to the frontend agent with
+  the placeholders in financing-view.tsx / financier-view.tsx as the entry points.
