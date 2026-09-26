@@ -30,12 +30,11 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
-
 # vercel
 .vercel
 
+# NOTE (owner ruling, 2026-09): `.env` is intentionally COMMITTED so a fresh clone
+# runs out of the box. Do not re-add `.env*` to this file.
 
 # typescript
 *.tsbuildinfo
@@ -55,13 +54,28 @@ server.log
 # Skills directory
 /skills/
 
-# sandbox tooling artifacts (not app code)
+# ── internal dev-loop / sandbox artifacts (not part of the product) ──
 /tool-results/
 /.zscripts/
 /.seed-assets/
 /download/
 /tests/
 /qa-*.png
-db/custom.db
+/agent-ctx/
+/worklog.md
+/whois.md
+/screenshots/
+/upload/
+/Caddyfile
+# legacy media store from a previous host generation (current store is /uploads)
+/storage/
+# autonomous-loop management docs (governance of the build process, not the app)
+/team/PLAYBOOK.md
+/team/TASK_BOARD.md
+/team/SPRINT_PLAN.md
+
+# runtime database is COMMITTED on purpose (demo dataset ships with the repo)
 db/search-results/
-uploads/
+db/custom.db-journal
+*.sqlite-wal
+*.sqlite-shm

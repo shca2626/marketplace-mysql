@@ -40,11 +40,15 @@
    templates, 8 typed kinds, attached per service, verified per request (DP-24).
 
 ## Known live issues surfaced by this documentation round
-- **P0:** `src/lib/storage/local-disk.ts` missing from disk AND absent from git history →
-  uploads/media serving broken (ops runbook P0-3 has the rebuild + commit procedure).
-- Security P0s: `.env` tracked in git (rotate); login/register/order/review rate-limit policies
-  defined but not wired; CSRF missing on login/orders/rfqs/product-writes (see 09 §12 roadmap).
-- Test suite: no on-disk artifacts vs D-008 intent (07, risk R-1).
+- ~~**P0:** `src/lib/storage/local-disk.ts` missing~~ — **RESOLVED (FIN-0 restore)**: the
+  adapter is back on disk and now permanently whitelisted in `.gitignore`
+  (`!src/lib/storage/local-disk.ts`), so it can never be lost again.
+- Security P0s: `.env` tracked in git — **now an explicit owner ruling** (2026-09: the repo
+  ships runnable-by-default; rotate secrets for real deployments); login/register/order/review
+  rate-limit policies defined but not wired; CSRF missing on login/orders/rfqs/product-writes
+  (see 09 §12 roadmap).
+- Test suite: no on-disk artifacts vs D-008 intent (07, risk R-1); E2E regression is run as
+  documented browser-automation protocols (FIN-9 round: all green).
 
 ## Maintenance
 These documents are regenerated manually from source by the autonomous team at documentation
