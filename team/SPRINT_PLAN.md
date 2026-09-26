@@ -7,8 +7,11 @@
 Company-to-company scope declared complete by the owner. No further C2C tasks gate the Financier
 module. Hygiene observations from the 2026-09 audit are PARKED below (opportunistic only).
 
-## PHASE — Financier Module: **APPROVED — EXECUTING (FIN-0 → FIN-10, D-018, 2026-09-26)**
+## PHASE — Financier Module: **SHIPPED (FIN-0…FIN-10 complete, 2026-09-26)**
 Complete plan stack (rebuilt 2026-09 on the owner's v5 rulings — see DECISIONS D-015):
+**ALL IMPLEMENTED & REGRESSION-GREEN (M-FIN-B/C/D ✓)**: 18 models live in prisma, 60+ API
+routes, financier console w/ requirements composer, applicant 3-step wizard + documents
+center, admin gate review console; the 8 flows verified E2E (see worklog FIN-1…FIN-9).
 - **`team/FINANCIER_SCHEMA.md` v5.0** — 18 models, ZERO Json: FinancierService (services not
   products, serviceKind FINANCING|ACCREDITATION), the REQUIREMENTS ENGINE (ConditionTemplate
   GENERAL+FINANCIER, ConditionOption, ServiceRequirement, RequirementSubmission), THE PLATFORM
@@ -37,6 +40,6 @@ FIN-0 → FIN-10 without stopping.
 ## Milestones
 - **M-C2C** ✓ closed by owner.
 - **M-FIN-A** ✓ (2026-09-26) — owner approved the v5 plan stack (DP-1…DP-28 — DECISIONS D-018).
-- **M-FIN-B** = FIN-0..4 backend complete (schema, requirements engine + vault, gate lifecycles, API).
-- **M-FIN-C** = FIN-5..7 surfaces complete (financier console, applicant wizard, admin gate console).
-- **M-FIN-D** = FIN-8..10 governance + QA green + docs → Financier module SHIPPED.
+- **M-FIN-B** ✓ (2026-09-26) — FIN-0..4 backend complete (schema, requirements engine + vault, gate lifecycles, API).
+- **M-FIN-C** ✓ (2026-09-26) — FIN-5..7 surfaces complete (financier console, applicant wizard, admin gate console).
+- **M-FIN-D** ✓ (2026-09-26) — FIN-8..10 governance + QA green + docs → **Financier module SHIPPED**.

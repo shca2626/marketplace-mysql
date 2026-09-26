@@ -1,9 +1,11 @@
 # Vendora — Engineering Documentation Suite
 
-> Version 1.1 · September 2026 · Audience: expert software engineers (owner-reviewed).
+> Version 1.2 · September 2026 · Audience: expert software engineers (owner-reviewed).
 > These documents describe the **whole project** — the live commerce platform (EXISTING) and the
-> owner-gated financier module (PLANNED, `team/FINANCIER_SCHEMA.md` v5.0). Every fact is code-grounded;
-> nothing is aspirational except sections explicitly marked PLANNED.
+> financier module (**IMPLEMENTED 2026-09-26 — FIN-1…FIN-9**: 18 models in prisma, 60+ API routes,
+> financier console + applicant wizard + admin gate console, regression-green; see worklog).
+> Doc bodies still describe the v5 design; field tables in 06 remain the authority for names/types.
+> Every fact is code-grounded.
 
 ## Reading order & map
 

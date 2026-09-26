@@ -109,3 +109,14 @@
   URL-string column (verified in schema v5.0; only display-denormalized `logoUrl` follows the
   existing `User.image` pattern); (2) **ALWAYS COMMIT** — every completed task lands as a named
   git commit immediately.
+- **D-019 (2026-09-26, Lead)** — **FINANCIER MODULE SHIPPED.** FIN-0…FIN-10 executed without
+  stops after D-018: 18 models live (SQLite realization — Float money per D-014-adjacent
+  provider conversion in FIN-0), 60+ API routes, three surfaces (financier console,
+  applicant wizard + documents center, admin gate review console), the platform verification
+  gate transactional and structurally enforced (R-4 — inbox exclusion verified by negative
+  test), 8 flows regression-green (FIN-9), docs flipped to IMPLEMENTED. Notable implementation
+  rulings: (1) admin verdicts open at SUBMITTED (forward remains the enforcing gate — R-4
+  substance), plus an explicit start-review action for SUBMITTED → UNDER_PLATFORM_REVIEW
+  (FIN-9 fix); (2) requirement detach is SOFT (isActive) to preserve checklist history;
+  (3) public service detail exposes full typed requirements to signed-in viewers only;
+  (4) funding-status reports require the event object (track-only ledger stays complete).

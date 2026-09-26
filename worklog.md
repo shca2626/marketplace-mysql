@@ -2524,3 +2524,36 @@ Stage Summary:
 - FIN-9 COMPLETE — all 8 financier flows + core commerce PASS; 1 bug found + fixed +
   verified (gate start-review). The module is regression-green.
 - NEXT: FIN-10 — docs suite refresh + plan-stack status flip + final worklog.
+
+---
+Task ID: FIN-10 (Lead)
+Agent: Lead orchestrator
+Task: Docs refresh — flip the suite to IMPLEMENTED, close the plan stack, final handover.
+
+Work Log:
+- team/docs/README.md v1.2: header flipped from "PLANNED, owner-gated" to IMPLEMENTED
+  2026-09-26 (FIN-1…FIN-9: 18 models, 60+ routes, three consoles, regression-green).
+- team/docs/06-data-dictionary.md v1.2: Part A/B source rows — Part B now IMPLEMENTED
+  (SQLite realization note: Float money, no @db attrs — FIN-0 provider conversion).
+- team/docs/03-api-contract.md: section 6 heading + preamble flipped to IMPLEMENTED
+  (60+ routes live incl. start-review/return/forward gate actions).
+- team/TASK_BOARD.md: FIN-1…FIN-9 rows appended to the completed table; gate header →
+  "CLEAR (owner) — loop COMPLETE"; queue → "COMPLETE (FIN-0 → FIN-10 all done)".
+- team/SPRINT_PLAN.md: phase header → SHIPPED; milestones M-FIN-B/C/D all ✓ 2026-09-26.
+- team/DECISIONS.md: D-019 — financier module shipped, incl. the four implementation
+  rulings worth remembering (verdicts-at-SUBMITTED + start-review action, soft detach,
+  authed-only typed requirements, funding-report-requires-event).
+- Worklog: this entry closes the FIN series. Standing infra: dev server on :3000, SQLite
+  at db/custom.db (re-seedable via seed-demo + seed-financing + seed-settings), 15-min
+  webDevReview cron heartbeat (job 416691) drives the next autonomous rounds.
+
+Stage Summary:
+- THE FINANCIER MODULE IS SHIPPED: 18 models, THE GATE, requirements engine, universal
+  documents, accreditation-as-main-service, multi-financier routing — all live, verified
+  and documented. Total commits this loop: APPROVAL-V5, FIN-0…FIN-10.
+- Known follow-ups (parked, non-blocking): openapi.yaml paths for the new routes are
+  doc-level only (03 flipped; yaml not regenerated — next docs round); parked hygiene
+  backlog in SPRINT_PLAN (rate limiting coverage, test baseline materialization, etc.);
+  agent-browser stale-ref quirk on popover-heavy surfaces (use eval clicks).
+- Next phase options for the owner: marketplace polish of the financing surfaces,
+  notifications email digests, or the parked hygiene backlog.

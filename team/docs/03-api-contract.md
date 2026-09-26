@@ -4,7 +4,7 @@ Companion to [`openapi.yaml`](./openapi.yaml) (OpenAPI 3.1.0). Everything here w
 reading every `route.ts` under `src/app/api/**` (88 route files). Audience: engineers adding or
 consuming API surface. Last verified against the tree on this documentation round (task
 DOC-4; the planned financier surface in section 6 + `openapi.yaml` was rebuilt to
-FINANCIER_SCHEMA v5.0 in task DOC-V5-c — still PLANNED, not implemented).
+FINANCIER_SCHEMA v5.0 in task DOC-V5-c — **IMPLEMENTED 2026-09-26 (FIN-4): 60+ routes live**, incl. the start-review/return/forward gate actions; see src/app/api/{financing,financier,accreditation,documents,admin/financing}).
 
 ---
 
@@ -299,7 +299,7 @@ mutating without CSRF — see section 3).
 
 ---
 
-## 6. Planned endpoints — Financier domain v5.0 (PLANNED, not implemented)
+## 6. Financier domain v5.0 endpoints (IMPLEMENTED 2026-09-26 — FIN-4)
 
 Source: `team/FINANCIER_SCHEMA.md` **v5.0** (services-not-products · platform verification
 gate · requirements engine · universal documents · accreditation as a main service — D-015)
