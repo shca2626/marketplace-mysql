@@ -2354,3 +2354,59 @@ Stage Summary:
 - NEXT: FIN-6 — applicant surfaces (services directory, 3-step wizard,
   my requests + multiGroup compare, accreditation, documents center,
   agreements).
+
+---
+Task ID: FIN-6 (Dev — frontend chain, crash fixed + verified by Lead)
+Agent: Frontend developer (financier module) + Lead verification
+Task: Applicant surfaces — financing console, services directory, 3-step wizard, my requests
+w/ gate status + offers + accept, accreditation, documents center, agreements.
+
+Work Log:
+- Replaced the placeholder financing-view.tsx w/ the full console (sections: overview,
+  services, requests, accreditation, documents, agreements + the wizard state machine);
+  BUYER_NAV gained the Financing group (6 items) + titles; View/routing already carried
+  ?view=financing&request= deep-links from FIN-1.
+- New components (src/components/marketplace/financing/): overview-section (stat cards:
+  active applications, offers waiting, live accreditations, verified docs), services-section
+  (directory w/ kind badges, coverage, ranges, Apply CTA incl. ACCREDITATION programs),
+  wizard-section.tsx 1177 ln (step 1 profile + vault review w/ verified badges + missing
+  evidence; step 2 activity 22-control form + underwriting + THE ASK w/ live range
+  validation + guarantee + TYPED CHECKLIST rendered per condition kind — DOCUMENT vault
+  picker w/ upload dialog, PROFILE_FIELD auto-eval notice, DECLARATION checkbox, TEXT/
+  NUMBER/DATE/SELECT/MULTI_SELECT inputs + multi-financier sibling selection; step 3
+  review + consent → POST create+submit w/ answers), requests-section 927 ln (cards w/
+  status stepper incl. gate states + RETURNED reason + per-item decisionNotes, multiGroupId
+  sibling compare, offer detail w/ installment schedule + accept/decline w/ sibling-decline
+  warning dialog), accreditation-section, documents-section 590 ln (vault CRUD, upload,
+  replace, soft-delete, verify badges — exports UploadDocDialog + VaultDocPicker reused by
+  the wizard), agreements-section (frozen schedules + money events).
+- financing-shared.tsx grew to 547 ln (labels/maps/readProfileField/StatusStepper/
+  apiRequest helpers shared across all financing surfaces).
+- /api/auth/me now returns `applicant` (User additive scalars) for the wizard's step 1.
+- services.ts: PublicServiceDetailDTO gained `requirements` (full typed ServiceRequirementDTO
+  list incl. template options/bounds/documentType) for SIGNED-IN viewers only — the wizard
+  renders typed inputs from it; anonymous visitors keep labels-only preview.
+- Lead fix during verification: selectedServices memo crashed on first render
+  ("Cannot read properties of undefined (reading 'requirements')" — wizard-section 223:
+  the leading `service` entry is undefined while loading, before the serviceLoading guard
+  renders). Fixed w/ a type-guarded filter over the whole array.
+- Lead QA (agent-browser, demo login): console renders w/ live stats · Financing Services
+  directory lists 4 services w/ Apply CTAs · WIZARD golden path: consent → activity form →
+  ask (2,000,000 YER within Kuraimi's 100K–25M range) → checklist (3 vault docs picked by
+  radio incl. Verified badges, license DATE via the calendar control, 2 declaration
+  checkboxes) → review → Submit → FIN-2026-000003 SUBMITTED (POST 201) w/ consentAt
+  stamped + 6-item checklist generated (verified in DB) · My Applications → FR-2026-000002
+  detail (checklist all VERIFIED w/ timestamps, gate passed badge) → accept offer
+  confirmation dialog ("auto-declines every other offer — including siblings") → POST
+  accept 200 → DB: FR-2 ACCEPTED, AGR-2026-000002 ACTIVE, SUCCESS fee 56,250 @ 0.75%
+  ACCRUED · Agreements section shows AGR-2026-000002 w/ installments. Screenshot
+  /tmp/qa-fin6.png. Zero page errors (one pre-existing hydration attribute warning).
+- Note: agent-browser's find-text click locator hits covered/wrong elements on this page —
+  use direct eval clicks for QA on this surface (recorded for future rounds).
+
+Stage Summary:
+- FIN-6 COMPLETE — DoD met: applicant completes wizard w/ vault-reuse, sees status incl.
+  RETURNED/forwarded states, accepts offers w/ agreement + schedule visible.
+- All three applicant-facing flows (wizard, tracking, offers/accept) verified live.
+- NEXT: FIN-7 — admin financing tab (gate review console, institutions, fees, requirements
+  library, document verify queue, monitor).

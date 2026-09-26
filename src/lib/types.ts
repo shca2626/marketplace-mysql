@@ -610,6 +610,28 @@ export interface PublicServiceDetailDTO extends FinancierServiceDTO {
     conditionType: string
     instructions: string | null
   }[]
+  /**
+   * FULL composed requirements (typed: options, bounds, documentType) —
+   * signed-in viewers only (FIN-6 wizard renders its checklist from this).
+   */
+  requirements?: ServiceRequirementDTO[]
+}
+
+/** User applicant-profile scalars (FINANCIER_SCHEMA §3.1, DP-14) — additive sibling
+ *  of `user` on GET /api/auth/me; read-only reference for the wizard's step 1. */
+export interface ApplicantProfileDTO {
+  phone: string | null
+  whatsappNumber: string | null
+  dateOfBirth: string | null
+  gender: string | null
+  maritalStatus: string | null
+  nationality: string | null
+  identityType: string | null
+  identityNumber: string | null
+  residenceStreet: string | null
+  residenceCity: string | null
+  residenceDistrict: string | null
+  residenceType: string | null
 }
 
 export interface ConditionOptionDTO {

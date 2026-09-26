@@ -19,9 +19,11 @@ export async function apiRequest<T = unknown>(
   init?: RequestInit
 ): Promise<{ ok: boolean; data?: T; error?: string }> {
   try {
+    // FormData bodies set their own multipart boundary — never force JSON there.
+    const isForm = typeof FormData !== 'undefined' && init?.body instanceof FormData
     const res = await fetch(url, {
       ...init,
-      headers: init?.body
+      headers: init?.body && !isForm
         ? { 'Content-Type': 'application/json', ...(init?.headers ?? {}) }
         : init?.headers,
     })
@@ -382,4 +384,164 @@ export function isoToDateInput(iso: string | null | undefined): string {
   if (Number.isNaN(d.getTime())) return ''
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+// ── FIN-6: applicant-surface label sets + atoms ────────────────────────────
+
+export const ACTIVITY_STATUS_LABELS: Record<string, string> = {
+  NEW: 'New activity',
+  EXISTING: 'Existing activity',
+}
+
+export const ACTIVITY_CATEGORY_LABELS: Record<string, string> = {
+  PROJECT: 'Project',
+  RURAL_DEVELOPMENT: 'Rural development',
+  GREEN_ENERGY: 'Green energy',
+  HOUSING: 'Housing',
+  FISHERIES: 'Fisheries',
+  AGRICULTURE: 'Agriculture',
+  TRADE: 'Trade & retail',
+  SERVICES: 'Services',
+  MANUFACTURING: 'Manufacturing',
+  TRANSPORT: 'Transport',
+  TECHNOLOGY: 'Technology',
+  OTHER: 'Other',
+}
+
+export const LOCATION_TYPE_LABELS: Record<string, string> = {
+  OWNED: 'Owned',
+  RENTED: 'Rented',
+}
+
+export const GUARANTEE_TYPE_LABELS: Record<string, string> = {
+  PERSONAL_GUARANTEE: 'Personal guarantee',
+  BANK_GUARANTEE: 'Bank guarantee',
+  GOLD: 'Gold',
+  COMMERCIAL: 'Commercial collateral',
+  MORTGAGE: 'Mortgage',
+  CONVERTIBLE_SECURITIES: 'Convertible securities',
+  SELF_GUARANTEE: 'Self guarantee',
+  OTHER: 'Other',
+}
+
+export const GUARANTEE_STATUS_LABELS: Record<string, string> = {
+  AVAILABLE: 'Available',
+  PARTIALLY_AVAILABLE: 'Partially available',
+  UNAVAILABLE: 'Unavailable',
+  OTHER: 'Other',
+}
+
+export const GENDER_LABELS: Record<string, string> = {
+  MALE: 'Male',
+  FEMALE: 'Female',
+  OTHER: 'Other',
+}
+
+export const MARITAL_STATUS_LABELS: Record<string, string> = {
+  SINGLE: 'Single',
+  MARRIED: 'Married',
+  DIVORCED: 'Divorced',
+  WIDOWED: 'Widowed',
+}
+
+export const IDENTITY_TYPE_LABELS: Record<string, string> = {
+  NATIONAL_ID: 'National ID',
+  PASSPORT: 'Passport',
+  RESIDENCE_PERMIT: 'Residence permit',
+  OTHER: 'Other',
+}
+
+/** Read a closed-set PROFILE_FIELD key off the applicant user / org facts. */
+export function readProfileField(
+  key: string,
+  applicant: { phone?: string | null; identityNumber?: string | null; dateOfBirth?: string | null } | null | undefined,
+  org?: { taxId?: string | null; registrationNumber?: string | null; industry?: string | null } | null
+): string | null {
+  switch (key) {
+    case 'user.phone':
+      return applicant?.phone ?? null
+    case 'user.identityNumber':
+      return applicant?.identityNumber ?? null
+    case 'user.dateOfBirth':
+      return applicant?.dateOfBirth ? isoToDateInput(applicant.dateOfBirth) : null
+    case 'org.taxId':
+      return org?.taxId ?? null
+    case 'org.registrationNumber':
+      return org?.registrationNumber ?? null
+    case 'org.industry':
+      return org?.industry ?? null
+    default:
+      return null
+  }
+}
+
+/**
+ * Status stepper (W-WIZ/W-MY-REQ/W-ACCRED-STATUS) — horizontal checkpoint
+ * timeline with the reached index filled and the current step highlighted.
+ */
+export function StatusStepper({
+  steps,
+  current,
+  className,
+}: {
+  steps: { key: string; label: string }[]
+  current: number
+  className?: string
+}) {
+  return (
+    <ol className={cn('flex w-full min-w-0 flex-wrap items-center gap-y-2', className)} aria-label="Status timeline">
+      {steps.map((s, i) => {
+        const done = i < current
+        const active = i === current
+        return (
+          <li key={s.key} className="flex min-w-0 flex-1 items-center gap-2">
+            <span
+              aria-current={active ? 'step' : undefined}
+              className={cn(
+                'flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-[10px] font-bold',
+                done && 'border-emerald-500 bg-emerald-500 text-white',
+                active && 'border-primary bg-primary text-primary-foreground',
+                !done && !active && 'border-muted-foreground/30 text-muted-foreground/50'
+              )}
+            >
+              {done ? '✓' : i + 1}
+            </span>
+            <span
+              className={cn(
+                'truncate text-[11px] font-semibold',
+                active ? 'text-foreground' : done ? 'text-foreground/70' : 'text-muted-foreground/60'
+              )}
+              title={s.label}
+            >
+              {s.label}
+            </span>
+            {i < steps.length - 1 && <span className="mx-1 hidden h-px min-w-3 flex-1 bg-muted sm:block" />}
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+/** Expiry countdown chip — “expires in 5d” (amber) / “expired” (rose). */
+export function ExpiryChip({ expiresAt, prefix = 'Expires' }: { expiresAt: string | null | undefined; prefix?: string }) {
+  if (!expiresAt) return null
+  const ms = new Date(expiresAt).getTime() - Date.now()
+  const days = Math.ceil(ms / 86_400_000)
+  if (days > 30) return null
+  if (ms <= 0) {
+    return (
+      <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10.5px] font-semibold text-rose-800 dark:bg-rose-950 dark:text-rose-300">
+        Expired
+      </span>
+    )
+  }
+  return (
+    <span
+      className="rounded-full bg-amber-100 px-2 py-0.5 text-[10.5px] font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+      title={formatDate(expiresAt)}
+    >
+      {prefix} in {days}d
+    </span>
+  )
 }

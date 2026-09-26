@@ -493,12 +493,21 @@ export interface PublicServiceDetailDTO extends FinancierServiceDTO {
     conditionType: string
     instructions: string | null
   }[]
+  /**
+   * FULL composed requirements (ServiceRequirementDTO incl. typed template
+   * data: options, validationMin/Max, documentType) — signed-in viewers only.
+   * FIN-6's wizard renders typed inputs (SELECT dropdowns, NUMBER bounds,
+   * document pickers) from this; anonymous visitors keep labels-only.
+   */
+  requirements?: Awaited<ReturnType<typeof listServiceRequirements>>
 }
 
 /**
  * Public detail. The composed requirements are shown as LABELS ONLY and only
  * to signed-in users (competitive intel protection + applicant UX — the real
- * checklist lives on the request once submitted, §5.1).
+ * checklist lives on the request once submitted, §5.1). Signed-in viewers
+ * additionally get the full typed definitions the wizard needs to render
+ * condition-kind-aware inputs.
  */
 export async function getPublicServiceDetail(
   serviceId: string,
@@ -517,16 +526,19 @@ export async function getPublicServiceDetail(
     where: { id: serviceId },
     data: { viewCount: { increment: 1 } },
   })
-  const requirements = viewer
-    ? (await listServiceRequirements(serviceId)).map((r) => ({
-        id: r.id,
-        isRequired: r.isRequired,
-        title: r.template.title,
-        conditionType: r.template.conditionType,
-        instructions: r.instructions,
-      }))
-    : []
-  return { ...serializeService(service as never), requirementsPreview: requirements }
+  if (!viewer) return { ...serializeService(service as never), requirementsPreview: [] }
+  const full = await listServiceRequirements(serviceId)
+  return {
+    ...serializeService(service as never),
+    requirements: full,
+    requirementsPreview: full.map((r) => ({
+      id: r.id,
+      isRequired: r.isRequired,
+      title: r.template.title,
+      conditionType: r.template.conditionType,
+      instructions: r.instructions,
+    })),
+  }
 }
 
 // ── Admin institutions console ──────────────────────────────────────────────
