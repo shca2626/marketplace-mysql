@@ -603,16 +603,24 @@ export async function waiveSubmission(
 
 // ── THE GATE completeness check (R-4 — used by forward + gate status) ─────
 
+/** Prisma client or interactive-transaction client (FIN-3: tx-scoped gate checks). */
+export type DbClient = typeof db | Parameters<Parameters<typeof db.$transaction>[0]>[0]
+
 /**
  * Returns the REQUIRED submissions that still block the forward: anything not
  * VERIFIED and not WAIVED-with-note. Waived-without-note counts as missing
  * (the note is the applicant-visible reason — DP-15).
+ *
+ * Accepts an optional transaction client so forwardRequest can re-read the
+ * checklist INSIDE its transaction (§3.6 rule — the enforcing check runs on
+ * the same connection that commits the transition).
  */
 export async function findGateMissing(
   parentType: 'FINANCING' | 'ACCREDITATION',
-  parentId: string
+  parentId: string,
+  client: DbClient = db
 ): Promise<GateMissingItem[]> {
-  const subs = await db.requirementSubmission.findMany({
+  const subs = await (client.requirementSubmission.findMany as typeof db.requirementSubmission.findMany)({
     where: {
       ...(parentType === 'FINANCING'
         ? { financingRequestId: parentId }
@@ -676,9 +684,10 @@ export async function gateStatus(
 /** Transactional version of the gate check — throws GateBlockedError on missing items. */
 export async function assertGateComplete(
   parentType: 'FINANCING' | 'ACCREDITATION',
-  parentId: string
+  parentId: string,
+  client: DbClient = db
 ): Promise<void> {
-  const missing = await findGateMissing(parentType, parentId)
+  const missing = await findGateMissing(parentType, parentId, client)
   if (missing.length > 0) {
     throw new GateBlockedError(
       `Cannot forward — ${missing.length} required ${missing.length === 1 ? 'item is' : 'items are'} still incomplete. Incomplete or incorrect requests are never sent to the financier.`,

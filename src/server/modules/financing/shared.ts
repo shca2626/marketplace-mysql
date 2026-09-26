@@ -191,7 +191,7 @@ export async function isApplicantActor(
 
 export async function assertApplicantActor(
   userId: string,
-  request: { id: string; createdById: string; organizationId: string | null }
+  request: { createdById: string; organizationId: string | null }
 ): Promise<void> {
   if (!(await isApplicantActor(userId, request))) {
     throw new FinancingError('Access denied', 403)

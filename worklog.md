@@ -2046,3 +2046,161 @@ Stage Summary:
 - NEXT: FIN-2 (requirements engine + documents vault services) → FIN-3 (request lifecycles
   + THE GATE) → FIN-4 (API routes) — strictly serial, dispatched as a chain to one backend
   agent with commits after each.
+
+---
+Task ID: FIN-2 (Dev — backend chain)
+Agent: Backend developer (financier module)
+Task: Requirements engine + documents vault + submission lifecycle services —
+src/server/modules/financing/{shared,conditions,documents,submissions}.ts (API routes land in FIN-4).
+
+Work Log:
+- Read worklog tail (FIN-0/FIN-1), FINANCIER_SCHEMA v5.0 in full (R-1..R-5, §3 models, §5 machines,
+  §6 actions/notifications), FINANCIER_PLAN v2.0 (§6 API surface, task DoD), and studied the gold
+  standards: rfq/service.ts (state machine + tx + audit/notify emission), disputes.ts (lazy sweep),
+  organizations/service.ts (org guards), guards.ts, settings resolution (resolvePanel), uploads
+  route (multipart), seed-financing.ts (media pipeline usage).
+- shared.ts: FinancingError + GateBlockedError (422 w/ missing-items payload), all status unions
+  (String columns + TS unions), FINANCIER_VISIBLE_STATUSES (R-4 query set), financier-staff context
+  (getFinancierContext / assertFinancierStaffOfService — OrganizationMember OWNER|ADMIN, DP-1, no
+  global role), applicant guards (createdBy or org member), iso() helper.
+- conditions.ts: ConditionTemplate CRUD w/ scope guards (GENERAL = admin-only; FINANCIER = org-scoped
+  to caller's financier org; allowFinancierCustomConditions setting honored); type-shape rules for
+  the 8 kinds (PROFILE_FIELD closed set, DOCUMENT type match, SELECT ≥2 options, NUMBER bounds);
+  global code uniqueness guard (service layer — kept even though SQLite lacks the MySQL null-dupe
+  nuance); ConditionOption add/remove (rows, never JSON — R-1); composer visibility query (GENERAL
+  active + own org's FINANCIER incl. inactive, searchable); ServiceRequirement attach (cap
+  maxRequirementsPerService, cross-financier attach blocked, re-attach reactivates), update
+  (isRequired/displayOrder/instructions/autoPassAccredited), detach = soft deactivate (submissions
+  preserved — hard delete would cascade the checklist history, R-2/DP-15).
+- documents.ts: AccountDocument vault — uploads go through the EXISTING media pipeline
+  (processImageUpload → MediaAsset, sha256-dedupe inside a tx); settings-enforced allowedTypes +
+  maxSizeMb (financingDocuments panel) + hard ceiling; org-scope requires membership; list by user /
+  org scope / documentType / status; meta updates (owner); soft-delete (isActive); platform
+  verify/reject (PENDING → VERIFIED/REJECTED once — second verdict 409, note required on reject,
+  reviewedById/At stamped, DOCUMENT_VERIFIED/_REJECTED notifications + audit).
+- submissions.ts: RequirementSubmission lifecycle — typed answers validated by conditionType
+  (valueText/valueNumber/valueDate/accountDocumentId; DOCUMENT must be owned by applicant user or
+  their org + type/freshness checks; SELECT/MULTI_SELECT validated against ConditionOption rows;
+  NUMBER against validationMin/Max; PROFILE_FIELD not manually answerable); PENDING/REJECTED →
+  SUBMITTED via answerSubmission (DRAFT/RETURNED parents only; VERIFIED/WAIVED preserved 409);
+  PROFILE_FIELD auto-eval (closed set user.phone|identityNumber|dateOfBirth|org.taxId|
+  registrationNumber|industry — present → SUBMITTED w/ 'auto-evaluated'; the admin verdict still
+  happens — automation pre-fills, never skips); autoPassAccredited (live ACCREDITED + validUntil>now
+  grant on a service of the SAME financier → system-VERIFIED, verifiedById null, note 'auto-passed
+  via live accreditation'); platform verdicts verify/reject/waive (decisionNote REQUIRED for
+  reject/waive; REQUIREMENT_VERIFIED/_REJECTED notifications; verdicts open only while parent is
+  SUBMITTED/UNDER_PLATFORM_REVIEW); THE GATE helpers: findGateMissing / gateStatus (required items
+  must be VERIFIED or WAIVED-with-note) + assertGateComplete (throws GateBlockedError) +
+  generateChecklist (one RequirementSubmission per ACTIVE ServiceRequirement + auto-evals + wizard
+  answers) + applyChecklistAnswers (resubmit re-supply).
+- QA: bun run lint CLEAN; bunx tsc scoped to the module CLEAN; scripts/fin2-smoke.ts (unit-level,
+  routes don't exist yet) — 20/20 PASS: composer visibility + no cross-financier leak, private
+  template + attach/detach soft, kuraimi-cannot-attach-amal-condition, financier-cannot-create-
+  GENERAL, vault upload→verify-once→reverify-blocked, checklist generation (9 items on Amal WC),
+  phone PROFILE_FIELD auto-eval, NUMBER/SELECT typed answers accepted, invalid SELECT rejected,
+  gate missing-items summary (8 missing, canForward=false).
+- Judgment calls (flagged for lead): (1) detach is SOFT (isActive=false) — the schema cascades
+  hard deletes into RequirementSubmission; (2) admin verdicts are allowed while parent is SUBMITTED
+  as well as UNDER_PLATFORM_REVIEW (forward remains the enforcing gate — R-4 substance intact,
+  matches autoForwardWhenAllVerified semantics); (3) nudge sweeps deferred to requests.ts (FIN-3)
+  to avoid a dangling dynamic import at this commit boundary.
+
+Stage Summary:
+- FIN-2 COMPLETE — DoD met (composer attach/detach, vault upload+verify, submission state machine
+  incl. autoPass machinery — all exercised by the smoke).
+- The requirements engine, the universal vault and the gate's verification unit are live services;
+  FIN-3 wires them into the request lifecycle machines + THE GATE forward.
+- NEXT: FIN-3 — requests/accreditation/offers/agreements services (v3 machine, DP-25 multi,
+  R-4/DP-23 transactional forward, offers w/ freeze, agreements + fees), then FIN-4 routes.
+
+---
+Task ID: FIN-3 (Dev — backend chain)
+Agent: Backend developer (financier module)
+Task: Request lifecycle services — FinancingRequest v3 machine + THE GATE, AccreditationRequest
+machine, offers/accept/fee accrual, agreements/events — src/server/modules/financing/
+{requests,accreditation,offers,agreements}.ts (partial work from the previous agent verified,
+gaps closed; API routes land in FIN-4).
+
+Work Log:
+- Verified the inherited partial files (requests 1061 ln, accreditation 923, offers 616,
+  agreements 468, shared 2-line uncommitted fix) against FINANCIER_SCHEMA §5 machines + the
+  FIN-3 DoD, then closed the gaps found:
+  (1) assertGateComplete/findGateMissing (submissions.ts) now take an optional tx client, and
+  both forward transitions (financing + accreditation) call assertGateComplete INSIDE the
+  transaction — the DoD's exact wording — instead of a duplicated inline gate block;
+  (2) submitFinancingRequest re-validates amount vs the service range at submit (create-time
+  check alone was stale-able while the wizard sat on a DRAFT);
+  (3) ACCREDITATION_EXPIRING reminders (7-day window, plan §7) added to sweepAccreditations —
+  idempotent per (request × org member) by checking existing notification rows (no schema
+  change needed for a "notified" flag);
+  (4) adminGateQueue / financierInbox / adminAccreditationQueue / financierAccreditationInbox
+  gained page+limit+total (FIN-4 route pagination requirement);
+  (5) sendOffer now blocks when the parent request is offer-closed (ACCEPTED/DECLINED/EXPIRED/
+  CANCELLED) — createOffer already did.
+- requests.ts (verified complete by smoke): transition table (DRAFT→SUBMITTED→UNDER_PLATFORM_
+  REVIEW→RETURNED_FOR_COMPLETION⇄ / FORWARDED_TO_FINANCIER→UNDER_FINANCIER_REVIEW→OFFERED→
+  ACCEPTED/DECLINED, CANCELLED pre-forward only, EXPIRED lazy sweep on pre-terminal statuses);
+  submit generates the checklist (generateChecklist incl. PROFILE_FIELD auto-eval + wizard
+  answers), stamps consentAt (requireConsent) + expiresAt (financingGeneral.requestExpiryDays),
+  validates FINANCING-kind ACTIVE service; THE GATE forward is transactional (GateBlockedError
+  422 w/ missing items), stamps forwardedAt + notifies the financier org's OWNER/ADMIN staff
+  (FINANCING_REQUEST_RECEIVED) + the applicant (PLATFORM_FORWARDED_REQUEST); return w/ reason
+  + applicant resubmit via applyChecklistAnswers (verified items preserved); multi-financier
+  createMulti (N siblings sharing multiGroupId, one service per financier enforced); financier
+  inbox = FINANCIER_VISIBLE_STATUSES OR forwardedAt (R-4: pre-forward requests structurally
+  invisible); autoForwardWhenAllVerified helper (maybeAutoForward — FIN-4 wires it after
+  verdicts); sweepFinancing expires SENT offers past validUntil + requests past expiresAt.
+- accreditation.ts: full 11-state machine, companies only (org member guard), ACCREDITATION-kind
+  service enforced; grant = ACCREDITED + accreditedAt + validUntil (explicit → service
+  accreditationValidMonths → financingAccreditation defaultValidMonths, 30d months) + org-member
+  notifications; reject w/ required note; revoke by financier OR platform admin (reason required);
+  renewal = upsert-style: @@unique(serviceId,organizationId) + service-enforced terminal check
+  (EXPIRED/REVOKED/REJECTED/CANCELLED) — the terminal row is superseded (deleted) and its history
+  survives in AuditLog (documented judgment call from the partial work — kept).
+- offers.ts: create (financier staff, request FORWARDED/UNDER_FINANCIER_REVIEW/OFFERED, cap
+  maxOffersPerRequest counting every revision row), installments validated (unique numbers,
+  ascending due dates), send DRAFT→SENT (validUntil +14d default; first SENT → request OFFERED;
+  OFFER_RECEIVED), revise = new row (DP-12), withdraw (no SENT left → request back to
+  UNDER_FINANCIER_REVIEW), accept = freeze (other SENT on the request + siblings' SENT
+  auto-DECLINE) + FinancingAgreement (AGR sequence; number + fee % resolved BEFORE the tx —
+  SQLite write-lock discipline) + FinancingFee SUCCESS (financingFees.financierSuccessPercent
+  snapshot, ACCRUED) + FEE_ACCRUED to admins + OFFER_ACCEPTED to financier staff; decline;
+  updateOfferDraft rejects any non-DRAFT edit (offer + installments frozen once SENT/ACCEPTED —
+  DP-20).
+- agreements.ts: applicant/financier/admin views; fundingStatus PENDING→REPORTED_FUNDED→
+  REPORTED_SETTLED (financier staff) each with a typed FinancingEvent (DISBURSEMENT/REPAYMENT/
+  EARLY_SETTLEMENT/LATE_FEE/NOTE — track-only ledger, D-002); addFinancingEvent; status
+  COMPLETED/DEFAULTED/CANCELLED; admin fee console (list + MARK_INVOICED/MARK_PAID/WAIVE).
+- Every transition: recordAudit (metadata stringified by the audit service) + emitNotification
+  with the FIN-1 types + linkView 'financing'/'financier'/'admin'.
+- scripts/fin3-smoke.ts (mirrors fin2-smoke — direct service calls, self-cleaning): 75/75 PASS.
+  Flow A: create+range guards → submit (6-item checklist, typed answers) → gate queue →
+  review start → forward BLOCKED (GateBlockedError w/ 6 missing) → verify all → forward OK →
+  notifications both sides → inbox positive/negative (pre-forward invisible everywhere) →
+  financier open → offer draft/send (DRAFT invisible to applicant) → accept (agreement +
+  SUCCESS fee 37,500 = 5M × 0.75% verified against the live setting) → funding reports (skip
+  blocked, funded, settled, extra event, COMPLETED, frozen-offer 409, non-staff 403).
+  Flow B: 9-item checklist + phone auto-eval → reject item → RETURNED (w/ notification) →
+  resubmit (re-supply → SUBMITTED, verified preserved) → verify+waive mix → forward → offer
+  decline/withdraw (request falls back) → maxOffersPerRequest cap 409 → draft cancel ok /
+  forwarded cancel 409 → financier decline. Flow C: ACC-1 gate finished → forward → grant
+  (validUntil ~360d) → ACCREDITATION_EXPIRING sweep inside 7-day window (idempotent on
+  re-sweep) → autoPassAccredited auto-VERIFIED (verifiedById null) on a NEW Amal WC request by
+  the accredited org → revoke (reason required) → ACC-1 restored to its seeded mid-gate state.
+  Flow D: SENT offer past validUntil → EXPIRED; request past expiresAt → EXPIRED; accreditation
+  request past expiresAt → EXPIRED. Cleanup deletes every throwaway row + notification;
+  FIN/AGR sequence numbers consumed by throwaways realigned to the persisted data (AGR → next
+  real agreement mints AGR-2026-000002).
+- QA: bun run lint CLEAN; bunx tsc scoped to the financing module CLEAN (pre-existing errors
+  elsewhere — prisma/seed.ts, examples/, skills/ — untouched, same policy as FIN-2).
+
+Stage Summary:
+- FIN-3 COMPLETE — DoD met (every transition + guard exercised: forward-blocked-with-missing-
+  items, return→resubmit→forward happy path, accept→agreement+fee, grant/autoPass/revoke,
+  sweeps).
+- All four lifecycle machines are live with THE GATE transactional and the financier inbox
+  structurally incapable of listing un-forwarded requests (R-4).
+- NEXT: FIN-4 — the API surface per plan §6 (financing services directory, applicant requests/
+  offers/accept, accreditation, documents center, financier console incl. inbox/offers/
+  agreements/decisions, admin gate queue + submissions verdicts + return/forward + institutions
+  + fees + GENERAL library + document verify) with GateBlockedError → 422 {error, missing}.
