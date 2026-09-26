@@ -2485,3 +2485,42 @@ Stage Summary:
 - FIN-8 COMPLETE — DoD met: expiry E2E, bell click-through E2E, audit rows for every gate
   action (with the filter/suggestions to find them).
 - NEXT: FIN-9 full regression (8 flows + core commerce via agent-browser) → FIN-10 docs.
+
+---
+Task ID: FIN-9 (Tester agent partial + Lead completion)
+Agent: QA tester + Lead orchestrator
+Task: Full regression — the financier module's 8 flows + core commerce (agent-browser + API).
+
+Work Log:
+- The dispatched tester agent found ONE real bug before its context ended: a freshly
+  SUBMITTED request could not be RETURNED from the gate console (Return requires
+  UNDER_PLATFORM_REVIEW; nothing moved SUBMITTED → review). Fix completed + verified by
+  Lead: POST /api/admin/financing/requests/[id]/start-review (financing + accreditation
+  auto-detect, CSRF + rate-limited) + "Start review" button in the gate review console.
+  Live test: SUBMITTED → start-review 200 → UNDER_PLATFORM_REVIEW (reviewer stamped).
+- THE 8 FINANCIER FLOWS (API-level, cookies per role):
+  1. Services discovery: 4 services, both kinds, coverage/ranges render ✓
+  2. Application wizard: verified E2E in FIN-6 (FIN-2026-000003); QA agent added
+     FIN-2026-000004 (forwarded) + 000005 (under review) through the same path ✓
+  3. THE GATE: queue lists live items; verdicts + return + forward exercised (422 display
+     verified in FIN-4/7 rounds; start-review closes the found gap) ✓
+  4. Financier receives + offers: alamal inbox = ONLY forwarded (FR-1, FR-4) ✓
+  5. Accreditation: ACC-2026-000001 ACCREDITED (validUntil 2027-09-21) + demo-side badge ✓
+  6. Documents vault: upload/verify-once verified in FIN-6; admin documents queue live ✓
+  7. Agreements + events: kuraimi reported REPORTED_FUNDED w/ DISBURSEMENT event (200;
+     the funding-status route requires the event object in the payload — documented) ✓
+  8. Multi-financier: sibling group MG-2026-000001 renders grouped in My Applications ✓
+- CORE COMMERCE REGRESSION (browser): home renders (hero, 23 media imgs); category filter
+  (electronics) works; product cards; add-to-cart ✓; checkout → card autofill → ORDER
+  CONFIRMED → order PAID in API ✓; RFQ view (admin: none — correct; demo: 5 via API) ✓;
+  admin console + financing tab + audit tab render ✓; notification bell deep-link ✓ (FIN-8).
+- Responsive 390px: home + financing console — no horizontal overflow (scrollWidth 390) ✓.
+  Sticky footer: mt-auto pattern, naturally pushed on the 8235px home ✓.
+- Console errors: zero (one known pre-existing hydration attribute warning on boot).
+- Screenshots: /tmp/qa-fin9-final.png. lint clean.
+- Cleanup: deleted the empty FIN-2026-000006 draft created during API probing.
+
+Stage Summary:
+- FIN-9 COMPLETE — all 8 financier flows + core commerce PASS; 1 bug found + fixed +
+  verified (gate start-review). The module is regression-green.
+- NEXT: FIN-10 — docs suite refresh + plan-stack status flip + final worklog.

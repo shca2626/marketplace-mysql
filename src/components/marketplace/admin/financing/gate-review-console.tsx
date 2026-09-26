@@ -118,6 +118,9 @@ export function GateReviewConsole({ requestId, onBack }: { requestId: string; on
   const [forwarding, setForwarding] = useState(false)
   const [missing, setMissing] = useState<GateMissingItemDTO[] | null>(null)
 
+  // Start-review state (SUBMITTED → UNDER_PLATFORM_REVIEW before return)
+  const [starting, setStarting] = useState(false)
+
   if (loading || !request) {
     return (
       <div className="space-y-4">
@@ -146,6 +149,7 @@ export function GateReviewConsole({ requestId, onBack }: { requestId: string; on
   const statusMap = isFin ? FIN_REQUEST_STATUS_MAP : ACC_STATUS_MAP
   const status = request.status
   const preForward = ['SUBMITTED', 'UNDER_PLATFORM_REVIEW', 'RETURNED_FOR_COMPLETION'].includes(status)
+  const canStartReview = status === 'SUBMITTED'
   const canReturn = status === 'UNDER_PLATFORM_REVIEW'
   const forwarded = !!request.forwardedAt
   const gate = request.gate
@@ -197,6 +201,23 @@ export function GateReviewConsole({ requestId, onBack }: { requestId: string; on
     })
     setVerdict(null)
     setNote('')
+    refresh()
+  }
+
+  const startReview = async () => {
+    setStarting(true)
+    const res = await apiRequest(`/api/admin/financing/requests/${requestId}/start-review`, {
+      method: 'POST',
+    })
+    setStarting(false)
+    if (!res.ok) {
+      toastApiError(res.error, 'Could not start the review')
+      return
+    }
+    toast({
+      title: 'Platform review started',
+      description: `${request.number} is now under platform review — verdicts, return and forward are live.`,
+    })
     refresh()
   }
 
@@ -483,6 +504,18 @@ export function GateReviewConsole({ requestId, onBack }: { requestId: string; on
                   : `${gate.verified + gate.waived} of ${gate.totalRequired} required items verified.`}
               </p>
               <div className="flex flex-wrap items-center gap-2">
+                {canStartReview && (
+                  <Button
+                    variant="outline"
+                    className="rounded-xl"
+                    disabled={starting || busy}
+                    title="Open the request for platform review — unlocks verdicts and the return action"
+                    onClick={() => void startReview()}
+                  >
+                    {starting ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <ClipboardCheck size={14} className="mr-1.5" />}
+                    Start review
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   className="rounded-xl"
