@@ -1985,3 +1985,64 @@ Stage Summary:
   the v5 schema doc uses @db.VarChar annotations in its model blocks — when implementing on
   SQLite, drop the @db attrs (the docs' field names/types/relations are the authority, not the
   mysql-native attrs).
+
+---
+Task ID: FIN-1 (Lead)
+Agent: Lead orchestrator
+Task: Schema v5.0 — 18 financier models + User additive scalars + FIN/AGR/ACC sequences +
+financing settings registry group (6 panels) + db:push + financier demo seed.
+
+Work Log:
+- prisma/schema.prisma: appended the 18 models per FINANCIER_SCHEMA v5.0 §3 (SQLite-safe:
+  no @db attrs, Float money): FinancierProfile (slim, identity on Organization),
+  FinancierBranch, FinancierService (serviceKind FINANCING|ACCREDITATION + attributes +
+  coverage child tables), the REQUIREMENTS ENGINE (ConditionTemplate GENERAL|FINANCIER +
+  ConditionOption + ServiceRequirement incl. autoPassAccredited), RequirementSubmission
+  (typed value columns + accountDocumentId reuse, parent-XOR via nullable FKs + dual unique),
+  AccountDocument (mediaId → MediaAsset — the ONLY storage entry) + RequestAttachment
+  (loose parent), FinancingRequest v3 (45 fields: service-scoped, multiGroupId, gate fields,
+  11-state), FinancingOffer + FinancingOfferInstallment, FinancingAgreement (offer-frozen,
+  AGR sequence), FinancingEvent, FinancingFee, AccreditationRequest (ACC sequence,
+  @@unique(serviceId,organizationId), grant/revocation fields). TOTAL: 50 models.
+- User additive scalars (§3.1): phone/whatsapp/dateOfBirth/gender/maritalStatus/nationality/
+  identityType/identityNumber/residence{Street,City,District,Type} + 12 relation fields.
+  Organization back-relations (financierProfile, conditionTemplates, accountDocuments,
+  financingRequests, accreditationRequests) + MediaAsset.accountDocuments + fixed the doc's
+  FinancierProfile block inconsistency (dropped its conditionTemplates rel — R-2 single entry:
+  templates join Organization, not the profile).
+- sequences/service.ts: SequencePrefix += 'FIN' | 'AGR' | 'ACC'.
+- notifications/service.ts: linkView += 'financing' | 'financier'; 19 new NotificationTypes
+  (PLATFORM_RETURNED/FORWARDED_REQUEST, REQUIREMENT_*, DOCUMENT_*, FINANCING_REQUEST_RECEIVED,
+  OFFER_*, ACCREDITATION_*, FEE_ACCRUED, AGREEMENT/FINANCING_STATUS_CHANGED).
+- notifications-bell.tsx: 'financing' → navigate('financing', {requestId}) deep-link,
+  'financier' → console.
+- View union + routing: 'financing' + 'financier' views (store, routing.ts VIEWS/query/parse,
+  DASHBOARD_VIEWS, CONSOLE_VIEWS w/ placeholder shells financing-view/financier-view.tsx —
+  FIN-5/6 replace the placeholders).
+- rfq-settings/registry.ts: financing section w/ 6 panels (financingGeneral/fees/requirements/
+  documents/intake/accreditation) — platformReviewRequired is a LOCKED toggle (DP-23 —
+  owner-set, UI read-only). Repaired a self-inflicted mid-edit structure slip (restored the
+  analytics tail fields + closers) — verified against git diff.
+- db:push clean (existing commerce data untouched). scripts/seed-financing.ts (idempotent,
+  wipes only financier tables): 2 financier orgs (Al-Amal BANK, Al-Kuraimi MFI) + profiles +
+  4 branches, 2 services each incl. 1 ACCREDITATION program per financier, 12 GENERAL
+  condition templates (DOCUMENT×6, PROFILE_FIELD, SELECT w/ options, NUMBER w/ bounds, DATE,
+  DECLARATION, TEXT) + 2 financier-private, 23 ServiceRequirements (incl. autoPassAccredited
+  on Amal WC financials), 5 REAL AccountDocuments through the media pipeline (sharp PNG →
+  webp renditions → uploads/), applicant User profile scalars set, FR-2026-000001
+  UNDER_PLATFORM_REVIEW w/ mixed checklist (VERIFIED/SUBMITTED/REJECTED w/ note/WAIVED/PENDING),
+  FR-2026-000002 FORWARDED_TO_FINANCIER (all verified) + SENT offer w/ 3 installments,
+  ACC-2026-000001 mid-gate, request attachments, 8 gate audit rows.
+- Logins: alamal.admin@vendora.com / kuraimi.admin@vendora.com — financier1234.
+- QA: lint clean; home 200; ?view=financing renders placeholder console; admin settings →
+  FINANCING section with all 6 panels + Gate fields render; zero page errors.
+- NOTE for FIN-2+ agents: prisma client regen under a running dev server can crash it —
+  restart with `(setsid bun run dev &)` after `prisma generate`.
+
+Stage Summary:
+- FIN-1 COMPLETE — schema v5.0 live in the DB, seed green, settings panels render.
+- The financier domain is now queryable: 18 models, ZERO Json (metadata JSON-in-text only),
+  50 total models, single-entry + substrate-reuse preserved.
+- NEXT: FIN-2 (requirements engine + documents vault services) → FIN-3 (request lifecycles
+  + THE GATE) → FIN-4 (API routes) — strictly serial, dispatched as a chain to one backend
+  agent with commits after each.

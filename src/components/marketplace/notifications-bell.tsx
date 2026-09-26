@@ -309,6 +309,14 @@ export function NotificationsBell() {
         case 'admin':
           navigate('admin')
           break
+        case 'financing':
+          // Applicant surface — my financing requests (deep-link to the request when known)
+          navigate('financing', item.n.linkId ? { requestId: item.n.linkId } : undefined)
+          break
+        case 'financier':
+          // Financier console inbox
+          navigate('financier')
+          break
         default:
           navigate('orders')
       }

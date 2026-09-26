@@ -53,6 +53,35 @@ model User {
   paymentsCaptured   Payment[]            @relation("PaymentsCapturedBy")
   payouts            Payout[]             @relation("PayoutSeller")
 
+  // ── Applicant profile (FINANCIER_SCHEMA v5 §3.1) — additive, ALL nullable;
+  //    B2C buyers unaffected until they apply for financing (DP-14) ──
+  phone             String? // contact only — login stays email-based
+  whatsappNumber    String?
+  dateOfBirth       DateTime?
+  gender            String? // MALE | FEMALE | OTHER
+  maritalStatus     String? // SINGLE | MARRIED | DIVORCED | WIDOWED
+  nationality       String?
+  identityType      String? // NATIONAL_ID | PASSPORT | RESIDENCE_PERMIT | OTHER
+  identityNumber    String?
+  residenceStreet   String?
+  residenceCity     String?
+  residenceDistrict String?
+  residenceType     String? // OWNED | RENTED
+
+  // ── financing-domain relations (FINANCIER_SCHEMA v5) ──
+  accountDocuments          AccountDocument[]       @relation("AccountDocumentsOwner")
+  documentsReviewed         AccountDocument[]       @relation("AccountDocumentsReviewedBy")
+  financingRequests         FinancingRequest[]      @relation("FinancingRequests")
+  financingOffers           FinancingOffer[]        @relation("FinancingOffers")
+  financingEventsReported   FinancingEvent[]        @relation("FinancingEventsReportedBy")
+  accreditationsSubmitted   AccreditationRequest[]  @relation("AccreditationsSubmitted")
+  accreditationsDecided     AccreditationRequest[]  @relation("AccreditationsDecidedBy")
+  accreditationsRevoked     AccreditationRequest[]  @relation("AccreditationsRevokedBy")
+  gateReviewsFinancing      FinancingRequest[]      @relation("FinancingPlatformReviews")
+  gateReviewsAccreditation  AccreditationRequest[]  @relation("AccreditationPlatformReviews")
+  submissionsVerified       RequirementSubmission[] @relation("RequirementSubmissionsVerifiedBy")
+  conditionTemplatesCreated ConditionTemplate[]     @relation("ConditionTemplatesCreatedBy")
+
   @@index([role])
 }
 
@@ -251,6 +280,13 @@ model Organization {
   orders           Order[]
   groups           CustomerGroup[]      @relation("OrganizationCustomerGroups")
   approvalRequests ApprovalRequest[]
+
+  // ── financing-domain back-relations (FINANCIER_SCHEMA v5) ──
+  financierProfile      FinancierProfile?      @relation("FinancierProfileOrg")
+  conditionTemplates    ConditionTemplate[]    @relation("FinancierConditionTemplates")
+  accountDocuments      AccountDocument[]      @relation("OrganizationAccountDocuments")
+  financingRequests     FinancingRequest[]     @relation("FinancingRequestsByOrg")
+  accreditationRequests AccreditationRequest[] @relation("AccreditationRequestsByOrg")
 
   @@index([status])
   @@index([createdAt])
@@ -504,18 +540,19 @@ model RfqMessage {
 // ─────────────────────────────────────────────────────────────────────────────
 
 model MediaAsset {
-  id           String   @id @default(cuid())
-  key          String   @unique // storage base key (no extension)
-  originalName String
-  mime         String
-  size         Int
-  width        Int?
-  height       Int?
-  sha256       String   @unique
-  variants     String? // JSON {thumb,medium,large,full} storage keys
-  uploadedById String
-  uploadedBy   User     @relation("MediaAssets", fields: [uploadedById], references: [id])
-  createdAt    DateTime @default(now())
+  id               String            @id @default(cuid())
+  key              String            @unique // storage base key (no extension)
+  originalName     String
+  mime             String
+  size             Int
+  width            Int?
+  height           Int?
+  sha256           String            @unique
+  variants         String? // JSON {thumb,medium,large,full} storage keys
+  uploadedById     String
+  uploadedBy       User              @relation("MediaAssets", fields: [uploadedById], references: [id])
+  accountDocuments AccountDocument[] @relation("AccountDocumentMedia")
+  createdAt        DateTime          @default(now())
 
   @@index([uploadedById, createdAt])
 }
@@ -757,4 +794,497 @@ model Coupon {
   updatedAt      DateTime @updatedAt
 
   @@index([active])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FINANCIER MODULE — FINANCIER_SCHEMA v5.0 (18 models, ZERO Json columns)
+// Services not products (DP-22) · platform verification gate (DP-23) ·
+// requirements engine (DP-24) · multi-financier sibling routing (DP-25) ·
+// accreditation as a MAIN service (DP-26) · universal documents (DP-27) ·
+// no open-broadcast distribution (DP-28).
+// Money = Float (SQLite); statuses are string enums validated in TS/zod.
+
+// ── 3.2 FinancierProfile — slim: financing facts ONLY; identity on Organization ──
+model FinancierProfile {
+  id             String       @id @default(cuid())
+  organizationId String       @unique // 1:1 — the legal entity (BANK | MFI | EWALLET)
+  organization   Organization @relation("FinancierProfileOrg", fields: [organizationId], references: [id], onDelete: Cascade)
+
+  about         String? // public marketing text (About tab)
+  licenseNumber String?
+  regulator     String?
+  logoUrl       String? // MediaAsset-backed URL (existing pattern: User.image)
+  contactEmail  String?
+  contactPhone  String?
+  minTicket     Float? // routing hint; service-level ranges remain authoritative
+  maxTicket     Float?
+  viewCount     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  branches FinancierBranch[]
+  services FinancierService[]
+  // (conditionTemplates live on Organization — R-2 single entry via organizationId)
+
+  @@index([organizationId])
+}
+
+// ── 3.3 FinancierBranch — typed address columns (no Json, no geo tables) ──
+model FinancierBranch {
+  id                 String           @id @default(cuid())
+  financierProfileId String
+  financierProfile   FinancierProfile @relation(fields: [financierProfileId], references: [id], onDelete: Cascade)
+  name               String
+  kind               String           @default("BRANCH") // BRANCH | AGENT | ATM
+  street             String?
+  city               String?
+  district           String?
+  latitude           Float?
+  longitude          Float?
+  phone              String?
+  isActive           Boolean          @default(true)
+  position           Int              @default(0)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@index([financierProfileId, isActive])
+}
+
+// ── 3.4 FinancierService — THE offering (services, not products — DP-22) ──
+model FinancierService {
+  id                       String           @id @default(cuid())
+  financierProfileId       String
+  financierProfile         FinancierProfile @relation(fields: [financierProfileId], references: [id], onDelete: Cascade)
+  serviceKind              String // FINANCING | ACCREDITATION (DP-22/DP-26)
+  category                 String // FINANCING: WORKING_CAPITAL | INVOICE_FINANCING | PO_FINANCING | EQUIPMENT | VEHICLE | HOME | EDUCATION | AGRICULTURE | MICROENTERPRISE | SME | OTHER
+  // ACCREDITATION: SUPPLIER_QUALIFICATION | VENDOR_APPROVAL
+  name                     String
+  summary                  String? // one-line card text
+  description              String?
+  targetSegment            String? // BUSINESS | INDIVIDUAL | BOTH (DP-13)
+  status                   String           @default("ACTIVE") // DRAFT | ACTIVE | ARCHIVED
+  currency                 String           @default("YER")
+  amountMin                Float? // null = open (ACCREDITATION kinds)
+  amountMax                Float? // competitor's currency.min/max folds HERE
+  rateType                 String? // MURABAHA_ANNUAL | FIXED_ANNUAL | FLAT_FEE
+  rateMax                  Float? // e.g. 30.000 = 30%/yr cap (murabaha)
+  feeFlat                  Float?
+  tenorMinMonths           Int?
+  tenorMaxMonths           Int?
+  repaymentFrequency       String? // MONTHLY | QUARTERLY | LUMP_SUM
+  gracePeriodDays          Int?
+  shariaCompliant          Boolean          @default(false)
+  processingDays           Int?
+  accreditationValidMonths Int? // ACCREDITATION kind: lifetime of the grant once ACCREDITED
+  accreditationFeeAmount   Float? // ACCREDITATION kind: fee (invoiced externally, D-002)
+  viewCount                Int              @default(0)
+  createdAt                DateTime         @default(now())
+  updatedAt                DateTime         @updatedAt
+
+  attributes            FinancierServiceAttribute[] // features + eligibility text bullets
+  coverage              FinancierServiceCoverage[] // geographic coverage (region NAMES — DP-16)
+  requirements          ServiceRequirement[] // THE acceptance requirements
+  financingRequests     FinancingRequest[] // kind = FINANCING (service-enforced)
+  accreditationRequests AccreditationRequest[] // kind = ACCREDITATION (service-enforced)
+
+  @@index([financierProfileId, status])
+  @@index([serviceKind, category, status])
+}
+
+// ── 3.4a text-bullet traits (competitor "features" + "eligibility conditions") ──
+model FinancierServiceAttribute {
+  id        String           @id @default(cuid())
+  serviceId String
+  service   FinancierService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  kind      String // FEATURE | ELIGIBILITY_CONDITION
+  position  Int              @default(0)
+  text      String
+
+  @@unique([serviceId, kind, position])
+  @@index([serviceId, kind])
+}
+
+// ── 3.4b geographic coverage — region names, no geo tables (DP-16) ──
+model FinancierServiceCoverage {
+  id         String           @id @default(cuid())
+  serviceId  String
+  service    FinancierService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  regionName String // normalized at write; matched case-insensitively vs FinancingRequest.activityCity
+
+  @@unique([serviceId, regionName])
+  @@index([serviceId])
+}
+
+// ── 3.5 THE REQUIREMENTS ENGINE (R-5) — ConditionTemplate + ConditionOption + ServiceRequirement ──
+model ConditionTemplate {
+  id              String        @id @default(cuid())
+  scope           String // GENERAL | FINANCIER (R-5)
+  organizationId  String? // null = GENERAL (platform library); set = FINANCIER (private)
+  organization    Organization? @relation("FinancierConditionTemplates", fields: [organizationId], references: [id])
+  conditionType   String // DOCUMENT | PROFILE_FIELD | DECLARATION | TEXT | NUMBER | DATE | SELECT | MULTI_SELECT
+  code            String? // optional stable ref, e.g. "COM-REG" (uniqueness enforced in service layer)
+  title           String
+  description     String? // instructions shown to the applicant
+  profileFieldKey String? // PROFILE_FIELD only — closed set, zod-validated
+  documentType    String? // DOCUMENT only — expected AccountDocument.documentType
+  validationMin   Float? // NUMBER only — inclusive lower bound
+  validationMax   Float? // NUMBER only — inclusive upper bound
+  validityMonths  Int? // evidence freshness window
+  isRepeatable    Boolean       @default(false) // DOCUMENT only — multiple docs allowed
+  isActive        Boolean       @default(true)
+  createdById     String
+  createdBy       User          @relation("ConditionTemplatesCreatedBy", fields: [createdById], references: [id])
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  options             ConditionOption[]
+  serviceRequirements ServiceRequirement[]
+
+  @@index([scope, organizationId, isActive])
+  @@index([conditionType, isActive])
+}
+
+// SELECT / MULTI_SELECT choices — every list a table (R-1).
+model ConditionOption {
+  id                  String            @id @default(cuid())
+  conditionTemplateId String
+  conditionTemplate   ConditionTemplate @relation(fields: [conditionTemplateId], references: [id], onDelete: Cascade)
+  value               String // stored + displayed
+  position            Int               @default(0)
+
+  @@unique([conditionTemplateId, value])
+  @@index([conditionTemplateId, position])
+}
+
+// The attachment: ONE template on ONE service, with per-service config.
+model ServiceRequirement {
+  id                  String            @id @default(cuid())
+  serviceId           String
+  service             FinancierService  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  conditionTemplateId String
+  conditionTemplate   ConditionTemplate @relation(fields: [conditionTemplateId], references: [id])
+  isRequired          Boolean           @default(true) // optional conditions inform but never gate
+  displayOrder        Int               @default(0)
+  instructions        String? // financier's per-service override text
+  autoPassAccredited  Boolean           @default(false) // auto-VERIFIED when applicant org holds a live accreditation from THIS financier (DP-26)
+  isActive            Boolean           @default(true)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  submissions RequirementSubmission[]
+
+  @@unique([serviceId, conditionTemplateId])
+  @@index([serviceId, isActive, displayOrder])
+}
+
+// ── 3.6 RequirementSubmission — per-request checklist row + THE GATE's verification unit ──
+model RequirementSubmission {
+  id                   String             @id @default(cuid())
+  serviceRequirementId String
+  serviceRequirement   ServiceRequirement @relation(fields: [serviceRequirementId], references: [id], onDelete: Cascade)
+
+  // parent: EXACTLY ONE set (service-enforced)
+  financingRequestId     String?
+  financingRequest       FinancingRequest?     @relation(fields: [financingRequestId], references: [id], onDelete: Cascade)
+  accreditationRequestId String?
+  accreditationRequest   AccreditationRequest? @relation(fields: [accreditationRequestId], references: [id], onDelete: Cascade)
+
+  status            String           @default("PENDING") // PENDING | SUBMITTED | VERIFIED | REJECTED | WAIVED
+  valueText         String? // TEXT / DECLARATION / SELECT answers
+  valueNumber       Float? // NUMBER answers
+  valueDate         DateTime? // DATE answers
+  accountDocumentId String? // DOCUMENT evidence — REUSE of an AccountDocument
+  accountDocument   AccountDocument? @relation(fields: [accountDocumentId], references: [id])
+  submittedAt       DateTime?
+  verifiedAt        DateTime?
+  verifiedById      String? // the platform admin (or system for autoPass)
+  verifiedBy        User?            @relation("RequirementSubmissionsVerifiedBy", fields: [verifiedById], references: [id])
+  decisionNote      String? // rejection reason / waiver reason — shown to applicant
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@unique([financingRequestId, serviceRequirementId])
+  @@unique([accreditationRequestId, serviceRequirementId])
+  @@index([status])
+}
+
+// ── 3.7 AccountDocument + RequestAttachment — universal documents (R-2, DP-27) ──
+model AccountDocument {
+  id             String        @id @default(cuid())
+  userId         String // owner/uploader — ALWAYS set
+  user           User          @relation("AccountDocumentsOwner", fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String? // org-scope docs; null = personal
+  organization   Organization? @relation("OrganizationAccountDocuments", fields: [organizationId], references: [id])
+  mediaId        String // THE storage entry: MediaAsset carries key/originalName/mime/size/sha256/renditions
+  media          MediaAsset    @relation("AccountDocumentMedia", fields: [mediaId], references: [id])
+  documentType   String // NATIONAL_ID | PASSPORT | RESIDENCE_PERMIT | COMMERCIAL_REG | TAX_CARD | BUSINESS_LICENSE | BANK_STATEMENT | FINANCIAL_STATEMENT | PROOF_OF_ADDRESS | GUARANTEE_DOC | FEASIBILITY_STUDY | INVOICE | PURCHASE_ORDER | PROJECT_FILE | OTHER
+  title          String?
+  issuedAt       DateTime? // document's own issue date
+  expiresAt      DateTime? // freshness vs ConditionTemplate.validityMonths
+  status         String        @default("PENDING") // PENDING | VERIFIED | REJECTED
+  reviewedById   String?
+  reviewedBy     User?         @relation("AccountDocumentsReviewedBy", fields: [reviewedById], references: [id])
+  reviewedAt     DateTime?
+  note           String? // verification / rejection note
+  isActive       Boolean       @default(true) // soft-delete
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  submissions        RequirementSubmission[]
+  requestAttachments RequestAttachment[]     @relation("RequestAttachmentDocument")
+
+  @@index([userId, documentType, status])
+  @@index([organizationId])
+  @@index([mediaId])
+}
+
+// Free-form request attachments not tied to a specific requirement (loose-parent pattern).
+model RequestAttachment {
+  id                String          @id @default(cuid())
+  parentType        String // FINANCING_REQUEST | ACCREDITATION_REQUEST
+  parentId          String // loose FK (Dispute pattern)
+  accountDocumentId String
+  accountDocument   AccountDocument @relation("RequestAttachmentDocument", fields: [accountDocumentId], references: [id], onDelete: Cascade)
+  kind              String // GUARANTEE_DOC | STUDY | PROJECT_FILE | OTHER
+  createdAt         DateTime        @default(now())
+
+  @@index([parentType, parentId])
+  @@index([accountDocumentId])
+}
+
+// ── 3.8 FinancingRequest v3 — the financing application (FR-YYYY-###### via Sequence 'FIN') ──
+model FinancingRequest {
+  id     String @id @default(cuid())
+  number String @unique
+
+  // WHO — references ONLY (R-2)
+  organizationId String? // applicant org (B2B); null = individual (DP-13)
+  organization   Organization? @relation("FinancingRequestsByOrg", fields: [organizationId], references: [id])
+  createdById    String
+  createdBy      User          @relation("FinancingRequests", fields: [createdById], references: [id])
+
+  // WHAT SERVICE — REQUIRED, service-scoped (DP-22)
+  serviceId  String
+  service    FinancierService @relation(fields: [serviceId], references: [id])
+  targetType String // WORKING_CAPITAL | QUOTE | ORDER | RFQ_LINE
+  targetId   String? // quote/order/rfqLine id (loose FK)
+
+  // MULTI-FINANCIER ROUTING (DP-25): null = exclusive; set = sibling group
+  multiGroupId String?
+
+  // ACTIVITY (wizard step 2)
+  activityStatus        String?
+  activityName          String?
+  activityDescription   String?
+  activityStartDate     DateTime?
+  activityCity          String?
+  activityDistrict      String?
+  activityAddress       String?
+  activityLocationType  String? // OWNED | RENTED
+  activityCategory      String?
+  activityCategoryOther String?
+
+  // UNDERWRITING INPUTS
+  capitalAmount              Float?
+  ownContributionAmount      Float?
+  monthlyInstallmentCapacity Float?
+  previousFinancing          Boolean?
+  otherIncomeSources         String?
+
+  // THE ASK
+  amountRequested      Float
+  currency             String  @default("YER")
+  purpose              String?
+  tenorRequestedMonths Int?
+
+  // GUARANTEE
+  guaranteeType        String? // PERSONAL_GUARANTEE | BANK_GUARANTEE | GOLD | COMMERCIAL | MORTGAGE | CONVERTIBLE_SECURITIES | SELF_GUARANTEE | OTHER
+  guaranteeTypeOther   String?
+  guaranteeStatus      String? // AVAILABLE | PARTIALLY_AVAILABLE | UNAVAILABLE | OTHER
+  guaranteeStatusOther String?
+
+  // CONSENT
+  applicantNotes String?
+  consentAt      DateTime?
+
+  // THE PLATFORM GATE (R-4, DP-23)
+  platformReviewedById String?
+  platformReviewedBy   User?     @relation("FinancingPlatformReviews", fields: [platformReviewedById], references: [id])
+  platformReviewedAt   DateTime?
+  platformNote         String?
+  returnedAt           DateTime?
+  returnedReason       String?
+  forwardedAt          DateTime?
+
+  // LIFECYCLE (§5.1)
+  status      String    @default("DRAFT")
+  expiresAt   DateTime?
+  submittedAt DateTime?
+  closedAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  submissions RequirementSubmission[]
+  offers      FinancingOffer[]
+
+  @@index([organizationId, status])
+  @@index([createdById, createdAt])
+  @@index([status, createdAt])
+  @@index([serviceId])
+  @@index([multiGroupId])
+  @@index([targetType, targetId])
+  @@index([activityCity])
+}
+
+// ── 3.9 FinancingOffer + installments (schedule proposed by the financier — R-1) ──
+model FinancingOffer {
+  id                 String           @id @default(cuid())
+  requestId          String
+  request            FinancingRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  createdById        String // financier staff User
+  createdBy          User             @relation("FinancingOffers", fields: [createdById], references: [id])
+  amount             Float
+  currency           String           @default("YER")
+  rateType           String? // MURABAHA_ANNUAL | FIXED_ANNUAL | FLAT_FEE
+  ratePercent        Float?
+  feeFlat            Float?
+  tenorMonths        Int
+  collateralRequired String? // from the guarantee taxonomy (§3.8)
+  notes              String?
+  validUntil         DateTime?
+  status             String           @default("DRAFT") // DRAFT | SENT | ACCEPTED | DECLINED | EXPIRED | WITHDRAWN
+  sentAt             DateTime?
+  acceptedAt         DateTime?
+  declinedAt         DateTime?
+  withdrawnAt        DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  installments FinancingOfferInstallment[]
+  agreement    FinancingAgreement?
+
+  @@index([requestId, status])
+}
+
+model FinancingOfferInstallment {
+  id            String         @id @default(cuid())
+  offerId       String
+  offer         FinancingOffer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  installmentNo Int
+  dueDate       DateTime
+  amount        Float
+
+  @@unique([offerId, installmentNo])
+  @@index([offerId, dueDate])
+}
+
+// ── 3.10 FinancingAgreement — references the accepted offer; NO terms snapshot (DP-20) ──
+model FinancingAgreement {
+  id                String         @id @default(cuid())
+  number            String         @unique // AGR-YYYY-###### via Sequence 'AGR'
+  offerId           String         @unique // the ACCEPTED offer — service FREEZES it
+  offer             FinancingOffer @relation(fields: [offerId], references: [id])
+  fundingStatus     String         @default("PENDING") // PENDING | REPORTED_FUNDED | REPORTED_SETTLED
+  status            String         @default("ACTIVE") // ACTIVE | COMPLETED | DEFAULTED | CANCELLED
+  acceptedAt        DateTime
+  fundedReportedAt  DateTime?
+  settledReportedAt DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  events FinancingEvent[]
+  fees   FinancingFee[]
+
+  @@index([status])
+}
+
+// ── 3.11 FinancingEvent — track-only ledger (D-002) ──
+model FinancingEvent {
+  id           String             @id @default(cuid())
+  agreementId  String
+  agreement    FinancingAgreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+  type         String // DISBURSEMENT | REPAYMENT | EARLY_SETTLEMENT | LATE_FEE | NOTE
+  eventDate    DateTime
+  amount       Float?
+  note         String?
+  reportedById String?
+  reportedBy   User?              @relation("FinancingEventsReportedBy", fields: [reportedById], references: [id])
+  createdAt    DateTime           @default(now())
+
+  @@index([agreementId, eventDate])
+}
+
+// ── 3.12 FinancingFee — commission accounting, invoiced externally (D-001/002) ──
+model FinancingFee {
+  id             String             @id @default(cuid())
+  agreementId    String
+  agreement      FinancingAgreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+  type           String // SUCCESS | ORIGINATION | ACCREDITATION
+  baseAmount     Float
+  percentApplied Float // snapshot of the configured rate at accrual
+  amount         Float
+  status         String             @default("ACCRUED") // ACCRUED | INVOICED | PAID | WAIVED
+  invoicedAt     DateTime?
+  paidAt         DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([agreementId, type, status])
+  @@index([status, createdAt])
+}
+
+// ── 3.13 AccreditationRequest — the QUALIFICATION & ACCREDITATION flow (MAIN service — DP-26) ──
+model AccreditationRequest {
+  id     String @id @default(cuid())
+  number String @unique // ACC-YYYY-###### via Sequence 'ACC'
+
+  // WHO — companies only
+  organizationId String
+  organization   Organization @relation("AccreditationRequestsByOrg", fields: [organizationId], references: [id])
+  submittedById  String
+  submittedBy    User         @relation("AccreditationsSubmitted", fields: [submittedById], references: [id])
+
+  // WHAT — the financier's ACCREDITATION-kind service (service-enforced)
+  serviceId String
+  service   FinancierService @relation(fields: [serviceId], references: [id])
+
+  // MULTI-FINANCIER ROUTING (DP-25)
+  multiGroupId String?
+
+  scopeNotes String?
+  consentAt  DateTime?
+
+  // THE PLATFORM GATE (R-4)
+  platformReviewedById String?
+  platformReviewedBy   User?     @relation("AccreditationPlatformReviews", fields: [platformReviewedById], references: [id])
+  platformReviewedAt   DateTime?
+  platformNote         String?
+  returnedAt           DateTime?
+  returnedReason       String?
+  forwardedAt          DateTime?
+
+  // LIFECYCLE (§5.2)
+  status           String    @default("DRAFT") // DRAFT | SUBMITTED | UNDER_PLATFORM_REVIEW | RETURNED_FOR_COMPLETION | FORWARDED_TO_FINANCIER | UNDER_FINANCIER_REVIEW | ACCREDITED | REJECTED | EXPIRED | REVOKED | CANCELLED
+  submittedAt      DateTime?
+  decidedById      String?
+  decidedBy        User?     @relation("AccreditationsDecidedBy", fields: [decidedById], references: [id])
+  decidedAt        DateTime?
+  decisionNote     String?
+  accreditedAt     DateTime?
+  validUntil       DateTime? // grant lifetime — service.accreditationValidMonths default
+  revokedById      String?
+  revokedBy        User?     @relation("AccreditationsRevokedBy", fields: [revokedById], references: [id])
+  revokedAt        DateTime?
+  revocationReason String?
+  expiresAt        DateTime? // REQUEST-level expiry (pre-decision)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  submissions RequirementSubmission[]
+
+  @@unique([serviceId, organizationId]) // one accreditation per financier-program per org; renewals after terminal states (service-enforced)
+  @@index([organizationId, status])
+  @@index([status, createdAt])
+  @@index([multiGroupId])
+  @@index([validUntil])
 }

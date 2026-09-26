@@ -224,6 +224,8 @@ export const DASHBOARD_VIEWS = new Set<View>([
   'business',
   'orders',
   'favorites',
+  'financing',
+  'financier',
 ])
 
 /** Topbar "back to storefront" label per role. */

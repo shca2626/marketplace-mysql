@@ -27,6 +27,8 @@ export type View =
   | 'admin'
   | 'rfqs'
   | 'business'
+  | 'financing' // applicant surface: financing requests + accreditation + documents center
+  | 'financier' // financier console: services, inbox, offers, accreditations
 
 export interface ViewParams {
   productId?: string
@@ -39,6 +41,7 @@ export interface ViewParams {
   quoteId?: string
   disputeId?: string // seller dashboard: open a specific dispute
   scheduleId?: string // buyer RFQ view: open a specific recurring schedule
+  requestId?: string // financing view: open a specific financing/accreditation request
 }
 
 export interface ApplySettingsPayload {

@@ -1004,6 +1004,106 @@ export const RFQ_SETTINGS_SECTIONS: SectionDef[] = [
       },
     ],
   },
+
+  // ── FINANCING MODULE (FINANCIER_SCHEMA v5 §6) — the platform gate & money ──
+  {
+    key: 'financing',
+    title: 'Financing',
+    description: 'The financier module: platform verification gate, requirement engine, fees, documents and accreditation programs.',
+    panels: [
+      {
+        key: 'financingGeneral',
+        title: 'Gate & Requests',
+        description: 'The platform verification gate is the essence of the platform (DP-23): every request is verified before the financier sees it.',
+        groups: [
+          {
+            fields: [
+              { key: 'enabled', label: 'Financing module enabled', type: 'toggle', default: true },
+              { key: 'platformReviewRequired', label: 'Platform review required (the gate)', type: 'toggle', default: true, locked: true, help: 'Owner-set ruling DP-23 — requests are ALWAYS verified before forwarding. Automation may pre-fill verdicts, never skip review.' },
+              { key: 'requestExpiryDays', label: 'Request expiry (days)', type: 'number', default: 30, min: 1, max: 365 },
+              { key: 'maxOffersPerRequest', label: 'Max offers per request', type: 'number', default: 5, min: 1, max: 20, help: 'Revised offers the financier may send on one request.' },
+              { key: 'autoForwardWhenAllVerified', label: 'Auto-forward when all items verified', type: 'toggle', default: false, help: 'When the last checklist item is verified, forward immediately instead of waiting for a manual forward click. An admin verdict still happened on every item.' },
+            ],
+          },
+        ],
+      },
+      {
+        key: 'financingFees',
+        title: 'Fees',
+        description: 'Platform revenue = success fee on accepted offers, invoiced and collected externally (DP-2). The platform never touches financing money.',
+        groups: [
+          {
+            fields: [
+              { key: 'financierSuccessPercent', label: 'Success fee percent', type: 'slider', default: 0.75, min: 0, max: 5, step: 0.05, unit: '%' },
+              { key: 'originationPercentCap', label: 'Origination fee cap', type: 'slider', default: 2, min: 0, max: 10, step: 0.25, unit: '%' },
+            ],
+          },
+        ],
+      },
+      {
+        key: 'financingRequirements',
+        title: 'Requirements Engine',
+        description: 'General (platform-curated) + financier-specific conditions, attached per service (DP-24).',
+        groups: [
+          {
+            fields: [
+              { key: 'allowFinancierCustomConditions', label: 'Allow financier-specific conditions', type: 'toggle', default: true, help: 'Financiers may compose private condition templates in addition to the shared GENERAL library.' },
+              { key: 'defaultValidityMonths', label: 'Default evidence validity (months)', type: 'number', default: 3, min: 1, max: 36, help: 'Freshness window for documents when a template does not specify one.' },
+              { key: 'maxRequirementsPerService', label: 'Max requirements per service', type: 'number', default: 40, min: 1, max: 120 },
+            ],
+          },
+        ],
+      },
+      {
+        key: 'financingDocuments',
+        title: 'Documents Vault',
+        description: 'Universal document management for all users and accounts (DP-27) — uploaded once, verified once, reused everywhere.',
+        groups: [
+          {
+            fields: [
+              { key: 'allowedTypes', label: 'Allowed document types', type: 'multiselect', default: ['NATIONAL_ID', 'PASSPORT', 'COMMERCIAL_REG', 'TAX_CARD', 'BUSINESS_LICENSE', 'BANK_STATEMENT', 'FINANCIAL_STATEMENT', 'PROOF_OF_ADDRESS'], options: [
+                { value: 'NATIONAL_ID', label: 'National ID' }, { value: 'PASSPORT', label: 'Passport' },
+                { value: 'RESIDENCE_PERMIT', label: 'Residence permit' }, { value: 'COMMERCIAL_REG', label: 'Commercial registration' },
+                { value: 'TAX_CARD', label: 'Tax card' }, { value: 'BUSINESS_LICENSE', label: 'Business license' },
+                { value: 'BANK_STATEMENT', label: 'Bank statement' }, { value: 'FINANCIAL_STATEMENT', label: 'Financial statement' },
+                { value: 'PROOF_OF_ADDRESS', label: 'Proof of address' }, { value: 'GUARANTEE_DOC', label: 'Guarantee document' },
+                { value: 'FEASIBILITY_STUDY', label: 'Feasibility study' }, { value: 'INVOICE', label: 'Invoice' },
+                { value: 'PURCHASE_ORDER', label: 'Purchase order' }, { value: 'PROJECT_FILE', label: 'Project file' },
+                { value: 'OTHER', label: 'Other' },
+              ] },
+              { key: 'maxSizeMb', label: 'Max file size (MB)', type: 'number', default: 8, min: 1, max: 32 },
+            ],
+          },
+        ],
+      },
+      {
+        key: 'financingIntake',
+        title: 'Application Intake',
+        description: 'The 3-step applicant wizard: profile & vault review → activity & checklist → review & consent.',
+        groups: [
+          {
+            fields: [
+              { key: 'wizardEnabled', label: 'Wizard enabled', type: 'toggle', default: true },
+              { key: 'requireConsent', label: 'Require data-transfer consent', type: 'toggle', default: true, help: 'Stamps consentAt at submit; forwarded requests imply the applicant agreed to share with the financier.' },
+            ],
+          },
+        ],
+      },
+      {
+        key: 'financingAccreditation',
+        title: 'Accreditation Programs',
+        description: 'Qualification & accreditation is a MAIN service (DP-26): grant unlocks RFQ participation with the financier and auto-passes their other services.',
+        groups: [
+          {
+            fields: [
+              { key: 'defaultValidMonths', label: 'Default grant validity (months)', type: 'number', default: 12, min: 1, max: 60 },
+              { key: 'allowMultiFinancier', label: 'Allow applying to multiple financiers', type: 'toggle', default: true, help: 'Sibling requests share a multiGroupId (DP-25) — one checklist per financier program.' },
+            ],
+          },
+        ],
+      },
+    ],
+  },
 ]
 
 // ═══════════════════════════════════════════════════════════════════════════

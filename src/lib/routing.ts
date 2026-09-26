@@ -29,6 +29,8 @@ const VIEWS = new Set<View>([
   'admin',
   'rfqs',
   'business',
+  'financing',
+  'financier',
 ])
 
 /** Serialize a view + params into a query string (no leading "?"). */
@@ -46,6 +48,7 @@ export function viewToQuery(view: View, params: ViewParams = {}): string {
   if (view === 'rfqs' && params.rfqId) sp.set('rfq', params.rfqId)
   if (view === 'rfqs' && params.scheduleId) sp.set('schedule', params.scheduleId)
   if (view === 'seller' && params.disputeId) sp.set('dispute', params.disputeId)
+  if (view === 'financing' && params.requestId) sp.set('request', params.requestId)
   const qs = sp.toString()
   return qs
 }
@@ -95,6 +98,10 @@ export function parseLocation(href: string = typeof window !== 'undefined' ? win
     if (view === 'seller') {
       const dispute = sp.get('dispute')
       if (dispute) params.disputeId = dispute
+    }
+    if (view === 'financing') {
+      const request = sp.get('request')
+      if (request) params.requestId = request
     }
     return { view, params }
   } catch {

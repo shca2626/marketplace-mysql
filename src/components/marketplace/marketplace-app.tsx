@@ -38,6 +38,8 @@ import { AdminView } from './admin-view'
 // Buyer console pages — existing views mounted in the shared dashboard shell.
 import { BuyerDashboard } from '@/components/dashboards/buyer-dashboard'
 import { BuyerRfqsPage, BuyerBusinessPage, BuyerOrdersPage, BuyerFavoritesPage } from '@/components/dashboards/buyer-pages'
+import { FinancingView } from './financing-view'
+import { FinancierView } from './financier-view'
 import { CartDrawer } from './cart-drawer'
 import { AuthModal } from './auth-modal'
 import { BackToTop } from './back-to-top'
@@ -62,6 +64,8 @@ const CONSOLE_VIEWS: Record<string, () => React.ReactNode> = {
   business: () => <BuyerBusinessPage />,
   orders: () => <BuyerOrdersPage />,
   favorites: () => <BuyerFavoritesPage />,
+  financing: () => <FinancingView />,
+  financier: () => <FinancierView />,
 }
 
 export function MarketplaceApp() {

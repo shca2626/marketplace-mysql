@@ -34,13 +34,33 @@ export type NotificationType =
   | 'VENDOR_STATUS' // seller: platform verified / suspended / reactivated your account
   | 'PAYMENT_STATUS' // buyer: payment captured, failed or awaiting confirmation
   | 'PAYOUT_STATUS' // seller: a payout was created or marked paid
+  // ── financier module (FINANCIER_SCHEMA v5 §6) ──
+  | 'PLATFORM_RETURNED_REQUEST' // applicant: gate returned the request for completion
+  | 'PLATFORM_FORWARDED_REQUEST' // applicant: gate passed, financier will review
+  | 'REQUIREMENT_VERIFIED' // applicant: a checklist item passed platform verification
+  | 'REQUIREMENT_REJECTED' // applicant: a checklist item was rejected (decisionNote)
+  | 'DOCUMENT_VERIFIED' // owner: a vault document was verified
+  | 'DOCUMENT_REJECTED' // owner: a vault document was rejected
+  | 'FINANCING_REQUEST_RECEIVED' // financier: a request was forwarded to you
+  | 'OFFER_RECEIVED' // applicant: the financier sent an offer
+  | 'OFFER_ACCEPTED' // financier: applicant accepted the offer
+  | 'OFFER_DECLINED' // financier: applicant declined the offer
+  | 'OFFER_WITHDRAWN' // applicant: the financier withdrew the offer
+  | 'ACCREDITATION_RECEIVED' // financier: an accreditation request was forwarded
+  | 'ACCREDITATION_GRANTED' // applicant org: accreditation granted
+  | 'ACCREDITATION_REJECTED' // applicant org: accreditation rejected
+  | 'ACCREDITATION_REVOKED' // applicant org: accreditation revoked
+  | 'ACCREDITATION_EXPIRING' // applicant org: accreditation nearing validUntil
+  | 'FEE_ACCRUED' // admin: success fee accrued on an accepted offer
+  | 'AGREEMENT_STATUS_CHANGED' // applicant+financier: agreement funding status moved
+  | 'FINANCING_STATUS_CHANGED' // applicant: request lifecycle moved
 
 export interface EmitInput {
   userId: string
   type: NotificationType
   title: string
   body?: string | null
-  linkView: 'rfq' | 'orders' | 'business' | 'seller' | 'disputes' | 'admin'
+  linkView: 'rfq' | 'orders' | 'business' | 'seller' | 'disputes' | 'admin' | 'financing' | 'financier'
   linkId?: string | null
 }
 
