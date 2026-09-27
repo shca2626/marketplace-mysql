@@ -10,7 +10,7 @@
 | **Stack** | Next.js 16 (App Router) · React 19 · TypeScript 5 (strict) · Tailwind CSS 4 · shadcn/ui (New York) · Prisma 6 + SQLite · Zustand · react-hook-form + Zod · Recharts · pdf-lib · sharp |
 | **Size** | ~75,000 lines of TS/TSX in `src/` · **50 Prisma models** · **148 API route files (~160 endpoints)** |
 | **Runs from clone** | `bun install && bunx prisma generate && bun run dev` — database file `db/custom.db` and the media store `uploads/` are both committed, so the app boots with a full demo dataset (users, orgs, products, orders, RFQs, financing requests) and zero external services. |
-| **Docs** | Full engineering documentation suite in [`team/docs/`](./team/docs) (domain model/ERD, use cases, API contract, 21 ADRs, design system, data dictionary, test plan, ops runbook, security/threat model) + an OpenAPI 3.1 spec with 88 live paths. |
+| **Docs** | Full engineering documentation suite in [`team/docs/`](./team/docs) (domain model/ERD, use cases, API contract, 21 ADRs, design system, data dictionary, test plan, ops runbook, security/threat model) + an OpenAPI 3.1 spec with 149 live paths / 194 operations. |
 
 ---
 
@@ -286,7 +286,7 @@ The flagship feature — read [`team/FINANCIER_SCHEMA.md`](./team/FINANCIER_SCHE
 
 Full conventions (error model, status codes, pagination, auth/CSRF policy) in
 [`team/docs/03-api-contract.md`](./team/docs/03-api-contract.md) and the machine-readable
-[`team/docs/openapi.yaml`](./team/docs/openapi.yaml) (88 live paths / 121 operations).
+[`team/docs/openapi.yaml`](./team/docs/openapi.yaml) (149 live paths / 194 operations).
 
 Groups under `src/app/api/`:
 
