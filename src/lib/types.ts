@@ -952,3 +952,27 @@ export interface FinancierProfileFactsDTO {
   maxTicket: number | null
   viewCount: number
 }
+
+// ── Notification email digest (DIGEST-13) ──────────────────────────────────
+
+export type DigestFrequency = 'OFF' | 'DAILY' | 'WEEKLY'
+
+export interface DigestRowDTO {
+  id: string
+  kind: string // DAILY | WEEKLY
+  periodStart: string
+  periodEnd: string
+  itemCount: number
+  subject: string
+  status: string // LOGGED | SENT
+  createdAt: string
+}
+
+export interface DigestPreviewDTO {
+  kind: string
+  periodStart: string
+  periodEnd: string
+  itemCount: number
+  subject: string
+  html: string
+}

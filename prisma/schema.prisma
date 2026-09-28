@@ -82,6 +82,10 @@ model User {
   submissionsVerified       RequirementSubmission[] @relation("RequirementSubmissionsVerifiedBy")
   conditionTemplatesCreated ConditionTemplate[]     @relation("ConditionTemplatesCreatedBy")
 
+  // ── notification email digest (DIGEST-13) ──
+  digests    NotificationDigest[]
+  digestPref UserDigestPref?
+
   @@index([role])
 }
 
@@ -517,6 +521,36 @@ model Notification {
 
   @@index([userId, readAt])
   @@index([userId, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NOTIFICATION EMAIL DIGEST (DIGEST-13)
+// Rendered digest emails are BUILT and STORED here (branded inline-styled HTML);
+// delivery goes through a pluggable transport. The bundled dev transport only
+// logs, so status stays LOGGED until a real SMTP transport is wired in.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model NotificationDigest {
+  id          String   @id @default(cuid())
+  userId      String
+  kind        String   // DAILY | WEEKLY
+  periodStart DateTime
+  periodEnd   DateTime
+  itemCount   Int
+  subject     String
+  html        String
+  status      String   @default("LOGGED") // LOGGED now; SENT when a transport is configured
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// Per-user digest opt-in + cadence. No row (or OFF) = never included in batches.
+model UserDigestPref {
+  userId    String  @id
+  frequency String  @default("OFF") // OFF | DAILY | WEEKLY
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // Negotiation thread on an RFQ — buyer ↔ admin ↔ involved sellers Q&A.

@@ -11,6 +11,7 @@ import {
   ClipboardList,
   FileText,
   Handshake,
+  Mail,
   MessageSquareText,
   PackageCheck,
   PackageOpen,
@@ -26,6 +27,7 @@ import type { NotificationDTO, OrderDTO } from '@/lib/types'
 import { formatUSD, timeAgo } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { NotificationsDigestDialog } from '@/components/marketplace/notifications-digest-dialog'
 import { cn } from '@/lib/utils'
 
 /**
@@ -214,6 +216,9 @@ export function NotificationsBell() {
   })
 
   const [open, setOpen] = useState(false)
+  // Email digest settings dialog (DIGEST-13) — rendered as a sibling of the
+  // Popover so it survives the popover closing.
+  const [digestOpen, setDigestOpen] = useState(false)
   // Lazy SSR-safe initializer: the bell renders null on the server (user is
   // null before auth), so this only reads localStorage on real client mounts.
   const [seen, setSeen] = useState<Set<string>>(() =>
@@ -336,6 +341,7 @@ export function NotificationsBell() {
   if (!user) return null
 
   return (
+    <>
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
@@ -471,19 +477,34 @@ export function NotificationsBell() {
         </div>
 
         <div className="border-t p-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-full rounded-lg text-xs text-muted-foreground"
-            onClick={() => {
-              setOpen(false)
-              navigate('orders')
-            }}
-          >
-            View all orders
-          </Button>
+          <div className="grid grid-cols-2 gap-1.5">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 rounded-lg text-xs text-muted-foreground"
+              onClick={() => {
+                setOpen(false)
+                setDigestOpen(true)
+              }}
+            >
+              <Mail size={13} /> Email digest
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 rounded-lg text-xs text-muted-foreground"
+              onClick={() => {
+                setOpen(false)
+                navigate('orders')
+              }}
+            >
+              View all orders
+            </Button>
+          </div>
         </div>
       </PopoverContent>
     </Popover>
+    <NotificationsDigestDialog open={digestOpen} onOpenChange={setDigestOpen} />
+    </>
   )
 }

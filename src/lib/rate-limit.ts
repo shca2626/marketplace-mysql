@@ -63,4 +63,5 @@ export const RATE_LIMITS = {
   review: { limit: 10, windowMs: 60 * 60_000 }, // per user
   order: { limit: 20, windowMs: 10 * 60_000 }, // per user (checkout)
   mediaRead: { limit: 600, windowMs: 60_000 }, // per IP — generous, responses are immutable
+  digest: { limit: 10, windowMs: 10 * 60_000 }, // per user (preview/generate digest actions)
 } as const
