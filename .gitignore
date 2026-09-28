@@ -81,4 +81,4 @@ db/custom.db-journal
 *.sqlite-shm
 
 # runtime secrets — never commit (repo is public)
-.env
+
