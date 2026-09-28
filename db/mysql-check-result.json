@@ -1,0 +1,29 @@
+{
+  "ok": false,
+  "checkedAt": "2026-09-28T20:13:34.293Z",
+  "durationMs": 886,
+  "endpointsTried": [
+    {
+      "host": "sql301.infinityfree.com",
+      "resolvable": false,
+      "connected": false
+    },
+    {
+      "host": "sql301.byet.org",
+      "resolvable": true,
+      "connected": false,
+      "error": {
+        "code": "ER_ACCESS_DENIED_ERROR",
+        "errno": 1045,
+        "message": "Access denied for user 'if0_43035558'@'47.57.242.119' (using password: YES)"
+      }
+    }
+  ],
+  "error": {
+    "code": "ER_ACCESS_DENIED_ERROR",
+    "errno": 1045,
+    "message": "Access denied for user 'if0_43035558'@'47.57.242.119' (using password: YES)",
+    "clientIpHint": "47.57.242.119"
+  },
+  "hint": "The MySQL server answered but refused this client. If the code is ER_ACCESS_DENIED_ERROR / ER_HOST_NOT_PRIVILEGED, add the client IP shown in the message to the InfinityFree Remote MySQL whitelist (client panel → MySQL → Remote MySQL), then retry."
+}
