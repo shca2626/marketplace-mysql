@@ -1,15 +1,35 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/auth'
+import { enforceRateLimit } from '@/lib/http'
+import { RATE_LIMITS } from '@/lib/rate-limit'
+import { checkMySqlServer } from '@/lib/mysql-check'
 
-// GET /api/admin/stats — READ-ONLY platform analytics overview.
+// /api/admin/stats — READ-ONLY platform analytics overview.
 // Admin-only (session role check); aggregates existing data, writes nothing.
-export async function GET() {
+// GET ?mysql=1 → remote-MySQL connectivity diagnostics (MYSQLTOOL-1): runs
+//   the same endpoint-fallback-chain check as `bun run mysql:check`
+//   (src/lib/mysql-check.ts) server-side, capped at a 30s timeout. Own
+//   rate-limit bucket — it opens an outbound DB connection per call.
+export async function GET(req: NextRequest) {
   try {
     const user = await getSessionUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     if (user.role !== 'ADMIN')
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+
+    // MySQL diagnostics branch (MYSQLTOOL-1) — report only, never writes.
+    if (req.nextUrl.searchParams.get('mysql') === '1') {
+      const rl = enforceRateLimit(req, 'mysql-check', RATE_LIMITS.mysqlCheck, user.id)
+      if (rl) return rl
+      try {
+        const mysql = await checkMySqlServer({ timeoutMs: 30_000 })
+        return NextResponse.json({ mysql })
+      } catch (err) {
+        console.error('[api/admin/stats GET mysql] failed', err)
+        return NextResponse.json({ error: 'MySQL connectivity check failed' }, { status: 500 })
+      }
+    }
 
     const now = new Date()
     const daysAgo7 = new Date(now)

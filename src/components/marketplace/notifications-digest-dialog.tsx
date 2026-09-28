@@ -1,10 +1,17 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Eye, Loader2, Mail, MailX, Send } from 'lucide-react'
+import { AlertTriangle, Eye, Loader2, Mail, MailX, RefreshCw, Send } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
-import type { DigestFrequency, DigestPreviewDTO, DigestRowDTO } from '@/lib/types'
+import type {
+  DigestDeliveryStatusDTO,
+  DigestFrequency,
+  DigestPreviewDTO,
+  DigestRowDTO,
+  EmailConfigDTO,
+} from '@/lib/types'
 import { timeAgo } from '@/lib/format'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -18,14 +25,18 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { cn } from '@/lib/utils'
 
 /**
- * Email digest settings + preview (DIGEST-13).
+ * Email digest settings + preview (DIGEST-13, delivery tracking EMAILTRACK-1).
  *
  * Opened from the bell's footer ("Email digest"). Mounted as a SIBLING of the
  * bell's Popover so it survives the popover closing — rendering it inside the
  * PopoverContent unmounts the dialog on close (popover synthetic clicks are
  * flaky). Everything the user can do here hits /api/notifications/digest:
  * pick a cadence, live-preview the rendered email, generate one on demand,
- * and browse the stored history.
+ * and browse the stored history. On open it also pulls mailer diagnostics
+ * (?config=1) — an amber banner warns while Resend is in test mode (no
+ * verified domain → only the account owner's address receives mail), and
+ * each SENT row has a "Check delivery" action that polls the provider's
+ * real last delivery event (?id=<digestId>).
  */
 
 const FREQUENCY_OPTIONS: { value: DigestFrequency; label: string; hint: string }[] = [
@@ -43,6 +54,25 @@ const STATUS_BADGE: Record<string, string> = {
   LOGGED: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
   SENT: 'bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300',
   FAILED: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300',
+}
+
+// Resend delivery events → badge tone (EMAILTRACK-1). Delivered=emerald,
+// bounce/complaint=rose, delay=amber, plain sent=neutral.
+const DELIVERY_BADGE: Record<string, string> = {
+  delivered: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+  bounced: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300',
+  complained: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300',
+  delivery_delayed: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+  sent: 'bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400',
+}
+
+const DELIVERY_LABEL: Record<string, string> = {
+  delivered: 'Delivered',
+  bounced: 'Bounced',
+  complained: 'Complained',
+  delivery_delayed: 'Delayed',
+  sent: 'Sent',
+  unknown: 'Unknown',
 }
 
 const FALLBACK_BADGE = 'bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400'
@@ -75,12 +105,17 @@ interface NotificationsDigestDialogProps {
 export function NotificationsDigestDialog({ open, onOpenChange }: NotificationsDigestDialogProps) {
   const [frequency, setFrequency] = useState<DigestFrequency | null>(null)
   const [history, setHistory] = useState<DigestRowDTO[]>([])
-  const [transport, setTransport] = useState<'smtp-resend' | 'dev-console'>('dev-console')
+  const [transport, setTransport] = useState<'resend' | 'dev-console'>('dev-console')
   const [loading, setLoading] = useState(false)
   const [previewHtml, setPreviewHtml] = useState<string | null>(null)
   const [previewEmpty, setPreviewEmpty] = useState(false)
   const [previewing, setPreviewing] = useState(false)
   const [generating, setGenerating] = useState(false)
+  // Mailer diagnostics (?config=1) — drives the test-mode banner.
+  const [emailConfig, setEmailConfig] = useState<EmailConfigDTO | null>(null)
+  // Per-digest delivery check (?id=…) — spinner + latest result badge.
+  const [checkingDelivery, setCheckingDelivery] = useState<string | null>(null)
+  const [deliveryResults, setDeliveryResults] = useState<Record<string, DigestDeliveryStatusDTO>>({})
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -90,16 +125,25 @@ export function NotificationsDigestDialog({ open, onOpenChange }: NotificationsD
         const data = (await res.json()) as {
           digests: DigestRowDTO[]
           frequency: DigestFrequency
-          transport?: 'smtp-resend' | 'dev-console'
+          transport?: 'resend' | 'dev-console'
         }
         setFrequency(data.frequency)
         setHistory(data.digests)
-        setTransport(data.transport === 'smtp-resend' ? 'smtp-resend' : 'dev-console')
+        setTransport(data.transport === 'resend' ? 'resend' : 'dev-console')
       }
     } catch {
       /* next open retries */
     } finally {
       setLoading(false)
+    }
+  }, [])
+
+  const loadEmailConfig = useCallback(async () => {
+    try {
+      const res = await fetch('/api/notifications/digest?config=1', { cache: 'no-store' })
+      if (res.ok) setEmailConfig((await res.json()) as EmailConfigDTO)
+    } catch {
+      /* banner simply stays hidden when diagnostics are unavailable */
     }
   }, [])
 
@@ -109,8 +153,9 @@ export function NotificationsDigestDialog({ open, onOpenChange }: NotificationsD
       setPreviewHtml(null)
       setPreviewEmpty(false)
       void refresh()
+      void loadEmailConfig()
     }
-  }, [open, refresh])
+  }, [open, refresh, loadEmailConfig])
 
   const handleFrequencyChange = useCallback(
     async (value: string) => {
@@ -174,12 +219,53 @@ export function NotificationsDigestDialog({ open, onOpenChange }: NotificationsD
     toast({
       title: 'Digest generated',
       description:
-        transport === 'smtp-resend'
+        transport === 'resend'
           ? `${res.data.digest.subject} — sent via your email provider (status: ${res.data.digest.status.toLowerCase()}).`
           : `${res.data.digest.subject} — stored and logged via the dev transport.`,
     })
     void refresh()
   }, [refresh, transport])
+
+  /** Poll one SENT digest's real delivery event from the provider. */
+  const checkDelivery = useCallback(async (digestId: string) => {
+    setCheckingDelivery(digestId)
+    try {
+      const res = await fetch(`/api/notifications/digest?id=${encodeURIComponent(digestId)}`, {
+        cache: 'no-store',
+      })
+      const json = (await res.json().catch(() => ({}))) as Partial<DigestDeliveryStatusDTO> & {
+        error?: string
+      }
+      if (!res.ok) {
+        toast({
+          title: 'Delivery check failed',
+          description: json.error ?? `Request failed (${res.status})`,
+          variant: 'destructive',
+        })
+        return
+      }
+      setDeliveryResults((prev) => ({
+        ...prev,
+        [digestId]: {
+          delivery: json.delivery ?? 'unknown',
+          lastEvent: json.lastEvent ?? null,
+          checkedAt: json.checkedAt ?? new Date().toISOString(),
+        },
+      }))
+    } catch {
+      toast({
+        title: 'Delivery check failed',
+        description: 'Network error — please try again',
+        variant: 'destructive',
+      })
+    } finally {
+      setCheckingDelivery(null)
+    }
+  }, [])
+
+  // First unverified domain for the banner copy (defaults to the known one).
+  const unverifiedDomain =
+    emailConfig?.domains.find((d) => d.status !== 'verified')?.name ?? 'yusr.site.je'
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -192,6 +278,20 @@ export function NotificationsDigestDialog({ open, onOpenChange }: NotificationsD
             Bundle your notification activity into one branded summary email.
           </DialogDescription>
         </DialogHeader>
+
+        {/* Test-mode warning — Resend only delivers to the account owner
+            while no sending domain is verified (EMAILTRACK-1). */}
+        {emailConfig?.testMode === true && (
+          <Alert className="border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-200">
+            <AlertTriangle />
+            <AlertTitle>Resend test mode: domain not verified</AlertTitle>
+            <AlertDescription className="text-amber-800 dark:text-amber-300">
+              Emails deliver only to the Resend account owner&apos;s address. Verify{' '}
+              <span className="font-semibold">{unverifiedDomain}</span> in Resend for full
+              delivery.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Frequency — rounded option cards */}
         <fieldset className="space-y-2" disabled={loading && frequency === null}>
@@ -285,34 +385,70 @@ export function NotificationsDigestDialog({ open, onOpenChange }: NotificationsD
                 No digests yet — they will appear here once generated.
               </li>
             ) : (
-              history.slice(0, 5).map((d) => (
-                <li
-                  key={d.id}
-                  className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b py-2 last:border-b-0"
-                >
-                  <Badge className={cn('rounded-full px-2 text-[10px]', KIND_BADGE[d.kind] ?? FALLBACK_BADGE)}>
-                    {d.kind === 'WEEKLY' ? 'Weekly' : 'Daily'}
-                  </Badge>
-                  <span className="min-w-0 flex-1 truncate text-xs font-medium">{d.subject}</span>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">
-                    {d.itemCount} update{d.itemCount === 1 ? '' : 's'}
-                  </span>
-                  <span className="shrink-0 text-[11px] text-muted-foreground/80">
-                    {timeAgo(d.createdAt)}
-                  </span>
-                  <Badge className={cn('rounded-full px-2 text-[10px]', STATUS_BADGE[d.status] ?? FALLBACK_BADGE)}>
-                    {d.status === 'SENT' ? 'Sent' : d.status === 'FAILED' ? 'Failed' : 'Logged'}
-                  </Badge>
-                </li>
-              ))
+              history.slice(0, 5).map((d) => {
+                const result = deliveryResults[d.id]
+                return (
+                  <li
+                    key={d.id}
+                    className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b py-2 last:border-b-0"
+                  >
+                    <Badge className={cn('rounded-full px-2 text-[10px]', KIND_BADGE[d.kind] ?? FALLBACK_BADGE)}>
+                      {d.kind === 'WEEKLY' ? 'Weekly' : 'Daily'}
+                    </Badge>
+                    <span className="min-w-0 flex-1 truncate text-xs font-medium">{d.subject}</span>
+                    <span className="shrink-0 text-[11px] text-muted-foreground">
+                      {d.itemCount} update{d.itemCount === 1 ? '' : 's'}
+                    </span>
+                    <span className="shrink-0 text-[11px] text-muted-foreground/80">
+                      {timeAgo(d.createdAt)}
+                    </span>
+                    <Badge className={cn('rounded-full px-2 text-[10px]', STATUS_BADGE[d.status] ?? FALLBACK_BADGE)}>
+                      {d.status === 'SENT' ? 'Sent' : d.status === 'FAILED' ? 'Failed' : 'Logged'}
+                    </Badge>
+                    {d.status === 'SENT' && (
+                      <span className="flex shrink-0 items-center gap-1.5">
+                        {checkingDelivery === d.id ? (
+                          <Loader2 size={12} className="animate-spin text-muted-foreground" />
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 gap-1 px-1.5 text-[11px] text-muted-foreground"
+                            onClick={() => void checkDelivery(d.id)}
+                          >
+                            <RefreshCw size={11} />
+                            Check delivery
+                          </Button>
+                        )}
+                        {result && (
+                          <Badge
+                            className={cn(
+                              'rounded-full px-2 text-[10px]',
+                              DELIVERY_BADGE[result.delivery] ?? FALLBACK_BADGE
+                            )}
+                          >
+                            {DELIVERY_LABEL[result.delivery] ?? result.delivery}
+                          </Badge>
+                        )}
+                      </span>
+                    )}
+                    {result?.lastEvent && (
+                      <span className="shrink-0 text-[11px] text-muted-foreground/80">
+                        last event: {result.lastEvent}
+                      </span>
+                    )}
+                  </li>
+                )
+              })
             )}
           </ul>
         </div>
 
         <p className="text-[11px] leading-relaxed text-muted-foreground">
-          {transport === 'smtp-resend'
-            ? 'Digests are sent through your configured email provider (Resend SMTP). Note: while the sending domain is not yet verified in the provider dashboard, it only delivers to the account owner\u2019s address \u2014 other recipients are marked Failed until verification, and can be regenerated after.'
-            : 'This sandbox has no SMTP connection — generated digests are rendered, stored, and logged to the server console instead of being sent. Registering a real email transport will switch their status to Sent.'}
+          {transport === 'resend'
+            ? 'Digests are sent through your configured email provider (Resend — REST API first, SMTP fallback). While the sending domain is not yet verified, delivery is restricted to the account owner\u2019s address — use Check delivery on a sent digest to see the provider\u2019s latest event.'
+            : 'This sandbox has no email transport configured — generated digests are rendered, stored, and logged to the server console instead of being sent. Setting RESEND_API_KEY (or SMTP) will switch their status to Sent.'}
         </p>
       </DialogContent>
     </Dialog>

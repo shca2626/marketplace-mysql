@@ -64,4 +64,7 @@ export const RATE_LIMITS = {
   order: { limit: 20, windowMs: 10 * 60_000 }, // per user (checkout)
   mediaRead: { limit: 600, windowMs: 60_000 }, // per IP — generous, responses are immutable
   digest: { limit: 10, windowMs: 10 * 60_000 }, // per user (preview/generate digest actions)
+  digestStatus: { limit: 30, windowMs: 10 * 60_000 }, // per user (delivery checks → outbound Resend API)
+  emailConfig: { limit: 30, windowMs: 10 * 60_000 }, // per user (mailer diagnostics → outbound Resend API)
+  mysqlCheck: { limit: 10, windowMs: 10 * 60_000 }, // per admin (MySQL diagnostics → outbound DB connection, MYSQLTOOL-1)
 } as const

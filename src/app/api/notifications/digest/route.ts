@@ -13,9 +13,19 @@ import {
   type DigestFrequency,
   type DigestKind,
 } from '@/lib/notifications/digest'
+import { getDigestDeliveryStatus, getEmailConfig } from '@/lib/notifications/email-tracking'
 
 // /api/notifications/digest — per-user email digest preferences + history.
 // GET  → last 10 stored digests (no HTML blobs) + frequency preference.
+// GET ?id=<digestId> → poll one digest's REAL delivery state from the Resend
+//      REST API: { delivery, lastEvent, checkedAt } (EMAILTRACK-1 — stands in
+//      for /api/notifications/digest/status; the sandbox file tools cannot
+//      create new route directories, so it rides on this route as a query
+//      branch with its own rate-limit bucket).
+// GET ?config=1 → mailer diagnostics: { testMode, domains, fromAddress,
+//      mailerMode } (EMAILTRACK-1 — stands in for /api/notifications/
+//      email-config the same way). testMode=true means NO Resend domain is
+//      verified, so Resend only delivers to the account owner's address.
 // POST { action }:
 //   'preview'       → live build for the preferred kind (OFF previews DAILY);
 //                     { digest: null } when the period is empty.
@@ -29,9 +39,39 @@ const bodySchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('generate') }),
 ])
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // Delivery-status branch — outbound Resend API call, so it is rate-limited
+  // on its own bucket even though the plain listing below stays open.
+  const statusId = req.nextUrl.searchParams.get('id')
+  if (statusId) {
+    const rl = enforceRateLimit(req, 'digest-status', RATE_LIMITS.digestStatus, user.id)
+    if (rl) return rl
+    try {
+      const result = await getDigestDeliveryStatus(user.id, statusId)
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: result.httpStatus })
+      }
+      return NextResponse.json(result.status)
+    } catch (err) {
+      console.error('[api/notifications/digest GET status] failed', err)
+      return NextResponse.json({ error: 'Delivery status check failed' }, { status: 500 })
+    }
+  }
+
+  // Email-config branch — outbound Resend API call (domain list) as well.
+  if (req.nextUrl.searchParams.get('config') === '1') {
+    const rl = enforceRateLimit(req, 'email-config', RATE_LIMITS.emailConfig, user.id)
+    if (rl) return rl
+    try {
+      return NextResponse.json(await getEmailConfig())
+    } catch (err) {
+      console.error('[api/notifications/digest GET config] failed', err)
+      return NextResponse.json({ error: 'Failed to load email configuration' }, { status: 500 })
+    }
+  }
 
   try {
     const [digests, frequency] = await Promise.all([
@@ -39,7 +79,7 @@ export async function GET() {
       getDigestFrequency(user.id),
     ])
     // transport lets the dialog explain honestly whether mail is really sent
-    // ('smtp-resend') or only logged ('dev-console').
+    // ('resend' — API-first via the shared mailer) or only logged ('dev-console').
     return NextResponse.json({ digests, frequency, transport: getDigestTransport().name })
   } catch (err) {
     console.error('[api/notifications/digest GET] failed', err)

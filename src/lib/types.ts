@@ -964,7 +964,7 @@ export interface DigestRowDTO {
   periodEnd: string
   itemCount: number
   subject: string
-  status: string // LOGGED | SENT
+  status: string // LOGGED | SENT | FAILED
   createdAt: string
 }
 
@@ -975,4 +975,19 @@ export interface DigestPreviewDTO {
   itemCount: number
   subject: string
   html: string
+}
+
+// Delivery state of one sent digest, polled from the Resend REST API.
+export interface DigestDeliveryStatusDTO {
+  delivery: string // delivered | sent | bounced | complained | delivery_delayed | unknown
+  lastEvent: string | null
+  checkedAt: string
+}
+
+// Mailer diagnostics for the digest dialog — makes Resend "test mode" visible.
+export interface EmailConfigDTO {
+  testMode: boolean | 'unknown' // true when no Resend domain is verified
+  domains: { name: string; status: string }[] // status: verified | not_started | failed | pending
+  fromAddress: string
+  mailerMode: string // resend-api | smtp | none
 }
