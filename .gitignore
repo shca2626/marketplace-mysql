@@ -81,4 +81,18 @@ db/custom.db-journal
 *.sqlite-shm
 
 # runtime secrets — never commit (repo is public)
+# (.env itself is intentionally committed — see owner ruling above)
 
+# ── BRIDGE-1: PHP import bridge + generated dump artifacts (contain DB data/creds) ──
+/import.php
+/db/*.sql
+/db/sqlite-manifest.json
+/db/vlm-*.json
+/db/mysql-check-result.json
+/db/mysql-migrate-result.json
+# ── SYNC-1: mysql:sync artifacts (result report + zeroed progress marker) ──
+/db/mysql-sync-result.json
+/db/import-progress-reset.txt
+# ── DOCS-1: tester handover doc (plaintext demo passwords — never commit) ──
+/db/TESTER-ACCOUNTS.md
+>>>>>>> 773d803 (SYNC-1 + STORE-1 + DOCS-1: one-command mysql:sync automation (proven live: 52/52 tables, 685 rows, 18s — FTP + anti-bot bridge, import.php self-healing on host, token moved to env), FTP-hosting storage driver (magic-byte validation, local fallback, CSP for public storage origin), tester accounts doc (gitignored), migration runbook restructure)

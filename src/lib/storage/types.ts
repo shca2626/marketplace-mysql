@@ -33,6 +33,21 @@ export interface StorageAdapter {
 
   /** Resolved absolute path for a key (local driver only; others return null). */
   absolutePath(key: string): string | null
+
+  /**
+   * When this driver serves files DIRECTLY over public HTTP (ftp-hosting),
+   * the absolute public URL for `key`; null when reads must be proxied
+   * through /api/media (local-disk default). Optional: local-disk omits it.
+   */
+  publicUrl?(key: string): string | null
+
+  /**
+   * Bytes from the driver's LOCAL fallback disk only (no network I/O) —
+   * null when nothing is stored locally for the key. Only drivers with a
+   * local fallback (ftp-hosting) implement this; /api/media uses it to
+   * decide between serving inline and redirecting to publicUrl().
+   */
+  readLocalFallback?(key: string): Promise<Buffer | null>
 }
 
 export class StorageError extends Error {

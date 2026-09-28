@@ -70,16 +70,25 @@ export async function getDigestDeliveryStatus(
  * domain has status 'verified' — i.e. Resend only delivers to the account
  * owner's address. On Resend API failure testMode degrades to 'unknown'
  * (banner stays hidden rather than raising a false alarm).
+ *
+ * fromAddress is the RESOLVED sender (branded address when its domain is
+ * verified in Resend, the onboarding@resend.dev fallback otherwise — BRIDGE-1);
+ * brandedFrom is the raw SMTP_FROM target and fromFallback flags whether the
+ * fallback is currently active, so the UI can promise the automatic switch.
  */
 export async function getEmailConfig(): Promise<EmailConfigDTO> {
   const domains = await getDomains()
   const testMode: boolean | 'unknown' =
     domains === null ? 'unknown' : !domains.some((d) => d.status === 'verified')
 
+  const { mode, from, fallbackActive } = await getMailerMode()
+
   return {
     testMode,
     domains: domains ?? [],
-    fromAddress: smtpFromAddress(),
-    mailerMode: getMailerMode(),
+    fromAddress: from,
+    brandedFrom: smtpFromAddress(),
+    fromFallback: fallbackActive,
+    mailerMode: mode,
   }
 }

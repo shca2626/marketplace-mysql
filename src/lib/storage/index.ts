@@ -1,25 +1,42 @@
 import { randomBytes } from 'node:crypto'
 import { LocalDiskStorage } from './local-disk'
+import { FtpHostingStorage } from './ftp-hosting'
+import { resolveStorageDriverName } from './env'
 import type { StorageAdapter } from './types'
 
 export { StorageError } from './types'
 export type { StorageAdapter, StoredFile } from './types'
 export { LocalDiskStorage } from './local-disk'
+export {
+  FtpHostingStorage,
+  saveUpload,
+  generateUniqueUploadName,
+  assertUploadExtensionAllowed,
+  assertImageMagicBytesMatch,
+  extractFileExtension,
+  resolveFtpStorageConfig,
+  ALLOWED_UPLOAD_EXTENSIONS,
+  FORBIDDEN_EXECUTABLE_EXTENSIONS,
+} from './ftp-hosting'
+export type { SaveUploadInput, SaveUploadResult, FtpStorageConfig } from './ftp-hosting'
 
 // ── Adapter registry ────────────────────────────────────────────────
-// Driver selection is env-driven (STORAGE_DRIVER=local-disk). New drivers
-// (s3, r2, …) register here and implement StorageAdapter — call sites never
-// change. Single instance per process.
+// Driver selection is env-driven (STORAGE_DRIVER=local-disk | ftp-hosting,
+// unset = local-disk). New drivers (s3, r2, …) register here and implement
+// StorageAdapter — call sites never change. Single instance per process.
 
 const DRIVERS: Record<string, () => StorageAdapter> = {
   'local-disk': () => new LocalDiskStorage(),
+  'ftp-hosting': () => new FtpHostingStorage(),
 }
 
 let instance: StorageAdapter | null = null
 
 export function getStorage(): StorageAdapter {
   if (!instance) {
-    const driver = process.env.STORAGE_DRIVER || 'local-disk'
+    // resolveStorageDriverName reads process.env first, then .env directly
+    // (mysql-check.ts pattern) — direct `bun scripts/…` runs stay consistent.
+    const driver = resolveStorageDriverName()
     const factory = DRIVERS[driver]
     if (!factory) throw new Error(`Unknown STORAGE_DRIVER "${driver}" (available: ${Object.keys(DRIVERS).join(', ')})`)
     instance = factory()

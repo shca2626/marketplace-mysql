@@ -23,9 +23,12 @@ import { getDigestDeliveryStatus, getEmailConfig } from '@/lib/notifications/ema
 //      create new route directories, so it rides on this route as a query
 //      branch with its own rate-limit bucket).
 // GET ?config=1 → mailer diagnostics: { testMode, domains, fromAddress,
-//      mailerMode } (EMAILTRACK-1 — stands in for /api/notifications/
-//      email-config the same way). testMode=true means NO Resend domain is
-//      verified, so Resend only delivers to the account owner's address.
+//      brandedFrom, fromFallback, mailerMode } (EMAILTRACK-1 — stands in for
+//      /api/notifications/email-config the same way). testMode=true means NO
+//      Resend domain is verified, so Resend only delivers to the account
+//      owner's address. fromAddress is the RESOLVED sender (branded address
+//      once its domain is verified in Resend, the onboarding@resend.dev
+//      fallback otherwise — BRIDGE-1; brandedFrom is the raw SMTP_FROM target).
 // POST { action }:
 //   'preview'       → live build for the preferred kind (OFF previews DAILY);
 //                     { digest: null } when the period is empty.

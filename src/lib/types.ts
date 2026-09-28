@@ -988,6 +988,8 @@ export interface DigestDeliveryStatusDTO {
 export interface EmailConfigDTO {
   testMode: boolean | 'unknown' // true when no Resend domain is verified
   domains: { name: string; status: string }[] // status: verified | not_started | failed | pending
-  fromAddress: string
+  fromAddress: string // resolved sender actually used for sends (may be the fallback)
+  brandedFrom: string // raw SMTP_FROM target — the branded sender once its domain is verified
+  fromFallback: boolean // true when fromAddress is the onboarding@resend.dev fallback (BRIDGE-1)
   mailerMode: string // resend-api | smtp | none
 }

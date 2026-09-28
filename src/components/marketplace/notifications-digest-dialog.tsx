@@ -280,7 +280,9 @@ export function NotificationsDigestDialog({ open, onOpenChange }: NotificationsD
         </DialogHeader>
 
         {/* Test-mode warning — Resend only delivers to the account owner
-            while no sending domain is verified (EMAILTRACK-1). */}
+            while no sending domain is verified (EMAILTRACK-1). The muted line
+            shows the sender fallback state (BRIDGE-1): branded address is used
+            the moment its domain verifies — no config change needed. */}
         {emailConfig?.testMode === true && (
           <Alert className="border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-200">
             <AlertTriangle />
@@ -289,6 +291,13 @@ export function NotificationsDigestDialog({ open, onOpenChange }: NotificationsD
               Emails deliver only to the Resend account owner&apos;s address. Verify{' '}
               <span className="font-semibold">{unverifiedDomain}</span> in Resend for full
               delivery.
+              {emailConfig.fromFallback && (
+                <span className="mt-1 block text-xs leading-snug text-amber-700/80 dark:text-amber-400/80">
+                  Currently sending as {emailConfig.fromAddress} — will switch to{' '}
+                  {emailConfig.brandedFrom} automatically once the domain is verified in
+                  Resend.
+                </span>
+              )}
             </AlertDescription>
           </Alert>
         )}

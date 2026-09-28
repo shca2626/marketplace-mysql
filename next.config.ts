@@ -1,5 +1,20 @@
 import type { NextConfig } from "next";
 
+// STORAGE_PUBLIC_BASE (STORE-1 ftp-hosting driver) — when file storage serves
+// from a public host (e.g. https://yusr.site.je/storage), its origin must be
+// allowed for <img>/CSS images, else CSP blocks direct public URLs. Redirects
+// (like /api/media → public hosting 307) bypass CSP by spec, so this only
+// matters for URLs used directly in the UI.
+const storagePublicBase = process.env.STORAGE_PUBLIC_BASE?.trim() ?? "";
+let storageImgSrc = "";
+if (storagePublicBase) {
+  try {
+    storageImgSrc = ` ${new URL(storagePublicBase).origin}`;
+  } catch {
+    // Malformed base — ignore rather than emit a broken CSP directive.
+  }
+}
+
 const nextConfig: NextConfig = {
   output: "standalone",
   /* config options here */
@@ -27,7 +42,7 @@ const nextConfig: NextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "img-src 'self' data: blob:",
+              `img-src 'self' data: blob:${storageImgSrc}`,
               "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
               "style-src 'self' 'unsafe-inline'",
               "font-src 'self' data:",
