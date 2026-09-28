@@ -79,3 +79,6 @@ db/search-results/
 db/custom.db-journal
 *.sqlite-wal
 *.sqlite-shm
+
+# runtime secrets — never commit (repo is public)
+.env

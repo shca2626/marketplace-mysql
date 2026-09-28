@@ -6,6 +6,7 @@ import { RATE_LIMITS } from '@/lib/rate-limit'
 import {
   buildDigestForUser,
   getDigestFrequency,
+  getDigestTransport,
   listDigestHistory,
   persistAndDeliverDigest,
   setDigestFrequency,
@@ -37,7 +38,9 @@ export async function GET() {
       listDigestHistory(user.id, 10),
       getDigestFrequency(user.id),
     ])
-    return NextResponse.json({ digests, frequency })
+    // transport lets the dialog explain honestly whether mail is really sent
+    // ('smtp-resend') or only logged ('dev-console').
+    return NextResponse.json({ digests, frequency, transport: getDigestTransport().name })
   } catch (err) {
     console.error('[api/notifications/digest GET] failed', err)
     return NextResponse.json({ error: 'Failed to load digest settings' }, { status: 500 })

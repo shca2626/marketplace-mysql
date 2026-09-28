@@ -42,6 +42,7 @@ const KIND_BADGE: Record<string, string> = {
 const STATUS_BADGE: Record<string, string> = {
   LOGGED: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
   SENT: 'bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300',
+  FAILED: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300',
 }
 
 const FALLBACK_BADGE = 'bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400'
@@ -74,6 +75,7 @@ interface NotificationsDigestDialogProps {
 export function NotificationsDigestDialog({ open, onOpenChange }: NotificationsDigestDialogProps) {
   const [frequency, setFrequency] = useState<DigestFrequency | null>(null)
   const [history, setHistory] = useState<DigestRowDTO[]>([])
+  const [transport, setTransport] = useState<'smtp-resend' | 'dev-console'>('dev-console')
   const [loading, setLoading] = useState(false)
   const [previewHtml, setPreviewHtml] = useState<string | null>(null)
   const [previewEmpty, setPreviewEmpty] = useState(false)
@@ -85,9 +87,14 @@ export function NotificationsDigestDialog({ open, onOpenChange }: NotificationsD
     try {
       const res = await fetch('/api/notifications/digest', { cache: 'no-store' })
       if (res.ok) {
-        const data = (await res.json()) as { digests: DigestRowDTO[]; frequency: DigestFrequency }
+        const data = (await res.json()) as {
+          digests: DigestRowDTO[]
+          frequency: DigestFrequency
+          transport?: 'smtp-resend' | 'dev-console'
+        }
         setFrequency(data.frequency)
         setHistory(data.digests)
+        setTransport(data.transport === 'smtp-resend' ? 'smtp-resend' : 'dev-console')
       }
     } catch {
       /* next open retries */
@@ -166,10 +173,13 @@ export function NotificationsDigestDialog({ open, onOpenChange }: NotificationsD
     }
     toast({
       title: 'Digest generated',
-      description: `${res.data.digest.subject} — stored and logged via the dev transport.`,
+      description:
+        transport === 'smtp-resend'
+          ? `${res.data.digest.subject} — sent via your email provider (status: ${res.data.digest.status.toLowerCase()}).`
+          : `${res.data.digest.subject} — stored and logged via the dev transport.`,
     })
     void refresh()
-  }, [refresh])
+  }, [refresh, transport])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -291,7 +301,7 @@ export function NotificationsDigestDialog({ open, onOpenChange }: NotificationsD
                     {timeAgo(d.createdAt)}
                   </span>
                   <Badge className={cn('rounded-full px-2 text-[10px]', STATUS_BADGE[d.status] ?? FALLBACK_BADGE)}>
-                    {d.status === 'SENT' ? 'Sent' : 'Logged'}
+                    {d.status === 'SENT' ? 'Sent' : d.status === 'FAILED' ? 'Failed' : 'Logged'}
                   </Badge>
                 </li>
               ))
@@ -300,9 +310,9 @@ export function NotificationsDigestDialog({ open, onOpenChange }: NotificationsD
         </div>
 
         <p className="text-[11px] leading-relaxed text-muted-foreground">
-          This sandbox has no SMTP connection — generated digests are rendered, stored, and logged
-          to the server console instead of being sent. Registering a real email transport will
-          switch their status to Sent.
+          {transport === 'smtp-resend'
+            ? 'Digests are sent through your configured email provider (Resend SMTP). Note: while the sending domain is not yet verified in the provider dashboard, it only delivers to the account owner\u2019s address \u2014 other recipients are marked Failed until verification, and can be regenerated after.'
+            : 'This sandbox has no SMTP connection — generated digests are rendered, stored, and logged to the server console instead of being sent. Registering a real email transport will switch their status to Sent.'}
         </p>
       </DialogContent>
     </Dialog>

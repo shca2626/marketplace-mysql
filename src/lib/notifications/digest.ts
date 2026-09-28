@@ -3,13 +3,14 @@ import { timeAgo } from '@/lib/format'
 import { getStorefrontSettings } from '@/lib/settings/server'
 
 /**
- * NOTIFICATION EMAIL DIGEST (DIGEST-13)
+ * NOTIFICATION EMAIL DIGEST (DIGEST-13, SMTP-wired PRODENV-1)
  * ─────────────────────────────────────────────────────────────────────────────
  * Builds branded HTML digest emails from the same server-side notification
  * feed the bell consumes, stores the rendered result (NotificationDigest), and
- * hands delivery to a pluggable transport. The sandbox has no SMTP, so the
- * bundled dev transport only logs — status stays LOGGED until a real transport
- * is registered via setDigestTransport().
+ * hands delivery to a pluggable transport. When Resend SMTP is configured
+ * (SMTP_HOST/SMTP_USER/SMTP_PASS in .env) the smtp transport is the default and
+ * successful sends persist with status SENT; without SMTP the dev transport
+ * only logs and rows stay LOGGED.
  *
  * Email HTML is 100% inline-styled tables: email clients strip <style> blocks
  * and run no external CSS. All dynamic text is HTML-escaped before it touches
@@ -328,6 +329,8 @@ ${moreHtml}
 
 // ── Pluggable transport ──────────────────────────────────────────────────────
 
+import { isSmtpConfigured, sendMail } from '@/lib/mailer'
+
 export interface DigestTransport {
   /** Stable identifier — 'dev-console' keeps the stored status LOGGED. */
   name: string
@@ -342,9 +345,20 @@ export const devConsoleTransport: DigestTransport = {
   },
 }
 
-let activeTransport: DigestTransport = devConsoleTransport
+/** Real transport: Resend SMTP via the shared mailer (src/lib/mailer.ts). */
+export const smtpTransport: DigestTransport = {
+  name: 'smtp-resend',
+  async deliver(input) {
+    const result = await sendMail(input)
+    console.log(
+      `[mailer] digest sent → recipient: ${input.to} · id: ${result.messageId}`
+    )
+  },
+}
 
-/** Swap in a real SMTP transport later; rows then persist with status SENT. */
+let activeTransport: DigestTransport = isSmtpConfigured() ? smtpTransport : devConsoleTransport
+
+/** Swap the transport (tests / future providers); rows persist with status SENT. */
 export function setDigestTransport(transport: DigestTransport): void {
   activeTransport = transport
 }
@@ -390,13 +404,27 @@ function toDigestRowDTO(row: DigestRow): DigestRowDTO {
   }
 }
 
-/** Deliver through the active transport, then persist the rendered digest. */
+/**
+ * Deliver through the active transport, then persist the rendered digest.
+ * A failed send (SMTP rejection, provider outage) does NOT lose the digest:
+ * the row is still stored with status FAILED and the error is logged — the
+ * user sees the honest status in their digest history and can retry.
+ */
 export async function persistAndDeliverDigest(digest: BuiltDigest): Promise<DigestRowDTO> {
-  await activeTransport.deliver({
-    to: digest.recipientEmail,
-    subject: digest.subject,
-    html: digest.html,
-  })
+  let status = 'SENT'
+  try {
+    await activeTransport.deliver({
+      to: digest.recipientEmail,
+      subject: digest.subject,
+      html: digest.html,
+    })
+  } catch (err) {
+    status = 'FAILED'
+    console.error(
+      `[mailer] digest delivery failed → recipient: ${digest.recipientEmail} · subject: "${digest.subject}" ·`,
+      err instanceof Error ? `${err.message}` : err
+    )
+  }
   const row = await db.notificationDigest.create({
     data: {
       userId: digest.userId,
@@ -406,8 +434,8 @@ export async function persistAndDeliverDigest(digest: BuiltDigest): Promise<Dige
       itemCount: digest.itemCount,
       subject: digest.subject,
       html: digest.html,
-      // Dev transport logs only; a registered real transport earns SENT.
-      status: activeTransport.name === 'dev-console' ? 'LOGGED' : 'SENT',
+      // Dev transport logs only; a real transport earns SENT (or FAILED).
+      status: activeTransport.name === 'dev-console' ? 'LOGGED' : status,
     },
     select: {
       id: true,

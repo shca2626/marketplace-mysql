@@ -135,20 +135,29 @@ Other maintenance scripts live in [`scripts/`](./scripts) — `db-status.ts` (DB
 │   ├── FINANCIER_PLAN.md     # financing module implementation plan v2.0
 │   └── PLATFORM_PLAN.md      # platform roadmap v3.0
 ├── examples/websocket/        # optional websocket mini-service reference (not used by default)
-└── .env                       # COMMITTED on purpose (owner ruling) — see §4
+├── .env.example               # configuration template — copy to .env (see §4)
+└── .env                       # NOT tracked (real credentials since 2026-09-28; repo is public)
 ```
 
 ---
 
 ## 4. Configuration
 
-`.env` is **intentionally committed** (explicit owner decision, 2026-09) so a clone boots
-with zero setup. Values:
+Configuration lives in `.env`, copied from the committed `.env.example` template
+(`cp .env.example .env` — one command, then a clone boots on the demo SQLite DB).
+
+> **Changed 2026-09-28 (PRODENV-1):** `.env` was previously committed on purpose (demo
+> values only). Real provider credentials (Resend SMTP, remote MySQL) are configured now,
+> so `.env` is **gitignored** — the repo is public and must never carry secrets.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `DATABASE_URL` | `file:.../db/custom.db` | Prisma SQLite datasource. Point it at any path you like. |
+| `DATABASE_URL` | `file:./db/custom.db` | Prisma SQLite datasource. Point it at any path you like. |
 | `AUTH_SECRET` | *(dev fallback)* | HMAC secret signing the session cookie. **Required ≥ 32 chars in production** — boot fails fast otherwise (`src/lib/auth.ts`, SEC-01). Generate: `openssl rand -hex 32` |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | `smtp.resend.com` / `465` / `resend` / *(api key)* | Resend SMTP for transactional mail (digests). `465` = implicit TLS; `587` auto-upgrades via STARTTLS. Unset ⇒ digest delivery falls back to console logging. |
+| `SMTP_FROM` | `Vendora <onboarding@resend.dev>` | Sender address. Switch to your verified domain (e.g. `Vendora <no-reply@yourdomain.com>`) once verified in the Resend dashboard. |
+| `RESEND_API_KEY` | — | Resend REST API key (kept for API-based tooling). |
+| `MYSQL_DATABASE_URL` (+ `MYSQL_*`) | — | Remote MySQL target (production database). See §Deployment notes — local dev stays on SQLite. |
 | `STORAGE_DRIVER` | `local-disk` | Media storage adapter registry (`src/lib/storage/index.ts`). Only `local-disk` exists; S3/R2 adapters would register here. |
 | `STORAGE_ROOT` | `./uploads` | Root directory for the media store. The committed `uploads/` folder must stay the root unless you also move the DB's `MediaAsset` files. |
 
