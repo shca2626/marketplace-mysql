@@ -1359,3 +1359,20 @@ model AccreditationRequest {
   @@index([multiGroupId])
   @@index([validUntil])
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SITE — public website (pagedesign.md Phase 0): contact form + newsletter
+// ═══════════════════════════════════════════════════════════════════════════
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String // "Newsletter" for newsletter signups
+  email     String
+  topic     String   @default("general") // order | funding | selling | partnership | newsletter | general
+  message   String
+  handled   Boolean  @default(false) // triage flag for the future admin inbox
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([handled])
+}

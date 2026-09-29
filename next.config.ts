@@ -24,6 +24,15 @@ const nextConfig: NextConfig = {
   reactStrictMode: false,
   devIndicators: false,
 
+  // OOM mitigation (worklog Task 0-B): the 4GB container's OOM killer
+  // terminated next-server at ~3.1GB RSS when the QA loop triggered many
+  // parallel route compiles. Cap Turbopack's in-memory cache so it evicts
+  // instead of growing unbounded; the dev server is also started with
+  // NODE_OPTIONS=--max-old-space-size to constrain the V8 heap.
+  experimental: {
+    turbopackMemoryLimit: 2048,
+  },
+
   // Security headers (09-security-threat-model §12 roadmap P1-5).
   // CSP is the pragmatic Next.js profile: scripts/styles allow inline (dev
   // HMR + Next's bootstrap chunks) but everything else is locked to self —

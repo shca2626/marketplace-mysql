@@ -78,6 +78,15 @@ export function MarketplaceApp() {
   const setAuthChecked = useMarketplace((s) => s.setAuthChecked)
   const applyLocation = useMarketplace((s) => s.applyLocation)
   const applySettings = useMarketplace((s) => s.applySettings)
+  const setSpaActive = useMarketplace((s) => s.setSpaActive)
+
+  // Mark the SPA as mounted — navigate() from marketplace components reused
+  // on platform pages (homepage product cards, etc.) then falls back to a
+  // full page navigation to /market instead of a dead pushState.
+  useEffect(() => {
+    setSpaActive(true)
+    return () => setSpaActive(false)
+  }, [setSpaActive])
 
   // Restore persisted cart (after hydration to avoid SSR mismatch) and session.
   // Deep-link boot: honor ?view=… params from the URL on first paint,
