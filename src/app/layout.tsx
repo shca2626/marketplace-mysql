@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   keywords: ["marketplace", "ecommerce", "online shopping", "independent sellers", "Vendora"],
   authors: [{ name: "Vendora" }],
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+    icon: "/logo.svg",
   },
   openGraph: {
     title: "Vendora — Marketplace for everything you love",

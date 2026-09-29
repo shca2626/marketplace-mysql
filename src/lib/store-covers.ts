@@ -11,67 +11,67 @@ export interface StoreCover {
   url: string
 }
 
-/** Curated cover options (reuses already-verified image-search assets). */
+/** Curated cover options (durable /api/media assets — see scripts/migrate-static-images.ts). */
 export const STORE_COVERS: StoreCover[] = [
   {
     id: 'flatlay',
     label: 'Warm flatlay',
-    url: 'https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/39fd9d00938f.png',
+    url: '/api/media/2026/09/1080b05c-1fz5mq.full.png',
   },
   {
     id: 'workspace',
     label: 'Modern workspace',
-    url: 'https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/abc039ecde8a.jpg',
+    url: '/api/media/2026/09/cf12dd3a-8mfbjh.full.png',
   },
   {
     id: 'boutique',
     label: 'Boutique shelf',
-    url: 'https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/48123c636211.jpeg',
+    url: '/api/media/2026/09/c9ade8fa-eq4h77.full.png',
   },
   {
     id: 'tech',
     label: 'Tech desk',
-    url: 'https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/b0147d481533.jpg',
+    url: '/api/media/2026/09/1b93328e-dqvpwb.full.png',
   },
   {
     id: 'gadgets',
     label: 'Gadget neon',
-    url: 'https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/0f3cf9c91fd8.jpg',
+    url: '/api/media/2026/09/701be799-jo6ck8.full.png',
   },
   {
     id: 'atelier',
     label: 'Fashion atelier',
-    url: 'https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/18749cd50588.jpg',
+    url: '/api/media/2026/09/0050d793-lvgu1i.full.png',
   },
   {
     id: 'cozy',
     label: 'Cozy corner',
-    url: 'https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/bedfd2ff5fff.webp',
+    url: '/api/media/2026/09/a1545eff-gsbg7g.full.png',
   },
   {
     id: 'interior',
     label: 'Warm interior',
-    url: 'https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/d68c156c6ee3.jpg',
+    url: '/api/media/2026/09/7d3a407d-2b2ip7.full.png',
   },
   {
     id: 'outdoors',
     label: 'Great outdoors',
-    url: 'https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/25ad7d593d9f.jpg',
+    url: '/api/media/2026/09/19078ca5-82xwj0.full.png',
   },
   {
     id: 'spa',
     label: 'Spa calm',
-    url: 'https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/78280f2c3121.jpg',
+    url: '/api/media/2026/09/940dccd7-mzm6qc.full.png',
   },
   {
     id: 'craft',
     label: 'Craft table',
-    url: 'https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/1310449ec1fc.jpg',
+    url: '/api/media/2026/09/90d1008b-vfb3r4.full.png',
   },
   {
     id: 'textile',
     label: 'Woven textile',
-    url: 'https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/7d358772ad31.jpg',
+    url: '/api/media/2026/09/3affad6f-xcelhm.full.png',
   },
 ]
 
