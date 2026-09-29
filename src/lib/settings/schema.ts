@@ -113,18 +113,18 @@ export interface BannerSlideDTO {
 export const DEFAULT_STOREFRONT_SETTINGS: StorefrontSettings = {
   general: {
     siteName: 'Vendora',
-    tagline: 'The marketplace where independent sellers and thoughtful buyers meet.',
+    tagline: 'The solar energy marketplace — panels, storage, inverters and pumps from stores that size systems properly.',
     announcementEnabled: true,
-    announcementText: 'Free shipping on orders over $75 · Use code WELCOME10 for 10% off your first order',
+    announcementText: 'Free shipping on orders over $100 · Engineer-reviewed solar gear · Use code SUN10 for 10% off your first array',
     sampleImages: [
-      '/api/media/2026/09/9b1b7ba8-c4etb8.medium.png',
-      '/api/media/2026/09/10a8e28c-ldjc99.medium.png',
-      '/api/media/2026/09/9e26fdd0-4rm6mm.medium.png',
-      '/api/media/2026/09/8ae4d53c-fwvjoh.medium.png',
-      '/api/media/2026/09/a861f698-insobm.medium.png',
-      '/api/media/2026/09/faa32b6f-uxyt4z.medium.png',
-      '/api/media/2026/09/9e2e864a-0d5uoe.medium.png',
-      '/api/media/2026/09/90d1008b-vfb3r4.medium.png',
+      '/api/media/2026/09/4cbf5d20-ww7ny3.medium.png',
+      '/api/media/2026/09/6f8d4e59-om7azl.medium.png',
+      '/api/media/2026/09/abc95a74-8l3ee2.medium.png',
+      '/api/media/2026/09/6f96434e-wxu342.medium.png',
+      '/api/media/2026/09/46a8135f-r3ifvd.medium.png',
+      '/api/media/2026/09/c83b41bf-2z8wir.medium.png',
+      '/api/media/2026/09/810405ec-z83xoh.medium.png',
+      '/api/media/2026/09/8467986f-xgw5zn.medium.png',
     ],
   },
   theme: {

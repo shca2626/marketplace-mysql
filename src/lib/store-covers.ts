@@ -11,67 +11,52 @@ export interface StoreCover {
   url: string
 }
 
-/** Curated cover options (durable /api/media assets — see scripts/migrate-static-images.ts). */
+/** Curated cover options (durable /api/media assets — solar set, see scripts/seed-solar.ts). */
 export const STORE_COVERS: StoreCover[] = [
   {
-    id: 'flatlay',
-    label: 'Warm flatlay',
-    url: '/api/media/2026/09/1080b05c-1fz5mq.full.png',
+    id: 'rooftop',
+    label: 'Rooftop array',
+    url: '/api/media/2026/09/ec0473a8-el8asq.full.png',
   },
   {
-    id: 'workspace',
-    label: 'Modern workspace',
-    url: '/api/media/2026/09/cf12dd3a-8mfbjh.full.png',
+    id: 'solarfield',
+    label: 'Solar field',
+    url: '/api/media/2026/09/f472540e-xsn6l6.full.png',
   },
   {
-    id: 'boutique',
-    label: 'Boutique shelf',
-    url: '/api/media/2026/09/c9ade8fa-eq4h77.full.png',
+    id: 'energwall',
+    label: 'Home energy wall',
+    url: '/api/media/2026/09/90800a13-gf060o.full.png',
   },
   {
-    id: 'tech',
-    label: 'Tech desk',
-    url: '/api/media/2026/09/1b93328e-dqvpwb.full.png',
+    id: 'pumpstation',
+    label: 'Solar pumping',
+    url: '/api/media/2026/09/8d1f1aa7-kt1o6m.full.png',
   },
   {
-    id: 'gadgets',
-    label: 'Gadget neon',
-    url: '/api/media/2026/09/701be799-jo6ck8.full.png',
+    id: 'mono450',
+    label: 'Monocrystalline 450W',
+    url: '/api/media/2026/09/4cbf5d20-ww7ny3.full.png',
   },
   {
-    id: 'atelier',
-    label: 'Fashion atelier',
-    url: '/api/media/2026/09/0050d793-lvgu1i.full.png',
+    id: 'rackbattery',
+    label: 'Rack LiFePO4',
+    url: '/api/media/2026/09/6f8d4e59-om7azl.full.png',
   },
   {
-    id: 'cozy',
-    label: 'Cozy corner',
-    url: '/api/media/2026/09/a1545eff-gsbg7g.full.png',
+    id: 'hybridinv',
+    label: 'Hybrid inverter',
+    url: '/api/media/2026/09/abc95a74-8l3ee2.full.png',
   },
   {
-    id: 'interior',
-    label: 'Warm interior',
-    url: '/api/media/2026/09/7d3a407d-2b2ip7.full.png',
+    id: 'submersible',
+    label: 'Submersible pump',
+    url: '/api/media/2026/09/6f96434e-wxu342.full.png',
   },
   {
-    id: 'outdoors',
-    label: 'Great outdoors',
-    url: '/api/media/2026/09/19078ca5-82xwj0.full.png',
-  },
-  {
-    id: 'spa',
-    label: 'Spa calm',
-    url: '/api/media/2026/09/940dccd7-mzm6qc.full.png',
-  },
-  {
-    id: 'craft',
-    label: 'Craft table',
-    url: '/api/media/2026/09/90d1008b-vfb3r4.full.png',
-  },
-  {
-    id: 'textile',
-    label: 'Woven textile',
-    url: '/api/media/2026/09/3affad6f-xcelhm.full.png',
+    id: 'streetlight',
+    label: 'Solar street light',
+    url: '/api/media/2026/09/46a8135f-r3ifvd.full.png',
   },
 ]
 

@@ -14,16 +14,16 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Vendora — Marketplace for everything you love",
-  description: "A multi-vendor marketplace for well-made things. Shop electronics, fashion, home, sports and handmade goods from independent sellers — or open your own storefront.",
-  keywords: ["marketplace", "ecommerce", "online shopping", "independent sellers", "Vendora"],
+  title: "Vendora — Solar Energy Marketplace",
+  description: "The renewable energy marketplace: solar panels, LiFePO4 batteries, inverters, submersible pumps and solar lighting from engineer-owned stores — sized right, warrantied for decades.",
+  keywords: ["solar panels", "renewable energy", "solar marketplace", "LiFePO4 batteries", "solar inverters", "solar submersible pumps", "solar energy products", "Vendora"],
   authors: [{ name: "Vendora" }],
   icons: {
     icon: "/logo.svg",
   },
   openGraph: {
-    title: "Vendora — Marketplace for everything you love",
-    description: "Shop unique finds from real people, not algorithms.",
+    title: "Vendora — Solar Energy Marketplace",
+    description: "Power everything with sunlight — solar panels, storage, inverters and pumps from independent stores.",
     siteName: "Vendora",
     type: "website",
   },

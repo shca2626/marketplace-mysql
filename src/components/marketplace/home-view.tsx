@@ -10,6 +10,7 @@ import { formatNumber, formatUSD } from '@/lib/format'
 import { HERO_COLLAGE, HERO_IMAGE } from '@/lib/constants'
 import { ProductCard, ProductCardSkeleton } from './product-card'
 import { StarRating } from './star-rating'
+import { HeroSlider } from './hero-slider'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -34,6 +35,9 @@ export function HomeView() {
 
   return (
     <div>
+      {/* ── Admin-controlled hero banner carousel ─────────── */}
+      <HeroSlider />
+
       {/* ── Hero ─────────────────────────────────────────── */}
       <section className="relative overflow-hidden bg-gradient-to-br from-orange-50 via-amber-50/60 to-rose-50 dark:from-orange-950/30 dark:via-amber-950/15 dark:to-rose-950/20">
         <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-primary/10 blur-3xl" />
@@ -47,25 +51,25 @@ export function HomeView() {
           >
             <Badge variant="secondary" className="mb-4 gap-1.5 rounded-full px-3 py-1 text-xs font-medium">
               <Sparkles size={13} className="text-primary" />
-              Over {formatNumber(data?.stats.sellerCount ?? 0)} independent sellers
+              Over {formatNumber(data?.stats.sellerCount ?? 0)} engineer-owned solar stores
             </Badge>
             <h1 className="text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl">
-              Shop unique finds from{' '}
-              <span className="bg-gradient-to-r from-orange-600 to-rose-500 bg-clip-text text-transparent">
-                real people
+              Power everything with{' '}
+              <span className="bg-gradient-to-r from-orange-600 to-amber-500 bg-clip-text text-transparent">
+                sunlight
               </span>
-              , not algorithms.
+              , not fuel.
             </h1>
             <p className="mt-4 max-w-lg text-base leading-relaxed text-muted-foreground sm:text-lg">
-              Vendora is a marketplace for well-made things — curated by independent sellers who actually
-              care about their craft.
+              Vendora is the renewable energy marketplace — solar panels, LiFePO4 storage, inverters and
+              submersible pumps from stores that size systems properly.
             </p>
             <form onSubmit={submitSearch} className="relative mt-7 max-w-md" role="search">
               <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Try “headphones”, “yoga mat”, “candle”…"
+                placeholder="Try “450W panel”, “LiFePO4”, “submersible pump”…"
                 className="h-12 rounded-2xl border-transparent bg-background pl-11 pr-28 text-sm shadow-lg shadow-orange-900/5 focus-visible:ring-1"
                 aria-label="Search the marketplace"
               />
@@ -106,7 +110,7 @@ export function HomeView() {
             <div className="relative overflow-hidden rounded-3xl border-4 border-background shadow-2xl shadow-orange-900/10">
               <img
                 src={HERO_IMAGE}
-                alt="Shopping bags full of marketplace finds"
+                alt="Rooftop home solar array at golden hour"
                 className="aspect-[4/3] w-full object-cover"
               />
             </div>
@@ -115,10 +119,10 @@ export function HomeView() {
               transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
               className="absolute -left-3 top-8 hidden rounded-2xl border bg-background/95 p-3 shadow-xl backdrop-blur sm:flex sm:items-center sm:gap-3"
             >
-              <img src={HERO_COLLAGE[0]} alt="" className="hidden h-12 w-12 rounded-xl object-cover sm:block" />
+              <img src={HERO_COLLAGE[3]} alt="" className="hidden h-12 w-12 rounded-xl object-cover sm:block" />
               <div>
-                <p className="text-xs font-semibold">Aura Headphones</p>
-                <p className="text-xs text-muted-foreground">{formatUSD(189.99)} · 312 sold</p>
+                <p className="text-xs font-semibold">Helios M-450 Panel 450W</p>
+                <p className="text-xs text-muted-foreground">{formatUSD(189.99)} · 412 sold</p>
               </div>
               <BadgeCheck size={16} className="text-primary" />
             </motion.div>

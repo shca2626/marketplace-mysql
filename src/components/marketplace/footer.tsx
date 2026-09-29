@@ -73,8 +73,8 @@ export function Footer() {
             <span className="text-lg font-extrabold tracking-tight">Vendora</span>
           </div>
           <p className="mt-3 max-w-xs text-sm leading-relaxed text-muted-foreground">
-            The marketplace where independent sellers and thoughtful buyers meet. Real products, real people,
-            fair prices.
+            The solar energy marketplace where engineer-owned stores meet thoughtful buyers. Real systems,
+            real warranties, fair prices.
           </p>
           <div className="mt-4 flex items-center gap-2" aria-hidden>
             <span className="h-1 w-8 rounded-full bg-primary/60" />

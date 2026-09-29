@@ -880,7 +880,7 @@ export function CheckoutView() {
                           setCouponInput(e.target.value)
                           setCouponError(null)
                         }}
-                        placeholder="Promo code (try WELCOME10)"
+                        placeholder="Promo code (try SUN10)"
                         className="h-10 pl-9 uppercase placeholder:normal-case"
                         aria-label="Promo code"
                         maxLength={24}

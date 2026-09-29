@@ -1,45 +1,80 @@
 {
-  "hero": [
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/39fd9d00938f.png",
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/abc039ecde8a.jpg",
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/48123c636211.jpeg"
+  "Helios M-450 Monocrystalline Solar Panel 450W": [
+    "/api/media/2026/09/810405ec-z83xoh.medium.png"
   ],
-  "electronics": [
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/b0147d481533.jpg",
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/0f3cf9c91fd8.jpg",
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/5626f93d1bfd.webp",
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/083e6254f525.jpeg",
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/141cbde21ff2.jpg"
+  "Vertex B-550 Bifacial Glass-Glass Solar Panel 550W": [
+    "/api/media/2026/09/7d84e0f9-3ft479.medium.png"
   ],
-  "fashion": [
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/18749cd50588.jpg",
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/1afa34699cb3.jpg",
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/2389ddc89c47.jpg",
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/2c18fec764b9.jpg",
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/a0c2bd38dd8f.jpg"
+  "FlexTravel 100W Foldable Solar Panel Kit": [
+    "/api/media/2026/09/abc95a74-8l3ee2.medium.png"
   ],
-  "home": [
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/bedfd2ff5fff.webp",
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/d68c156c6ee3.jpg",
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/70aba4813a38.jpg",
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/822ecdcb7a03.jpg",
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/636d422a922c.jpg"
+  "PolyCore P-150 Polycrystalline Solar Panel 150W": [
+    "/api/media/2026/09/84bd897b-bjv5u7.medium.png"
   ],
-  "sports": [
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/25ad7d593d9f.jpg",
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/dde588fc676f.jpg",
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/48b8bf7c381c.jpg",
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/4787f77a9d9d.jpg"
+  "ShingleSlate 120W CIGS Flexible Solar Panel": [
+    "/api/media/2026/09/57623b30-p6h6dd.medium.png"
   ],
-  "beauty": [
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/78280f2c3121.jpg",
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/cb96f5057f0d.jpg",
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/a51a76cf3ded.jpg"
+  "PowerCell 51.2V 100Ah LiFePO4 Server Rack Battery": [
+    "/api/media/2026/09/1548544e-pkilp4.medium.png"
   ],
-  "handmade": [
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/1310449ec1fc.jpg",
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/7d358772ad31.jpg",
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/2bd84570fdf9.jpg",
-    "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/89b5894bf2b2.jpg"
+  "SunBank 12V 200Ah Deep-Cycle AGM Battery": [
+    "/api/media/2026/09/baecd32e-k2rgi1.medium.png"
+  ],
+  "HomeStack 5.12kWh Modular Wall-Mount Battery": [
+    "/api/media/2026/09/2f88aac4-2oaaor.medium.png"
+  ],
+  "VoltPouch 1024Wh Portable Power Station": [
+    "/api/media/2026/09/46a8135f-r3ifvd.medium.png"
+  ],
+  "MicroPack 12V 50Ah LiFePO4 Battery": [
+    "/api/media/2026/09/43f524a7-o8bryb.medium.png"
+  ],
+  "PureSine 5000W 48V Off-Grid Inverter": [
+    "/api/media/2026/09/02078f1b-e80b8t.medium.png"
+  ],
+  "HybridCore 6kW Hybrid Inverter-Charger": [
+    "/api/media/2026/09/619800ea-wkfk76.medium.png"
+  ],
+  "MicroLink 600W Microinverter": [
+    "/api/media/2026/09/214a6060-cgv77q.medium.png"
+  ],
+  "SunLine 3.6kW Grid-Tie String Inverter": [
+    "/api/media/2026/09/8b68cd4a-dtrhf5.medium.png"
+  ],
+  "PowerMate 2000W Pure Sine Inverter 12V": [
+    "/api/media/2026/09/17aa2a0d-t0jugu.medium.png"
+  ],
+  "DeepFlow 1.5HP Solar Submersible Deep-Well Pump": [
+    "/api/media/2026/09/c69b987c-rkc201.medium.png"
+  ],
+  "BoreMax 3\" Solar Borehole Pump Kit": [
+    "/api/media/2026/09/80ad20e5-mun9r7.medium.png"
+  ],
+  "AgriSpray 2HP Solar Surface Irrigation Pump": [
+    "/api/media/2026/09/daa8a72f-5upw8y.medium.png"
+  ],
+  "AquaLift 750W 48V DC Submersible Pump with Controller": [
+    "/api/media/2026/09/628a7133-98y1k6.medium.png"
+  ],
+  "MPPT Master 60A Solar Charge Controller": [
+    "/api/media/2026/09/8467986f-xgw5zn.medium.png"
+  ],
+  "PWM Lite 30A Solar Charge Controller": [
+    "/api/media/2026/09/6f96434e-wxu342.medium.png"
+  ],
+  "RoofGrip Solar Panel Mounting Rail Set": [
+    "/api/media/2026/09/93b2218f-vkb6gt.medium.png"
+  ],
+  "SunLink 10m Solar Extension Cable Pair (MC4)": [
+    "/api/media/2026/09/4cbf5d20-ww7ny3.medium.png"
+  ],
+  "StreetBeam 60W All-in-One Solar Street Light": [
+    "/api/media/2026/09/bc3e5234-xe5a9i.medium.png"
+  ],
+  "SolarFlood 100W Motion-Activated Flood Light": [
+    "/api/media/2026/09/c83b41bf-2z8wir.medium.png"
+  ],
+  "GlowPath Solar Garden Light Set (6-Pack)": [
+    "/api/media/2026/09/6f8d4e59-om7azl.medium.png"
   ]
 }

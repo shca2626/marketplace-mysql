@@ -51,6 +51,7 @@ export function Header() {
   const navigate = useMarketplace((s) => s.navigate)
   const user = useMarketplace((s) => s.user)
   const cartCount = useMarketplace((s) => s.cart).reduce((sum, i) => sum + i.quantity, 0)
+  const announcement = useMarketplace((s) => s.settings?.general)
   const setCartOpen = useMarketplace((s) => s.setCartOpen)
   const openAuth = useMarketplace((s) => s.openAuth)
   const setUser = useMarketplace((s) => s.setUser)
@@ -70,13 +71,15 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/85 backdrop-blur-md">
-      {/* Announcement bar */}
-      <div className="bg-primary text-primary-foreground">
-        <p className="mx-auto max-w-7xl px-4 py-1.5 text-center text-xs font-medium tracking-wide sm:text-[13px]">
-          Free shipping on orders over $75 · Use code <span className="font-bold">WELCOME10</span> for 10% off your
-          first order
-        </p>
-      </div>
+      {/* Announcement bar — admin-controlled (Platform Settings → Branding) */}
+      {announcement?.announcementEnabled !== false && (
+        <div className="bg-primary text-primary-foreground">
+          <p className="mx-auto max-w-7xl px-4 py-1.5 text-center text-xs font-medium tracking-wide sm:text-[13px]">
+            {announcement?.announcementText ||
+              'Free shipping on orders over $100 · Engineer-reviewed solar gear · Use code SUN10 for 10% off your first array'}
+          </p>
+        </div>
+      )}
 
       {/* Main bar */}
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 sm:gap-5">

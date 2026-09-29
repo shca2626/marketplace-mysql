@@ -51,7 +51,7 @@ function renderAuthEmail(opts: {
   </td></tr>
   <tr><td style="background-color:${ACCENT};border-radius:16px 16px 0 0;padding:26px 32px;">
     <span style="font-size:22px;font-weight:bold;color:#ffffff;letter-spacing:0.5px;">Vendora</span>
-    <span style="display:block;margin-top:6px;font-size:13px;color:rgba(255,255,255,0.85);">The marketplace for well-made things.</span>
+    <span style="display:block;margin-top:6px;font-size:13px;color:rgba(255,255,255,0.85);">The solar energy marketplace.</span>
   </td></tr>
   <tr><td style="background-color:#ffffff;border-left:1px solid #e7e5e4;border-right:1px solid #e7e5e4;padding:30px 32px 8px;">
     <h1 style="margin:0;font-size:21px;line-height:1.3;color:#1c1917;">${escapeHtml(heading)}</h1>
