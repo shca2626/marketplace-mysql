@@ -33,8 +33,13 @@ yarn-error.log*
 # vercel
 .vercel
 
-# NOTE (owner ruling, 2026-09): `.env` is intentionally COMMITTED so a fresh clone
-# runs out of the box. Do not re-add `.env*` to this file.
+# SECURITY (2026-09-28): `.env` MUST stay ignored. The repo is PUBLIC and the
+# sandbox platform auto-commits untracked files — a near-miss saw the real
+# credentials land in a local commit (caught before push). A fresh clone boots
+# fine without it: copy `.env.example` → `.env` (demo SQLite is committed).
+.env
+.env.*
+!.env.example
 
 # typescript
 *.tsbuildinfo
@@ -81,7 +86,7 @@ db/custom.db-journal
 *.sqlite-shm
 
 # runtime secrets — never commit (repo is public)
-# (.env itself is intentionally committed — see owner ruling above)
+# .env — see the SECURITY note above (gitignored)
 
 # ── BRIDGE-1: PHP import bridge + generated dump artifacts (contain DB data/creds) ──
 /import.php
@@ -95,4 +100,3 @@ db/custom.db-journal
 /db/import-progress-reset.txt
 # ── DOCS-1: tester handover doc (plaintext demo passwords — never commit) ──
 /db/TESTER-ACCOUNTS.md
->>>>>>> 773d803 (SYNC-1 + STORE-1 + DOCS-1: one-command mysql:sync automation (proven live: 52/52 tables, 685 rows, 18s — FTP + anti-bot bridge, import.php self-healing on host, token moved to env), FTP-hosting storage driver (magic-byte validation, local fallback, CSP for public storage origin), tester accounts doc (gitignored), migration runbook restructure)

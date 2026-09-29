@@ -60,7 +60,10 @@ export function buildAssetKeyBase(sha256Hex: string): string {
 }
 
 export function renditionKey(baseKey: string, role: string): string {
-  return `${baseKey}.${role}.webp`
+  // PNG — NOT webp: the public hosting (InfinityFree) only serves classic
+  // image extensions (.png/.jpg/.gif) without the anti-bot HTML challenge;
+  // .webp is treated as a document and gets challenge-walled.
+  return `${baseKey}.${role}.png`
 }
 
 export const MEDIA_ROLES = ['thumb', 'medium', 'large', 'full'] as const

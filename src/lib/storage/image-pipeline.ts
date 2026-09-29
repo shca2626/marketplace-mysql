@@ -4,12 +4,13 @@ import { getStorage, renditionKey, MEDIA_ROLES, type MediaRole } from './index'
 
 // Image processing pipeline (day-1 core).
 // ───────────────────────────────────────
-// One upload → four webp renditions, metadata (EXIF/GPS) stripped:
+// One upload → four PNG renditions, metadata (EXIF/GPS) stripped:
 //   thumb  400w  — product cards, cart lines, thumbnails
 //   medium 800w  — default display size (stored in Product.images)
 //   large 1200w  — product page gallery / lightbox
 //   full  2000w  — zoom / download-grade rendition
-// Never upscales. Animated GIF/WebP keeps its animation in every rendition.
+// Never upscales. PNG (not webp): the public hosting only serves classic
+// image extensions without its anti-bot challenge (see renditionKey).
 
 export const UPLOAD_LIMITS = {
   maxBytes: 8 * 1024 * 1024, // 8 MB per file
@@ -83,7 +84,7 @@ export async function processImageUpload(input: Buffer): Promise<ProcessedImage>
     const out = await sharp(input, { animated })
       .rotate() // honor EXIF orientation, then drop metadata
       .resize({ width: target, withoutEnlargement: true })
-      .webp({ quality: role === 'thumb' ? 78 : 82, effort: 4 })
+      .png({ compressionLevel: 9 })
       .toBuffer()
     const key = renditionKey(baseKey, role)
     await storage.put(key, out)
