@@ -100,3 +100,5 @@ db/custom.db-journal
 /db/import-progress-reset.txt
 # ── DOCS-1: tester handover doc (plaintext demo passwords — never commit) ──
 /db/TESTER-ACCOUNTS.md
+/db/product-images/
+/db/product-images-gen.log
