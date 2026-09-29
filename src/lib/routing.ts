@@ -1,18 +1,21 @@
 import type { View, ViewParams } from '@/store/marketplace'
 
 /**
- * URL ↔ view mapping for the single-route SPA.
+ * URL ↔ view mapping for the marketplace SPA.
  * Every view is addressable so links are shareable, refresh-safe and the
- * browser back/forward buttons work. All state lives in query params on `/`.
+ * browser back/forward buttons work. The SPA lives under /market
+ * (pagedesign.md Phase 0); state lives in query params on /market.
  *
- *   /                                → home
- *   /?view=catalog&category=fashion  → catalog filtered by category
- *   /?view=catalog&q=headphones      → catalog search results
- *   /?view=product&id=<cuid>         → product detail
- *   /?view=store&id=<sellerId>       → seller public storefront
- *   /?view=cart | checkout | orders | favorites | account | admin
- *   /?view=seller&tab=orders         → seller dashboard tab
- *   /?view=rfqs | business           → B2B: requests for quote / business account
+ *   /market                           → market home (shop)
+ *   /market?view=catalog&category=…   → catalog filtered by category
+ *   /market?view=catalog&q=…         → catalog search results
+ *   /market?view=product&id=<cuid>   → product detail
+ *   /market?view=store&id=<sellerId> → seller public storefront
+ *   /market?view=cart | checkout | orders | favorites | account | admin
+ *   /market?view=seller&tab=orders    → seller dashboard tab
+ *   /market?view=rfqs | business      → B2B: requests for quote / business account
+ *
+ * Legacy deep links on / (?view=…) are 301'd to /market by src/middleware.ts.
  */
 
 const VIEWS = new Set<View>([
@@ -57,10 +60,10 @@ export function viewToQuery(view: View, params: ViewParams = {}): string {
   return qs
 }
 
-/** Build the full href (with or without search params). */
+/** Build the full href (with or without search params) under /market. */
 export function viewToHref(view: View, params: ViewParams = {}): string {
   const qs = viewToQuery(view, params)
-  return qs ? `/?${qs}` : '/'
+  return qs ? `/market?${qs}` : '/market'
 }
 
 export interface LocationState {

@@ -58,6 +58,11 @@ interface MarketplaceState {
   params: ViewParams
   user: SessionUser | null
   authChecked: boolean
+  /** True while the marketplace SPA (/market) is mounted — lets navigate()
+   *  work from OUTSIDE the SPA (platform pages like the homepage) by
+   *  falling back to a full page navigation to /market?… (pagedesign Phase 0). */
+  spaActive: boolean
+  setSpaActive: (v: boolean) => void
   cart: CartItem[]
   savedForLater: CartItem[]
   cartOpen: boolean
@@ -97,6 +102,8 @@ export const useMarketplace = create<MarketplaceState>()(
       params: {},
       user: null,
       authChecked: false,
+      spaActive: false,
+      setSpaActive: (v) => set({ spaActive: v }),
       cart: [],
       savedForLater: [],
       cartOpen: false,
@@ -109,11 +116,21 @@ export const useMarketplace = create<MarketplaceState>()(
 
       navigate: (view, params = {}) => {
         set({ view, params, cartOpen: false })
-        // Keep the address bar in sync so views are deep-linkable/shareable
+        // Keep the address bar in sync so views are deep-linkable/shareable.
+        // The SPA is rooted at /market (pagedesign.md Phase 0).
         if (typeof window !== 'undefined') {
           const qs = viewToQuery(view, params)
-          const next = qs ? `/?${qs}` : '/'
-          if (window.location.search !== (qs ? `?${qs}` : '') || window.location.pathname !== '/') {
+          const base = '/market'
+          const next = qs ? `${base}?${qs}` : base
+          // Outside the SPA (e.g. a ProductCard on the platform homepage):
+          // a pushState would only change the URL without rendering the
+          // market — so do a full navigation and let /market boot with the
+          // deep-linked view.
+          if (!get().spaActive) {
+            window.location.assign(next)
+            return
+          }
+          if (window.location.search !== (qs ? `?${qs}` : '') || window.location.pathname !== base) {
             window.history.pushState({}, '', next)
           }
           window.scrollTo({ top: 0, behavior: 'smooth' })
