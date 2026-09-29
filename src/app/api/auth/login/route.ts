@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    await setSessionCookie(user.id)
+    await setSessionCookie(user.id, user.sessionVersion)
     await recordAudit({
       actorId: user.id,
       actorType: 'USER',

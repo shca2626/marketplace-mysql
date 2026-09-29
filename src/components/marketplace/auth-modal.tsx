@@ -37,7 +37,16 @@ export function AuthModal() {
   const finish = (user: SessionUser) => {
     setUser(user)
     closeAuth()
-    toast({ title: `Welcome${mode === 'register' ? '' : ' back'}, ${user.name.split(' ')[0]}!` })
+    toast({
+      title: `Welcome${mode === 'register' ? '' : ' back'}, ${user.name.split(' ')[0]}!`,
+      ...(mode === 'register'
+        ? {
+            description: user.emailVerifiedAt
+              ? undefined
+              : 'Check your inbox to verify your email (Account → Security can resend it).',
+          }
+        : {}),
+    })
     if (afterAuth) navigate(afterAuth.view, afterAuth.params)
     setPassword('')
   }
@@ -176,7 +185,21 @@ export function AuthModal() {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="auth-password">Password</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="auth-password">Password</Label>
+              {mode === 'login' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeAuth()
+                    navigate('forgot-password')
+                  }}
+                  className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+                >
+                  Forgot password?
+                </button>
+              )}
+            </div>
             <div className="relative">
               <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input

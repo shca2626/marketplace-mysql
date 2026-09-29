@@ -8,7 +8,7 @@
 // stay inside this same console shell.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import {
   AtSign,
   BadgeCheck,
@@ -16,14 +16,19 @@ import {
   CalendarDays,
   FileText,
   Heart,
+  KeyRound,
   LayoutDashboard,
+  LogOut,
+  MailCheck,
   Package,
+  RefreshCw,
   Settings,
   ShieldCheck,
   ShoppingBag,
   Sparkles,
   Store,
 } from 'lucide-react'
+import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
 import { formatDate, initials } from '@/lib/format'
@@ -41,6 +46,53 @@ export function BuyerDashboard() {
   const user = useMarketplace((s) => s.user)
   const authChecked = useMarketplace((s) => s.authChecked)
   const navigate = useMarketplace((s) => s.navigate)
+  const setUser = useMarketplace((s) => s.setUser)
+  const [sendingVerify, setSendingVerify] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
+
+  const resendVerification = async () => {
+    if (sendingVerify) return
+    setSendingVerify(true)
+    try {
+      const res = await fetch('/api/auth/verify-email/request', { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) {
+        toast({ title: 'Couldn\u2019t send the email', description: json.error, variant: 'destructive' })
+        return
+      }
+      toast({
+        title: 'Verification email sent',
+        description: 'Check your inbox (and spam folder) — the link is valid for 48 hours.',
+      })
+    } catch {
+      toast({ title: 'Error', description: 'Network error — please try again', variant: 'destructive' })
+    } finally {
+      setSendingVerify(false)
+    }
+  }
+
+  const signOutEverywhere = async () => {
+    if (signingOut) return
+    setSigningOut(true)
+    try {
+      const res = await fetch('/api/auth/sign-out-everywhere', { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) {
+        toast({ title: 'Action failed', description: json.error, variant: 'destructive' })
+        return
+      }
+      setUser(null)
+      navigate('home')
+      toast({
+        title: 'Signed out everywhere',
+        description: 'All devices were disconnected from your account.',
+      })
+    } catch {
+      toast({ title: 'Error', description: 'Network error — please try again', variant: 'destructive' })
+    } finally {
+      setSigningOut(false)
+    }
+  }
 
   const { data: ordersData } = useApi<{ orders: OrderDTO[] }>(user ? '/api/orders' : null, { skip: !user })
   const { data: rfqData } = useApi<{ rfqs: RfqDTO[] }>(user ? '/api/rfqs' : null, { skip: !user })
@@ -220,7 +272,7 @@ export function BuyerDashboard() {
           </CardContent>
         </Card>
 
-        {/* Security */}
+        {/* Security — AUTHSEC-1: live verification status, resend link, global sign-out */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
@@ -228,13 +280,6 @@ export function BuyerDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-muted-foreground">Password</span>
-              <Badge variant="secondary" className="rounded-full text-xs">
-                Set at registration
-              </Badge>
-            </div>
-            <Separator />
             <div className="flex items-center justify-between gap-2">
               <span className="text-muted-foreground">Two-factor authentication</span>
               <Badge variant="outline" className="rounded-full text-xs">
@@ -247,12 +292,73 @@ export function BuyerDashboard() {
               <Badge className="rounded-full bg-emerald-500 text-xs hover:bg-emerald-500">Active</Badge>
             </div>
             <Separator />
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-muted-foreground">Verification</span>
-              <Badge variant="outline" className="rounded-full text-xs capitalize">
-                Email verified
-              </Badge>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground">Email verification</span>
+                {user.emailVerifiedAt ? (
+                  <Badge className="rounded-full bg-emerald-500 text-[11px] font-semibold text-white hover:bg-emerald-500">
+                    <MailCheck size={11} className="mr-1" /> Verified
+                  </Badge>
+                ) : (
+                  <Badge variant="destructive" className="rounded-full text-[11px]">
+                    Not verified
+                  </Badge>
+                )}
+              </div>
+              {!user.emailVerifiedAt && (
+                <div className="space-y-2 rounded-xl bg-muted/50 p-3">
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    Verify your email to secure account recovery and order notifications.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full rounded-lg"
+                    disabled={sendingVerify}
+                    onClick={resendVerification}
+                  >
+                    {sendingVerify ? (
+                      <RefreshCw size={13} className="mr-1.5 animate-spin" />
+                    ) : (
+                      <MailCheck size={13} className="mr-1.5" />
+                    )}
+                    Resend verification email
+                  </Button>
+                </div>
+              )}
             </div>
+            <Separator />
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground">Password</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 rounded-lg px-2.5 text-xs text-primary hover:text-primary"
+                  onClick={() => navigate('forgot-password')}
+                >
+                  <KeyRound size={12} className="mr-1" /> Reset via email
+                </Button>
+              </div>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Changing your password signs out every device.
+              </p>
+            </div>
+            <Separator />
+            <Button
+              size="sm"
+              variant="destructive"
+              className="w-full rounded-lg"
+              disabled={signingOut}
+              onClick={signOutEverywhere}
+            >
+              {signingOut ? (
+                <RefreshCw size={13} className="mr-1.5 animate-spin" />
+              ) : (
+                <LogOut size={13} className="mr-1.5" />
+              )}
+              Sign out of all devices
+            </Button>
           </CardContent>
         </Card>
       </div>

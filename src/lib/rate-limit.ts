@@ -67,4 +67,7 @@ export const RATE_LIMITS = {
   digestStatus: { limit: 30, windowMs: 10 * 60_000 }, // per user (delivery checks → outbound Resend API)
   emailConfig: { limit: 30, windowMs: 10 * 60_000 }, // per user (mailer diagnostics → outbound Resend API)
   mysqlCheck: { limit: 10, windowMs: 10 * 60_000 }, // per admin (MySQL diagnostics → outbound DB connection, MYSQLTOOL-1)
+  passwordForgot: { limit: 5, windowMs: 30 * 60_000 }, // per IP — email-send damping (AUTHSEC-1)
+  passwordReset: { limit: 10, windowMs: 30 * 60_000 }, // per IP — token consumption attempts (AUTHSEC-1)
+  emailVerify: { limit: 5, windowMs: 60 * 60_000 }, // per user — verification send requests (AUTHSEC-1)
 } as const

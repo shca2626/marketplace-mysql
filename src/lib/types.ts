@@ -9,6 +9,8 @@ export interface SessionUser {
   storeName?: string | null
   storeBio?: string | null
   createdAt?: string
+  /** AUTHSEC-1: null until the user confirms their email via the emailed link. */
+  emailVerifiedAt?: string | null
 }
 
 export interface CategoryDTO {

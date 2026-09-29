@@ -31,6 +31,15 @@ model User {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
+  // ── Auth hardening (AUTHSEC-1) ──
+  // Bumping sessionVersion invalidates EVERY issued stateless token (password
+  // reset, "sign out everywhere"). Tokens minted before the bump stop resolving.
+  sessionVersion  Int       @default(0)
+  emailVerifiedAt DateTime? // null until the user confirms ownership via the emailed link
+
+  passwordResetTokens     PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+
   products           Product[]
   orders             Order[]
   reviews            Review[]
@@ -551,6 +560,34 @@ model UserDigestPref {
   userId    String  @id
   frequency String  @default("OFF") // OFF | DAILY | WEEKLY
   user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ── Auth hardening (AUTHSEC-1): single-use, hashed, expiring tokens ─────────
+// Only the SHA-256 hash of the raw token is stored; the raw value exists
+// solely inside the emailed link. Single-use enforced via usedAt.
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // Negotiation thread on an RFQ — buyer ↔ admin ↔ involved sellers Q&A.

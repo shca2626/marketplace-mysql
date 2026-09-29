@@ -5,6 +5,9 @@ import { hashPassword, setSessionCookie, toSessionUser } from '@/lib/auth'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 import { recordAudit } from '@/server/modules/audit/service'
+import { appBaseUrl, issueEmailVerificationToken } from '@/lib/auth-tokens'
+import { emailVerificationEmail } from '@/lib/emails/auth-emails'
+import { sendMail } from '@/lib/mailer'
 
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').max(60),
@@ -56,7 +59,21 @@ export async function POST(req: NextRequest) {
       summary: `New ${role.toLowerCase()} registered: ${user.email}`,
     })
 
-    await setSessionCookie(user.id)
+    // AUTHSEC-1: auto-enroll the new account in email verification. The
+    // welcome link goes out fire-and-forget — registration itself must never
+    // fail because a mail provider hiccuped.
+    try {
+      const { raw } = await issueEmailVerificationToken(user.id)
+      const verifyUrl = `${appBaseUrl()}/?view=verify-email&token=${raw}`
+      const mail = emailVerificationEmail({ name: user.name, verifyUrl })
+      void sendMail({ to: user.email, ...mail }).catch((err) => {
+        console.error(`[auth] welcome verification mail failed for user ${user.id}:`, err)
+      })
+    } catch (err) {
+      console.error(`[auth] verification token issue failed for user ${user.id}:`, err)
+    }
+
+    await setSessionCookie(user.id, user.sessionVersion)
     return NextResponse.json({ user: toSessionUser(user) }, { status: 201 })
   } catch (err) {
     console.error('register error', err)

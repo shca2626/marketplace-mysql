@@ -45,17 +45,35 @@ function sign(value: string): string {
   return createHmac('sha256', SECRET).update(value).digest('hex')
 }
 
-export function createSessionToken(userId: string): string {
-  const payload = `${userId}.${Date.now() + MAX_AGE * 1000}`
+export interface SessionPayload {
+  userId: string
+  /** Session-epoch check — must match User.sessionVersion or the token is dead. */
+  version: number
+}
+
+/**
+ * AUTHSEC-1: stateless tokens now carry the user's sessionVersion epoch.
+ * Token format v2: `${userId}.${version}.${exp}.${sig}` (4 dot-parts).
+ * Legacy v1 tokens (`${userId}.${exp}.${sig}`, 3 parts) resolve with version 0
+ * so existing sessions survive the deploy; the first bump retires them all.
+ */
+export function createSessionToken(userId: string, sessionVersion = 0): string {
+  const payload = `${userId}.${sessionVersion}.${Date.now() + MAX_AGE * 1000}`
   return `${payload}.${sign(payload)}`
 }
 
-export function parseSessionToken(token: string | undefined | null): string | null {
+export function parseSessionToken(token: string | undefined | null): SessionPayload | null {
   if (!token) return null
   const parts = token.split('.')
-  if (parts.length !== 3) return null
-  const [userId, exp, sig] = parts
-  const expected = sign(`${userId}.${exp}`)
+  if (parts.length !== 4 && parts.length !== 3) return null
+  const legacy = parts.length === 3
+  const userId = parts[0]
+  const version = legacy ? 0 : Number(parts[1])
+  const exp = parts[legacy ? 1 : 2]
+  const sig = parts[legacy ? 2 : 3]
+  if (!userId || !Number.isFinite(version) || version < 0) return null
+  const payload = legacy ? `${userId}.${exp}` : `${userId}.${version}.${exp}`
+  const expected = sign(payload)
   if (sig.length !== expected.length) return null
   try {
     if (!timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null
@@ -63,18 +81,21 @@ export function parseSessionToken(token: string | undefined | null): string | nu
     return null
   }
   if (Number(exp) < Date.now()) return null
-  return userId
+  return { userId, version }
 }
 
 export async function getSessionUser() {
   const cookieStore = await cookies()
-  const userId = parseSessionToken(cookieStore.get(SESSION_COOKIE)?.value)
-  if (!userId) return null
-  const user = await db.user.findUnique({ where: { id: userId } })
+  const payload = parseSessionToken(cookieStore.get(SESSION_COOKIE)?.value)
+  if (!payload) return null
+  const user = await db.user.findUnique({ where: { id: payload.userId } })
   // Suspended accounts are globally locked out: their session stops resolving
   // (they effectively sign out everywhere). Admins can reactivate from the
   // vendor management console.
   if (!user || user.status === 'SUSPENDED') return null
+  // AUTHSEC-1: a bumped sessionVersion (password reset, sign-out-everywhere)
+  // kills every token minted before the bump.
+  if (user.sessionVersion !== payload.version) return null
   return user
 }
 
@@ -87,6 +108,7 @@ export function toSessionUser(user: {
   storeName?: string | null
   storeBio?: string | null
   createdAt?: Date
+  emailVerifiedAt?: Date | null
 }): SessionUser {
   return {
     id: user.id,
@@ -97,12 +119,13 @@ export function toSessionUser(user: {
     storeName: user.storeName ?? null,
     storeBio: user.storeBio ?? null,
     createdAt: user.createdAt ? user.createdAt.toISOString() : undefined,
+    emailVerifiedAt: user.emailVerifiedAt ? user.emailVerifiedAt.toISOString() : null,
   }
 }
 
-export async function setSessionCookie(userId: string) {
+export async function setSessionCookie(userId: string, sessionVersion = 0) {
   const cookieStore = await cookies()
-  cookieStore.set(SESSION_COOKIE, createSessionToken(userId), {
+  cookieStore.set(SESSION_COOKIE, createSessionToken(userId, sessionVersion), {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production', // SEC-02: secure cookies in production

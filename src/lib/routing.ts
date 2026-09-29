@@ -31,6 +31,9 @@ const VIEWS = new Set<View>([
   'business',
   'financing',
   'financier',
+  'forgot-password',
+  'reset-password',
+  'verify-email',
 ])
 
 /** Serialize a view + params into a query string (no leading "?"). */
@@ -49,6 +52,7 @@ export function viewToQuery(view: View, params: ViewParams = {}): string {
   if (view === 'rfqs' && params.scheduleId) sp.set('schedule', params.scheduleId)
   if (view === 'seller' && params.disputeId) sp.set('dispute', params.disputeId)
   if (view === 'financing' && params.requestId) sp.set('request', params.requestId)
+  if ((view === 'reset-password' || view === 'verify-email') && params.authToken) sp.set('token', params.authToken)
   const qs = sp.toString()
   return qs
 }
@@ -102,6 +106,10 @@ export function parseLocation(href: string = typeof window !== 'undefined' ? win
     if (view === 'financing') {
       const request = sp.get('request')
       if (request) params.requestId = request
+    }
+    if (view === 'reset-password' || view === 'verify-email') {
+      const token = sp.get('token')
+      if (token) params.authToken = token
     }
     return { view, params }
   } catch {

@@ -159,6 +159,10 @@ components:
         createdAt:
           type: string
           format: date-time
+        emailVerifiedAt:
+          type: [string, 'null']
+          format: date-time
+          description: AUTHSEC-1 — null until the user confirms their email via the emailed link
     ProductSummary:
       type: object
       description: serializeProduct() DTO (fields below are the stable core; serializer adds commerce detail)
@@ -1418,6 +1422,176 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Ok'
+  /api/auth/forgot-password:
+    post:
+      summary: Request a password-reset email (AUTHSEC-1; uniform response — no account enumeration)
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: "Always {ok: true} — a reset link is emailed when the account exists"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  message:
+                    type: string
+        '400':
+          description: Invalid email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limited (5 per IP / 30 min)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/auth/reset-password:
+    post:
+      summary: Consume a single-use reset token, set a new password, revoke all sessions (AUTHSEC-1)
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token:
+                  type: string
+                  description: 64-hex raw token from the emailed link
+                password:
+                  type: string
+                  minLength: 8
+                  maxLength: 100
+      responses:
+        '200':
+          description: Password updated; every session invalidated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  message:
+                    type: string
+        '400':
+          description: Invalid/used/expired token, or weak password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/auth/sign-out-everywhere:
+    post:
+      summary: Revoke every active session for the signed-in user (sessionVersion bump, AUTHSEC-1)
+      tags: [Auth]
+      responses:
+        '200':
+          description: All tokens invalidated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  message:
+                    type: string
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/auth/verify-email/request:
+    post:
+      summary: (Re)send the email-verification link for the signed-in user (AUTHSEC-1)
+      tags: [Auth]
+      responses:
+        '200':
+          description: Verification email sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  message:
+                    type: string
+        '400':
+          description: Email already verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '502':
+          description: Mail transport failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/auth/verify-email/confirm:
+    post:
+      summary: Consume a single-use email-verification token (AUTHSEC-1)
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+                  description: 64-hex raw token from the emailed link
+      responses:
+        '200':
+          description: Email verified
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  email:
+                    type: string
+                  message:
+                    type: string
+        '400':
+          description: Invalid/used/expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /api/auth/me:
     get:
       summary: Current session user (null when signed out)

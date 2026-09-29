@@ -29,6 +29,9 @@ export type View =
   | 'business'
   | 'financing' // applicant surface: financing requests + accreditation + documents center
   | 'financier' // financier console: services, inbox, offers, accreditations
+  | 'forgot-password' // AUTHSEC-1: email → reset link
+  | 'reset-password' // AUTHSEC-1: token + new password
+  | 'verify-email' // AUTHSEC-1: token consumption landing
 
 export interface ViewParams {
   productId?: string
@@ -42,6 +45,7 @@ export interface ViewParams {
   disputeId?: string // seller dashboard: open a specific dispute
   scheduleId?: string // buyer RFQ view: open a specific recurring schedule
   requestId?: string // financing view: open a specific financing/accreditation request
+  authToken?: string // AUTHSEC-1: raw token from reset/verify email links
 }
 
 export interface ApplySettingsPayload {
