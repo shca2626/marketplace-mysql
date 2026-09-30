@@ -893,11 +893,28 @@ model FinancierProfile {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  branches FinancierBranch[]
-  services FinancierService[]
+  branches    FinancierBranch[]
+  services    FinancierService[]
+  socialLinks FinancierSocialLink[]
+  stories     FundingStory[]
+  partners    Partner[]
   // (conditionTemplates live on Organization — R-2 single entry via organizationId)
 
   @@index([organizationId])
+}
+
+// ── 3.3a FinancierSocialLink — public social profiles on the entity page ──
+model FinancierSocialLink {
+  id                 String           @id @default(cuid())
+  financierProfileId String
+  financierProfile   FinancierProfile @relation(fields: [financierProfileId], references: [id], onDelete: Cascade)
+  platform           String // FACEBOOK | X | INSTAGRAM | LINKEDIN | WHATSAPP | TELEGRAM | YOUTUBE | WEBSITE
+  url                String
+  label              String?
+  position           Int              @default(0)
+  createdAt          DateTime         @default(now())
+
+  @@index([financierProfileId])
 }
 
 // ── 3.3 FinancierBranch — typed address columns (no Json, no geo tables) ──
@@ -1375,4 +1392,153 @@ model ContactMessage {
 
   @@index([createdAt])
   @@index([handled])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SITE CONTENT — Phase 3–4 public pages (fully DB-driven, no hardcoded copy)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── Funding success stories — case-study cards on /funding + entity pages ──
+model FundingStory {
+  id                 String            @id @default(cuid())
+  financierProfileId String? // null = platform-level story
+  financierProfile   FinancierProfile? @relation(fields: [financierProfileId], references: [id], onDelete: SetNull)
+  title              String
+  summary            String
+  body               String? // long-form, markdown-lite
+  imageUrl           String? // MediaAsset-backed URL
+  sector             String? // AGRICULTURE | RETAIL | MANUFACTURING | HEALTH | EDUCATION | SERVICES | ENERGY
+  location            String?
+  year               Int?
+  amountFinanced     Float?
+  currency           String            @default("YER")
+  peopleImpacted     Int?
+  co2AvoidedTonnes  Float?
+  featured           Boolean           @default(false)
+  status             String            @default("PUBLISHED") // DRAFT | PUBLISHED | ARCHIVED
+  position           Int               @default(0)
+  publishedAt        DateTime          @default(now())
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@index([status, featured])
+  @@index([financierProfileId])
+}
+
+// ── Partners — logo marquee; platform-level (null) or per-financier ──
+model Partner {
+  id                 String            @id @default(cuid())
+  financierProfileId String? // null = platform-level
+  financierProfile   FinancierProfile? @relation(fields: [financierProfileId], references: [id], onDelete: Cascade)
+  name               String
+  monogram           String? // initials rendered on the tile
+  accentColor        String? // hex accent for the monogram tile
+  websiteUrl         String?
+  kind               String            @default("PARTNER") // FINANCIER | SELLER | TECH | NGO | GOVERNMENT | PARTNER
+  position           Int               @default(0)
+  isActive           Boolean           @default(true)
+  createdAt          DateTime          @default(now())
+
+  @@index([isActive])
+  @@index([financierProfileId])
+}
+
+// ── Site steps — process timelines for /funding, /how-it-works (3 tracks), /sell ──
+model SiteStep {
+  id        String   @id @default(cuid())
+  page      String // FUNDING | HOW_WORKS | SELL
+  track     String   @default("MAIN") // HOW_WORKS: SHOP | PROCURE | FUND; else MAIN
+  position  Int      @default(0)
+  icon      String? // lucide icon name, mapped by the UI kit
+  title     String
+  subtitle  String?
+  body      String?
+  stat      String? // optional micro-stat chip ("2–5 days")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([page, track, position])
+}
+
+// ── Solutions — segment landing pages (/solutions/[slug]) ──
+model Solution {
+  id           String            @id @default(cuid())
+  slug         String            @unique
+  title        String
+  tagline      String?
+  description  String?
+  audience     String            @default("HOME") // HOME | FARM | BUSINESS
+  icon         String? // lucide icon name
+  imageUrl     String?
+  accentColor  String? // hex
+  categorySlug String? // products from this category curated on the page
+  position     Int               @default(0)
+  isActive     Boolean           @default(true)
+  features     SolutionFeature[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@index([isActive])
+}
+
+model SolutionFeature {
+  id         String   @id @default(cuid())
+  solutionId String
+  solution   Solution @relation(fields: [solutionId], references: [id], onDelete: Cascade)
+  position   Int      @default(0)
+  icon       String?
+  title      String
+  body       String?
+
+  @@index([solutionId])
+}
+
+// ── Insights — guides & news (/insights, /insights/[slug]) ──
+model InsightPost {
+  id           String    @id @default(cuid())
+  slug         String    @unique
+  title        String
+  excerpt      String
+  body         String // markdown-lite
+  coverUrl     String?
+  authorName   String?
+  authorTitle  String?
+  topic        String    @default("GUIDE") // GUIDE | NEWS | POLICY | FUNDING | MARKET
+  tags         String? // comma-separated
+  readMinutes  Int       @default(4)
+  featured     Boolean   @default(false)
+  status       String    @default("PUBLISHED") // DRAFT | PUBLISHED | ARCHIVED
+  publishedAt  DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status, publishedAt])
+  @@index([topic])
+}
+
+// ── FAQ — accordion items grouped by topic (/faq + section embeds) ──
+model FaqItem {
+  id       String   @id @default(cuid())
+  topic    String   @default("GENERAL") // GENERAL | FUNDING | MARKET | SELL | B2B | ACCOUNT
+  question String
+  answer   String
+  position Int      @default(0)
+  featured Boolean  @default(false)
+  isActive Boolean  @default(true)
+
+  @@index([topic, position])
+}
+
+// ── Legal documents — /legal/[slug] (terms, privacy, …) ──
+model LegalDocument {
+  id          String   @id @default(cuid())
+  slug        String   @unique // terms | privacy | cookies
+  title       String
+  summary     String?
+  body        String // markdown-lite
+  version     String   @default("1.0")
+  effectiveAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([slug])
 }

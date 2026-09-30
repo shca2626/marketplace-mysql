@@ -11,7 +11,11 @@ import { NewsletterForm } from './newsletter-form'
 
 const PLATFORM_LINKS = [
   { href: '/', label: 'Home' },
+  { href: '/how-it-works', label: 'How it works' },
+  { href: '/solutions', label: 'Solutions' },
   { href: '/funding', label: 'Funding entities' },
+  { href: '/insights', label: 'Insights' },
+  { href: '/faq', label: 'FAQ' },
   { href: '/about', label: 'About us' },
   { href: '/contact', label: 'Contact us' },
 ]
@@ -26,6 +30,7 @@ const FUNDING_LINKS = [
 const MARKET_LINKS = [
   { href: '/market', label: 'All products' },
   { href: '/market?view=rfqs', label: 'Send an RFQ (B2B)' },
+  { href: '/sell', label: 'Sell on Vendora' },
   { href: '/market?view=favorites', label: 'Favorites' },
   { href: '/market?view=cart', label: 'Cart' },
 ]
@@ -179,7 +184,20 @@ export async function SiteFooter() {
       <div className="border-t">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 py-4 text-xs text-muted-foreground sm:flex-row">
           <p>© {new Date().getFullYear()} Vendora — Solar energy, procured and funded.</p>
-          <p>Built for the renewable energy transition.</p>
+          <nav aria-label="Legal">
+            <ul className="flex items-center gap-4">
+              <li>
+                <Link href="/legal/terms" className="transition-colors hover:text-foreground">
+                  Terms of Service
+                </Link>
+              </li>
+              <li>
+                <Link href="/legal/privacy" className="transition-colors hover:text-foreground">
+                  Privacy Policy
+                </Link>
+              </li>
+            </ul>
+          </nav>
         </div>
       </div>
     </footer>
