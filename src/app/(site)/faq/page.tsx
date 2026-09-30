@@ -28,7 +28,7 @@ export default async function FaqPage() {
           {faqs.length > 0 ? (
             <FaqBrowser faqs={faqs} />
           ) : (
-            <p className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+            <p className="rounded-2xl border border-dashed border-bh-border-dark p-8 text-center text-sm text-bh-muted">
               Answers are being published — reach out directly and we’ll respond within a day.
             </p>
           )}
@@ -40,13 +40,13 @@ export default async function FaqPage() {
         <SectionContainer className="max-w-4xl">
           <Reveal>
             <div className="grid gap-5 sm:grid-cols-2">
-              <div className="flex flex-col items-start gap-4 rounded-3xl border bg-card p-6 sm:p-8">
-                <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
+              <div className="flex flex-col items-start gap-4 rounded-3xl border border-bh-border bg-bh-card p-6 shadow-card sm:p-8">
+                <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-bh-gold/30 bg-bh-bg-gold text-bh-gold">
                   <Mail className="h-6 w-6" aria-hidden />
                 </span>
                 <div>
-                  <h2 className="text-lg font-bold tracking-tight">Still stuck?</h2>
-                  <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                  <h2 className="text-lg font-bold tracking-tight text-bh-navy">Still stuck?</h2>
+                  <p className="mt-1.5 text-sm leading-relaxed text-bh-muted">
                     Ask us directly — a human replies within one business day.
                   </p>
                 </div>
@@ -57,13 +57,13 @@ export default async function FaqPage() {
                   </Link>
                 </Button>
               </div>
-              <div className="flex flex-col items-start gap-4 rounded-3xl border bg-card p-6 sm:p-8">
-                <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
+              <div className="flex flex-col items-start gap-4 rounded-3xl border border-bh-border bg-bh-card p-6 shadow-card sm:p-8">
+                <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-bh-gold/30 bg-bh-bg-gold text-bh-gold">
                   <FileText className="h-6 w-6" aria-hidden />
                 </span>
                 <div>
-                  <h2 className="text-lg font-bold tracking-tight">Prefer the fine print?</h2>
-                  <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                  <h2 className="text-lg font-bold tracking-tight text-bh-navy">Prefer the fine print?</h2>
+                  <p className="mt-1.5 text-sm leading-relaxed text-bh-muted">
                     The full terms of service and privacy policy, in plain language.
                   </p>
                 </div>

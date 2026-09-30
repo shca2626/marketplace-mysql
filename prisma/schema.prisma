@@ -965,6 +965,14 @@ model FinancierService {
   processingDays           Int?
   accreditationValidMonths Int? // ACCREDITATION kind: lifetime of the grant once ACCREDITED
   accreditationFeeAmount   Float? // ACCREDITATION kind: fee (invoiced externally, D-002)
+
+  // ── rich program-detail content (user structure, Phase 3.5 redesign) ──
+  financingLimitText String? // prose, e.g. "Financing ranges from 50,000 to 50 million Yemeni Rials."
+  targetAudience     String? // newline-separated audience lines
+  termsNote          String? // callout, e.g. Murabaha rate cap / min tenor note
+  guaranteeTypes     String? // JSON string[] — Bank/Gold/Personal/Commercial guarantee
+  financingPeriods   String? // JSON string[] — Monthly/Seasonal
+
   viewCount                Int              @default(0)
   createdAt                DateTime         @default(now())
   updatedAt                DateTime         @updatedAt

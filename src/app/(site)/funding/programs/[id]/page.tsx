@@ -2,7 +2,6 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { cache } from 'react'
 import { db } from '@/lib/db'
-import { Breadcrumbs } from '@/components/site/breadcrumbs'
 import { Markdown } from '@/components/site/markdown'
 import { SectionContainer } from '@/components/site/kit'
 import {
@@ -12,21 +11,34 @@ import {
   ProgramHero,
   ProgramRequirements,
   RelatedPrograms,
+  ServiceFeaturesPanel,
+  TermsNoteBand,
   type ProgramDetailData,
 } from '@/components/site/funding/sections'
 import { getFundingPrograms } from '@/lib/site-content'
 
 /**
  * /funding/programs/[id] — public FinancierService detail page.
- * Server component: the service is fetched directly from the DB (attributes,
- * coverage, active requirements w/ condition templates), related programs are
- * derived live, and the structured data (JSON-LD) is generated from the row.
+ * Layout follows the approved reference (supplier_qualification_program.html):
+ * white header band → 12-col grid (sidebar key-facts + entity card | main
+ * column with ONE text section per content block). All content DB-driven.
  */
 
 const TYPE_LABELS: Record<string, string> = {
   BANK: 'Bank',
   MFI: 'Microfinance institution',
   EWALLET: 'Digital finance provider',
+}
+
+/** Parse the JSON list columns (guaranteeTypes / financingPeriods). */
+function parseJsonList(value: string | null): string[] {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed.map(String) : []
+  } catch {
+    return []
+  }
 }
 
 /** Direct DB fetch — cached so generateMetadata and the page share one query. */
@@ -56,6 +68,11 @@ const getProgram = cache(async (id: string) => {
         processingDays: true,
         accreditationValidMonths: true,
         accreditationFeeAmount: true,
+        financingLimitText: true,
+        targetAudience: true,
+        termsNote: true,
+        guaranteeTypes: true,
+        financingPeriods: true,
         attributes: { select: { kind: true, text: true }, orderBy: { position: 'asc' } },
         coverage: { select: { regionName: true } },
         requirements: {
@@ -88,7 +105,7 @@ async function getRelated(currentId: string, entityOrgId: string, category: stri
   const others = programs.filter((p) => p.id !== currentId)
   const sameEntity = others.filter((p) => p.entity.id === entityOrgId)
   const sameCategory = others.filter((p) => p.category === category && p.entity.id !== entityOrgId)
-  return [...sameEntity, ...sameCategory].slice(0, 3)
+  return [...sameEntity, ...sameCategory].slice(0, 2)
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -136,6 +153,11 @@ export default async function ProgramDetailPage({ params }: { params: Promise<{ 
     processingDays: service.processingDays,
     accreditationValidMonths: service.accreditationValidMonths,
     accreditationFeeAmount: service.accreditationFeeAmount,
+    financingLimitText: service.financingLimitText,
+    targetAudience: service.targetAudience,
+    termsNote: service.termsNote,
+    guaranteeTypes: parseJsonList(service.guaranteeTypes),
+    financingPeriods: parseJsonList(service.financingPeriods),
     features: service.attributes.filter((a) => a.kind === 'FEATURE').map((a) => a.text),
     eligibility: service.attributes.filter((a) => a.kind === 'ELIGIBILITY_CONDITION').map((a) => a.text),
     coverage: service.coverage.map((c) => c.regionName),
@@ -194,36 +216,38 @@ export default async function ProgramDetailPage({ params }: { params: Promise<{ 
 
   return (
     <>
-      <Breadcrumbs items={[{ label: 'Funding', href: '/funding' }, { label: 'Programs', href: '/funding#programs' }, { label: service.name }]} />
-
-      {/* light editorial hero band */}
+      {/* white header band — breadcrumbs + tag + 30px H1 */}
       <ProgramHero service={detail} />
 
-      {/* sticky key-facts aside + rich main column */}
-      <div className="pb-16 pt-10 sm:pt-12">
+      {/* 12-col layout: sidebar (key facts + entity) | main column */}
+      <main className="py-8">
         <SectionContainer>
-          <div className="grid gap-10 lg:grid-cols-[minmax(0,330px)_minmax(0,1fr)] lg:gap-12">
-            <aside className="self-start" aria-label="Program key facts">
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+            <aside className="space-y-6 self-start lg:col-span-4" aria-label="Program key facts">
               <KeyFactsPanel service={detail} />
             </aside>
 
-            <div className="min-w-0 space-y-14">
+            <div className="min-w-0 space-y-8 lg:col-span-8">
               {(service.description || service.summary) && (
-                <section aria-labelledby="about-heading">
-                  <h2 id="about-heading" className="text-xl font-bold tracking-tight text-foreground">
+                <section className="rounded-2xl border border-bh-border bg-bh-card p-6 shadow-card" aria-labelledby="about-heading">
+                  <h2 id="about-heading" className="h2-practical mb-3 text-bh-navy">
                     About this program
                   </h2>
                   {service.description ? (
-                    <Markdown body={service.description} className="mt-4" />
+                    <Markdown body={service.description} className="text-sm leading-relaxed text-bh-subtle" />
                   ) : (
-                    <p className="mt-3 text-pretty text-[15px] leading-relaxed text-muted-foreground">{service.summary}</p>
+                    <p className="text-sm leading-relaxed text-bh-subtle">{service.summary}</p>
                   )}
                 </section>
               )}
 
+              <ServiceFeaturesPanel service={detail} />
+
               <ProgramChecklists features={detail.features} eligibility={detail.eligibility} />
 
               <ProgramRequirements requirements={detail.requirements} />
+
+              <TermsNoteBand note={detail.termsNote} />
 
               <CoveragePanel coverage={detail.coverage} />
 
@@ -231,7 +255,7 @@ export default async function ProgramDetailPage({ params }: { params: Promise<{ 
             </div>
           </div>
         </SectionContainer>
-      </div>
+      </main>
 
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }} />

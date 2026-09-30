@@ -12,33 +12,27 @@ import {
   Building2,
   CalendarClock,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   Coins,
   CreditCard,
-  Facebook,
   FileText,
   Gauge,
   Globe,
-  Instagram,
   Landmark,
   Leaf,
-  Linkedin,
   Mail,
   MapPin,
-  MessageCircle,
   Moon,
   Navigation,
   Phone,
-  Send,
   ShieldCheck,
   Sun,
-  Twitter,
   Users,
-  Youtube,
   Zap,
   type LucideIcon,
 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import {
@@ -55,6 +49,7 @@ import {
   Section,
   SectionContainer,
   SectionHead,
+  SocialButton,
   PROGRAM_CATEGORIES,
   RATE_LABELS,
   SECTOR_LABELS,
@@ -68,9 +63,11 @@ import {
  * /funding/entities/[id]. The server page builds a fully serialized
  * EntityPageData projection from the DB and hands it to <FinancierProfile />.
  *
- * Sections: dark editorial hero (snapshot panel + live stat band) → sticky
- * sub-nav → overview dossier → programs grid → branches → stories (dark) →
- * partners marquee → contact & closing CTA (dark).
+ * bh light-first system: navy gradient hero (the only dark band besides the
+ * closing CTA) → white/95 sticky sub-nav → overview (canvas) → programs
+ * (soft-blue glass band, white GlowCards) → branches (white band, accent
+ * left-bar cards) → stories (white band, horizontal snap scroller) →
+ * partners (canvas marquee) → contact & closing (navy gradient band).
  */
 
 // ── Serializable data contract (built by the server page) ───────────────────
@@ -168,18 +165,6 @@ const NAV_SECTIONS = [
   { id: 'contact', label: 'Contact' },
 ] as const
 
-/** lucide icon per social platform (kit SocialButton keys are case-mismatched). */
-const PLATFORM_META: Record<string, { icon: LucideIcon; label: string }> = {
-  FACEBOOK: { icon: Facebook, label: 'Facebook' },
-  X: { icon: Twitter, label: 'X (Twitter)' },
-  INSTAGRAM: { icon: Instagram, label: 'Instagram' },
-  LINKEDIN: { icon: Linkedin, label: 'LinkedIn' },
-  YOUTUBE: { icon: Youtube, label: 'YouTube' },
-  WHATSAPP: { icon: MessageCircle, label: 'WhatsApp' },
-  TELEGRAM: { icon: Send, label: 'Telegram' },
-  WEBSITE: { icon: Globe, label: 'Website' },
-}
-
 const BRANCH_META: Record<string, { icon: LucideIcon; label: string }> = {
   BRANCH: { icon: Building2, label: 'Branch' },
   AGENT: { icon: Users, label: 'Agent' },
@@ -235,29 +220,27 @@ export function FinancierProfile({ data }: { data: EntityPageData }) {
   )
 }
 
-// ── 1. Hero — dark editorial band ───────────────────────────────────────────
+// ── 1. Hero — navy gradient band (dark reserved for the hero + final CTA) ────
 
 function EntityHero({ data }: { data: EntityPageData }) {
-  const { accent } = data
   const range = moneyRange(data.minTicket, data.maxTicket)
 
   return (
-    <section id="entity-top" aria-label={`${data.name} — profile`} className="relative overflow-hidden bg-zinc-950 text-zinc-100">
-      {/* layered art: accent bloom + solar grid + giant monogram watermark */}
+    <section id="entity-top" aria-label={`${data.name} — profile`} className="relative overflow-hidden bg-gradient-to-br from-[#052e56] via-[#06396c] to-[#0a4a8c] text-white">
+      {/* layered art: gold accent blooms + solar grid + giant monogram watermark */}
       <div aria-hidden className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-32 -top-40 h-[26rem] w-[26rem] rounded-full blur-[130px]" style={{ backgroundColor: `${accent}38` }} />
-        <div className="absolute -right-28 bottom-[-6rem] h-96 w-96 rounded-full bg-amber-500/10 blur-[110px]" />
+        <div className="absolute -left-32 -top-40 h-[26rem] w-[26rem] rounded-full bg-bh-gold/15 blur-[130px]" />
+        <div className="absolute -right-28 bottom-[-6rem] h-96 w-96 rounded-full bg-bh-gold/10 blur-[110px]" />
         <span
-          className="absolute -right-8 -top-24 select-none text-[19rem] font-black leading-none tracking-tighter opacity-[0.05] sm:text-[24rem]"
-          style={{ color: accent }}
+          className="absolute -right-8 -top-24 select-none text-[19rem] font-black leading-none tracking-tighter text-white/5 sm:text-[24rem]"
         >
           {initialsOf(data.name)}
         </span>
         <div
-          className="absolute inset-0 opacity-[0.13]"
+          className="absolute inset-0 opacity-[0.12]"
           style={{
             backgroundImage:
-              'linear-gradient(rgba(251,191,36,0.09) 1px, transparent 1px), linear-gradient(90deg, rgba(251,191,36,0.09) 1px, transparent 1px)',
+              'linear-gradient(rgba(211,175,60,0.14) 1px, transparent 1px), linear-gradient(90deg, rgba(211,175,60,0.14) 1px, transparent 1px)',
             backgroundSize: '44px 44px',
             maskImage: 'radial-gradient(ellipse 90% 70% at 50% 0%, black, transparent)',
             WebkitMaskImage: 'radial-gradient(ellipse 90% 70% at 50% 0%, black, transparent)',
@@ -276,11 +259,11 @@ function EntityHero({ data }: { data: EntityPageData }) {
             </Reveal>
 
             <Reveal delay={1} className="mt-6 flex flex-wrap items-start gap-5 sm:gap-6">
-              <Monogram name={data.name} accent={accent} size="xl" dark />
+              <Monogram name={data.name} size="xl" dark />
               <div className="min-w-0 flex-1">
-                <h1 className="text-balance text-3xl font-bold leading-[1.08] tracking-tight text-zinc-50 sm:text-4xl lg:text-[2.8rem]">{data.name}</h1>
+                <h1 className="text-balance text-3xl font-bold leading-[1.08] tracking-tight text-white sm:text-4xl lg:text-[2.8rem]">{data.name}</h1>
                 <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
-                  <span className="text-xs font-bold uppercase tracking-[0.12em] text-zinc-400 sm:text-sm">{data.typeLabel}</span>
+                  <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-bh-gold sm:text-sm">{data.typeLabel}</span>
                   {data.verifiedAt && (
                     <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-xs font-semibold text-emerald-300">
                       <BadgeCheck className="h-3.5 w-3.5" aria-hidden /> Verified institution
@@ -289,14 +272,14 @@ function EntityHero({ data }: { data: EntityPageData }) {
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
                   {data.regulator && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-zinc-700/80 bg-zinc-900/70 px-3 py-1.5 text-xs font-medium text-zinc-300">
-                      <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-amber-300" aria-hidden />
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1.5 text-xs font-medium text-white/80">
+                      <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-bh-gold" aria-hidden />
                       Regulated by {data.regulator}
                     </span>
                   )}
                   {data.licenseNumber && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-zinc-700/80 bg-zinc-900/70 px-3 py-1.5 font-mono text-xs text-zinc-300">
-                      <FileText className="h-3.5 w-3.5 shrink-0 text-amber-300" aria-hidden />
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1.5 font-mono text-xs text-white/80">
+                      <FileText className="h-3.5 w-3.5 shrink-0 text-bh-gold" aria-hidden />
                       License {data.licenseNumber}
                     </span>
                   )}
@@ -305,14 +288,14 @@ function EntityHero({ data }: { data: EntityPageData }) {
             </Reveal>
 
             <Reveal delay={2}>
-              <p className="mt-7 line-clamp-2 max-w-2xl text-pretty text-base leading-relaxed text-zinc-400 sm:text-lg">{data.about}</p>
+              <p className="mt-7 line-clamp-2 max-w-2xl text-pretty text-base leading-relaxed text-white/75 sm:text-lg">{data.about}</p>
             </Reveal>
 
             <Reveal delay={3} className="mt-8 flex flex-wrap items-center gap-3">
               <Button
                 asChild
                 size="lg"
-                className="h-12 rounded-full bg-amber-400 px-6 text-[15px] font-bold text-zinc-950 shadow-lg shadow-amber-400/10 transition-all hover:bg-amber-300 hover:shadow-amber-400/20"
+                className="h-12 rounded-full bg-bh-gold px-6 text-[15px] font-bold text-bh-navy-deep hover:bg-bh-gold-light"
               >
                 <Link href={APPLY_HREF}>
                   Apply for funding
@@ -323,7 +306,7 @@ function EntityHero({ data }: { data: EntityPageData }) {
                 asChild
                 size="lg"
                 variant="outline"
-                className="h-12 rounded-full border-zinc-700 bg-zinc-900/60 px-6 text-[15px] font-semibold text-zinc-200 hover:border-amber-400/50 hover:bg-zinc-900 hover:text-amber-300"
+                className="h-12 rounded-full border-white/25 bg-transparent px-6 text-[15px] font-semibold text-white hover:bg-white/10 hover:text-white"
               >
                 <a
                   href="#contact"
@@ -337,10 +320,10 @@ function EntityHero({ data }: { data: EntityPageData }) {
               </Button>
               {data.socialLinks.length > 0 && (
                 <>
-                  <span aria-hidden className="mx-1 hidden h-7 w-px bg-zinc-800 sm:block" />
+                  <span aria-hidden className="mx-1 hidden h-7 w-px bg-white/15 sm:block" />
                   <div className="flex flex-wrap items-center gap-2">
                     {data.socialLinks.map((s) => (
-                      <SocialIconButton key={`${s.platform}-${s.url}`} social={s} dark />
+                      <SocialButton key={`${s.platform}-${s.url}`} platform={s.platform} url={s.url} label={s.label} dark />
                     ))}
                   </div>
                 </>
@@ -354,7 +337,7 @@ function EntityHero({ data }: { data: EntityPageData }) {
           </div>
         </div>
 
-        {/* live stat band */}
+        {/* live stat band — white/10 glass chips (dark StatTile variant) */}
         <RevealGroup className="mt-14 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <RevealItem className="h-full">
             <HeroStatTile icon={Coins} label="Financing programs">
@@ -384,14 +367,14 @@ function EntityHero({ data }: { data: EntityPageData }) {
 
 function HeroStatTile({ icon: IconCmp, label, children }: { icon: LucideIcon; label: string; children: React.ReactNode }) {
   return (
-    <div className="h-full rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4 backdrop-blur transition-colors hover:border-zinc-700 sm:p-5">
+    <div className="h-full rounded-2xl border border-white/10 bg-white/[0.06] p-4 backdrop-blur transition-colors hover:border-white/25 sm:p-5">
       <div className="flex items-center gap-3">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900 text-amber-300">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 text-bh-gold">
           <IconCmp className="h-5 w-5" aria-hidden />
         </span>
         <div className="min-w-0">
-          <p className="truncate text-xl font-bold tabular-nums text-zinc-50 sm:text-2xl">{children}</p>
-          <p className="truncate text-xs font-medium text-zinc-400">{label}</p>
+          <p className="truncate text-xl font-bold tabular-nums text-white sm:text-2xl">{children}</p>
+          <p className="truncate text-xs font-medium text-white/65">{label}</p>
         </div>
       </div>
     </div>
@@ -399,7 +382,6 @@ function HeroStatTile({ icon: IconCmp, label, children }: { icon: LucideIcon; la
 }
 
 function SnapshotPanel({ data }: { data: EntityPageData }) {
-  const { accent } = data
   const range = moneyRange(data.minTicket, data.maxTicket)
   const shariaCount = data.programs.filter((p) => p.shariaCompliant).length
   const processingDays = data.programs.map((p) => p.processingDays).filter((d): d is number => d != null)
@@ -410,14 +392,14 @@ function SnapshotPanel({ data }: { data: EntityPageData }) {
 
   return (
     <div className="relative ml-auto w-full max-w-sm">
-      <div aria-hidden className="absolute -inset-5 rounded-[2.75rem] border border-dashed" style={{ borderColor: `${accent}4d` }} />
-      <div className="relative overflow-hidden rounded-[2rem] border border-zinc-800 bg-zinc-900/70 p-7 shadow-2xl shadow-zinc-950/60 backdrop-blur">
-        <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: `radial-gradient(120% 90% at 85% 0%, ${accent}26, transparent 60%)` }} />
+      <div aria-hidden className="absolute -inset-5 rounded-[2.75rem] border border-dashed border-white/15" />
+      <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.06] p-7 shadow-2xl shadow-black/30 backdrop-blur">
+        <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(120% 90% at 85% 0%, rgba(211,175,60,0.12), transparent 60%)' }} />
         <div className="relative flex items-center gap-4">
-          <Monogram name={data.name} accent={accent} size="lg" dark />
+          <Monogram name={data.name} size="lg" dark />
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500">Snapshot</p>
-            <p className="mt-0.5 truncate text-base font-bold text-zinc-100">{data.typeLabel}</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-bh-gold">Snapshot</p>
+            <p className="mt-0.5 truncate text-base font-bold text-white">{data.typeLabel}</p>
           </div>
         </div>
         <div className="relative mt-5">
@@ -444,7 +426,7 @@ function SnapshotPanel({ data }: { data: EntityPageData }) {
           )}
         </div>
         {data.verifiedAt && (
-          <p className="relative mt-5 flex items-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3.5 py-2.5 text-xs font-semibold text-emerald-300">
+          <p className="relative mt-5 flex items-center gap-2 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-3.5 py-2.5 text-xs font-semibold text-emerald-300">
             <BadgeCheck className="h-4 w-4 shrink-0" aria-hidden />
             Verified institution since {verifiedLabel(data.verifiedAt)}
           </p>
@@ -456,9 +438,9 @@ function SnapshotPanel({ data }: { data: EntityPageData }) {
         <motion.div
           animate={float}
           transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute -right-4 -top-6 rotate-[3deg] rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-2.5 shadow-xl shadow-zinc-950/50"
+          className="absolute -right-4 -top-6 rotate-[3deg] rounded-2xl border border-white/15 bg-bh-navy-deep px-4 py-2.5 shadow-xl shadow-black/40"
         >
-          <p className="flex items-center gap-2 whitespace-nowrap text-xs font-bold text-amber-300">
+          <p className="flex items-center gap-2 whitespace-nowrap text-xs font-bold text-bh-gold">
             <Moon className="h-4 w-4" aria-hidden /> Sharia-compliant
           </p>
         </motion.div>
@@ -467,10 +449,10 @@ function SnapshotPanel({ data }: { data: EntityPageData }) {
         <motion.div
           animate={float}
           transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut', delay: 0.8 }}
-          className="absolute -bottom-6 -left-4 -rotate-[2deg] rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-2.5 shadow-xl shadow-zinc-950/50"
+          className="absolute -bottom-6 -left-4 -rotate-[2deg] rounded-2xl border border-white/15 bg-bh-navy-deep px-4 py-2.5 shadow-xl shadow-black/40"
         >
-          <p className="flex items-center gap-2 whitespace-nowrap text-xs font-bold text-zinc-100">
-            <Zap className="h-4 w-4 text-amber-300" aria-hidden /> Decisions from {fastest} days
+          <p className="flex items-center gap-2 whitespace-nowrap text-xs font-bold text-white">
+            <Zap className="h-4 w-4 text-bh-gold" aria-hidden /> Decisions from {fastest} days
           </p>
         </motion.div>
       )}
@@ -480,17 +462,17 @@ function SnapshotPanel({ data }: { data: EntityPageData }) {
 
 function SnapshotRow({ icon: IconCmp, label, children }: { icon: LucideIcon; label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-zinc-800/70 py-2.5 last:border-b-0">
-      <span className="flex items-center gap-2 text-sm text-zinc-400">
-        <IconCmp className="h-4 w-4 shrink-0 text-amber-300/80" aria-hidden />
+    <div className="flex items-center justify-between gap-3 border-b border-white/10 py-2.5 last:border-b-0">
+      <span className="flex items-center gap-2 text-sm text-white/60">
+        <IconCmp className="h-4 w-4 shrink-0 text-bh-gold" aria-hidden />
         {label}
       </span>
-      <span className="text-right text-sm font-semibold tabular-nums text-zinc-100">{children}</span>
+      <span className="text-right text-sm font-semibold tabular-nums text-white">{children}</span>
     </div>
   )
 }
 
-// ── 2. Sticky entity sub-nav ────────────────────────────────────────────────
+// ── 2. Sticky entity sub-nav (white/95 glass bar) ───────────────────────────
 
 function EntitySubNav({ data }: { data: EntityPageData }) {
   const [active, setActive] = React.useState<string>('overview')
@@ -512,7 +494,7 @@ function EntitySubNav({ data }: { data: EntityPageData }) {
   }, [])
 
   return (
-    <nav id="entity-subnav" aria-label={`${data.name} — profile sections`} className="sticky top-16 z-30 border-b border-border bg-background/85 backdrop-blur-md">
+    <nav id="entity-subnav" aria-label={`${data.name} — profile sections`} className="sticky top-16 z-30 border-b border-bh-border bg-bh-card/95 backdrop-blur-md">
       <SectionContainer className="flex items-center gap-2 sm:gap-3">
         <a
           href="#entity-top"
@@ -523,10 +505,10 @@ function EntitySubNav({ data }: { data: EntityPageData }) {
           aria-label={`Back to top — ${data.name}`}
           className="flex min-h-11 shrink-0 items-center gap-2.5 rounded-xl px-1 py-1"
         >
-          <Monogram name={data.name} accent={data.accent} size="sm" />
-          <span className="hidden max-w-52 truncate text-sm font-bold tracking-tight md:block">{data.name}</span>
+          <Monogram name={data.name} size="sm" />
+          <span className="hidden max-w-52 truncate text-sm font-bold tracking-tight text-bh-navy md:block">{data.name}</span>
         </a>
-        <span aria-hidden className="h-5 w-px shrink-0 bg-border" />
+        <span aria-hidden className="h-5 w-px shrink-0 bg-bh-border" />
         <ul className="flex min-h-11 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {NAV_SECTIONS.map((s) => (
             <li key={s.id} className="shrink-0">
@@ -539,7 +521,7 @@ function EntitySubNav({ data }: { data: EntityPageData }) {
                 aria-current={active === s.id ? 'true' : undefined}
                 className={cn(
                   'flex h-11 items-center whitespace-nowrap rounded-full px-3.5 text-[13px] font-semibold transition-colors sm:px-4',
-                  active === s.id ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                  active === s.id ? 'bg-bh-navy text-white' : 'text-bh-muted hover:text-bh-navy',
                 )}
               >
                 {s.label}
@@ -547,7 +529,7 @@ function EntitySubNav({ data }: { data: EntityPageData }) {
             </li>
           ))}
         </ul>
-        <Button asChild size="sm" className="h-9 shrink-0 rounded-full px-4 font-bold">
+        <Button asChild size="sm" className="h-9 shrink-0 rounded-full bg-bh-action px-4 font-bold text-white hover:bg-bh-navy-deep">
           <Link href={APPLY_HREF}>
             Apply
             <ArrowRight className="h-3.5 w-3.5" aria-hidden />
@@ -558,7 +540,7 @@ function EntitySubNav({ data }: { data: EntityPageData }) {
   )
 }
 
-// ── 3. Overview / about + identity dossier ─────────────────────────────────
+// ── 3. Overview / about + identity dossier (light canvas) ──────────────────
 
 function OverviewSection({ data }: { data: EntityPageData }) {
   const paragraphs = data.about
@@ -577,22 +559,27 @@ function OverviewSection({ data }: { data: EntityPageData }) {
               title={`About ${data.name}`}
               sub="The institution behind the programs — who they are, how they are regulated and how to reach them."
             />
-            <div className="mt-7 border-l-2 pl-6 sm:pl-7" style={{ borderColor: `${data.accent}59` }}>
+            <div className="mt-7 border-l-4 pl-6 sm:pl-7" style={{ borderLeftColor: `${data.accent}59` }}>
               {paragraphs.map((t, i) => (
                 <Reveal key={i} delay={i}>
-                  <p className="text-pretty text-[15px] leading-[1.85] text-muted-foreground sm:text-base">{t}</p>
+                  <p className="text-pretty text-[15px] leading-[1.85] text-bh-subtle sm:text-base">{t}</p>
                 </Reveal>
               ))}
             </div>
           </div>
 
           <Reveal delay={2} className="lg:col-span-5">
-            <div className="h-full rounded-3xl border bg-card p-6 shadow-sm sm:p-7">
-              <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-primary">
-                <FileText className="h-3.5 w-3.5" aria-hidden />
-                Institution dossier
-              </p>
-              <ul className="mt-4">
+            <div className="h-full rounded-2xl border border-bh-border bg-bh-card p-6 shadow-card sm:p-7">
+              <div className="mb-4 flex items-center justify-between border-b border-bh-border pb-4">
+                <div>
+                  <h3 className="h3-practical text-bh-navy">Institution dossier</h3>
+                  <p className="mt-0.5 text-xs text-bh-muted">{data.typeLabel}</p>
+                </div>
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-bh-bg-gold text-bh-gold">
+                  <FileText className="h-4.5 w-4.5" aria-hidden />
+                </span>
+              </div>
+              <ul>
                 <DossierRow icon={ShieldCheck} label="Regulator" value={data.regulator} />
                 <DossierRow icon={FileText} label="License number" value={data.licenseNumber} mono />
                 <DossierRow icon={Landmark} label="Organization type" value={data.typeLabel} />
@@ -628,19 +615,19 @@ function DossierRow({
   if (!value) return null
   const content = (
     <>
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-bh-soft-blue text-bh-action">
         <IconCmp className="h-4 w-4" aria-hidden />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">{label}</span>
-        <span className={cn('mt-0.5 block truncate text-sm font-semibold text-foreground', mono && 'font-mono text-[13px] tracking-tight')}>{value}</span>
+        <span className="block text-[11px] font-semibold uppercase tracking-wide text-bh-muted">{label}</span>
+        <span className={cn('mt-0.5 block truncate text-sm font-semibold', href ? 'text-bh-action' : 'text-bh-ink', mono && 'font-mono text-[13px] tracking-tight')}>{value}</span>
       </span>
-      {href && <ArrowUpRight className="ml-auto h-4 w-4 shrink-0 text-muted-foreground/50 transition-colors group-hover:text-primary" aria-hidden />}
+      {href && <ArrowUpRight className="ml-auto h-4 w-4 shrink-0 text-bh-faded transition-colors group-hover:text-bh-action" aria-hidden />}
     </>
   )
-  const rowClasses = 'group flex min-h-11 items-center gap-3.5 py-3 sm:-mx-2 sm:rounded-lg sm:px-2 sm:hover:bg-muted/50'
+  const rowClasses = 'group flex min-h-11 items-center gap-3.5 py-3 sm:-mx-2 sm:rounded-lg sm:px-2 sm:hover:bg-bh-page'
   return (
-    <li className="border-b border-border last:border-b-0">
+    <li className="border-b border-bh-border last:border-b-0">
       {href ? (
         <a
           href={href}
@@ -657,12 +644,12 @@ function DossierRow({
   )
 }
 
-// ── 4. Programs — rich service cards ────────────────────────────────────────
+// ── 4. Programs — reference-style cards on a soft-blue glass band ───────────
 
 function ProgramsSection({ data }: { data: EntityPageData }) {
   const has = data.programs.length > 0
   return (
-    <Section id="programs" tone="muted">
+    <Section id="programs" tone="glass">
       <SectionContainer className="py-16 sm:py-20">
         <SectionHead
           eyebrow="Programs"
@@ -678,7 +665,7 @@ function ProgramsSection({ data }: { data: EntityPageData }) {
           <RevealGroup className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-3" stagger={0.07}>
             {data.programs.map((p) => (
               <RevealItem key={p.id} className="h-full">
-                <ProgramCard program={p} accent={data.accent} />
+                <ProgramCard program={p} />
               </RevealItem>
             ))}
           </RevealGroup>
@@ -694,47 +681,44 @@ function ProgramsSection({ data }: { data: EntityPageData }) {
   )
 }
 
-function ProgramCard({ program, accent }: { program: EntityProgram; accent: string }) {
+function ProgramCard({ program }: { program: EntityProgram }) {
   const cat = PROGRAM_CATEGORIES[program.category] ?? PROGRAM_CATEGORIES.OTHER!
   const range = moneyRange(program.amountMin, program.amountMax, program.currency)
   const tenor = tenorLabel(program.tenorMinMonths, program.tenorMaxMonths)
 
-  const facts: { icon: LucideIcon; label: string; value: string }[] = []
-  if (range) facts.push({ icon: Banknote, label: 'Amount', value: range })
-  if (program.rateMax != null) facts.push({ icon: Gauge, label: RATE_LABELS[program.rateType ?? ''] ?? 'Rate cap', value: `Up to ${program.rateMax}%` })
-  if (tenor) facts.push({ icon: CalendarClock, label: 'Tenor', value: tenor })
-  if (program.processingDays != null) facts.push({ icon: Zap, label: 'Decision', value: `~${program.processingDays} days` })
+  const chips: { icon: LucideIcon; text: string }[] = []
+  if (range) chips.push({ icon: Banknote, text: range })
+  if (program.rateMax != null) chips.push({ icon: Gauge, text: `Up to ${program.rateMax}% ${RATE_LABELS[program.rateType ?? ''] ?? 'rate'}` })
+  if (tenor) chips.push({ icon: CalendarClock, text: tenor })
+  if (program.processingDays != null) chips.push({ icon: Zap, text: `≈ ${program.processingDays} day${program.processingDays === 1 ? '' : 's'} decision` })
 
   return (
-    <GlowCard accent={accent} className="flex h-full flex-col">
+    <GlowCard className="flex h-full flex-col">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary">
+        <span className="inline-flex items-center gap-1.5 rounded bg-bh-bg-gold px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-bh-gold-dark">
           <Icon name={cat.icon} className="h-3.5 w-3.5" />
           {cat.label}
         </span>
-        <Badge variant="outline" className="text-[11px] font-medium text-muted-foreground">
+        <span className="rounded border border-bh-border-dark bg-bh-page px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-bh-muted">
           {program.serviceKind === 'ACCREDITATION' ? 'Accreditation' : 'Financing'}
-        </Badge>
+        </span>
         {program.shariaCompliant && (
-          <Badge className="gap-1 border border-amber-400/30 bg-amber-400/10 text-[11px] font-semibold text-amber-700 shadow-none hover:bg-amber-400/10 dark:text-amber-300">
+          <span className="inline-flex items-center gap-1 rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
             <Moon className="h-3 w-3" aria-hidden /> Sharia
-          </Badge>
+          </span>
         )}
       </div>
 
-      <h3 className="mt-4 text-lg font-bold leading-snug tracking-tight">{program.name}</h3>
-      {program.summary && <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-muted-foreground">{program.summary}</p>}
+      <h3 className="mt-3.5 text-base font-bold leading-snug tracking-tight text-bh-navy">{program.name}</h3>
+      {program.summary && <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-bh-subtle">{program.summary}</p>}
 
-      {facts.length > 0 && (
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          {facts.map((f) => (
-            <div key={f.label} className="rounded-xl border bg-background/70 px-3 py-2">
-              <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/80">
-                <f.icon className="h-3 w-3 shrink-0 text-primary/80" aria-hidden />
-                {f.label}
-              </p>
-              <p className="mt-0.5 truncate text-[13px] font-semibold tabular-nums">{f.value}</p>
-            </div>
+      {chips.length > 0 && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {chips.map((c) => (
+            <span key={c.text} className="inline-flex items-center gap-1.5 rounded border border-bh-border bg-bh-page px-2 py-1 text-[11px] font-medium text-bh-navy">
+              <c.icon className="h-3 w-3 shrink-0 text-bh-gold" aria-hidden />
+              {c.text}
+            </span>
           ))}
         </div>
       )}
@@ -742,8 +726,8 @@ function ProgramCard({ program, accent }: { program: EntityProgram; accent: stri
       {program.features.length > 0 && (
         <ul className="mt-4 space-y-1.5">
           {program.features.slice(0, 3).map((f) => (
-            <li key={f} className="flex items-start gap-2 text-[13px] leading-snug text-muted-foreground">
-              <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+            <li key={f} className="flex items-start gap-2 text-[13px] leading-snug text-bh-subtle">
+              <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" aria-hidden />
               {f}
             </li>
           ))}
@@ -752,36 +736,35 @@ function ProgramCard({ program, accent }: { program: EntityProgram; accent: stri
 
       {program.coverage.length > 0 && (
         <div className="mt-4 flex flex-wrap items-center gap-1.5">
-          <MapPin className="h-3.5 w-3.5 text-muted-foreground/70" aria-hidden />
+          <MapPin className="h-3.5 w-3.5 text-bh-faded" aria-hidden />
           {program.coverage.slice(0, 4).map((r) => (
-            <span key={r} className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+            <span key={r} className="rounded-full border border-bh-border bg-bh-page px-2 py-0.5 text-[11px] font-medium text-bh-muted">
               {r}
             </span>
           ))}
           {program.coverage.length > 4 && (
-            <span className="text-[11px] font-medium text-muted-foreground/70">+{program.coverage.length - 4} more</span>
+            <span className="text-[11px] font-medium text-bh-faded">+{program.coverage.length - 4} more</span>
           )}
         </div>
       )}
 
-      <div className="mt-auto pt-5">
-        <Button asChild variant="outline" className="group/link w-full justify-between rounded-xl font-semibold">
-          <Link href={`/funding/programs/${program.id}`}>
-            View program details
-            <ArrowRight className="h-4 w-4 transition-transform group-hover/link:translate-x-0.5" aria-hidden />
-          </Link>
-        </Button>
-      </div>
+      <Link
+        href={`/funding/programs/${program.id}`}
+        className="mt-auto inline-flex items-center gap-1 pt-5 text-xs font-semibold text-bh-action transition-colors hover:text-bh-navy-deep"
+      >
+        View program details
+        <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden />
+      </Link>
     </GlowCard>
   )
 }
 
-// ── 5. Branches ─────────────────────────────────────────────────────────────
+// ── 5. Branches — white cards with an org-accent left bar (white band) ──────
 
 function BranchesSection({ data }: { data: EntityPageData }) {
   const has = data.branches.length > 0
   return (
-    <Section id="branches" tone="light">
+    <Section id="branches" tone="muted">
       <SectionContainer className="py-16 sm:py-20">
         <SectionHead
           eyebrow="Network"
@@ -813,29 +796,33 @@ function BranchCard({ branch, accent }: { branch: EntityBranch; accent: string }
   const hasGeo = branch.latitude != null && branch.longitude != null
 
   return (
-    <article className="group relative flex h-full flex-col gap-3 overflow-hidden rounded-2xl border bg-card p-5 pl-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md">
-      <span aria-hidden className="absolute inset-y-0 left-0 w-1" style={{ backgroundColor: accent }} />
+    <article
+      className="flex h-full flex-col gap-3 rounded-2xl border border-bh-border border-l-4 bg-bh-card p-5 shadow-card transition-all duration-300 hover:-translate-y-1 hover:shadow-hover"
+      style={{ borderLeftColor: accent }}
+    >
       <div className="flex items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
-          <meta.icon className="h-3.5 w-3.5" aria-hidden />
-          {meta.label}
+        <span className="inline-flex items-center gap-2.5">
+          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-bh-bg-gold text-bh-gold">
+            <meta.icon className="h-4.5 w-4.5" aria-hidden />
+          </span>
+          <span className="text-[11px] font-bold uppercase tracking-wider text-bh-muted">{meta.label}</span>
         </span>
         {hasGeo && (
-          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-600/25 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-600/25 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">
             <Navigation className="h-3 w-3" aria-hidden /> Geo
           </span>
         )}
       </div>
-      <h3 className="text-[15px] font-bold leading-snug">{branch.name}</h3>
+      <h3 className="text-[15px] font-bold leading-snug text-bh-navy">{branch.name}</h3>
       {address && (
-        <p className="flex items-start gap-2 text-sm leading-snug text-muted-foreground">
-          <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary/70" aria-hidden />
+        <p className="flex items-start gap-2 text-sm leading-snug text-bh-subtle">
+          <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-bh-gold" aria-hidden />
           <span>{address}</span>
         </p>
       )}
       {branch.phone && (
-        <a href={telHref(branch.phone)} className="mt-auto inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-foreground transition-colors hover:text-primary">
-          <Phone className="h-4 w-4 text-primary/70" aria-hidden />
+        <a href={telHref(branch.phone)} className="mt-auto inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-bh-action transition-colors hover:text-bh-navy-deep">
+          <Phone className="h-4 w-4 text-bh-gold" aria-hidden />
           {branch.phone}
         </a>
       )}
@@ -843,37 +830,58 @@ function BranchCard({ branch, accent }: { branch: EntityBranch; accent: string }
   )
 }
 
-// ── 6. Success stories — dark editorial band ────────────────────────────────
+// ── 6. Success stories — horizontal snap scroller on a white band ────────────
 
 function StoriesSection({ data }: { data: EntityPageData }) {
   const has = data.stories.length > 0
+  const scroller = React.useRef<HTMLDivElement>(null)
+  const scrollBy = (dir: 1 | -1) => scroller.current?.scrollBy({ left: dir * 340, behavior: 'smooth' })
+
   return (
-    <Section id="stories" tone="dark" curve="up">
-      <div aria-hidden className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-24 top-1/3 h-96 w-96 rounded-full bg-amber-500/10 blur-[120px]" />
-      </div>
-      <SectionContainer className="relative py-16 sm:py-20">
-        <SectionHead
-          tone="dark"
-          eyebrow="Impact"
-          eyebrowIcon="Sun"
-          title="Success stories"
-          sub={has ? `Real projects on the ground, financed by ${data.name}.` : undefined}
-        />
+    <Section id="stories" tone="muted" className="border-t-0">
+      <SectionContainer className="py-16 sm:py-20">
+        <div className="flex items-end justify-between gap-4">
+          <SectionHead
+            eyebrow="Impact"
+            eyebrowIcon="Sun"
+            title="Success stories"
+            sub={has ? `Real projects on the ground, financed by ${data.name}.` : undefined}
+            className="flex-1"
+          />
+          {has && (
+            <div className="hidden shrink-0 gap-2 sm:flex">
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Scroll stories left"
+                onClick={() => scrollBy(-1)}
+                className="border-bh-border-dark bg-bh-card text-bh-navy hover:bg-bh-soft-blue hover:text-bh-navy"
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Scroll stories right"
+                onClick={() => scrollBy(1)}
+                className="border-bh-border-dark bg-bh-card text-bh-navy hover:bg-bh-soft-blue hover:text-bh-navy"
+              >
+                <ChevronRight className="h-4 w-4" aria-hidden />
+              </Button>
+            </div>
+          )}
+        </div>
         {has ? (
-          <RevealGroup className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3" stagger={0.09}>
-            {data.stories.map((s) => (
-              <RevealItem key={s.id} className="h-full">
-                <StoryCard story={s} />
-              </RevealItem>
-            ))}
-          </RevealGroup>
+          <Reveal className="mt-8">
+            <div ref={scroller} className="scrollbar-thin -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2">
+              {data.stories.map((s) => (
+                <StoryCard key={s.id} story={s} />
+              ))}
+            </div>
+          </Reveal>
         ) : (
           <Reveal className="mt-10">
-            <div className="rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/40 px-6 py-10 text-center">
-              <Sun className="mx-auto h-6 w-6 text-zinc-600" aria-hidden />
-              <p className="mt-3 text-sm leading-relaxed text-zinc-400">No published stories yet — projects financed by {data.name} will appear here as they are verified.</p>
-            </div>
+            <EmptyNote icon={Sun}>No published stories yet — projects financed by {data.name} will appear here as they are verified.</EmptyNote>
           </Reveal>
         )}
       </SectionContainer>
@@ -883,60 +891,69 @@ function StoriesSection({ data }: { data: EntityPageData }) {
 
 function StoryCard({ story }: { story: EntityStory }) {
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/60 transition-all duration-300 hover:-translate-y-1 hover:border-zinc-600/70">
-      <div className="relative aspect-[16/10] overflow-hidden bg-zinc-900">
+    <article className="w-[300px] shrink-0 snap-start overflow-hidden rounded-2xl border border-bh-border bg-bh-card shadow-card transition-all duration-300 hover:-translate-y-1 hover:shadow-hover sm:w-[330px]">
+      <div className="relative h-40 overflow-hidden bg-bh-soft-blue">
         {story.imageUrl ? (
           <Image
             src={story.imageUrl}
             alt={story.title}
             fill
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-            className="object-cover transition-transform duration-500 group-hover:scale-[1.05]"
+            sizes="330px"
+            className="object-cover transition-transform duration-500 hover:scale-105"
           />
         ) : (
-          <div aria-hidden className="flex h-full items-center justify-center bg-gradient-to-br from-zinc-900 to-zinc-800 text-zinc-700">
-            <Sun className="h-10 w-10" />
+          <div aria-hidden className="flex h-full items-center justify-center text-bh-gold">
+            <Sun className="h-10 w-10 opacity-60" />
           </div>
         )}
-        <div aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-t from-zinc-950/70 via-transparent to-transparent" />
-        {story.sector && (
-          <span className="absolute left-3 top-3 inline-flex items-center rounded-full border border-zinc-700/70 bg-zinc-950/70 px-2.5 py-1 text-[11px] font-semibold text-zinc-200 backdrop-blur">
-            {SECTOR_LABELS[story.sector] ?? story.sector}
-          </span>
-        )}
         {story.year != null && (
-          <span className="absolute right-3 top-3 rounded-full bg-zinc-950/70 px-2.5 py-1 text-[11px] font-semibold text-zinc-300 backdrop-blur">{story.year}</span>
+          <span className="absolute right-3 top-3 rounded-full bg-bh-navy-deep/70 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur">{story.year}</span>
         )}
       </div>
-      <div className="flex flex-1 flex-col p-5">
-        <h3 className="text-base font-bold leading-snug tracking-tight text-zinc-100">{story.title}</h3>
-        <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-zinc-400">{story.summary}</p>
-        <div className="mt-4 flex flex-wrap gap-1.5">
-          {story.amountFinanced != null && <DarkChip icon={Banknote}>{money(story.amountFinanced, story.currency)} financed</DarkChip>}
-          {story.location && <DarkChip icon={MapPin}>{story.location}</DarkChip>}
-          {story.peopleImpacted != null && <DarkChip icon={Users}>{story.peopleImpacted.toLocaleString('en-US')} people reached</DarkChip>}
-          {story.co2AvoidedTonnes != null && <DarkChip icon={Leaf}>{story.co2AvoidedTonnes.toLocaleString('en-US')} t CO₂ avoided</DarkChip>}
+      <div className="p-5">
+        <div className="flex flex-wrap items-center gap-2">
+          {story.sector && (
+            <span className="rounded border border-bh-border-dark bg-bh-page px-2 py-0.5 text-[11px] font-semibold text-bh-muted">
+              {SECTOR_LABELS[story.sector] ?? story.sector}
+            </span>
+          )}
+          {story.location && (
+            <span className="inline-flex items-center gap-1 rounded border border-bh-border bg-bh-page px-2 py-0.5 text-[11px] font-medium text-bh-navy">
+              <MapPin className="h-3 w-3 text-bh-gold" aria-hidden />
+              {story.location}
+            </span>
+          )}
+        </div>
+        <h3 className="mt-2.5 text-sm font-bold text-bh-navy">{story.title}</h3>
+        <p className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-bh-subtle">{story.summary}</p>
+        <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-medium text-bh-navy">
+          {story.amountFinanced != null && (
+            <span className="rounded border border-bh-border bg-bh-page px-2 py-1">{money(story.amountFinanced, story.currency)} financed</span>
+          )}
+          {story.peopleImpacted != null && (
+            <span className="inline-flex items-center gap-1 rounded border border-bh-border bg-bh-page px-2 py-1">
+              <Users className="h-3 w-3 text-bh-gold" aria-hidden />
+              {story.peopleImpacted.toLocaleString('en-US')} people
+            </span>
+          )}
+          {story.co2AvoidedTonnes != null && (
+            <span className="inline-flex items-center gap-1 rounded border border-bh-border bg-bh-page px-2 py-1">
+              <Leaf className="h-3 w-3 text-emerald-600" aria-hidden />
+              {story.co2AvoidedTonnes.toLocaleString('en-US')}t CO₂
+            </span>
+          )}
         </div>
       </div>
     </article>
   )
 }
 
-function DarkChip({ icon: IconCmp, children }: { icon: LucideIcon; children: React.ReactNode }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-zinc-700/80 bg-zinc-900/80 px-2.5 py-1 text-[11px] font-medium text-zinc-300">
-      <IconCmp className="h-3.5 w-3.5 text-amber-300" aria-hidden />
-      {children}
-    </span>
-  )
-}
-
-// ── 7. Partners — logo marquee ──────────────────────────────────────────────
+// ── 7. Partners — logo marquee on canvas ────────────────────────────────────
 
 function PartnersSection({ data }: { data: EntityPageData }) {
   const has = data.partners.length > 0
   return (
-    <Section id="partners" tone="light" curve="up">
+    <Section id="partners" tone="light">
       <SectionContainer className="py-14 sm:py-16">
         <SectionHead
           eyebrow="Partners"
@@ -962,17 +979,27 @@ function PartnersSection({ data }: { data: EntityPageData }) {
   )
 }
 
-// ── 8. Contact & final CTA — dark band ─────────────────────────────────────
+// ── 8. Contact & final CTA — navy gradient band ────────────────────────────
 
 function ContactSection({ data }: { data: EntityPageData }) {
-  const { accent } = data
   const socials = data.socialLinks
   return (
-    <Section id="contact" tone="dark" curve="up">
+    <section id="contact" className="relative scroll-mt-24 overflow-hidden bg-gradient-to-br from-[#052e56] via-[#06396c] to-[#0a4a8c] py-16 text-white sm:py-24">
       <div aria-hidden className="pointer-events-none absolute inset-0">
-        <div className="absolute left-1/2 top-0 h-72 w-[42rem] max-w-full -translate-x-1/2 rounded-full blur-[140px]" style={{ backgroundColor: `${accent}2e` }} />
+        <div className="absolute -left-24 top-0 h-72 w-72 rounded-full bg-bh-gold/20 blur-[110px]" />
+        <div className="absolute -right-16 bottom-0 h-72 w-72 rounded-full bg-bh-gold/10 blur-[100px]" />
+        <div
+          className="absolute inset-0 opacity-[0.12]"
+          style={{
+            backgroundImage:
+              'linear-gradient(rgba(211,175,60,0.14) 1px, transparent 1px), linear-gradient(90deg, rgba(211,175,60,0.14) 1px, transparent 1px)',
+            backgroundSize: '44px 44px',
+            maskImage: 'radial-gradient(ellipse 80% 80% at 50% 50%, black, transparent)',
+            WebkitMaskImage: 'radial-gradient(ellipse 80% 80% at 50% 50%, black, transparent)',
+          }}
+        />
       </div>
-      <SectionContainer className="relative py-16 sm:py-24">
+      <SectionContainer className="relative">
         <SectionHead
           align="center"
           tone="dark"
@@ -985,19 +1012,18 @@ function ContactSection({ data }: { data: EntityPageData }) {
         <div className="mt-12 grid gap-5 lg:grid-cols-2">
           {/* Apply card */}
           <Reveal>
-            <div className="relative h-full overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900/60 p-7 sm:p-8">
-              <div aria-hidden className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full" style={{ background: `radial-gradient(closest-side, ${accent}40, transparent)` }} />
-              <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-400/25 bg-amber-400/10 text-amber-300">
+            <GlowCard dark className="flex h-full flex-col p-7 sm:p-8">
+              <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-bh-gold">
                 <Landmark className="h-7 w-7" aria-hidden />
               </span>
-              <h3 className="mt-5 text-xl font-bold tracking-tight text-zinc-50">Apply for funding</h3>
-              <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+              <h3 className="mt-5 text-xl font-bold tracking-tight text-white">Apply for funding</h3>
+              <p className="mt-2 text-sm leading-relaxed text-white/70">
                 One request — {data.name} and every other verified entity on Vendora can respond with an offer. Compare terms side by side and sign online.
               </p>
               <ol className="mt-6 space-y-2.5">
                 {['Submit your request', 'Review entity offers', 'Sign the agreement'].map((s, i) => (
-                  <li key={s} className="flex items-center gap-3 text-sm text-zinc-300">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-400/15 text-[11px] font-bold text-amber-300">{i + 1}</span>
+                  <li key={s} className="flex items-center gap-3 text-sm text-white/80">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-bh-gold/15 text-[11px] font-bold text-bh-gold">{i + 1}</span>
                     {s}
                   </li>
                 ))}
@@ -1005,25 +1031,25 @@ function ContactSection({ data }: { data: EntityPageData }) {
               <Button
                 asChild
                 size="lg"
-                className="mt-7 w-full rounded-full bg-amber-400 text-[15px] font-bold text-zinc-950 shadow-lg shadow-amber-400/10 hover:bg-amber-300 sm:w-auto sm:px-7"
+                className="mt-7 w-full rounded-full bg-bh-gold text-[15px] font-bold text-bh-navy-deep hover:bg-bh-gold-light sm:w-auto sm:px-7"
               >
                 <Link href={APPLY_HREF}>
                   Apply for funding
                   <ArrowRight className="h-4.5 w-4.5" aria-hidden />
                 </Link>
               </Button>
-              <p className="mt-3 text-xs text-zinc-500">Free to apply — no obligation to accept any offer.</p>
-            </div>
+              <p className="mt-3 text-xs text-white/45">Free to apply — no obligation to accept any offer.</p>
+            </GlowCard>
           </Reveal>
 
           {/* Direct contact card */}
           <Reveal delay={1}>
-            <div className="h-full rounded-3xl border border-zinc-800 bg-zinc-900/60 p-7 sm:p-8">
-              <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-zinc-700 bg-zinc-900 text-amber-300">
+            <GlowCard dark className="flex h-full flex-col p-7 sm:p-8">
+              <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-bh-gold">
                 <Phone className="h-7 w-7" aria-hidden />
               </span>
-              <h3 className="mt-5 text-xl font-bold tracking-tight text-zinc-50">Talk to {data.name}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+              <h3 className="mt-5 text-xl font-bold tracking-tight text-white">Talk to {data.name}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-white/70">
                 Prefer a direct conversation? Reach the {data.typeLabel.toLowerCase()} team through any channel below.
               </p>
               <div className="mt-6 space-y-1.5">
@@ -1033,28 +1059,28 @@ function ContactSection({ data }: { data: EntityPageData }) {
               </div>
               {socials.length > 0 && (
                 <div className="mt-6 flex flex-wrap items-center gap-2.5">
-                  <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-500">Follow</span>
+                  <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-white/45">Follow</span>
                   {socials.map((s) => (
-                    <SocialIconButton key={`${s.platform}-${s.url}`} social={s} dark />
+                    <SocialButton key={`${s.platform}-${s.url}`} platform={s.platform} url={s.url} label={s.label} dark />
                   ))}
                 </div>
               )}
-              <p className="mt-6 flex items-center gap-2 text-xs text-zinc-500">
+              <p className="mt-6 flex items-center gap-2 text-xs text-white/45">
                 <Clock3 className="h-3.5 w-3.5 shrink-0" aria-hidden />
                 Financing teams typically respond within 1–2 business days.
               </p>
-            </div>
+            </GlowCard>
           </Reveal>
         </div>
 
         {/* closing statement */}
         <Reveal className="mt-16 sm:mt-20">
           <div className="mx-auto max-w-3xl text-center">
-            <Monogram name={data.name} accent={accent} size="lg" dark className="mx-auto" />
-            <p className="mt-5 text-balance text-2xl font-bold leading-snug tracking-tight text-zinc-50 sm:text-[1.9rem]">
+            <Monogram name={data.name} size="lg" dark className="mx-auto" />
+            <p className="mt-5 text-balance text-2xl font-bold leading-snug tracking-tight text-white sm:text-[1.9rem]">
               {data.name} is ready to power your next solar project.
             </p>
-            <p className="mx-auto mt-3 max-w-xl text-pretty text-sm leading-relaxed text-zinc-400 sm:text-base">
+            <p className="mx-auto mt-3 max-w-xl text-pretty text-sm leading-relaxed text-white/70 sm:text-base">
               {data.regulator ? `Regulated by ${data.regulator}, ` : ''}verified by Vendora and reviewed continuously — every program, branch and story on this page is maintained by the
               institution itself.
             </p>
@@ -1062,7 +1088,7 @@ function ContactSection({ data }: { data: EntityPageData }) {
               <Button
                 asChild
                 size="lg"
-                className="h-12 rounded-full bg-amber-400 px-6 text-[15px] font-bold text-zinc-950 shadow-lg shadow-amber-400/10 hover:bg-amber-300"
+                className="h-12 rounded-full bg-bh-gold px-6 text-[15px] font-bold text-bh-navy-deep hover:bg-bh-gold-light"
               >
                 <Link href={APPLY_HREF}>
                   Apply for funding
@@ -1073,7 +1099,7 @@ function ContactSection({ data }: { data: EntityPageData }) {
                 asChild
                 size="lg"
                 variant="outline"
-                className="h-12 rounded-full border-zinc-700 bg-transparent px-6 text-[15px] font-semibold text-zinc-200 hover:border-zinc-500 hover:bg-zinc-900 hover:text-zinc-50"
+                className="h-12 rounded-full border-white/25 bg-transparent px-6 text-[15px] font-semibold text-white hover:bg-white/10 hover:text-white"
               >
                 <Link href="/funding">
                   Browse all financiers
@@ -1084,7 +1110,7 @@ function ContactSection({ data }: { data: EntityPageData }) {
           </div>
         </Reveal>
       </SectionContainer>
-    </Section>
+    </section>
   )
 }
 
@@ -1092,17 +1118,17 @@ function ContactRow({ icon: IconCmp, label, value, href, external = false }: { i
   if (!value) return null
   const content = (
     <>
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900 text-amber-300">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-bh-gold">
         <IconCmp className="h-4.5 w-4.5" aria-hidden />
       </span>
       <span className="min-w-0">
-        <span className="block text-[11px] font-semibold uppercase tracking-wide text-zinc-500">{label}</span>
-        <span className="block truncate text-sm font-semibold text-zinc-100">{value}</span>
+        <span className="block text-[11px] font-semibold uppercase tracking-wide text-white/50">{label}</span>
+        <span className="block truncate text-sm font-semibold text-white">{value}</span>
       </span>
-      {href && <ArrowUpRight className="ml-auto h-4 w-4 shrink-0 text-zinc-600 transition-colors group-hover:text-amber-300" aria-hidden />}
+      {href && <ArrowUpRight className="ml-auto h-4 w-4 shrink-0 text-white/30 transition-colors group-hover:text-bh-gold" aria-hidden />}
     </>
   )
-  const classes = 'group flex min-h-11 items-center gap-3.5 rounded-xl px-1 py-1.5 transition-colors hover:bg-zinc-800/50'
+  const classes = 'group flex min-h-11 items-center gap-3.5 rounded-xl px-1 py-1.5 transition-colors hover:bg-white/[0.06]'
   if (href) {
     return (
       <a
@@ -1120,33 +1146,11 @@ function ContactRow({ icon: IconCmp, label, value, href, external = false }: { i
 
 // ── Shared bits ────────────────────────────────────────────────────────────
 
-/** Social icon button with correct per-platform lucide icons. */
-function SocialIconButton({ social, dark = false }: { social: EntitySocial; dark?: boolean }) {
-  const meta = PLATFORM_META[social.platform]
-  const label = social.label || meta?.label || social.platform
-  return (
-    <a
-      href={social.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label={`${label} — opens in a new tab`}
-      className={cn(
-        'inline-flex h-11 w-11 items-center justify-center rounded-xl border transition-all hover:-translate-y-0.5',
-        dark
-          ? 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-amber-400/50 hover:text-amber-300'
-          : 'border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-primary',
-      )}
-    >
-      {meta ? <meta.icon className="h-4.5 w-4.5" aria-hidden /> : <Globe className="h-4.5 w-4.5" aria-hidden />}
-    </a>
-  )
-}
-
 function EmptyNote({ icon: IconCmp, children }: { icon: LucideIcon; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-dashed px-6 py-10 text-center text-muted-foreground">
-      <IconCmp className="mx-auto h-6 w-6 text-muted-foreground/60" aria-hidden />
-      <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed">{children}</p>
+    <div className="rounded-2xl border border-dashed border-bh-border-dark bg-bh-card/50 px-6 py-10 text-center">
+      <IconCmp className="mx-auto h-6 w-6 text-bh-faded" aria-hidden />
+      <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-bh-muted">{children}</p>
     </div>
   )
 }

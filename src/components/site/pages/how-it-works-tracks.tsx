@@ -12,6 +12,9 @@ import { cn } from '@/lib/utils'
  * Three pillar cards (Shop / Buy as a business / Fund your project); picking
  * one animates the matching StepFlow in via framer-motion AnimatePresence.
  * Step content is 100% DB-driven (getSiteSteps); only the pillar chrome is UI.
+ *
+ * bh palette: white cards + shadow-card hover lift; pillar accents —
+ * SHOP gold #d3af3c, PROCURE emerald #059669, FUND navy #193d8f.
  */
 
 export type TrackKey = 'SHOP' | 'PROCURE' | 'FUND'
@@ -33,7 +36,7 @@ const TRACKS: {
     pitch: ['Engineer-reviewed gear from vetted, independent stores.', 'Cart, checkout and delivery you can track.'],
     starts: '/market',
     startsLabel: 'Starts in the market',
-    accent: '#d97706',
+    accent: '#d3af3c',
   },
   {
     key: 'PROCURE',
@@ -51,7 +54,7 @@ const TRACKS: {
     pitch: ['Verified entities compete with binding offers.', 'E-sign the agreement and get funded.'],
     starts: '/funding',
     startsLabel: 'Starts at the funding hub',
-    accent: '#b45309',
+    accent: '#193d8f',
   },
 ]
 
@@ -71,13 +74,13 @@ export function HowItWorksTracks({ tracks }: { tracks: TrackSteps }) {
             <div
               key={t.key}
               className={cn(
-                'group relative overflow-hidden rounded-2xl border p-6 transition-all duration-300',
-                selected ? 'shadow-lg' : 'hover:-translate-y-0.5 hover:shadow-md',
+                'group relative overflow-hidden rounded-2xl border bg-bh-card p-6 shadow-card transition-all duration-300',
+                selected ? 'hover:shadow-hover' : 'border-bh-border hover:-translate-y-0.5 hover:shadow-hover',
               )}
               style={{
-                borderColor: selected ? t.accent : undefined,
-                boxShadow: selected ? `0 12px 32px -12px ${t.accent}55` : undefined,
-                backgroundColor: selected ? `${t.accent}0d` : undefined,
+                borderColor: selected ? `${t.accent}80` : undefined,
+                boxShadow: selected ? `0 10px 28px -6px ${t.accent}26` : undefined,
+                backgroundColor: selected ? `${t.accent}0a` : undefined,
               }}
             >
               {/* selection button — stretched under the content */}
@@ -98,14 +101,14 @@ export function HowItWorksTracks({ tracks }: { tracks: TrackSteps }) {
                 <div className="flex items-start justify-between gap-3">
                   <span
                     className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border"
-                    style={{ backgroundColor: `${t.accent}14`, borderColor: `${t.accent}45`, color: t.accent }}
+                    style={{ backgroundColor: `${t.accent}17`, borderColor: `${t.accent}4d`, color: t.accent }}
                   >
                     <Icon name={t.icon} className="h-7 w-7" />
                   </span>
                   {selected && (
                     <span
                       className="mt-1 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider"
-                      style={{ backgroundColor: `${t.accent}1a`, color: t.accent }}
+                      style={{ backgroundColor: `${t.accent}1f`, color: t.accent }}
                     >
                       <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: t.accent }} aria-hidden />
                       Selected
@@ -113,15 +116,15 @@ export function HowItWorksTracks({ tracks }: { tracks: TrackSteps }) {
                   )}
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold tracking-tight text-foreground">{t.label}</h3>
-                  <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                  <h3 className="text-lg font-bold tracking-tight text-bh-navy">{t.label}</h3>
+                  <p className="mt-1.5 text-sm leading-relaxed text-bh-subtle">
                     {t.pitch[0]}
                     <br />
                     {t.pitch[1]}
                   </p>
                 </div>
                 <div className="mt-auto flex items-center justify-between gap-2 pt-1">
-                  <span className="text-xs font-medium text-muted-foreground">
+                  <span className="text-xs font-medium text-bh-muted">
                     {stepCount > 0 ? `${stepCount} steps` : ''}
                   </span>
                   <Link
@@ -144,7 +147,7 @@ export function HowItWorksTracks({ tracks }: { tracks: TrackSteps }) {
         role="tabpanel"
         id="track-panel"
         aria-labelledby={`track-tab-${active}`}
-        className="mt-8 rounded-3xl border bg-muted/30 p-5 sm:p-8"
+        className="mt-8 rounded-3xl border border-bh-border bg-bh-card p-5 shadow-card sm:p-8"
       >
         <AnimatePresence mode="wait">
           <motion.div
@@ -157,21 +160,21 @@ export function HowItWorksTracks({ tracks }: { tracks: TrackSteps }) {
             <div className="mb-6 flex flex-wrap items-center gap-3">
               <span
                 className="inline-flex h-9 w-9 items-center justify-center rounded-xl"
-                style={{ backgroundColor: `${activeTrack.accent}14`, color: activeTrack.accent }}
+                style={{ backgroundColor: `${activeTrack.accent}17`, color: activeTrack.accent }}
               >
                 <Icon name={activeTrack.icon} className="h-5 w-5" />
               </span>
               <div>
-                <p className="text-sm font-bold text-foreground">
+                <p className="text-sm font-bold text-bh-navy">
                   {activeTrack.label === 'Shop' ? 'Shopping for your home' : activeTrack.label === 'Fund your project' ? 'Funding your project' : 'Procuring as a business'}
                 </p>
-                <p className="text-xs text-muted-foreground">Step by step, from first click to power on.</p>
+                <p className="text-xs text-bh-muted">Step by step, from first click to power on.</p>
               </div>
             </div>
             {steps.length > 0 ? (
               <StepFlow steps={steps} columns={4} />
             ) : (
-              <p className="py-8 text-center text-sm text-muted-foreground">Steps for this path are being prepared.</p>
+              <p className="py-8 text-center text-sm text-bh-muted">Steps for this path are being prepared.</p>
             )}
           </motion.div>
         </AnimatePresence>

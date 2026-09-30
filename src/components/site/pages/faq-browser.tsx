@@ -8,6 +8,9 @@ import { cn } from '@/lib/utils'
 /**
  * /faq — topic tabs (ALL + every topic present in the data). When ALL is
  * selected, questions are grouped by topic with featured items first.
+ *
+ * bh palette: active tab = navy pill; inactive = white bordered card;
+ * answer groups = white cards on shadow-card with gold topic chips.
  */
 
 export type BrowserFaq = { id: string; topic: string; question: string; answer: string; featured: boolean }
@@ -72,12 +75,12 @@ export function FaqBrowser({ faqs }: { faqs: BrowserFaq[] }) {
               className={cn(
                 'inline-flex min-h-11 items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition-all duration-200 focus-visible:outline-2 focus-visible:outline-offset-2',
                 isActive
-                  ? 'border-primary bg-primary text-primary-foreground shadow-sm'
-                  : 'border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground',
+                  ? 'border-bh-navy bg-bh-navy text-white shadow-sm'
+                  : 'border-bh-border-dark bg-bh-card text-bh-muted hover:border-bh-gold/50 hover:text-bh-navy',
               )}
             >
               {topic === 'ALL' ? 'All questions' : (TOPIC_LABELS[topic] ?? topic)}
-              <span className={cn('rounded-full px-1.5 text-[11px] tabular-nums', isActive ? 'bg-primary-foreground/20' : 'bg-muted')}>{count}</span>
+              <span className={cn('rounded-full px-1.5 text-[11px] tabular-nums', isActive ? 'bg-white/20' : 'bg-bh-page')}>{count}</span>
             </button>
           )
         })}
@@ -94,21 +97,21 @@ export function FaqBrowser({ faqs }: { faqs: BrowserFaq[] }) {
           className="mt-8 grid gap-8"
         >
           {groups.map(([topic, items]) => (
-            <section key={topic} aria-labelledby={`faq-group-${topic}`} className="rounded-3xl border bg-card p-5 sm:p-7">
+            <section key={topic} aria-labelledby={`faq-group-${topic}`} className="rounded-3xl border border-bh-border bg-bh-card p-5 shadow-card sm:p-7">
               <div className="mb-3 flex items-center gap-3">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary" aria-hidden>
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-bh-bg-gold text-xs font-bold text-bh-gold-dark" aria-hidden>
                   {TOPIC_LABELS[topic]?.slice(0, 2).toUpperCase() ?? topic.slice(0, 2)}
                 </span>
-                <h2 id={`faq-group-${topic}`} className="text-lg font-bold tracking-tight text-foreground">
+                <h2 id={`faq-group-${topic}`} className="text-lg font-bold tracking-tight text-bh-navy">
                   {TOPIC_LABELS[topic] ?? topic}
                 </h2>
-                <span className="text-xs font-medium text-muted-foreground">{items.length} answered</span>
+                <span className="text-xs font-medium text-bh-muted">{items.length} answered</span>
               </div>
               <FaqAccordion items={items} defaultOpen={false} />
             </section>
           ))}
           {groups.length === 0 && (
-            <p className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+            <p className="rounded-2xl border border-dashed border-bh-border-dark p-8 text-center text-sm text-bh-muted">
               Nothing here yet — ask us directly from the contact page.
             </p>
           )}

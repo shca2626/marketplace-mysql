@@ -19,6 +19,7 @@ import {
   SectionHead,
 } from '@/components/site/kit'
 import { Breadcrumbs } from '@/components/site/breadcrumbs'
+import { CtaBand } from '@/components/site/pages/cta-band'
 import { firstImage, moneyRangeLabel } from '@/components/site/pages/format'
 
 type Props = { params: Promise<{ slug: string }> }
@@ -71,7 +72,7 @@ export default async function SolutionDetailPage({ params }: Props) {
   const [products, programs] = await Promise.all([getCuratedProducts(solution), getFundingPrograms()])
   const relevantCategories = RELEVANT_PROGRAM_CATEGORIES[solution.audience] ?? []
   const relevantPrograms = programs.filter((p) => relevantCategories.includes(p.category)).slice(0, 3)
-  const accent = solution.accentColor ?? '#d97706'
+  const accent = solution.accentColor ?? '#d3af3c'
 
   // Absolute URLs for JSON-LD (sandbox host aware)
   const h = await headers()
@@ -93,27 +94,27 @@ export default async function SolutionDetailPage({ params }: Props) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <Breadcrumbs items={[{ label: 'Solutions', href: '/solutions' }, { label: solution.title }]} />
 
-      {/* Hero — full-bleed image band with gradient overlay */}
-      <section className="relative isolate overflow-hidden bg-zinc-950 text-zinc-100">
+      {/* Hero — full-bleed image band with navy gradient overlay */}
+      <section className="relative isolate overflow-hidden bg-[#052e56] text-white">
         <div className="absolute inset-0" aria-hidden>
           {solution.imageUrl ? (
             <Image src={solution.imageUrl} alt="" fill priority sizes="100vw" className="object-cover opacity-60" />
           ) : (
-            <span className="absolute inset-0 bg-zinc-900" />
+            <span className="absolute inset-0 bg-bh-navy-deep" />
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/80 to-zinc-950/30" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#052e56] via-[#052e56]/85 to-[#052e56]/40" />
         </div>
         <SectionContainer className="relative pb-14 pt-12 sm:pb-20 sm:pt-16">
-          <nav aria-label="Breadcrumb" className="mb-6 flex items-center gap-1 text-xs text-zinc-400">
-            <Link href="/" className="rounded px-1 py-0.5 transition-colors hover:text-amber-300">
+          <nav aria-label="Breadcrumb" className="mb-6 flex items-center gap-2 text-xs text-white/60">
+            <Link href="/" className="rounded px-1 py-0.5 transition-colors hover:text-bh-gold">
               Home
             </Link>
             <ChevronRight className="h-3.5 w-3.5 opacity-60" aria-hidden />
-            <Link href="/solutions" className="rounded px-1 py-0.5 transition-colors hover:text-amber-300">
+            <Link href="/solutions" className="rounded px-1 py-0.5 transition-colors hover:text-bh-gold">
               Solutions
             </Link>
             <ChevronRight className="h-3.5 w-3.5 opacity-60" aria-hidden />
-            <span aria-current="page" className="px-1 py-0.5 font-medium text-amber-300">
+            <span aria-current="page" className="px-1 py-0.5 font-semibold text-bh-gold">
               {solution.title}
             </span>
           </nav>
@@ -121,21 +122,25 @@ export default async function SolutionDetailPage({ params }: Props) {
           <div className="max-w-3xl">
             <span
               className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]"
-              style={{ borderColor: `${accent}66`, backgroundColor: `${accent}1f`, color: '#fbbf24' }}
+              style={{ borderColor: `${accent}66`, backgroundColor: `${accent}26`, color: '#d3af3c' }}
             >
               {AUDIENCE_LABELS[solution.audience] ?? solution.audience}
             </span>
-            <h1 className="mt-5 text-balance text-3xl font-bold leading-tight tracking-tight text-zinc-50 sm:text-4xl lg:text-5xl">
+            <h1 className="mt-5 text-balance text-3xl font-bold leading-tight tracking-tight text-white sm:text-4xl lg:text-5xl">
               {solution.title}
             </h1>
             {solution.tagline && (
-              <p className="mt-4 text-pretty text-lg font-medium text-amber-200/90">{solution.tagline}</p>
+              <p className="mt-4 text-pretty text-lg font-medium text-bh-gold">{solution.tagline}</p>
             )}
             {solution.description && (
-              <p className="mt-4 max-w-2xl text-pretty text-base leading-relaxed text-zinc-400">{solution.description}</p>
+              <p className="mt-4 max-w-2xl text-pretty text-base leading-relaxed text-white/70">{solution.description}</p>
             )}
             <div className="mt-7 flex flex-wrap items-center gap-3">
-              <Button asChild size="lg" className="h-12 rounded-full px-6 text-base">
+              <Button
+                asChild
+                size="lg"
+                className="h-12 rounded-full border-0 bg-bh-gold px-6 text-base font-bold text-bh-navy-deep hover:bg-bh-gold-light"
+              >
                 <Link href={solution.categorySlug ? `/market?category=${solution.categorySlug}` : '/market'}>
                   Shop the system
                   <ArrowRight className="ml-1.5 h-4 w-4" aria-hidden />
@@ -145,7 +150,7 @@ export default async function SolutionDetailPage({ params }: Props) {
                 asChild
                 size="lg"
                 variant="outline"
-                className="h-12 rounded-full border-amber-400/40 bg-amber-400/5 px-6 text-base text-amber-200 hover:bg-amber-400/15 hover:text-amber-100"
+                className="h-12 rounded-full border-white/25 bg-transparent px-6 text-base text-white hover:bg-white/10 hover:text-white"
               >
                 <Link href="/funding">Finance it</Link>
               </Button>
@@ -199,7 +204,7 @@ export default async function SolutionDetailPage({ params }: Props) {
             }
           />
           {products.length === 0 ? (
-            <p className="mt-8 rounded-2xl border border-dashed bg-background/60 p-8 text-center text-sm text-muted-foreground">
+            <p className="mt-8 rounded-2xl border border-dashed border-bh-border-dark bg-background/60 p-8 text-center text-sm text-bh-muted">
               Curated picks for this system are on their way — browse the full market in the meantime.
             </p>
           ) : (
@@ -210,9 +215,9 @@ export default async function SolutionDetailPage({ params }: Props) {
                   <Link
                     key={p.id}
                     href={`/market?view=product&id=${p.id}`}
-                    className="group flex flex-col overflow-hidden rounded-2xl border bg-card transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2"
+                    className="group flex flex-col overflow-hidden rounded-2xl border border-bh-border bg-bh-card shadow-card transition-all duration-300 hover:-translate-y-1 hover:border-bh-gold/40 hover:shadow-hover focus-visible:outline-2 focus-visible:outline-offset-2"
                   >
-                    <span className="relative block aspect-square overflow-hidden bg-muted">
+                    <span className="relative block aspect-square overflow-hidden bg-bh-soft-blue">
                       {img ? (
                         <Image
                           src={img}
@@ -224,8 +229,8 @@ export default async function SolutionDetailPage({ params }: Props) {
                       ) : null}
                     </span>
                     <span className="flex flex-1 flex-col gap-1 p-4">
-                      <span className="line-clamp-2 text-sm font-semibold leading-snug transition-colors group-hover:text-primary">{p.title}</span>
-                      <span className="mt-auto pt-1 text-sm font-bold text-foreground">
+                      <span className="line-clamp-2 text-sm font-semibold leading-snug text-bh-navy transition-colors group-hover:text-bh-action">{p.title}</span>
+                      <span className="mt-auto pt-1 text-sm font-bold text-bh-navy">
                         {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(p.price)}
                       </span>
                     </span>
@@ -260,10 +265,10 @@ export default async function SolutionDetailPage({ params }: Props) {
                 <RevealItem key={p.id} className="h-full">
                   <Link
                     href={`/funding/programs/${p.id}`}
-                    className="group flex h-full flex-col gap-3 rounded-2xl border bg-card p-5 transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2"
+                    className="group flex h-full flex-col gap-3 rounded-2xl border border-bh-border bg-bh-card p-5 shadow-card transition-all duration-300 hover:-translate-y-1 hover:border-bh-gold/40 hover:shadow-hover focus-visible:outline-2 focus-visible:outline-offset-2"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-primary">
+                      <span className="rounded-full bg-bh-soft-blue px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-bh-action">
                         {PROGRAM_CATEGORIES[p.category]?.label ?? p.category}
                       </span>
                       {p.shariaCompliant && (
@@ -272,16 +277,16 @@ export default async function SolutionDetailPage({ params }: Props) {
                         </span>
                       )}
                     </div>
-                    <h3 className="text-base font-bold leading-snug tracking-tight transition-colors group-hover:text-primary">{p.name}</h3>
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{p.entity.name}</p>
-                    <div className="mt-auto flex flex-wrap gap-2 pt-1 text-xs text-muted-foreground">
+                    <h3 className="text-base font-bold leading-snug tracking-tight text-bh-navy transition-colors group-hover:text-bh-action">{p.name}</h3>
+                    <p className="text-xs font-medium uppercase tracking-wide text-bh-muted">{p.entity.name}</p>
+                    <div className="mt-auto flex flex-wrap gap-2 pt-1 text-xs text-bh-muted">
                       {moneyRangeLabel(p.amountMin, p.amountMax, p.currency) && (
-                        <span className="rounded-full border bg-muted px-2.5 py-1 font-semibold text-foreground">
+                        <span className="rounded-full border border-bh-border-dark bg-bh-page px-2.5 py-1 font-semibold text-bh-navy">
                           {moneyRangeLabel(p.amountMin, p.amountMax, p.currency)}
                         </span>
                       )}
                       {p.rateMax != null && (
-                        <span className="rounded-full border bg-muted px-2.5 py-1">
+                        <span className="rounded-full border border-bh-border-dark bg-bh-page px-2.5 py-1">
                           {RATE_LABELS[p.rateType ?? ''] ?? 'Rate'} · up to {p.rateMax}%
                         </span>
                       )}
@@ -295,36 +300,14 @@ export default async function SolutionDetailPage({ params }: Props) {
       )}
 
       {/* Bottom CTA */}
-      <Section tone="dark" className="py-14">
-        <SectionContainer>
-          <div className="flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-center">
-            <div>
-              <h2 className="text-xl font-bold tracking-tight text-zinc-50 sm:text-2xl">
-                Ready to build your {solution.title.toLowerCase()}?
-              </h2>
-              <p className="mt-2 max-w-xl text-sm leading-relaxed text-zinc-400 sm:text-base">
-                Shop the category now, or check what a funding entity would charge before you commit.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Button asChild size="lg" className="h-12 rounded-full px-6">
-                <Link href={solution.categorySlug ? `/market?category=${solution.categorySlug}` : '/market'}>
-                  Shop the system
-                  <ArrowRight className="ml-1.5 h-4 w-4" aria-hidden />
-                </Link>
-              </Button>
-              <Button
-                asChild
-                size="lg"
-                variant="outline"
-                className="h-12 rounded-full border-amber-400/40 bg-amber-400/5 px-6 text-amber-200 hover:bg-amber-400/15 hover:text-amber-100"
-              >
-                <Link href="/funding">Finance it</Link>
-              </Button>
-            </div>
-          </div>
-        </SectionContainer>
-      </Section>
+      <CtaBand
+        eyebrow="Ready when you are"
+        title={`Ready to build your ${solution.title.toLowerCase()}?`}
+        sub="Shop the category now, or check what a funding entity would charge before you commit."
+        primary={{ label: 'Shop the system', href: solution.categorySlug ? `/market?category=${solution.categorySlug}` : '/market' }}
+        secondary={{ label: 'Finance it', href: '/funding' }}
+        icon="Package"
+      />
     </>
   )
 }

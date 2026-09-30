@@ -56,14 +56,15 @@ import {
 } from '@/components/ui/accordion'
 
 /**
- * Shared design kit for the Phase 3–4 public pages.
+ * Shared design kit for the public pages — Vendora "bh" light-first system
+ * (upload/supplier_qualification_program.html + dual-theme style guide).
  *
- * Visual language (pagedesign.md §9 + user mandate "innovative, not traditional"):
- *  - layered sections with alternating tones + curved dividers
- *  - dark "editorial" bands (zinc-950 + amber) for heroes and stat bands
- *  - bento grids, connected step timelines, monogram tiles, logo marquee
+ * Visual language:
+ *  - LIGHT-FIRST: #f3f6fc canvas, white cards, navy headings (#06396c),
+ *    gold accents (#d3af3c), soft-blue highlight rows (#edf6ff/60)
+ *  - dark (navy #052e56) reserved for hero + CTA + high-impact bands only
+ *  - flat layered sections (white bands / soft-blue washes) — no fake cards
  *  - motion: whileInView reveals, count-up stats, hover lift cards
- *  - NO indigo/blue; amber/solar primary family everywhere
  */
 
 // ── Icon registry (DB stores lucide icon *names*) ──────────────────────────
@@ -140,14 +141,13 @@ export function RevealItem({ children, className }: { children: React.ReactNode;
 // ── Section shells (the "layers") ──────────────────────────────────────────
 
 /**
- * Full-width layered section. tone: 'light' (background), 'muted' (muted/30),
- * 'dark' (zinc-950 editorial band), 'glass' (soft amber wash).
- * curve: renders an SVG curved divider on top of the section.
+ * Full-width layered section — flat modern bands (no curves).
+ * tone: 'light' (page canvas), 'muted' (white surface band),
+ * 'glass' (soft-blue wash), 'dark' (navy deep — hero/CTA only).
  */
 export function Section({
   id,
   tone = 'light',
-  curve,
   className,
   children,
 }: {
@@ -161,28 +161,14 @@ export function Section({
     <section
       id={id}
       className={cn(
-        'relative scroll-mt-24 overflow-hidden',
-        tone === 'light' && 'bg-background',
-        tone === 'muted' && 'bg-muted/40',
-        tone === 'glass' && 'bg-primary/[0.045]',
-        tone === 'dark' && 'bg-zinc-950 text-zinc-100',
+        'relative scroll-mt-24',
+        tone === 'light' && 'bg-transparent',
+        tone === 'muted' && 'border-y border-bh-border bg-bh-card',
+        tone === 'glass' && 'bg-bh-soft-blue/60',
+        tone === 'dark' && 'bg-bh-navy-deep text-white',
         className,
       )}
     >
-      {curve === 'up' && (
-        <div className="pointer-events-none absolute inset-x-0 -top-1 translate-y-[-99%] text-background dark:text-zinc-950" aria-hidden>
-          <svg viewBox="0 0 1440 72" preserveAspectRatio="none" className="block h-10 w-full fill-current sm:h-14">
-            <path d="M0,72 C360,-24 1080,120 1440,24 L1440,72 Z" />
-          </svg>
-        </div>
-      )}
-      {curve === 'down' && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 translate-y-[99%] text-background dark:text-zinc-950" aria-hidden>
-          <svg viewBox="0 0 1440 72" preserveAspectRatio="none" className="block h-10 w-full fill-current sm:h-14">
-            <path d="M0,0 L1440,48 C1080,144 360,0 0,72 Z" />
-          </svg>
-        </div>
-      )}
       {children}
     </section>
   )
@@ -192,15 +178,15 @@ export function SectionContainer({ className, children }: { className?: string; 
   return <div className={cn('mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8', className)}>{children}</div>
 }
 
-/** Eyebrow chip — small icon + label pill used above every section heading. */
+/** Eyebrow chip — gold brand pill above section headings. */
 export function Eyebrow({ icon, children, tone = 'default' }: { icon?: string | null; children: React.ReactNode; tone?: 'default' | 'dark' }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]',
+        'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em]',
         tone === 'default'
-          ? 'border-primary/25 bg-primary/10 text-primary'
-          : 'border-amber-400/30 bg-amber-400/10 text-amber-300',
+          ? 'border-bh-gold/25 bg-bh-bg-gold text-bh-gold-dark'
+          : 'border-bh-gold/30 bg-bh-gold/15 text-bh-gold',
       )}
     >
       {icon && <Icon name={icon} className="h-3.5 w-3.5" />}
@@ -241,8 +227,8 @@ export function SectionHead({
         <Reveal delay={1}>
           <h2
             className={cn(
-              'mt-4 text-balance text-2xl font-bold tracking-tight sm:text-3xl lg:text-4xl',
-              tone === 'dark' ? 'text-zinc-50' : 'text-foreground',
+              'h2-practical mt-4 text-balance tracking-tight sm:text-2xl lg:text-3xl',
+              tone === 'dark' ? 'text-white' : 'text-bh-navy',
             )}
           >
             {title}
@@ -250,7 +236,7 @@ export function SectionHead({
         </Reveal>
         {sub && (
           <Reveal delay={2}>
-            <p className={cn('mt-3 text-pretty text-base leading-relaxed', tone === 'dark' ? 'text-zinc-400' : 'text-muted-foreground')}>{sub}</p>
+            <p className={cn('mt-3 text-pretty text-[15px] leading-relaxed', tone === 'dark' ? 'text-white/70' : 'text-bh-subtle')}>{sub}</p>
           </Reveal>
         )}
       </div>
@@ -266,7 +252,7 @@ export function SectionHead({
 /** "View all →" link used at the right of section heads. */
 export function ViewAll({ href, label = 'View all', tone = 'default' }: { href: string; label?: string; tone?: 'default' | 'dark' }) {
   return (
-    <Button asChild variant="ghost" className={cn('group gap-1.5', tone === 'dark' && 'text-amber-300 hover:text-amber-200')}>
+    <Button asChild variant="ghost" className={cn('group gap-1.5 text-bh-action hover:text-bh-navy-deep', tone === 'dark' && 'text-bh-gold hover:text-bh-gold-light')}>
       <Link href={href}>
         {label}
         <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
@@ -277,7 +263,7 @@ export function ViewAll({ href, label = 'View all', tone = 'default' }: { href: 
 
 // ── Cards ──────────────────────────────────────────────────────────────────
 
-/** Hover-lift card with soft ring, used across bento grids. */
+/** White surface card with subtle navy shadow + hover lift. */
 export function GlowCard({
   className,
   children,
@@ -292,11 +278,11 @@ export function GlowCard({
   return (
     <div
       className={cn(
-        'group relative rounded-2xl border p-6 transition-all duration-300',
-        'hover:-translate-y-1 hover:shadow-lg hover:shadow-zinc-950/[0.06] dark:hover:shadow-zinc-950/50',
+        'group relative rounded-2xl border p-6 shadow-card transition-all duration-300',
+        'hover:-translate-y-1 hover:shadow-hover',
         dark
-          ? 'border-zinc-800 bg-zinc-900/60 hover:border-zinc-700'
-          : 'border-border bg-card hover:border-primary/30',
+          ? 'border-white/10 bg-white/[0.06] hover:border-white/20'
+          : 'border-bh-border bg-bh-card hover:border-bh-gold/40',
         className,
       )}
       style={accent ? ({ ['--accent' as string]: accent } as React.CSSProperties) : undefined}
@@ -313,28 +299,26 @@ export function GlowCard({
   )
 }
 
-/** Icon tile — rounded square with icon, tone-aware. */
+/** Icon tile — gold-soft rounded square with the brand gold icon. */
 export function IconTile({ name, accent, className, dark = false, size = 'md' }: { name?: string | null; accent?: string | null; className?: string; dark?: boolean; size?: 'sm' | 'md' | 'lg' }) {
   return (
     <span
       className={cn(
-        'inline-flex shrink-0 items-center justify-center rounded-xl border',
+        'inline-flex shrink-0 items-center justify-center rounded-xl',
         size === 'sm' && 'h-9 w-9',
         size === 'md' && 'h-11 w-11',
         size === 'lg' && 'h-14 w-14',
-        dark
-          ? 'border-zinc-800 bg-zinc-900 text-amber-300'
-          : 'border-primary/20 bg-primary/10 text-primary',
+        dark ? 'bg-white/10 text-bh-gold' : 'bg-bh-bg-gold text-bh-gold',
         className,
       )}
-      style={accent ? { backgroundColor: `${accent}1a`, borderColor: `${accent}40`, color: accent } : undefined}
+      style={accent ? { backgroundColor: `${accent}1a`, color: accent } : undefined}
     >
       <Icon name={name} className={cn(size === 'sm' ? 'h-4 w-4' : size === 'md' ? 'h-5 w-5' : 'h-7 w-7')} />
     </span>
   )
 }
 
-/** Monogram tile for entities & partners (initials on accent-colored surface). */
+/** Monogram tile for entities & partners (navy deep surface, gold initials). */
 export function Monogram({ name, monogram, accent, size = 'md', dark = false }: { name: string; monogram?: string | null; accent?: string | null; size?: 'sm' | 'md' | 'lg' | 'xl'; dark?: boolean }) {
   const initials =
     monogram?.trim() ||
@@ -345,19 +329,22 @@ export function Monogram({ name, monogram, accent, size = 'md', dark = false }: 
       .map((w) => w[0]!.toUpperCase())
       .join('') ||
     'V'
-  const hue = accent || '#d97706'
   return (
     <span
       aria-hidden
       className={cn(
         'inline-flex shrink-0 select-none items-center justify-center rounded-xl font-bold tracking-wide',
         size === 'sm' && 'h-9 w-9 text-xs rounded-lg',
-        size === 'md' && 'h-12 w-12 text-sm',
-        size === 'lg' && 'h-16 w-16 text-lg',
-        size === 'xl' && 'h-20 w-20 text-2xl',
-        dark && 'ring-1 ring-white/10',
+        size === 'md' && 'h-12 w-12 text-sm rounded-xl',
+        size === 'lg' && 'h-16 w-16 text-lg rounded-xl',
+        size === 'xl' && 'h-20 w-20 text-2xl rounded-2xl',
+        dark && 'ring-1 ring-white/15',
       )}
-      style={{ background: `linear-gradient(135deg, ${hue}26, ${hue}0d)`, color: hue, border: `1px solid ${hue}45` }}
+      style={
+        accent
+          ? { background: `linear-gradient(135deg, ${accent}30, ${accent}12)`, color: accent, border: `1px solid ${accent}50` }
+          : { background: 'linear-gradient(135deg, #0a4179, #052e56)', color: '#d3af3c' }
+      }
     >
       {initials}
     </span>
@@ -416,15 +403,15 @@ export function StatTile({
   sub?: string
 }) {
   return (
-    <Reveal className={cn('rounded-2xl border p-5', dark ? 'border-zinc-800 bg-zinc-900/50' : 'border-border bg-card')}>
+    <Reveal className={cn('rounded-2xl border p-5 shadow-card', dark ? 'border-white/10 bg-white/[0.06]' : 'border-bh-border bg-bh-card')}>
       <div className="flex items-center gap-3">
         {icon && <IconTile name={icon} dark={dark} size="sm" />}
         <div className="min-w-0">
-          <p className={cn('text-2xl font-bold tabular-nums', dark ? 'text-zinc-50' : 'text-foreground')}>
+          <p className={cn('text-2xl font-bold tabular-nums', dark ? 'text-white' : 'text-bh-navy')}>
             <CountUp value={value} suffix={suffix} prefix={prefix} decimals={decimals} />
           </p>
-          <p className={cn('truncate text-xs font-medium', dark ? 'text-zinc-400' : 'text-muted-foreground')}>{label}</p>
-          {sub && <p className={cn('mt-0.5 text-[11px]', dark ? 'text-zinc-500' : 'text-muted-foreground/70')}>{sub}</p>}
+          <p className={cn('truncate text-xs font-medium', dark ? 'text-white/65' : 'text-bh-muted')}>{label}</p>
+          {sub && <p className={cn('mt-0.5 text-[11px]', dark ? 'text-white/45' : 'text-bh-faded')}>{sub}</p>}
         </div>
       </div>
     </Reveal>
@@ -441,7 +428,7 @@ export type StepItem = { id: string; icon?: string | null; title: string; subtit
  */
 export function StepFlow({ steps, dark = false, columns = 4 }: { steps: StepItem[]; dark?: boolean; columns?: 3 | 4 | 5 }) {
   return (
-    <ol className="relative grid gap-6 sm:grid-cols-2 lg:grid-cols-4" style={{ lgColumns: columns }}>
+    <ol className="relative grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
       {steps.map((step, i) => (
         <Reveal as="li" key={step.id} delay={i} className="relative">
           {/* connector */}
@@ -449,31 +436,34 @@ export function StepFlow({ steps, dark = false, columns = 4 }: { steps: StepItem
             <span
               aria-hidden
               className={cn(
-                'absolute left-[calc(50%+34px)] top-7 hidden h-px w-[calc(100%-68px)] bg-gradient-to-r from-primary/50 to-primary/10 lg:block',
-                dark && 'from-amber-400/50 to-amber-400/5',
+                'absolute left-[calc(50%+34px)] top-7 hidden h-px w-[calc(100%-68px)] bg-gradient-to-r lg:block',
+                dark ? 'from-bh-gold/50 to-bh-gold/5' : 'from-bh-gold/60 to-bh-gold/10',
               )}
             />
           )}
-          <div className="flex h-full flex-col items-center gap-3 rounded-2xl border p-6 text-center transition-colors sm:items-start sm:text-left"
-            style={{ borderColor: dark ? '#27272a' : undefined, backgroundColor: dark ? 'rgba(24,24,27,0.5)' : undefined }}
+          <div
+            className={cn(
+              'h-full rounded-2xl border p-6 text-center shadow-card transition-all duration-300 hover:-translate-y-1 hover:shadow-hover sm:text-left',
+              dark ? 'border-white/10 bg-white/[0.06]' : 'border-bh-border bg-bh-card',
+            )}
           >
             <span className="relative">
               <IconTile name={step.icon} dark={dark} />
               <span
                 className={cn(
                   'absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold',
-                  dark ? 'bg-amber-400 text-zinc-950' : 'bg-primary text-primary-foreground',
+                  dark ? 'bg-bh-gold text-bh-navy-deep' : 'bg-bh-navy text-white',
                 )}
               >
                 {i + 1}
               </span>
             </span>
-            <div className="min-w-0">
-              <p className={cn('font-semibold', dark ? 'text-zinc-100' : 'text-foreground')}>{step.title}</p>
-              {step.subtitle && <p className={cn('text-xs font-medium', dark ? 'text-amber-300/90' : 'text-primary')}>{step.subtitle}</p>}
-              {step.body && <p className={cn('mt-2 text-sm leading-relaxed', dark ? 'text-zinc-400' : 'text-muted-foreground')}>{step.body}</p>}
+            <div className="mt-3 min-w-0">
+              <p className={cn('font-bold', dark ? 'text-white' : 'text-bh-navy')}>{step.title}</p>
+              {step.subtitle && <p className={cn('text-xs font-semibold', dark ? 'text-bh-gold' : 'text-bh-gold-dark')}>{step.subtitle}</p>}
+              {step.body && <p className={cn('mt-2 text-sm leading-relaxed', dark ? 'text-white/65' : 'text-bh-subtle')}>{step.body}</p>}
               {step.stat && (
-                <Badge variant="outline" className={cn('mt-3 gap-1', dark && 'border-amber-400/30 text-amber-300')}>
+                <Badge variant="outline" className={cn('mt-3 gap-1', dark ? 'border-bh-gold/40 text-bh-gold' : 'border-bh-border-dark bg-bh-page text-bh-muted')}>
                   <CalendarClock className="h-3 w-3" aria-hidden />
                   {step.stat}
                 </Badge>
@@ -506,12 +496,12 @@ export function PartnerTile({ name, monogram, accentColor, websiteUrl, dark = fa
   const inner = (
     <div
       className={cn(
-        'flex items-center gap-3 rounded-xl border px-5 py-3.5 transition-all hover:-translate-y-0.5',
-        dark ? 'border-zinc-800 bg-zinc-900/50 hover:border-zinc-600' : 'border-border bg-card hover:border-primary/30 hover:shadow-sm',
+        'flex items-center gap-3 rounded-xl border px-5 py-3.5 shadow-card transition-all hover:-translate-y-0.5',
+        dark ? 'border-white/10 bg-white/[0.06] hover:border-white/25' : 'border-bh-border bg-bh-card hover:border-bh-gold/40 hover:shadow-hover',
       )}
     >
       <Monogram name={name} monogram={monogram} accent={accentColor} size="sm" />
-      <span className={cn('whitespace-nowrap text-sm font-semibold', dark ? 'text-zinc-200' : 'text-foreground')}>{name}</span>
+      <span className={cn('whitespace-nowrap text-sm font-semibold', dark ? 'text-white' : 'text-bh-navy')}>{name}</span>
     </div>
   )
   return websiteUrl ? (
@@ -528,18 +518,18 @@ export function PartnerTile({ name, monogram, accentColor, websiteUrl, dark = fa
 export function FaqAccordion({ items, dark = false, defaultOpen = true }: { items: { id: string; question: string; answer: string }[]; dark?: boolean; defaultOpen?: boolean }) {
   if (items.length === 0) return null
   return (
-    <Accordion type="single" collapsible defaultValue={defaultOpen ? items[0]!.id : undefined} className={cn('w-full', dark && '[&_svg]:text-zinc-400')}>
+    <Accordion type="single" collapsible defaultValue={defaultOpen ? items[0]!.id : undefined} className="w-full">
       {items.map((item, i) => (
-        <AccordionItem key={item.id} value={item.id} className={cn('border-b last:border-b-0', dark ? 'border-zinc-800' : 'border-border')}>
-          <AccordionTrigger className={cn('gap-4 py-5 text-left text-[15px] font-semibold hover:no-underline', dark && 'text-zinc-100 hover:text-amber-300')}>
+        <AccordionItem key={item.id} value={item.id} className={cn('border-b last:border-b-0', dark ? 'border-white/10' : 'border-bh-border')}>
+          <AccordionTrigger className={cn('gap-4 py-5 text-left text-[15px] font-semibold hover:no-underline', dark ? 'text-white hover:text-bh-gold' : 'text-bh-navy hover:text-bh-action')}>
             <span className="flex items-center gap-3">
-              <span className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[11px] font-bold', dark ? 'bg-amber-400/15 text-amber-300' : 'bg-primary/10 text-primary')}>
+              <span className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[11px] font-bold', dark ? 'bg-bh-gold/15 text-bh-gold' : 'bg-bh-bg-gold text-bh-gold-dark')}>
                 {String(i + 1).padStart(2, '0')}
               </span>
               {item.question}
             </span>
           </AccordionTrigger>
-          <AccordionContent className={cn('pb-5 pl-13 text-sm leading-relaxed', dark ? 'text-zinc-400' : 'text-muted-foreground')}>
+          <AccordionContent className={cn('pb-5 pl-13 text-sm leading-relaxed', dark ? 'text-white/65' : 'text-bh-subtle')}>
             {item.answer}
           </AccordionContent>
         </AccordionItem>
@@ -574,8 +564,8 @@ export function SocialButton({ platform, url, label, dark = false }: { platform:
         className={cn(
           'inline-flex h-10 w-10 items-center justify-center rounded-xl border transition-all hover:-translate-y-0.5',
           dark
-            ? 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-amber-400/50 hover:text-amber-300'
-            : 'border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-primary',
+            ? 'border-white/15 bg-white/[0.06] text-white/80 hover:border-bh-gold/50 hover:text-bh-gold'
+            : 'border-bh-border bg-bh-card text-bh-muted hover:border-bh-gold/50 hover:text-bh-gold-dark',
         )}
       >
         <Cmp className="h-4.5 w-4.5" aria-hidden />
@@ -594,8 +584,8 @@ export function SocialButton({ platform, url, label, dark = false }: { platform:
       className={cn(
         'inline-flex h-10 w-10 items-center justify-center rounded-xl border text-sm font-semibold transition-all hover:-translate-y-0.5',
         dark
-          ? 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-amber-400/50 hover:text-amber-300'
-          : 'border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-primary',
+          ? 'border-white/15 bg-white/[0.06] text-white/80 hover:border-bh-gold/50 hover:text-bh-gold'
+          : 'border-bh-border bg-bh-card text-bh-muted hover:border-bh-gold/50 hover:text-bh-gold-dark',
       )}
     >
       {glyph}
@@ -690,27 +680,23 @@ export function PageHero({
   art?: 'sun' | 'grid'
 }) {
   return (
-    <Section tone="dark" className="pt-14 pb-12 sm:pt-20 sm:pb-16">
+    <section className="relative overflow-hidden bg-gradient-to-br from-[#052e56] via-[#06396c] to-[#0a4a8c] text-white">
       {/* layered art */}
       <div aria-hidden className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-32 -top-32 h-96 w-96 rounded-full bg-amber-500/20 blur-[120px]" />
-        <div className="absolute -right-24 top-10 h-80 w-80 rounded-full bg-orange-600/10 blur-[100px]" />
-        {art === 'sun' && (
-          <Sun className="absolute right-[12%] top-16 h-44 w-44 text-amber-500/10" strokeWidth={0.8} />
-        )}
-        {art === 'grid' && (
-          <div
-            className="absolute inset-0 opacity-[0.15]"
-            style={{
-              backgroundImage:
-                'linear-gradient(rgba(251,191,36,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(251,191,36,0.08) 1px, transparent 1px)',
-              backgroundSize: '44px 44px',
-              maskImage: 'radial-gradient(ellipse 80% 60% at 50% 0%, black, transparent)',
-            }}
-          />
-        )}
+        <div className="absolute -left-32 -top-32 h-96 w-96 rounded-full bg-bh-gold/20 blur-[120px]" />
+        <div className="absolute -right-24 top-10 h-80 w-80 rounded-full bg-bh-gold/10 blur-[100px]" />
+        <div
+          className="absolute inset-0 opacity-[0.13]"
+          style={{
+            backgroundImage:
+              'linear-gradient(rgba(211,175,60,0.14) 1px, transparent 1px), linear-gradient(90deg, rgba(211,175,60,0.14) 1px, transparent 1px)',
+            backgroundSize: '44px 44px',
+            maskImage: 'radial-gradient(ellipse 85% 70% at 50% 0%, black, transparent)',
+          }}
+        />
+        {art === 'sun' && <Sun className="absolute right-[12%] top-16 h-44 w-44 text-bh-gold/15" strokeWidth={0.8} />}
       </div>
-      <SectionContainer className="relative">
+      <SectionContainer className="relative pt-14 pb-12 sm:pt-20 sm:pb-16">
         <div className="max-w-3xl">
           <Reveal>
             <Eyebrow tone="dark" icon="Sun">
@@ -718,11 +704,11 @@ export function PageHero({
             </Eyebrow>
           </Reveal>
           <Reveal delay={1}>
-            <h1 className="mt-5 text-balance text-3xl font-bold leading-tight tracking-tight text-zinc-50 sm:text-4xl lg:text-5xl">{title}</h1>
+            <h1 className="mt-5 text-balance text-3xl font-bold leading-tight tracking-tight text-white sm:text-4xl lg:text-[2.75rem]">{title}</h1>
           </Reveal>
           {sub && (
             <Reveal delay={2}>
-              <p className="mt-4 max-w-2xl text-pretty text-base leading-relaxed text-zinc-400 sm:text-lg">{sub}</p>
+              <p className="mt-4 max-w-2xl text-pretty text-base leading-relaxed text-white/75 sm:text-lg">{sub}</p>
             </Reveal>
           )}
           {children && (
@@ -739,6 +725,6 @@ export function PageHero({
           </div>
         )}
       </SectionContainer>
-    </Section>
+    </section>
   )
 }

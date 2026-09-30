@@ -88,7 +88,7 @@ export default async function SellPage() {
           asChild
           size="lg"
           variant="outline"
-          className="h-12 rounded-full border-amber-400/40 bg-amber-400/5 px-6 text-base text-amber-200 hover:bg-amber-400/15 hover:text-amber-100"
+          className="h-12 rounded-full border-white/25 bg-transparent px-6 text-base text-white hover:bg-white/10 hover:text-white"
         >
           <Link href="/market">See the market</Link>
         </Button>
@@ -110,7 +110,7 @@ export default async function SellPage() {
                   <IconTile name={b.icon} size="lg" />
                   <div className="min-w-0">
                     <h3 className="font-bold tracking-tight">{b.title}</h3>
-                    <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{b.body}</p>
+                    <p className="mt-1.5 text-sm leading-relaxed text-bh-subtle">{b.body}</p>
                   </div>
                 </GlowCard>
               </RevealItem>

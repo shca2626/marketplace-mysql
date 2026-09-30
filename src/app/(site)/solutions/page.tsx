@@ -56,7 +56,7 @@ export default async function SolutionsPage() {
           />
 
           {solutions.length === 0 ? (
-            <p className="mt-10 rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+            <p className="mt-10 rounded-2xl border border-dashed border-bh-border-dark p-8 text-center text-sm text-bh-muted">
               Solutions are being prepared — in the meantime, browse the market directly.
             </p>
           ) : (
@@ -78,12 +78,12 @@ export default async function SolutionsPage() {
                           className="object-cover transition-transform duration-500 hover:scale-[1.04]"
                         />
                       ) : (
-                        <span className="absolute inset-0 bg-muted" />
+                        <span className="absolute inset-0 bg-bh-soft-blue" />
                       )}
-                      <span className="absolute inset-0 bg-gradient-to-t from-zinc-950/50 to-transparent" aria-hidden />
+                      <span className="absolute inset-0 bg-gradient-to-t from-[#052e56]/55 to-transparent" aria-hidden />
                       <span
                         className="absolute left-3 top-3 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white backdrop-blur-sm"
-                        style={{ backgroundColor: `${s.accentColor ?? '#d97706'}cc` }}
+                        style={{ backgroundColor: `${s.accentColor ?? '#d3af3c'}cc` }}
                       >
                         {AUDIENCE_LABELS[s.audience] ?? s.audience}
                       </span>
@@ -95,11 +95,11 @@ export default async function SolutionsPage() {
                         <IconTile name={s.icon} accent={s.accentColor} />
                         <div className="min-w-0">
                           <h3 className="text-lg font-bold leading-snug tracking-tight">
-                            <Link href={`/solutions/${s.slug}`} className="transition-colors hover:text-primary">
+                            <Link href={`/solutions/${s.slug}`} className="text-bh-navy transition-colors hover:text-bh-action">
                               {s.title}
                             </Link>
                           </h3>
-                          {s.tagline && <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{s.tagline}</p>}
+                          {s.tagline && <p className="mt-1 text-sm leading-relaxed text-bh-muted">{s.tagline}</p>}
                         </div>
                       </div>
 
@@ -134,11 +134,11 @@ export default async function SolutionsPage() {
       <Section tone="glass" className="py-12">
         <SectionContainer>
           <div className="flex flex-col items-center gap-4 text-center">
-            <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
+            <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-bh-gold/30 bg-bh-bg-gold text-bh-gold">
               <Icon name="Coins" className="h-6 w-6" />
             </span>
-            <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Not sure which way to go?</h2>
-            <p className="max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+            <h2 className="text-xl font-bold tracking-tight text-bh-navy sm:text-2xl">Not sure which way to go?</h2>
+            <p className="max-w-xl text-sm leading-relaxed text-bh-muted sm:text-base">
               Walk the three platform paths first — shop, procure, or fund — then come back and pick the system that matches.
             </p>
             <Button asChild className="mt-1 h-12 rounded-full px-6">

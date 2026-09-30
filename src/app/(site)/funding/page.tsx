@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
-import { Breadcrumbs } from '@/components/site/breadcrumbs'
 import { PageHero } from '@/components/site/kit'
 import { Button } from '@/components/ui/button'
 import {
@@ -11,7 +10,6 @@ import {
   HowFundingWorks,
   PartnersBand,
   ProgramExplorer,
-  RequirementBoard,
   StoryWall,
 } from '@/components/site/funding/sections'
 import {
@@ -19,18 +17,19 @@ import {
   getFundingEntities,
   getFundingPrograms,
   getFundingStats,
-  getGeneralRequirements,
   getPartners,
   getSiteSteps,
   getStories,
 } from '@/lib/site-content'
 
 /**
- * /funding — the public home of the financing module.
+ * /funding — the public home of the financing module (bh light-first redesign).
  * Server component: every section is DB-driven via src/lib/site-content.ts
- * fetchers (verified entities, live programs, requirements, stories, steps,
- * partners, FAQ, stats) — no hardcoded content. The authenticated wizard
- * stays at /market?view=financing.
+ * fetchers (verified entities, live programs, stories, steps, partners, FAQ,
+ * stats) — no hardcoded content. The Eligibility/requirements section was
+ * removed per the redesign critique (requirements live on program detail
+ * pages as one text section). The authenticated wizard stays at
+ * /market?view=financing.
  */
 
 export const metadata: Metadata = {
@@ -46,12 +45,11 @@ export const metadata: Metadata = {
 }
 
 export default async function FundingPage() {
-  const [stats, steps, entities, programs, requirements, stories, partners, faqs] = await Promise.all([
+  const [stats, steps, entities, programs, stories, partners, faqs] = await Promise.all([
     getFundingStats(),
     getSiteSteps('FUNDING'),
     getFundingEntities(),
     getFundingPrograms(),
-    getGeneralRequirements(),
     getStories(),
     getPartners(),
     getFaqs('FUNDING'),
@@ -59,16 +57,14 @@ export default async function FundingPage() {
 
   return (
     <>
-      <Breadcrumbs items={[{ label: 'Funding' }]} />
-
-      {/* 1 · dark editorial hero with live stats */}
+      {/* 1 · navy hero with live stats */}
       <PageHero
         eyebrow="Funding"
         eyebrowIcon="HandCoins"
         title={
           <>
             Fund your solar project with{' '}
-            <span className="bg-gradient-to-r from-amber-300 to-orange-400 bg-clip-text text-transparent">verified entities</span>
+            <span className="bg-gradient-to-r from-bh-gold-light to-bh-gold bg-clip-text text-transparent">verified entities</span>
           </>
         }
         sub="Banks and microfinance institutions on Vendora review your project and respond with real offers — from equipment installments to full project financing."
@@ -79,7 +75,7 @@ export default async function FundingPage() {
           { icon: 'MapPin', label: 'Regions covered', value: stats.regionsCovered },
         ]}
       >
-        <Button asChild size="lg" className="min-h-12 rounded-xl px-7 text-base">
+        <Button asChild size="lg" className="min-h-12 bg-bh-gold px-7 text-base font-bold text-bh-navy-deep hover:bg-bh-gold-light">
           <Link href="/market?view=financing">
             Apply for funding <ArrowRight className="ml-1" aria-hidden />
           </Link>
@@ -88,7 +84,7 @@ export default async function FundingPage() {
           asChild
           size="lg"
           variant="outline"
-          className="min-h-12 rounded-xl border-zinc-700 bg-transparent px-7 text-base text-zinc-200 hover:bg-zinc-900 hover:text-zinc-50"
+          className="min-h-12 border-white/25 bg-transparent px-7 text-base text-white hover:bg-white/10 hover:text-white"
         >
           <Link href="#programs">
             Explore programs <ArrowRight className="ml-1" aria-hidden />
@@ -96,7 +92,7 @@ export default async function FundingPage() {
         </Button>
       </PageHero>
 
-      {/* 2 · how funding works (steps from the DB, curved transition from hero) */}
+      {/* 2 · how funding works (steps from the DB) */}
       <HowFundingWorks steps={steps} />
 
       {/* 3 · verified entities directory */}
@@ -105,19 +101,16 @@ export default async function FundingPage() {
       {/* 4 · financing programs (client-side category filter) */}
       <ProgramExplorer programs={programs} />
 
-      {/* 5 · eligibility & documents (grouped by condition type) */}
-      <RequirementBoard requirements={requirements} />
-
-      {/* 6 · success stories (dark editorial band) */}
+      {/* 5 · success stories */}
       <StoryWall stories={stories} stats={stats} />
 
-      {/* 7 · partners marquee */}
+      {/* 6 · partners marquee */}
       <PartnersBand partners={partners} />
 
-      {/* 8 · FAQ */}
+      {/* 7 · FAQ */}
       <FaqBand faqs={faqs} />
 
-      {/* 9 · final CTA */}
+      {/* 8 · final CTA (navy band) */}
       <FinalCta />
     </>
   )

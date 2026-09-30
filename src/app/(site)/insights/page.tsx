@@ -58,10 +58,10 @@ export default async function InsightsPage() {
         <Section tone="light" className="py-12 sm:py-14">
           <SectionContainer>
             <Reveal>
-              <article className="group grid overflow-hidden rounded-3xl border bg-card shadow-sm transition-shadow duration-300 hover:shadow-lg hover:shadow-zinc-950/[0.06] lg:grid-cols-2">
+              <article className="group grid overflow-hidden rounded-3xl border border-bh-border bg-bh-card shadow-card transition-all duration-300 hover:shadow-hover lg:grid-cols-2">
                 <Link
                   href={`/insights/${featured.slug}`}
-                  className="relative block min-h-64 overflow-hidden bg-muted focus-visible:outline-2 focus-visible:outline-offset-[-4px]"
+                  className="relative block min-h-64 overflow-hidden bg-bh-soft-blue focus-visible:outline-2 focus-visible:outline-offset-[-4px]"
                 >
                   {featured.coverUrl ? (
                     <Image
@@ -73,20 +73,20 @@ export default async function InsightsPage() {
                       className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
                     />
                   ) : null}
-                  <span className="absolute left-4 top-4 rounded-full bg-zinc-950/80 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-amber-300 backdrop-blur-sm">
+                  <span className="absolute left-4 top-4 rounded-full bg-bh-navy-deep/85 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-bh-gold backdrop-blur-sm">
                     {TOPIC_LABELS[featured.topic] ?? featured.topic}
                   </span>
                 </Link>
                 <div className="flex flex-col gap-4 p-6 sm:p-8 lg:justify-center">
                   <Eyebrow icon="Sun">Featured read</Eyebrow>
                   <h2 className="text-balance text-2xl font-bold leading-tight tracking-tight sm:text-3xl">
-                    <Link href={`/insights/${featured.slug}`} className="transition-colors hover:text-primary">
+                    <Link href={`/insights/${featured.slug}`} className="text-bh-navy transition-colors hover:text-bh-action">
                       {featured.title}
                     </Link>
                   </h2>
-                  <p className="text-pretty text-sm leading-relaxed text-muted-foreground sm:text-base">{featured.excerpt}</p>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                    <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+                  <p className="text-pretty text-sm leading-relaxed text-bh-subtle sm:text-base">{featured.excerpt}</p>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-bh-muted">
+                    <span className="inline-flex items-center gap-1.5 font-medium text-bh-navy">
                       <User className="h-3.5 w-3.5" aria-hidden />
                       {featured.authorName ?? 'Vendora Newsroom'}
                     </span>
@@ -128,9 +128,22 @@ export default async function InsightsPage() {
         </SectionContainer>
       </Section>
 
-      {/* Newsletter */}
-      <Section tone="dark" curve="up" className="py-14 sm:py-16">
-        <SectionContainer>
+      {/* Newsletter — navy gradient band with glass input */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-[#052e56] via-[#06396c] to-[#0a4a8c] py-14 text-white sm:py-16">
+        <div aria-hidden className="pointer-events-none absolute inset-0">
+          <div className="absolute -left-24 top-0 h-72 w-72 rounded-full bg-bh-gold/20 blur-[110px]" />
+          <div className="absolute -right-16 bottom-0 h-72 w-72 rounded-full bg-bh-gold/10 blur-[100px]" />
+          <div
+            className="absolute inset-0 opacity-[0.12]"
+            style={{
+              backgroundImage:
+                'linear-gradient(rgba(211,175,60,0.14) 1px, transparent 1px), linear-gradient(90deg, rgba(211,175,60,0.14) 1px, transparent 1px)',
+              backgroundSize: '44px 44px',
+              maskImage: 'radial-gradient(ellipse 80% 80% at 50% 50%, black, transparent)',
+            }}
+          />
+        </div>
+        <SectionContainer className="relative">
           <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
             <Reveal>
               <Eyebrow tone="dark" icon="Mail">
@@ -138,21 +151,21 @@ export default async function InsightsPage() {
               </Eyebrow>
             </Reveal>
             <Reveal delay={1}>
-              <h2 className="mt-5 text-balance text-2xl font-bold tracking-tight text-zinc-50 sm:text-3xl">
+              <h2 className="mt-5 text-balance text-2xl font-bold tracking-tight text-white sm:text-3xl">
                 New guides, programs and products — straight to your inbox
               </h2>
             </Reveal>
             <Reveal delay={2}>
-              <p className="mt-3 max-w-xl text-pretty text-sm leading-relaxed text-zinc-400 sm:text-base">
+              <p className="mt-3 max-w-xl text-pretty text-sm leading-relaxed text-white/70 sm:text-base">
                 One email a month with the latest insights, funding programs and platform news. Unsubscribe anytime.
               </p>
             </Reveal>
             <Reveal delay={3} className="mt-7 w-full max-w-md">
-              <NewsletterForm />
+              <NewsletterForm dark />
             </Reveal>
           </div>
         </SectionContainer>
-      </Section>
+      </section>
     </>
   )
 }

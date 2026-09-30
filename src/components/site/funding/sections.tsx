@@ -6,21 +6,30 @@ import * as React from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   ArrowRight,
+  Award,
   Banknote,
+  Building2,
   CalendarClock,
   CheckCircle2,
+  CheckSquare,
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
   Clock,
+  Coins,
+  FileCheck2,
   Gauge,
   HandCoins,
+  Landmark,
   Leaf,
   MapPin,
   Moon,
+  Scale,
+  ShieldCheck,
   Sparkles,
   TrendingUp,
   Users,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -29,7 +38,6 @@ import { Badge } from '@/components/ui/badge'
 import {
   Eyebrow,
   FaqAccordion,
-  GlowCard,
   Icon,
   IconTile,
   Marquee,
@@ -49,7 +57,6 @@ import {
   PROGRAM_CATEGORIES,
   RATE_LABELS,
   SEGMENT_LABELS,
-  SECTOR_LABELS,
   type StepItem,
 } from '@/components/site/kit'
 import type {
@@ -58,23 +65,22 @@ import type {
   FundingStats,
   PublicFaq,
   PublicPartner,
-  PublicRequirement,
   PublicStory,
   PublicStep,
 } from '@/lib/site-content'
 
 /**
- * /funding client sections (Task 5 — Agent A).
- * The page (server component) fetches everything from src/lib/site-content.ts
- * and hands serializable props to the components below. Fixed UI labels only —
- * every program / entity / step / story / FAQ / partner comes from the DB.
+ * /funding client sections — Vendora "bh" light-first redesign.
+ * Flow-based narrative (hero → steps → directory → programs → stories →
+ * partners → FAQ → CTA), minimal card usage, text-list sections for
+ * requirements/documents (per the redesign critique), all content DB-driven.
  */
 
 // ── Shared bits ─────────────────────────────────────────────────────────────
 
-/** orgType → monogram accent (BANK warm amber / MFI solar green / EWALLET teal). */
+/** orgType → monogram accent (BANK navy / MFI emerald / EWALLET teal). */
 const ORG_ACCENT: Record<string, string> = {
-  BANK: '#b45309',
+  BANK: '#193d8f',
   MFI: '#059669',
   EWALLET: '#0e7490',
 }
@@ -89,41 +95,34 @@ function EmptyNote({
   icon: IconCmp,
   title,
   hint,
-  dark = false,
 }: {
   icon: LucideIcon
   title: string
   hint?: string
-  dark?: boolean
 }) {
   return (
-    <div
-      className={cn(
-        'flex flex-col items-center gap-2 rounded-2xl border border-dashed p-10 text-center',
-        dark ? 'border-zinc-800 bg-zinc-900/40' : 'border-border bg-card/60',
-      )}
-    >
-      <IconCmp className={cn('h-6 w-6', dark ? 'text-amber-300/70' : 'text-primary/60')} aria-hidden />
-      <p className={cn('text-sm font-semibold', dark && 'text-zinc-200')}>{title}</p>
-      {hint && <p className={cn('max-w-sm text-sm', dark ? 'text-zinc-500' : 'text-muted-foreground')}>{hint}</p>}
+    <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-bh-border-dark bg-bh-card/60 p-10 text-center">
+      <IconCmp className="h-6 w-6 text-bh-gold/70" aria-hidden />
+      <p className="text-sm font-semibold text-bh-navy">{title}</p>
+      {hint && <p className="max-w-sm text-sm text-bh-muted">{hint}</p>}
     </div>
   )
 }
 
-/** Small icon + number + label, used in entity card micro-stat rows. */
-function MicroStat({ icon: IconCmp, value, label, dark = false }: { icon: LucideIcon; value: number; label: string; dark?: boolean }) {
+/** Small icon + number + label, used in entity directory rows. */
+function MicroStat({ icon: IconCmp, value, label }: { icon: LucideIcon; value: number; label: string }) {
   return (
-    <span className={cn('inline-flex items-center gap-1.5 text-xs font-medium', dark ? 'text-zinc-400' : 'text-muted-foreground')}>
-      <IconCmp className={cn('h-3.5 w-3.5', dark ? 'text-amber-300/80' : 'text-primary/70')} aria-hidden />
-      <span className="font-bold tabular-nums">{value}</span> {label}
+    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-bh-muted">
+      <IconCmp className="h-3.5 w-3.5 text-bh-gold" aria-hidden />
+      <span className="font-bold tabular-nums text-bh-navy">{value}</span> {label}
     </span>
   )
 }
 
-// ── 2 · How funding works ───────────────────────────────────────────────────
+// ── 1 · How funding works ───────────────────────────────────────────────────
 
 export function HowFundingWorks({ steps }: { steps: PublicStep[] }) {
-  const items: StepItem[] = steps.map((s) => ({
+  const flow: StepItem[] = steps.map((s) => ({
     id: s.id,
     icon: s.icon,
     title: s.title,
@@ -132,96 +131,87 @@ export function HowFundingWorks({ steps }: { steps: PublicStep[] }) {
     stat: s.stat,
   }))
   return (
-    <Section id="how-it-works" tone="light" curve="up" className="py-14 sm:py-20" aria-labelledby="how-it-works-heading">
+    <Section id="how-it-works" tone="muted" className="py-14 sm:py-16">
       <SectionContainer>
-        <h2 id="how-it-works-heading" className="sr-only">How funding works</h2>
         <SectionHead
-          eyebrow="Process"
-          eyebrowIcon="Repeat"
-          title="How funding works"
-          sub="From first request to a funded project — every request passes the platform verification gate before it reaches a funding entity."
+          eyebrow="The process"
+          eyebrowIcon="ClipboardCheck"
+          title="How funding works on Vendora"
+          sub="One request travels to every matching institution — you compare real offers side by side, not brochures."
+          action={
+            <Button asChild variant="outline" className="gap-1.5 border-bh-border-dark bg-bh-card text-bh-navy hover:bg-bh-soft-blue">
+              <Link href="/how-it-works">
+                Full walkthrough <ArrowRight className="h-4 w-4" aria-hidden />
+              </Link>
+            </Button>
+          }
         />
         <div className="mt-10">
-          {items.length > 0 ? (
-            <StepFlow steps={items} />
-          ) : (
-            <EmptyNote icon={HandCoins} title="The funding process is being published" hint="Steps will appear here as soon as they go live." />
-          )}
+          {flow.length > 0 ? <StepFlow steps={flow} /> : <EmptyNote icon={ClipboardCheck} title="Steps coming soon" />}
         </div>
       </SectionContainer>
     </Section>
   )
 }
 
-// ── 3 · Funding entities directory ───────────────────────────────────────────
+// ── 2 · Verified entity directory (logo strip + detail rows) ────────────────
 
 export function EntityDirectory({ entities }: { entities: FundingEntityCardData[] }) {
   return (
-    <Section id="entities" tone="muted" className="py-14 sm:py-20" aria-labelledby="entities-heading">
+    <Section id="entities" className="py-14 sm:py-16">
       <SectionContainer>
-        <h2 id="entities-heading" className="sr-only">Funding entities directory</h2>
         <SectionHead
-          eyebrow="Directory"
+          eyebrow="Verified institutions"
           eyebrowIcon="Landmark"
-          title="Funding entities directory"
-          sub="Banks and microfinance institutions verified by Vendora, each with live financing programs on the platform."
-          action={
-            entities.length > 0 ? (
-              <Badge variant="outline" className="gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold">
-                <ShieldCheckInline className="h-3.5 w-3.5 text-emerald-600" />
-                {entities.length} verified {entities.length === 1 ? 'entity' : 'entities'}
-              </Badge>
-            ) : undefined
-          }
+          title="The institutions behind the offers"
+          sub="Regulated banks and microfinance institutions with public profiles on Vendora — every program, branch and story in one place."
         />
         {entities.length === 0 ? (
           <div className="mt-10">
-            <EmptyNote icon={Sparkles} title="Funding entities are being verified" hint="Verified institutions will appear here soon." />
+            <EmptyNote icon={Landmark} title="No verified entities yet" hint="Institution profiles appear here once verified." />
           </div>
         ) : (
-          <RevealGroup className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {entities.map((e) => {
-              const accent = ORG_ACCENT[e.orgType]
-              return (
-                <RevealItem key={e.id} className="h-full">
-                  <GlowCard accent={accent} className="flex h-full flex-col">
-                    <div className="flex items-start gap-4">
-                      <Monogram name={e.name} accent={accent} />
-                      <div className="min-w-0 flex-1">
-                        <h3 className="text-balance text-base font-bold leading-snug text-foreground">{e.name}</h3>
-                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                          <Badge variant="secondary" className="rounded-full text-[11px] font-medium">
-                            {e.typeLabel}
-                          </Badge>
-                          <Badge className="gap-1 rounded-full border-emerald-200 bg-emerald-50 text-[11px] font-medium text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-400">
-                            <ShieldCheckInline className="h-3 w-3" /> Verified
-                          </Badge>
-                        </div>
-                      </div>
+          <RevealGroup className="mt-8 space-y-3">
+            {entities.map((e) => (
+              <RevealItem key={e.id}>
+                <Link
+                  href={`/funding/entities/${e.id}`}
+                  className="group flex flex-col gap-4 rounded-2xl border border-bh-border bg-bh-card p-5 shadow-card transition-all duration-300 hover:-translate-y-0.5 hover:border-bh-gold/40 hover:shadow-hover sm:flex-row sm:items-center"
+                >
+                  <Monogram name={e.name} accent={ORG_ACCENT[e.orgType]} size="md" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-bold text-bh-navy group-hover:text-bh-action">{e.name}</h3>
+                      <span className="inline-block rounded-md bg-bh-soft-blue px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-bh-action">
+                        {e.typeLabel}
+                      </span>
+                      {e.regulator && (
+                        <span className="hidden items-center gap-1 text-[11px] font-medium text-bh-muted sm:inline-flex">
+                          <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" aria-hidden />
+                          {e.regulator}
+                        </span>
+                      )}
                     </div>
-                    <p className="mt-4 line-clamp-3 flex-1 text-sm leading-relaxed text-muted-foreground">{e.about}</p>
-                    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t pt-4">
-                      <MicroStat icon={HandCoins} value={e.programsCount} label={e.programsCount === 1 ? 'program' : 'programs'} />
-                      <MicroStat icon={MapPin} value={e.branchesCount} label={e.branchesCount === 1 ? 'branch' : 'branches'} />
-                      <MicroStat icon={Sparkles} value={e.storiesCount} label={e.storiesCount === 1 ? 'story' : 'stories'} />
+                    <p className="mt-1 line-clamp-1 text-sm text-bh-subtle">{e.about}</p>
+                    <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                      <MicroStat icon={HandCoins} value={e.programsCount} label="programs" />
+                      <MicroStat icon={Building2} value={e.branchesCount} label="branches" />
+                      <MicroStat icon={Sparkles} value={e.storiesCount} label="stories" />
+                      {(e.minTicket != null || e.maxTicket != null) && (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-bh-muted">
+                          <Banknote className="h-3.5 w-3.5 text-bh-gold" aria-hidden />
+                          {moneyRange(e.minTicket, e.maxTicket, 'YER') ?? 'Flexible amounts'}
+                        </span>
+                      )}
                     </div>
-                    {e.regulator && (
-                      <p className="mt-2.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <ShieldCheckInline className="h-3.5 w-3.5 shrink-0 text-primary/70" />
-                        Regulated by {e.regulator}
-                      </p>
-                    )}
-                    <Link
-                      href={`/funding/entities/${e.id}`}
-                      className="mt-4 inline-flex min-h-11 items-center gap-1.5 self-start rounded-lg px-1 text-sm font-semibold text-primary transition-colors hover:text-primary/80 hover:underline"
-                    >
-                      View profile
-                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
-                    </Link>
-                  </GlowCard>
-                </RevealItem>
-              )
-            })}
+                  </div>
+                  <span className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-bh-action transition-colors group-hover:text-bh-navy-deep">
+                    View profile
+                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
+                  </span>
+                </Link>
+              </RevealItem>
+            ))}
           </RevealGroup>
         )}
       </SectionContainer>
@@ -229,550 +219,333 @@ export function EntityDirectory({ entities }: { entities: FundingEntityCardData[
   )
 }
 
-/** Inline shield-check glyph (kept local — lucide re-export would bloat the import list). */
-function ShieldCheckInline({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
-      <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
-      <path d="m9 12 2 2 4-4" />
-    </svg>
-  )
-}
-
-// ── 4 · Financing programs (filterable) ──────────────────────────────────────
-
-function ProgramCard({ program }: { program: FundingProgramCard }) {
-  const cat = PROGRAM_CATEGORIES[program.category] ?? PROGRAM_CATEGORIES.OTHER!
-  const isAccreditation = program.serviceKind === 'ACCREDITATION'
-  const amount = moneyRange(program.amountMin, program.amountMax, program.currency)
-  const tenor = tenorLabel(program.tenorMinMonths, program.tenorMaxMonths)
-  const rate = program.rateMax != null ? `up to ${program.rateMax}%` : null
-
-  const facts = [
-    amount ? { icon: Banknote, label: 'Amount', value: amount } : null,
-    rate ? { icon: TrendingUp, label: program.rateType ? RATE_LABELS[program.rateType] ?? 'Rate' : 'Rate', value: rate } : null,
-    tenor ? { icon: CalendarClock, label: 'Tenor', value: tenor } : null,
-    program.processingDays != null ? { icon: Gauge, label: 'Decision', value: `≈ ${program.processingDays} days` } : null,
-  ].filter((f): f is { icon: LucideIcon; label: string; value: string } => f !== null)
-
-  return (
-    <motion.article
-      layout
-      initial={{ opacity: 0, scale: 0.96 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.96 }}
-      transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-      className={cn(
-        'relative flex h-full flex-col rounded-2xl border bg-card p-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-zinc-950/[0.06]',
-        isAccreditation
-          ? 'border-dashed border-primary/45 bg-primary/[0.03] hover:border-primary/70'
-          : 'border-border hover:border-primary/30',
-      )}
-    >
-      {/* stretched link — the whole card opens the program page */}
-      <Link
-        href={`/funding/programs/${program.id}`}
-        className="absolute inset-0 z-10 rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-      >
-        <span className="sr-only">View program: {program.name}</span>
-      </Link>
-
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <IconTile name={cat.icon} size="sm" />
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary">{cat.label}</p>
-            <p className="text-[11px] text-muted-foreground">{SEGMENT_LABELS[program.targetSegment ?? ''] ?? 'Open program'}</p>
-          </div>
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-1.5">
-          {isAccreditation && (
-            <Badge variant="outline" className="rounded-full border-primary/40 bg-primary/10 text-[10px] font-semibold uppercase tracking-wide text-primary">
-              Accreditation
-            </Badge>
-          )}
-          {program.shariaCompliant && (
-            <Badge variant="outline" className="gap-1 rounded-full border-emerald-200 bg-emerald-50 text-[10px] font-semibold text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-400">
-              <Moon className="h-3 w-3" aria-hidden /> Sharia ✓
-            </Badge>
-          )}
-        </div>
-      </div>
-
-      <h3 className="mt-4 text-balance text-base font-bold leading-snug text-foreground">{program.name}</h3>
-      <p className="mt-0.5 text-xs font-medium text-muted-foreground">
-        by{' '}
-        <Link
-          href={`/funding/entities/${program.entity.id}`}
-          className="relative z-20 rounded font-medium text-foreground/80 underline decoration-primary/40 underline-offset-2 transition-colors hover:text-primary"
-        >
-          {program.entity.name}
-        </Link>
-      </p>
-      {program.summary && <p className="mt-2.5 line-clamp-2 text-sm leading-relaxed text-muted-foreground">{program.summary}</p>}
-
-      {facts.length > 0 && (
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          {facts.map((f) => (
-            <div key={f.label} className="rounded-xl border bg-muted/40 px-3 py-2.5">
-              <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                <f.icon className="h-3 w-3 text-primary/80" aria-hidden /> {f.label}
-              </p>
-              <p className="mt-0.5 truncate text-xs font-bold tabular-nums text-foreground">{f.value}</p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <span className="mt-auto inline-flex items-center gap-1.5 pt-5 text-sm font-semibold text-primary">
-        View program
-        <ArrowRight className="h-4 w-4" aria-hidden />
-      </span>
-    </motion.article>
-  )
-}
+// ── 3 · Program explorer (filter chips + reference-style cards) ─────────────
 
 export function ProgramExplorer({ programs }: { programs: FundingProgramCard[] }) {
-  const [active, setActive] = React.useState<string>('ALL')
-
   const categories = React.useMemo(() => {
-    const seen = new Map<string, number>()
-    for (const p of programs) seen.set(p.category, (seen.get(p.category) ?? 0) + 1)
-    return [...seen.entries()]
+    const set = new Map<string, number>()
+    for (const p of programs) set.set(p.category, (set.get(p.category) ?? 0) + 1)
+    return [...set.entries()].sort((a, b) => b[1] - a[1])
   }, [programs])
-
-  const filtered = React.useMemo(
+  const [active, setActive] = React.useState<string>('ALL')
+  const visible = React.useMemo(
     () => (active === 'ALL' ? programs : programs.filter((p) => p.category === active)),
     [active, programs],
   )
 
   return (
-    <Section id="programs" tone="glass" className="py-14 sm:py-20" aria-labelledby="programs-heading">
+    <Section id="programs" tone="glass" className="py-14 sm:py-16">
       <SectionContainer>
-        <h2 id="programs-heading" className="sr-only">Financing programs</h2>
         <SectionHead
           eyebrow="Programs"
           eyebrowIcon="HandCoins"
-          title="Financing programs"
-          sub="Every live program from the verified entities — amounts, rates and terms set by each institution, compared side by side."
+          title="Financing programs, compared in the open"
+          sub="Installments, leasing, working capital and accreditation — every program below links to a full detail page with amounts, requirements and coverage."
         />
-        {programs.length === 0 ? (
-          <div className="mt-10">
-            <EmptyNote icon={HandCoins} title="Programs coming soon" hint="Financing programs are being prepared by the verified entities." />
-          </div>
-        ) : (
-          <>
-            {/* category filter chips */}
-            <Reveal className="mt-8" delay={1}>
-              <div
-                role="group"
-                aria-label="Filter programs by category"
-                className="flex gap-2 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+
+        {/* inline filter chips */}
+        <div className="mt-8 flex flex-wrap items-center gap-2" role="tablist" aria-label="Filter programs by category">
+          <button
+            role="tab"
+            aria-selected={active === 'ALL'}
+            onClick={() => setActive('ALL')}
+            className={cn(
+              'rounded-full px-4 py-1.5 text-xs font-bold transition-all duration-200',
+              active === 'ALL'
+                ? 'bg-bh-navy text-white shadow-sm'
+                : 'border border-bh-border-dark bg-bh-card text-bh-muted hover:border-bh-gold/50 hover:text-bh-navy',
+            )}
+          >
+            All programs <span className="font-semibold opacity-70">{programs.length}</span>
+          </button>
+          {categories.map(([cat, n]) => (
+            <button
+              key={cat}
+              role="tab"
+              aria-selected={active === cat}
+              onClick={() => setActive(cat)}
+              className={cn(
+                'rounded-full px-4 py-1.5 text-xs font-bold transition-all duration-200',
+                active === cat
+                  ? 'bg-bh-navy text-white shadow-sm'
+                  : 'border border-bh-border-dark bg-bh-card text-bh-muted hover:border-bh-gold/50 hover:text-bh-navy',
+              )}
+            >
+              {PROGRAM_CATEGORIES[cat]?.label ?? cat} <span className="font-semibold opacity-70">{n}</span>
+            </button>
+          ))}
+        </div>
+
+        <motion.div layout className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <AnimatePresence mode="popLayout">
+            {visible.map((p) => (
+              <motion.article
+                key={p.id}
+                layout
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.97 }}
+                transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                className="group relative flex flex-col justify-between rounded-2xl border border-bh-border bg-bh-card p-5 shadow-card transition-all duration-300 hover:-translate-y-1 hover:shadow-hover"
               >
-                <FilterChip active={active === 'ALL'} onClick={() => setActive('ALL')} label="All programs" count={programs.length} />
-                {categories.map(([category, count]) => {
-                  const cat = PROGRAM_CATEGORIES[category] ?? PROGRAM_CATEGORIES.OTHER!
-                  return (
-                    <FilterChip
-                      key={category}
-                      active={active === category}
-                      onClick={() => setActive(category)}
-                      label={cat.label}
-                      icon={cat.icon}
-                      count={count}
-                    />
-                  )
-                })}
-              </div>
-            </Reveal>
-
-            <motion.div layout className="mt-6 grid items-stretch gap-5 sm:grid-cols-2 xl:grid-cols-3">
-              <AnimatePresence mode="popLayout">
-                {filtered.map((program) => (
-                  <ProgramCard key={program.id} program={program} />
-                ))}
-              </AnimatePresence>
-            </motion.div>
-          </>
-        )}
-      </SectionContainer>
-    </Section>
-  )
-}
-
-function FilterChip({
-  active,
-  onClick,
-  label,
-  icon,
-  count,
-}: {
-  active: boolean
-  onClick: () => void
-  label: string
-  icon?: string
-  count: number
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        'inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition-all',
-        active
-          ? 'border-primary bg-primary text-primary-foreground shadow-sm'
-          : 'border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground',
-      )}
-    >
-      {icon && (
-        <span className={cn('inline-flex h-5 w-5 items-center justify-center rounded-md', active ? 'text-primary-foreground' : 'text-primary')}>
-          <Icon name={icon} className="h-4 w-4" />
-        </span>
-      )}
-      {label}
-      <span className={cn('rounded-full px-1.5 text-[11px] font-bold tabular-nums', active ? 'bg-primary-foreground/20' : 'bg-muted text-muted-foreground')}>{count}</span>
-    </button>
-  )
-}
-
-// ── 5 · Eligibility & documents ─────────────────────────────────────────────
-
-const REQ_META: Record<string, { icon: string; label: string }> = {
-  DOCUMENT: { icon: 'FileText', label: 'Document' },
-  PROFILE_FIELD: { icon: 'UserPlus', label: 'Profile data' },
-  DECLARATION: { icon: 'ShieldCheck', label: 'Declaration' },
-  NUMBER: { icon: 'LineChart', label: 'Figure' },
-  SELECT: { icon: 'GitCompareArrows', label: 'Choice' },
-  MULTI_SELECT: { icon: 'GitCompareArrows', label: 'Choices' },
-  DATE: { icon: 'CalendarClock', label: 'Date' },
-  TEXT: { icon: 'FileText', label: 'Text' },
-}
-
-const REQ_ORDER = ['DOCUMENT', 'PROFILE_FIELD', 'DECLARATION', 'NUMBER', 'SELECT', 'MULTI_SELECT', 'DATE', 'TEXT']
-
-export function RequirementBoard({ requirements }: { requirements: PublicRequirement[] }) {
-  const sorted = React.useMemo(
-    () => [...requirements].sort((a, b) => REQ_ORDER.indexOf(a.conditionType) - REQ_ORDER.indexOf(b.conditionType)),
-    [requirements],
-  )
-  return (
-    <Section id="eligibility" tone="light" curve="down" className="py-14 sm:py-20" aria-labelledby="eligibility-heading">
-      <SectionContainer>
-        <h2 id="eligibility-heading" className="sr-only">Eligibility and documents</h2>
-        <SectionHead
-          eyebrow="Eligibility"
-          eyebrowIcon="FileText"
-          title="What you'll typically need"
-          sub="One reusable pack of documents and data — upload it once, and every entity offer builds on the same verified baseline."
-        />
-        {sorted.length === 0 ? (
-          <div className="mt-10">
-            <EmptyNote icon={ClipboardCheck} title="Requirements are being finalized" hint="The document checklist will appear here soon." />
-          </div>
-        ) : (
-          <RevealGroup className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {sorted.map((r) => {
-              const meta = REQ_META[r.conditionType] ?? { icon: 'FileText', label: r.conditionType }
-              return (
-                <RevealItem key={r.id} className="h-full">
-                  <div className="flex h-full flex-col rounded-2xl border bg-card p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-sm">
-                    <div className="flex items-start justify-between gap-3">
-                      <IconTile name={meta.icon} size="sm" />
-                      <Badge variant="outline" className="rounded-full text-[10px] font-semibold uppercase tracking-wide">
-                        {meta.label}
-                      </Badge>
-                    </div>
-                    <h3 className="mt-4 text-sm font-bold leading-snug text-foreground">{r.title}</h3>
-                    {r.description && <p className="mt-1.5 line-clamp-2 flex-1 text-sm leading-relaxed text-muted-foreground">{r.description}</p>}
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <Badge variant="secondary" className="gap-1 rounded-full text-[11px]">
-                        <HandCoins className="h-3 w-3 text-primary/70" aria-hidden />
-                        Used by {r.usedByCount} {r.usedByCount === 1 ? 'program' : 'programs'}
-                      </Badge>
-                      {r.validityMonths != null && (
-                        <Badge variant="secondary" className="gap-1 rounded-full text-[11px]">
-                          <Clock className="h-3 w-3 text-primary/70" aria-hidden /> valid {r.validityMonths} mo
-                        </Badge>
-                      )}
-                    </div>
+                <Link href={`/funding/programs/${p.id}`} className="absolute inset-0 rounded-2xl focus-visible:outline-2" aria-label={p.name} />
+                <div className="relative">
+                  <div className="mb-2 inline-block rounded bg-bh-bg-gold px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-bh-gold-dark">
+                    {PROGRAM_CATEGORIES[p.category]?.label ?? p.category}
                   </div>
-                </RevealItem>
-              )
-            })}
-          </RevealGroup>
+                  <h3 className="text-base font-bold text-bh-navy">{p.name}</h3>
+                  <p className="mb-1 text-xs text-bh-muted">by {p.entity.name}</p>
+                  {p.summary && <p className="mb-4 line-clamp-2 text-xs leading-relaxed text-bh-subtle">{p.summary}</p>}
+                  <div className="mb-4 flex flex-wrap gap-2 text-[11px] font-medium text-bh-navy">
+                    {(p.amountMin != null || p.amountMax != null) && (
+                      <span className="rounded border border-bh-border bg-bh-page px-2 py-1">
+                        {p.serviceKind === 'ACCREDITATION' ? `fee ${money(p.amountMin ?? p.amountMax, p.currency)}` : moneyRange(p.amountMin, p.amountMax, p.currency)}
+                      </span>
+                    )}
+                    {tenorLabel(p.tenorMinMonths, p.tenorMaxMonths) && (
+                      <span className="rounded border border-bh-border bg-bh-page px-2 py-1">{tenorLabel(p.tenorMinMonths, p.tenorMaxMonths)}</span>
+                    )}
+                    {p.shariaCompliant && (
+                      <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-emerald-700">Sharia</span>
+                    )}
+                  </div>
+                </div>
+                <span className="relative inline-flex items-center gap-1 text-xs font-semibold text-bh-action transition-colors group-hover:text-bh-navy-deep">
+                  View program <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden />
+                </span>
+              </motion.article>
+            ))}
+          </AnimatePresence>
+        </motion.div>
+        {visible.length === 0 && (
+          <div className="mt-8">
+            <EmptyNote icon={HandCoins} title="No programs in this category yet" />
+          </div>
         )}
       </SectionContainer>
     </Section>
   )
 }
 
-// ── 6 · Success stories (dark editorial band) ───────────────────────────────
+// ── 4 · Success stories (horizontal scroller) ────────────────────────────────
 
 export function StoryWall({ stories, stats }: { stories: PublicStory[]; stats: FundingStats }) {
   const scroller = React.useRef<HTMLDivElement>(null)
-
-  const scrollBy = React.useCallback((dir: 1 | -1) => {
-    const el = scroller.current
-    if (!el) return
-    const card = el.querySelector<HTMLElement>('[data-story-card]')
-    const step = card ? card.offsetWidth + 20 : 380
-    el.scrollBy({ left: dir * step, behavior: 'smooth' })
-  }, [])
+  const scrollBy = (dir: 1 | -1) => scroller.current?.scrollBy({ left: dir * 340, behavior: 'smooth' })
+  if (stories.length === 0) return null
 
   return (
-    <Section id="stories" tone="dark" className="py-14 sm:py-20" aria-labelledby="stories-heading">
+    <Section tone="muted" className="py-14 sm:py-16">
       <SectionContainer>
-        <h2 id="stories-heading" className="sr-only">Success stories</h2>
-        <SectionHead
-          tone="dark"
-          eyebrow="Impact"
-          eyebrowIcon="Sun"
-          title="Funded, installed, running"
-          sub="Real projects financed through the platform — measured in kilowatts, livelihoods and tonnes of CO₂ kept out of the sky."
-          action={
-            stories.length > 0 ? (
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => scrollBy(-1)}
-                  aria-label="Scroll stories left"
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-800 bg-zinc-900/60 text-zinc-300 transition-all hover:border-amber-400/50 hover:text-amber-300"
-                >
-                  <ChevronLeft className="h-5 w-5" aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => scrollBy(1)}
-                  aria-label="Scroll stories right"
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-800 bg-zinc-900/60 text-zinc-300 transition-all hover:border-amber-400/50 hover:text-amber-300"
-                >
-                  <ChevronRight className="h-5 w-5" aria-hidden />
-                </button>
-              </div>
-            ) : undefined
-          }
-        />
-
-        {/* aggregate impact strip */}
-        {(stats.totalFinanced > 0 || stats.peopleImpacted > 0 || stats.co2Avoided > 0) && (
-          <div className="mt-10 grid grid-cols-1 gap-3 sm:grid-cols-3 lg:max-w-3xl">
-            {stats.totalFinanced > 0 && <StatTile dark icon="Banknote" label="Financed to date" value={stats.totalFinanced} suffix=" YER" />}
-            {stats.peopleImpacted > 0 && <StatTile dark icon="UserPlus" label="People impacted" value={stats.peopleImpacted} />}
-            {stats.co2Avoided > 0 && <StatTile dark icon="Sprout" label="CO₂ avoided (tonnes)" value={stats.co2Avoided} />}
+        <div className="flex items-end justify-between gap-4">
+          <SectionHead
+            eyebrow="Impact"
+            eyebrowIcon="TrendingUp"
+            title="Financed, built, and running today"
+            sub="Real projects funded through Vendora programs — amounts, locations and measured impact."
+            className="flex-1"
+          />
+          <div className="hidden shrink-0 gap-2 sm:flex">
+            <Button variant="outline" size="icon" aria-label="Scroll stories left" onClick={() => scrollBy(-1)} className="border-bh-border-dark bg-bh-card text-bh-navy hover:bg-bh-soft-blue">
+              <ChevronLeft className="h-4 w-4" aria-hidden />
+            </Button>
+            <Button variant="outline" size="icon" aria-label="Scroll stories right" onClick={() => scrollBy(1)} className="border-bh-border-dark bg-bh-card text-bh-navy hover:bg-bh-soft-blue">
+              <ChevronRight className="h-4 w-4" aria-hidden />
+            </Button>
           </div>
-        )}
+        </div>
 
-        {stories.length === 0 ? (
-          <div className="mt-10">
-            <EmptyNote dark icon={Sparkles} title="Success stories are coming" hint="Funded projects will be featured here." />
-          </div>
-        ) : (
-          <div
-            ref={scroller}
-            className="scrollbar-thin -mx-4 mt-10 flex snap-x snap-mandatory gap-5 overflow-x-auto px-4 pb-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
-            role="region"
-            aria-label="Success stories — horizontally scrollable"
-          >
-            {stories.map((s) => (
-              <article key={s.id} data-story-card className="group w-[300px] shrink-0 snap-start sm:w-[360px]">
-                <GlowCard dark className="flex h-full flex-col overflow-hidden p-0">
-                  <div className="relative aspect-[16/10] overflow-hidden">
-                    {s.imageUrl ? (
-                      <Image
-                        src={s.imageUrl}
-                        alt={s.title}
-                        fill
-                        sizes="(max-width: 640px) 90vw, (max-width: 1024px) 400px, 380px"
-                        className="object-cover transition-transform duration-500 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-900">
-                        <SunGlyph className="h-12 w-12 text-amber-400/30" />
-                      </div>
-                    )}
-                    <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-zinc-950/80 to-transparent" aria-hidden />
-                    {s.sector && (
-                      <span className="absolute left-3 top-3 rounded-full border border-amber-400/30 bg-zinc-950/70 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-300 backdrop-blur">
-                        {SECTOR_LABELS[s.sector] ?? s.sector}
-                      </span>
-                    )}
-                    {s.amountFinanced != null && (
-                      <span className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-bold text-zinc-950">
-                        <Banknote className="h-3 w-3" aria-hidden /> {money(s.amountFinanced, s.currency)}
-                      </span>
-                    )}
+        <div
+          ref={scroller}
+          className="scrollbar-thin -mx-4 mt-8 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2"
+        >
+          {stories.map((s) => (
+            <article
+              key={s.id}
+              className="w-[300px] shrink-0 snap-start overflow-hidden rounded-2xl border border-bh-border bg-bh-card shadow-card transition-all duration-300 hover:-translate-y-1 hover:shadow-hover sm:w-[330px]"
+            >
+                {s.imageUrl && (
+                  <div className="relative h-40 overflow-hidden bg-bh-soft-blue">
+                    <Image src={s.imageUrl} alt={s.title} fill sizes="330px" className="object-cover transition-transform duration-500 hover:scale-105" />
                   </div>
-                  <div className="flex flex-1 flex-col p-5">
-                    <p className="flex items-center gap-1.5 text-xs font-medium text-zinc-400">
-                      {s.location && (
-                        <>
-                          <MapPin className="h-3.5 w-3.5 text-amber-300/80" aria-hidden /> {s.location}
-                        </>
-                      )}
-                      {s.location && s.year != null && <span aria-hidden>·</span>}
-                      {s.year != null && <span>{s.year}</span>}
-                    </p>
-                    <h3 className="mt-2 text-balance text-base font-bold leading-snug text-zinc-50">{s.title}</h3>
-                    <p className="mt-1.5 line-clamp-2 flex-1 text-sm leading-relaxed text-zinc-400">{s.summary}</p>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {s.peopleImpacted != null && (
-                        <Badge variant="outline" className="gap-1 rounded-full border-zinc-800 bg-zinc-900/60 text-[11px] text-zinc-300">
-                          <Users className="h-3 w-3 text-amber-300/80" aria-hidden /> {s.peopleImpacted.toLocaleString('en-US')} people
-                        </Badge>
-                      )}
-                      {s.co2AvoidedTonnes != null && (
-                        <Badge variant="outline" className="gap-1 rounded-full border-zinc-800 bg-zinc-900/60 text-[11px] text-zinc-300">
-                          <Leaf className="h-3 w-3 text-emerald-400/80" aria-hidden /> {s.co2AvoidedTonnes.toLocaleString('en-US')} t CO₂
-                        </Badge>
-                      )}
-                    </div>
+                )}
+                <div className="p-5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {s.sector && <Badge variant="outline" className="border-bh-border-dark bg-bh-page text-bh-muted">{s.sector}</Badge>}
+                    {s.year && <Badge variant="outline" className="border-bh-border-dark bg-bh-page text-bh-muted">{s.year}</Badge>}
                     {s.entity && (
-                      <p className="mt-4 border-t border-zinc-800 pt-3 text-xs text-zinc-500">
-                        Financed by{' '}
-                        <Link
-                          href={`/funding/entities/${s.entity.id}`}
-                          className="rounded font-medium text-amber-300 underline decoration-amber-400/40 underline-offset-2 transition-colors hover:text-amber-200"
-                        >
-                          {s.entity.name}
-                        </Link>
-                      </p>
+                      <Link
+                        href={`/funding/entities/${s.entity.id}`}
+                        className="text-[11px] font-bold text-bh-action underline-offset-2 hover:underline"
+                      >
+                        {s.entity.name}
+                      </Link>
                     )}
                   </div>
-                </GlowCard>
+                  <h3 className="mt-2.5 text-sm font-bold text-bh-navy">{s.title}</h3>
+                  <p className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-bh-subtle">{s.summary}</p>
+                  <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-medium text-bh-navy">
+                    {s.amountFinanced != null && (
+                      <span className="rounded border border-bh-border bg-bh-page px-2 py-1">{money(s.amountFinanced, s.currency)}</span>
+                    )}
+                    {s.location && (
+                      <span className="inline-flex items-center gap-1 rounded border border-bh-border bg-bh-page px-2 py-1">
+                        <MapPin className="h-3 w-3 text-bh-gold" aria-hidden />
+                        {s.location}
+                      </span>
+                    )}
+                    {s.peopleImpacted != null && (
+                      <span className="inline-flex items-center gap-1 rounded border border-bh-border bg-bh-page px-2 py-1">
+                        <Users className="h-3 w-3 text-bh-gold" aria-hidden />
+                        {s.peopleImpacted}
+                      </span>
+                    )}
+                    {s.co2AvoidedTonnes != null && (
+                      <span className="inline-flex items-center gap-1 rounded border border-bh-border bg-bh-page px-2 py-1">
+                        <Leaf className="h-3 w-3 text-emerald-600" aria-hidden />
+                        {s.co2AvoidedTonnes}t CO₂
+                      </span>
+                    )}
+                  </div>
+                </div>
               </article>
-            ))}
-          </div>
-        )}
-      </SectionContainer>
-    </Section>
-  )
-}
+          ))}
+        </div>
 
-/** Faint sun glyph used as image placeholder / section art. */
-function SunGlyph({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className={className} aria-hidden>
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
-    </svg>
-  )
-}
-
-// ── 7 · Partners marquee ─────────────────────────────────────────────────────
-
-export function PartnersBand({ partners }: { partners: PublicPartner[] }) {
-  if (partners.length === 0) return null
-  return (
-    <Section tone="light" curve="up" className="py-12 sm:py-14" aria-label="Partners and network">
-      <SectionContainer>
-        <Reveal>
-          <Eyebrow icon="ShieldCheck">Partners & network</Eyebrow>
-        </Reveal>
-        <Reveal delay={1}>
-          <p className="mt-3 text-sm text-muted-foreground">
-            The ecosystem behind the funding network — development partners, energy programs and institutions.
-          </p>
-        </Reveal>
-        <Reveal delay={2} className="mt-8">
-          <Marquee speed={46}>
-            {partners.map((p) => (
-              <PartnerTile key={p.id} name={p.name} monogram={p.monogram} accentColor={p.accentColor} websiteUrl={p.websiteUrl} />
-            ))}
-          </Marquee>
-        </Reveal>
-      </SectionContainer>
-    </Section>
-  )
-}
-
-// ── 8 · FAQ ──────────────────────────────────────────────────────────────────
-
-export function FaqBand({ faqs }: { faqs: PublicFaq[] }) {
-  if (faqs.length === 0) return null
-  return (
-    <Section id="faq" tone="muted" className="py-14 sm:py-20" aria-labelledby="faq-heading">
-      <SectionContainer>
-        <h2 id="faq-heading" className="sr-only">Funding questions</h2>
-        <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-          <div className="lg:sticky lg:top-24">
-            <SectionHead
-              align="left"
-              eyebrow="FAQ"
-              eyebrowIcon="Search"
-              title="Funding questions, answered"
-              sub="The essentials applicants ask before submitting a financing request."
-            />
-            <Reveal delay={2}>
-              <Button asChild variant="outline" className="mt-6 min-h-11 rounded-xl">
-                <Link href="/contact">Still unsure? Talk to us</Link>
-              </Button>
-            </Reveal>
-          </div>
-          <Reveal delay={1}>
-            <FaqAccordion items={faqs.map((f) => ({ id: f.id, question: f.question, answer: f.answer }))} />
-          </Reveal>
+        <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatTile icon="HandCoins" label="Total financed (YER)" value={stats.totalFinanced} compact />
+          <StatTile icon="Users" label="People impacted" value={stats.peopleImpacted} compact />
+          <StatTile icon="Moon" label="Sharia-compliant programs" value={stats.shariaPrograms} compact />
+          <StatTile icon="Leaf" label="CO₂ avoided (tonnes)" value={stats.co2Avoided} compact decimals={0} />
         </div>
       </SectionContainer>
     </Section>
   )
 }
 
-// ── 9 · Final CTA band ───────────────────────────────────────────────────────
+// ── 5 · Partners marquee ─────────────────────────────────────────────────────
 
-export function FinalCta() {
+export function PartnersBand({ partners }: { partners: PublicPartner[] }) {
+  if (partners.length === 0) return null
   return (
-    <Section tone="dark" className="py-16 sm:py-24" aria-labelledby="funding-cta-heading">
-      {/* layered art */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-32 top-0 h-96 w-96 rounded-full bg-amber-500/15 blur-[120px]" />
-        <div className="absolute -right-24 bottom-0 h-80 w-80 rounded-full bg-orange-600/10 blur-[100px]" />
-        <SunGlyph className="absolute -bottom-10 left-1/2 h-64 w-64 -translate-x-1/2 text-amber-400/[0.06]" />
-      </div>
-      <SectionContainer className="relative text-center">
-        <Reveal>
-          <Eyebrow tone="dark" icon="HandCoins">
-            One request — real offers
-          </Eyebrow>
-        </Reveal>
-        <Reveal delay={1}>
-          <h2
-            id="funding-cta-heading"
-            className="mx-auto mt-5 max-w-2xl text-balance text-3xl font-bold tracking-tight text-zinc-50 sm:text-4xl lg:text-5xl"
-          >
-            Your project deserves funding
-          </h2>
-        </Reveal>
-        <Reveal delay={2}>
-          <p className="mx-auto mt-4 max-w-xl text-pretty text-base leading-relaxed text-zinc-400">
-            Submit one request in the platform — verified entities review it and respond with offers you can compare side by side.
-          </p>
-        </Reveal>
-        <Reveal delay={3}>
-          <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
-            <Button asChild size="lg" className="min-h-12 rounded-xl px-7 text-base">
-              <Link href="/market?view=financing">
-                Apply for funding <ArrowRight className="ml-1" aria-hidden />
-              </Link>
-            </Button>
-            <Button
-              asChild
-              size="lg"
-              variant="outline"
-              className="min-h-12 rounded-xl border-zinc-700 bg-transparent px-7 text-base text-zinc-200 hover:bg-zinc-900 hover:text-zinc-50"
-            >
-              <Link href="/contact">Contact the team</Link>
-            </Button>
-          </div>
-        </Reveal>
+    <Section className="py-12">
+      <SectionContainer>
+        <SectionHead
+          eyebrow="Partners"
+          eyebrowIcon="ShieldCheck"
+          title="Working alongside the ecosystem"
+          align="center"
+        />
+        <div className="mt-8">
+          <Marquee speed={38}>
+            {partners.map((p) => (
+              <PartnerTile key={p.id} name={p.name} monogram={p.monogram} accentColor={p.accentColor} websiteUrl={p.websiteUrl} />
+            ))}
+          </Marquee>
+        </div>
       </SectionContainer>
     </Section>
   )
 }
 
-// ── Program detail page pieces (/funding/programs/[id]) ──────────────────────
+// ── 6 · FAQ (accordion, not cards) ──────────────────────────────────────────
 
-/** Serializable projection of a FinancierService for the detail-page client sections. */
+export function FaqBand({ faqs }: { faqs: PublicFaq[] }) {
+  if (faqs.length === 0) return null
+  const [featured, ...rest] = faqs
+  return (
+    <Section tone="glass" className="py-14 sm:py-16">
+      <SectionContainer>
+        <div className="grid gap-8 lg:grid-cols-12">
+          <div className="lg:col-span-4">
+            <div className="lg:sticky lg:top-24">
+              <SectionHead
+                eyebrow="FAQ"
+                eyebrowIcon="Sparkles"
+                title="Funding questions, answered"
+                sub="Everything buyers ask before requesting financing."
+              />
+              <Button asChild variant="outline" className="mt-5 gap-1.5 border-bh-border-dark bg-bh-card text-bh-navy hover:bg-bh-soft-blue">
+                <Link href="/faq">
+                  All FAQs <ArrowRight className="h-4 w-4" aria-hidden />
+                </Link>
+              </Button>
+            </div>
+          </div>
+          <div className="lg:col-span-8">
+            <div className="rounded-2xl border border-bh-border bg-bh-card p-6 shadow-card">
+              <FaqAccordion
+                items={featured ? [featured, ...rest] : []}
+              />
+            </div>
+          </div>
+        </div>
+      </SectionContainer>
+    </Section>
+  )
+}
+
+// ── 7 · Final CTA (navy band — dark reserved for CTA) ────────────────────────
+
+export function FinalCta() {
+  return (
+    <section className="relative overflow-hidden bg-gradient-to-br from-[#052e56] via-[#06396c] to-[#0a4a8c] py-16 text-white sm:py-20">
+      <div aria-hidden className="pointer-events-none absolute inset-0">
+        <div className="absolute -left-24 top-0 h-72 w-72 rounded-full bg-bh-gold/20 blur-[110px]" />
+        <div className="absolute -right-16 bottom-0 h-72 w-72 rounded-full bg-bh-gold/10 blur-[100px]" />
+        <div
+          className="absolute inset-0 opacity-[0.12]"
+          style={{
+            backgroundImage:
+              'linear-gradient(rgba(211,175,60,0.14) 1px, transparent 1px), linear-gradient(90deg, rgba(211,175,60,0.14) 1px, transparent 1px)',
+            backgroundSize: '44px 44px',
+            maskImage: 'radial-gradient(ellipse 80% 80% at 50% 50%, black, transparent)',
+          }}
+        />
+      </div>
+      <SectionContainer className="relative">
+        <div className="mx-auto max-w-2xl text-center">
+          <Reveal>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-bh-gold/30 bg-bh-gold/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-bh-gold">
+              <Sparkles className="h-3.5 w-3.5" aria-hidden />
+              One request, many offers
+            </span>
+          </Reveal>
+          <Reveal delay={1}>
+            <h2 className="mt-5 text-balance text-2xl font-bold tracking-tight sm:text-3xl">
+              Ready to fund your solar project?
+            </h2>
+          </Reveal>
+          <Reveal delay={2}>
+            <p className="mx-auto mt-3 max-w-xl text-pretty text-[15px] leading-relaxed text-white/75">
+              Submit one request — verified banks and microfinance institutions respond with real offers you can compare side by side.
+            </p>
+          </Reveal>
+          <Reveal delay={3}>
+            <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+              <Button asChild size="lg" className="min-h-12 bg-bh-gold px-7 text-base font-bold text-bh-navy-deep hover:bg-bh-gold-light">
+                <Link href="/market?view=financing">
+                  Apply for funding <ArrowRight className="ml-1" aria-hidden />
+                </Link>
+              </Button>
+              <Button
+                asChild
+                size="lg"
+                variant="outline"
+                className="min-h-12 border-white/25 bg-transparent px-7 text-base text-white hover:bg-white/10 hover:text-white"
+              >
+                <Link href="#programs">Browse programs</Link>
+              </Button>
+            </div>
+          </Reveal>
+        </div>
+      </SectionContainer>
+    </section>
+  )
+}
+
+// ── Program detail page pieces (reference: supplier_qualification_program) ──
+
 export type ProgramDetailData = {
   id: string
   name: string
@@ -793,6 +566,11 @@ export type ProgramDetailData = {
   processingDays: number | null
   accreditationValidMonths: number | null
   accreditationFeeAmount: number | null
+  financingLimitText: string | null
+  targetAudience: string | null
+  termsNote: string | null
+  guaranteeTypes: string[]
+  financingPeriods: string[]
   features: string[]
   eligibility: string[]
   coverage: string[]
@@ -817,352 +595,412 @@ export type ProgramDetailData = {
 
 export type RelatedProgramCardData = FundingProgramCard
 
-/** Light editorial hero band for the program detail page. */
-export function ProgramHero({ service }: { service: ProgramDetailData }) {
-  const cat = PROGRAM_CATEGORIES[service.category] ?? PROGRAM_CATEGORIES.OTHER!
-  const isAccreditation = service.serviceKind === 'ACCREDITATION'
-  const accent = ORG_ACCENT[service.entity.orgType]
+const CONDITION_TYPE_LABELS: Record<string, string> = {
+  DOCUMENT: 'Document',
+  INFORMATION: 'Information',
+  CONDITION: 'Condition',
+  DECLARATION: 'Declaration',
+}
 
+/** White header band — breadcrumbs + gold tag + practical 30px H1 + subtitle. */
+export function ProgramHero({ service }: { service: ProgramDetailData }) {
+  const cat = PROGRAM_CATEGORIES[service.category]
+  const isAccreditation = service.serviceKind === 'ACCREDITATION'
   return (
-    <section aria-labelledby="program-hero-heading" className="relative overflow-hidden bg-primary/[0.05] pb-10 pt-10 sm:pb-12 sm:pt-14">
-      <div aria-hidden className="pointer-events-none absolute inset-0">
-        <div className="absolute -right-32 -top-32 h-80 w-80 rounded-full bg-primary/10 blur-[100px]" />
-        <SunGlyph className="absolute -right-8 -top-10 h-44 w-44 text-primary/[0.07]" />
-      </div>
-      <SectionContainer className="relative">
-        <Reveal>
-          <Eyebrow icon={cat.icon}>{cat.label}</Eyebrow>
-        </Reveal>
-        <Reveal delay={1}>
-          <h1 id="program-hero-heading" className="mt-4 max-w-3xl text-balance text-3xl font-bold leading-tight tracking-tight text-foreground sm:text-4xl lg:text-5xl">
-            {service.name}
-          </h1>
-        </Reveal>
-        {service.summary && (
-          <Reveal delay={2}>
-            <p className="mt-4 max-w-2xl text-pretty text-base leading-relaxed text-muted-foreground sm:text-lg">{service.summary}</p>
-          </Reveal>
-        )}
-        <Reveal delay={3}>
-          <div className="mt-7 flex flex-wrap items-center gap-2.5">
-            <Link
-              href={`/funding/entities/${service.entity.id}`}
-              className="group inline-flex min-h-11 items-center gap-2.5 rounded-full border bg-card py-1.5 pl-1.5 pr-4 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm"
-            >
-              <Monogram name={service.entity.name} accent={accent} size="sm" />
-              <span className="text-sm font-semibold text-foreground">{service.entity.name}</span>
-              <span className="text-xs text-muted-foreground">· {service.entity.typeLabel}</span>
-            </Link>
-            {SEGMENT_LABELS[service.targetSegment ?? ''] && (
-              <Badge variant="outline" className="min-h-9 rounded-full px-3.5 text-xs font-semibold">
-                {SEGMENT_LABELS[service.targetSegment]}
-              </Badge>
-            )}
-            {isAccreditation && (
-              <Badge variant="outline" className="min-h-9 rounded-full border-primary/40 bg-primary/10 px-3.5 text-xs font-semibold text-primary">
-                Accreditation program
-              </Badge>
-            )}
-            {service.shariaCompliant && (
-              <Badge variant="outline" className="min-h-9 gap-1.5 rounded-full border-emerald-200 bg-emerald-50 px-3.5 text-xs font-semibold text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-400">
-                <Moon className="h-3.5 w-3.5" aria-hidden /> Sharia-compliant
-              </Badge>
-            )}
-          </div>
-        </Reveal>
+    <header className="border-b border-bh-border bg-bh-card py-8">
+      <SectionContainer>
+        <nav className="mb-5 flex items-center gap-2 text-xs text-bh-muted" aria-label="Breadcrumb">
+          <Link href="/" className="transition-colors hover:text-bh-navy">Home</Link>
+          <ChevronRight className="h-3.5 w-3.5 text-bh-faded" aria-hidden />
+          <Link href="/funding" className="transition-colors hover:text-bh-navy">Funding</Link>
+          <ChevronRight className="h-3.5 w-3.5 text-bh-faded" aria-hidden />
+          <Link href="/funding#programs" className="transition-colors hover:text-bh-navy">Programs</Link>
+          <ChevronRight className="h-3.5 w-3.5 text-bh-faded" aria-hidden />
+          <span className="font-semibold text-bh-navy">{service.name}</span>
+        </nav>
+
+        <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-bh-gold/20 bg-bh-bg-gold px-3 py-1 text-xs font-bold uppercase tracking-wide text-bh-gold-dark">
+          {isAccreditation ? <Award className="h-3.5 w-3.5" aria-hidden /> : <HandCoins className="h-3.5 w-3.5" aria-hidden />}
+          {cat?.label ?? service.category}
+        </div>
+
+        <h1 className="h1-practical mb-2 tracking-tight text-bh-navy">{service.name}</h1>
+
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <p className="max-w-3xl text-sm leading-relaxed text-bh-subtle md:text-base">{service.summary}</p>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-[11px] font-medium">
+          {service.shariaCompliant && (
+            <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 font-semibold text-emerald-700">Sharia-compliant</span>
+          )}
+          {SEGMENT_LABELS[service.targetSegment ?? ''] && (
+            <span className="rounded border border-bh-border bg-bh-page px-2 py-1 text-bh-muted">{SEGMENT_LABELS[service.targetSegment]}</span>
+          )}
+          {service.entity.name && (
+            <span className="rounded border border-bh-border bg-bh-page px-2 py-1 text-bh-muted">by {service.entity.name}</span>
+          )}
+        </div>
       </SectionContainer>
-    </section>
+    </header>
   )
 }
 
-/** Sticky key-facts panel + apply CTA + entity mini-card (detail page aside). */
+/** Sidebar key-facts card (reference pattern): rows + Apply + Compare. */
 export function KeyFactsPanel({ service }: { service: ProgramDetailData }) {
-  const cat = PROGRAM_CATEGORIES[service.category] ?? PROGRAM_CATEGORIES.OTHER!
   const isAccreditation = service.serviceKind === 'ACCREDITATION'
-  const accent = ORG_ACCENT[service.entity.orgType]
-  const amount = moneyRange(service.amountMin, service.amountMax, service.currency)
-  const tenor = tenorLabel(service.tenorMinMonths, service.tenorMaxMonths)
+  const rows: { label: string; value: React.ReactNode }[] = []
 
-  const rows = [
-    amount ? { icon: 'Banknote', label: isAccreditation ? 'Program fee' : 'Amount', value: amount } : null,
-    service.rateMax != null
-      ? { icon: 'TrendingUp', label: service.rateType ? RATE_LABELS[service.rateType] ?? 'Rate' : 'Rate', value: `up to ${service.rateMax}%` }
-      : null,
-    tenor ? { icon: 'CalendarClock', label: 'Tenor', value: tenor } : null,
-    service.repaymentFrequency && REPAYMENT_LABELS[service.repaymentFrequency]
-      ? { icon: 'Repeat', label: 'Repayment', value: REPAYMENT_LABELS[service.repaymentFrequency]! }
-      : null,
-    service.gracePeriodDays != null ? { icon: 'Snowflake', label: 'Grace period', value: `${service.gracePeriodDays} days` } : null,
-    service.processingDays != null ? { icon: 'Gauge', label: 'Decision time', value: `≈ ${service.processingDays} days` } : null,
-    isAccreditation && service.accreditationValidMonths != null
-      ? { icon: 'ShieldCheck', label: 'Accreditation valid', value: `${service.accreditationValidMonths} months` }
-      : null,
-  ].filter((r): r is { icon: string; label: string; value: string } => r !== null)
+  if (isAccreditation) {
+    if (service.accreditationFeeAmount != null)
+      rows.push({ label: 'Program fee', value: `from ${money(service.accreditationFeeAmount, service.currency)}` })
+    if (service.processingDays != null) rows.push({ label: 'Decision time', value: `≈ ${service.processingDays} days` })
+    if (service.accreditationValidMonths != null) rows.push({ label: 'Accreditation valid', value: `${service.accreditationValidMonths} months` })
+  } else {
+    if (service.amountMin != null || service.amountMax != null)
+      rows.push({ label: 'Financing range', value: moneyRange(service.amountMin, service.amountMax, service.currency) })
+    if (service.rateMax != null && service.rateType)
+      rows.push({ label: 'Rate cap', value: `${RATE_LABELS[service.rateType] ?? service.rateType} ≤ ${service.rateMax}%` })
+    if (service.gracePeriodDays != null) rows.push({ label: 'Grace period', value: `up to ${Math.round(service.gracePeriodDays / 30)} months` })
+    const tenor = tenorLabel(service.tenorMinMonths, service.tenorMaxMonths)
+    if (tenor) rows.push({ label: 'Repayment period', value: tenor })
+    if (REPAYMENT_LABELS[service.repaymentFrequency ?? '']) rows.push({ label: 'Repayment', value: REPAYMENT_LABELS[service.repaymentFrequency] })
+    if (service.processingDays != null) rows.push({ label: 'Decision time', value: `≈ ${service.processingDays} days` })
+    rows.push({ label: 'Currency', value: service.currency === 'YER' ? 'Yemeni Rial (YER)' : service.currency })
+  }
 
   return (
-    <div className="space-y-5 lg:sticky lg:top-24">
-      <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
-        <div className="flex items-center gap-3 border-b bg-muted/40 px-5 py-4">
-          <IconTile name={cat.icon} size="sm" />
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-bh-border bg-bh-card p-5 shadow-card">
+        <div className="mb-4 flex items-center justify-between border-b border-bh-border pb-4">
           <div>
-            <p className="text-sm font-bold text-foreground">Key facts</p>
-            <p className="text-[11px] text-muted-foreground">{cat.label}</p>
+            <h2 className="h3-practical text-bh-navy">Key facts</h2>
+            <p className="text-xs text-bh-muted">{isAccreditation ? 'Accreditation' : PROGRAM_CATEGORIES[service.category]?.label ?? 'Financing'}</p>
+          </div>
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-bh-bg-gold text-bh-gold">
+            <Award className="h-5 w-5" aria-hidden />
           </div>
         </div>
-        {rows.length > 0 ? (
-          <dl className="px-5 py-2">
-            {rows.map((row) => (
-              <div key={row.label} className="flex items-center justify-between gap-4 border-b border-dashed py-3 last:border-0">
-                <dt className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                  <IconTile name={row.icon} size="sm" className="h-6 w-6 rounded-md" />
-                  {row.label}
-                </dt>
-                <dd className="text-right text-sm font-bold tabular-nums text-foreground">{row.value}</dd>
-              </div>
-            ))}
-          </dl>
-        ) : (
-          <p className="px-5 py-4 text-sm text-muted-foreground">Terms are set case by case for this program.</p>
-        )}
-        <div className="space-y-2.5 border-t px-5 py-5">
-          <Button asChild size="lg" className="min-h-12 w-full rounded-xl text-base">
-            <Link href="/market?view=financing">
-              Apply for this program <ArrowRight className="ml-1" aria-hidden />
-            </Link>
-          </Button>
-          <Button asChild variant="ghost" className="min-h-11 w-full rounded-xl">
-            <Link href="/funding#programs">Compare all programs</Link>
-          </Button>
-        </div>
-      </div>
 
-      {/* entity mini-card */}
-      <div className="rounded-2xl border bg-card p-5">
-        <div className="flex items-start gap-3.5">
-          <Monogram name={service.entity.name} accent={accent} />
-          <div className="min-w-0">
-            <p className="truncate text-sm font-bold text-foreground">{service.entity.name}</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">{service.entity.typeLabel}</p>
-            {service.entity.regulator && <p className="mt-1 text-[11px] text-muted-foreground">Regulated by {service.entity.regulator}</p>}
+        {/* financing amount min/max tiles */}
+        {!isAccreditation && (service.amountMin != null || service.amountMax != null) && (
+          <div className="mb-5 grid grid-cols-2 gap-3">
+            {service.amountMin != null && (
+              <div className="rounded-xl border border-bh-border bg-bh-page/70 p-3.5">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-bh-muted">Minimum</p>
+                <p className="mt-1 text-sm font-bold tabular-nums text-bh-navy">{money(service.amountMin, '')}</p>
+                <p className="text-[10px] text-bh-faded">{service.currency}</p>
+              </div>
+            )}
+            {service.amountMax != null && (
+              <div className="rounded-xl border border-bh-border bg-bh-page/70 p-3.5">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-bh-muted">Maximum</p>
+                <p className="mt-1 text-sm font-bold tabular-nums text-bh-navy">{money(service.amountMax, '')}</p>
+                <p className="text-[10px] text-bh-faded">{service.currency}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="mb-6 space-y-3.5 text-sm">
+          {rows.map((r) => (
+            <div key={r.label} className="flex items-center justify-between py-1">
+              <span className="text-bh-muted">{r.label}</span>
+              <span className="font-bold text-bh-navy">{r.value}</span>
+            </div>
+          ))}
+        </div>
+
+        <Button asChild className="mb-2.5 w-full gap-2 bg-bh-action text-sm hover:bg-bh-navy-deep">
+          <Link href="/market?view=financing">
+            Apply for this program
+            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" aria-hidden />
+          </Link>
+        </Button>
+        <Button asChild variant="outline" className="w-full border-bh-border-dark bg-bh-card text-xs text-bh-navy hover:bg-bh-page">
+          <Link href="/funding#programs">Compare all programs</Link>
+        </Button>
+      </section>
+
+      {/* entity profile mini-card */}
+      <section className="rounded-2xl border border-bh-border bg-bh-card p-5 shadow-card">
+        <div className="mb-3 flex items-center gap-3.5">
+          <Monogram name={service.entity.name} accent={ORG_ACCENT[service.entity.orgType]} size="md" />
+          <div>
+            <h3 className="text-sm font-bold text-bh-navy">{service.entity.name}</h3>
+            <span className="mt-0.5 inline-block rounded-md bg-bh-soft-blue px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-bh-action">
+              {service.entity.typeLabel}
+            </span>
+            {service.entity.regulator && <p className="mt-1 text-xs text-bh-muted">{service.entity.regulator}</p>}
           </div>
         </div>
         <Link
           href={`/funding/entities/${service.entity.id}`}
-          className="mt-4 inline-flex min-h-11 items-center gap-1.5 rounded-lg text-sm font-semibold text-primary transition-colors hover:text-primary/80 hover:underline"
+          className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-bh-action transition-colors hover:text-bh-navy-deep"
         >
-          View full profile
-          <ArrowRight className="h-4 w-4" aria-hidden />
+          View full profile <ArrowRight className="h-3.5 w-3.5" aria-hidden />
         </Link>
+      </section>
+    </div>
+  )
+}
+
+/** Section head used by all main-column cards (icon tile + h2-practical). */
+function CardHead({ icon: IconCmp, title, sub }: { icon: LucideIcon; title: string; sub?: string }) {
+  return (
+    <>
+      <div className="mb-4 flex items-center gap-2.5">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-bh-bg-gold text-bh-gold">
+          <IconCmp className="h-4 w-4" aria-hidden />
+        </div>
+        <h2 className="h2-practical text-bh-navy">{title}</h2>
+      </div>
+      {sub && <p className="mb-5 text-xs text-bh-muted">{sub}</p>}
+    </>
+  )
+}
+
+/** Service features — financing limit, target audience, guarantees, periods. */
+export function ServiceFeaturesPanel({ service }: { service: ProgramDetailData }) {
+  const { financingLimitText, targetAudience, guaranteeTypes, financingPeriods } = service
+  if (!financingLimitText && !targetAudience && guaranteeTypes.length === 0 && financingPeriods.length === 0) return null
+  const audienceLines = targetAudience?.split('\n').map((l) => l.trim()).filter(Boolean) ?? []
+
+  return (
+    <section className="rounded-2xl border border-bh-border bg-bh-card p-6 shadow-card">
+      <CardHead icon={Sparkles} title="Service features" />
+      <div className="space-y-5">
+        {financingLimitText && (
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-bh-soft-blue text-bh-action">
+              <Coins className="h-4 w-4" aria-hidden />
+            </span>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-bh-muted">Financing limit</p>
+              <p className="mt-0.5 text-sm font-medium text-bh-ink">{financingLimitText}</p>
+            </div>
+          </div>
+        )}
+        {audienceLines.length > 0 && (
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-bh-soft-blue text-bh-action">
+              <Users className="h-4 w-4" aria-hidden />
+            </span>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-bh-muted">Target audience</p>
+              <ul className="mt-1 space-y-1.5">
+                {audienceLines.map((line) => (
+                  <li key={line} className="flex items-start gap-2 text-sm font-medium text-bh-ink">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-bh-action" aria-hidden />
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+        {guaranteeTypes.length > 0 && (
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-bh-soft-blue text-bh-action">
+              <ShieldCheck className="h-4 w-4" aria-hidden />
+            </span>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-bh-muted">Types of guarantees</p>
+              <div className="mt-1.5 flex flex-wrap gap-2">
+                {guaranteeTypes.map((g) => (
+                  <span key={g} className="rounded-lg border border-bh-border bg-bh-page/70 px-2.5 py-1 text-xs font-semibold text-bh-navy">
+                    {g}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+        {financingPeriods.length > 0 && (
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-bh-soft-blue text-bh-action">
+              <CalendarClock className="h-4 w-4" aria-hidden />
+            </span>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-bh-muted">Financing period</p>
+              <div className="mt-1.5 flex flex-wrap gap-2">
+                {financingPeriods.map((p) => (
+                  <span key={p} className="rounded-lg border border-bh-border bg-bh-page/70 px-2.5 py-1 text-xs font-semibold text-bh-navy">
+                    {p}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+/** What's included — FEATURE attributes as soft-blue check rows (reference §2). */
+export function ProgramChecklists({ features, eligibility }: { features: string[]; eligibility: string[] }) {
+  return (
+    <section className="rounded-2xl border border-bh-border bg-bh-card p-6 shadow-card">
+      <CardHead icon={Building2} title="What's included" />
+      {features.length > 0 ? (
+        <div className="space-y-3">
+          {features.map((f) => (
+            <div key={f} className="flex items-start gap-3 rounded-xl border border-bh-border bg-bh-soft-blue/60 p-3.5">
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-bh-action" aria-hidden />
+              <span className="text-sm font-medium text-bh-ink">{f}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-bh-muted">Details available on request.</p>
+      )}
+
+      {eligibility.length > 0 && (
+        <>
+          <div className="mb-4 mt-8 flex items-center gap-2.5 border-t border-bh-border pt-6">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-bh-soft-blue text-bh-action">
+              <ClipboardCheck className="h-4 w-4" aria-hidden />
+            </div>
+            <h2 className="h2-practical text-bh-navy">Requirements</h2>
+          </div>
+          <ul className="divide-y divide-bh-border">
+            {eligibility.map((e) => (
+              <li key={e} className="flex items-start gap-3.5 py-3.5">
+                <CheckSquare className="mt-0.5 h-5 w-5 shrink-0 text-bh-gold" aria-hidden />
+                <span className="text-sm font-medium text-bh-ink">{e}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </section>
+  )
+}
+
+/** Documents & conditions — ONE text section (divide-y rows, NOT cards). */
+export function ProgramRequirements({ requirements }: { requirements: ProgramDetailData['requirements'] }) {
+  if (requirements.length === 0) return null
+  return (
+    <section className="rounded-2xl border border-bh-border bg-bh-card p-6 shadow-card">
+      <CardHead
+        icon={FileCheck2}
+        title="Documents & conditions"
+        sub="Everything checked during review — submitted once and verified by the platform."
+      />
+      <div className="divide-y divide-bh-border border-t border-bh-border">
+        {requirements.map((r) => (
+          <div key={r.title} className="flex items-start gap-3.5 py-3.5">
+            <div className="mt-0.5 text-bh-gold">
+              <CheckSquare className="h-5 w-5" aria-hidden />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="mb-1 flex flex-wrap items-center gap-2">
+                <span className="text-sm font-bold text-bh-navy">{r.title}</span>
+                <span className="rounded border border-bh-border-dark bg-bh-page px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-bh-muted">
+                  {CONDITION_TYPE_LABELS[r.conditionType] ?? r.conditionType}
+                </span>
+                {r.isRequired && (
+                  <span className="rounded bg-bh-soft-blue px-2 py-0.5 text-[10px] font-bold text-bh-action">Required</span>
+                )}
+                {r.validityMonths != null && (
+                  <span className="rounded bg-bh-bg-gold px-2 py-0.5 text-[10px] font-medium text-bh-gold-dark">Valid {r.validityMonths} mos</span>
+                )}
+                {r.autoPassAccredited && (
+                  <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                    Auto-pass accredited
+                  </span>
+                )}
+              </div>
+              {r.description && <p className="text-xs leading-relaxed text-bh-subtle">{r.description}</p>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+/** Terms note — gold pale callout band. */
+export function TermsNoteBand({ note }: { note: string | null }) {
+  if (!note) return null
+  return (
+    <div className="flex items-start gap-3 rounded-2xl border border-bh-gold/30 bg-bh-gold-pale p-5">
+      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-bh-bg-gold text-bh-gold-dark">
+        <Scale className="h-4 w-4" aria-hidden />
+      </span>
+      <div>
+        <p className="text-xs font-bold uppercase tracking-wider text-bh-gold-dark">Terms & conditions</p>
+        <p className="mt-1 text-sm leading-relaxed text-bh-ink">{note}</p>
       </div>
     </div>
   )
 }
 
-/** "What's included" + "Who it's for" checklists (attributes from the DB). */
-export function ProgramChecklists({ features, eligibility }: { features: string[]; eligibility: string[] }) {
-  if (features.length === 0 && eligibility.length === 0) return null
-  return (
-    <div className="grid gap-10 sm:grid-cols-2">
-      {features.length > 0 && (
-        <section aria-labelledby="included-heading">
-          <Reveal>
-            <div className="flex items-center gap-2.5">
-              <IconTile name="Package" size="sm" />
-              <h2 id="included-heading" className="text-xl font-bold tracking-tight text-foreground">
-                What's included
-              </h2>
-            </div>
-          </Reveal>
-          <ul className="mt-5 space-y-3">
-            {features.map((f, i) => (
-              <Reveal as="li" key={f} delay={i} className="flex items-start gap-3 rounded-xl border bg-card px-4 py-3.5">
-                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden />
-                <span className="text-sm leading-relaxed text-foreground">{f}</span>
-              </Reveal>
-            ))}
-          </ul>
-        </section>
-      )}
-      {eligibility.length > 0 && (
-        <section aria-labelledby="eligibility-list-heading">
-          <Reveal>
-            <div className="flex items-center gap-2.5">
-              <IconTile name="UserPlus" size="sm" />
-              <h2 id="eligibility-list-heading" className="text-xl font-bold tracking-tight text-foreground">
-                Who it's for
-              </h2>
-            </div>
-          </Reveal>
-          <ul className="mt-5 space-y-3">
-            {eligibility.map((c, i) => (
-              <Reveal as="li" key={c} delay={i} className="flex items-start gap-3 rounded-xl border bg-card px-4 py-3.5">
-                <ClipboardCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden />
-                <span className="text-sm leading-relaxed text-foreground">{c}</span>
-              </Reveal>
-            ))}
-          </ul>
-        </section>
-      )}
-    </div>
-  )
-}
-
-/** Required documents & conditions (requirements engine, ordered). */
-export function ProgramRequirements({ requirements }: { requirements: ProgramDetailData['requirements'] }) {
-  if (requirements.length === 0) return null
-  return (
-    <section aria-labelledby="requirements-heading">
-      <Reveal>
-        <div className="flex items-center gap-2.5">
-          <IconTile name="FileText" size="sm" />
-          <h2 id="requirements-heading" className="text-xl font-bold tracking-tight text-foreground">
-            Documents & conditions
-          </h2>
-        </div>
-      </Reveal>
-      <Reveal delay={1}>
-        <p className="mt-2 text-sm text-muted-foreground">Everything checked during review — submitted once, verified by the platform.</p>
-      </Reveal>
-      <RevealGroup className="mt-6 grid gap-3 sm:grid-cols-2">
-        {requirements.map((r) => {
-          const meta = REQ_META[r.conditionType] ?? { icon: 'FileText', label: r.conditionType }
-          return (
-            <RevealItem key={r.title} className="h-full">
-              <div className="flex h-full items-start gap-3.5 rounded-xl border bg-card p-4 transition-colors hover:border-primary/30">
-                <IconTile name={meta.icon} size="sm" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <p className="text-sm font-bold text-foreground">{r.title}</p>
-                    <Badge variant="outline" className="text-[10px] font-semibold uppercase tracking-wide">
-                      {meta.label}
-                    </Badge>
-                  </div>
-                  {r.description && <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{r.description}</p>}
-                  {r.instructions && (
-                    <p className="mt-1.5 rounded-lg bg-primary/[0.06] px-2.5 py-1.5 text-xs leading-relaxed text-primary">{r.instructions}</p>
-                  )}
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    <Badge variant="secondary" className="text-[10px] font-semibold">
-                      {r.isRequired ? 'Required' : 'Optional'}
-                    </Badge>
-                    {r.validityMonths != null && (
-                      <Badge variant="secondary" className="gap-1 text-[10px]">
-                        <Clock className="h-2.5 w-2.5" aria-hidden /> valid {r.validityMonths} mo
-                      </Badge>
-                    )}
-                    {r.autoPassAccredited && (
-                      <Badge variant="outline" className="gap-1 border-emerald-200 bg-emerald-50 text-[10px] font-semibold text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-400">
-                        <ShieldCheckInline className="h-2.5 w-2.5" /> auto-pass with accreditation
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </RevealItem>
-          )
-        })}
-      </RevealGroup>
-    </section>
-  )
-}
-
-/** Region coverage panel — chips on a dotted "map-ish" surface. */
+/** Where it's available — region chips + count (reference §4). */
 export function CoveragePanel({ coverage }: { coverage: string[] }) {
   if (coverage.length === 0) return null
   return (
-    <section aria-labelledby="coverage-heading">
-      <Reveal>
-        <div className="flex items-center gap-2.5">
-          <IconTile name="MapPin" size="sm" />
-          <h2 id="coverage-heading" className="text-xl font-bold tracking-tight text-foreground">
-            Where it's available
-          </h2>
+    <section className="rounded-2xl border border-bh-border bg-bh-card p-6 shadow-card">
+      <CardHead icon={MapPin} title="Where it's available" />
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-bh-border bg-bh-page/50 p-3.5">
+        <div className="flex flex-wrap gap-2">
+          {coverage.map((region) => (
+            <span
+              key={region}
+              className="flex items-center gap-2 rounded-full border border-bh-border-dark bg-bh-card px-3 py-1 text-xs font-semibold text-bh-navy"
+            >
+              <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden />
+              {region}
+            </span>
+          ))}
         </div>
-      </Reveal>
-      <Reveal delay={1}>
-        <div
-          className="relative mt-6 overflow-hidden rounded-2xl border border-dashed border-primary/30 p-6 sm:p-8"
-          style={{
-            backgroundImage: 'radial-gradient(circle, rgba(180,83,9,0.14) 1.2px, transparent 1.2px)',
-            backgroundSize: '22px 22px',
-          }}
-        >
-          <div className="flex flex-wrap items-center gap-2.5">
-            {coverage.map((region) => (
-              <span
-                key={region}
-                className="inline-flex min-h-11 items-center gap-2 rounded-full border border-primary/25 bg-background/90 px-4 py-2 text-sm font-semibold text-foreground shadow-sm backdrop-blur transition-transform hover:-translate-y-0.5"
-              >
-                <MapPin className="h-4 w-4 text-primary" aria-hidden />
-                {region}
-              </span>
-            ))}
-          </div>
-          <p className="mt-5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-            <Badge variant="secondary" className="rounded-full font-bold tabular-nums">
-              {coverage.length} {coverage.length === 1 ? 'region' : 'regions'}
-            </Badge>
-            covered by this program
-          </p>
-        </div>
-      </Reveal>
+      </div>
+      <p className="mt-3 text-xs text-bh-muted">
+        {coverage.length} {coverage.length === 1 ? 'region' : 'regions'} covered by this program
+      </p>
     </section>
   )
 }
 
-/** Related programs grid (same entity or category). */
+/** More programs to compare — 2-col reference cards. */
 export function RelatedPrograms({ related }: { related: RelatedProgramCardData[] }) {
   if (related.length === 0) return null
   return (
-    <section aria-labelledby="related-heading">
-      <Reveal>
-        <h2 id="related-heading" className="text-xl font-bold tracking-tight text-foreground">
-          More programs to compare
-        </h2>
-      </Reveal>
-      <RevealGroup className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {related.map((p) => {
-          const cat = PROGRAM_CATEGORIES[p.category] ?? PROGRAM_CATEGORIES.OTHER!
-          const tenor = tenorLabel(p.tenorMinMonths, p.tenorMaxMonths)
-          return (
-            <RevealItem key={p.id} className="h-full">
-              <Link
-                href={`/funding/programs/${p.id}`}
-                className="group flex h-full flex-col rounded-2xl border bg-card p-5 transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-lg hover:shadow-zinc-950/[0.06]"
-              >
-                <div className="flex items-center gap-3">
-                  <IconTile name={cat.icon} size="sm" />
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary">{cat.label}</p>
-                </div>
-                <h3 className="mt-4 text-balance text-base font-bold leading-snug text-foreground">{p.name}</h3>
-                <p className="mt-0.5 text-xs font-medium text-muted-foreground">by {p.entity.name}</p>
-                {p.summary && <p className="mt-2 line-clamp-2 flex-1 text-sm leading-relaxed text-muted-foreground">{p.summary}</p>}
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {p.amountMax != null && (
-                    <Badge variant="secondary" className="rounded-full text-[11px]">
-                      up to {money(p.amountMax, p.currency)}
-                    </Badge>
-                  )}
-                  {tenor && (
-                    <Badge variant="secondary" className="rounded-full text-[11px]">
-                      {tenor}
-                    </Badge>
-                  )}
-                  {p.shariaCompliant && (
-                    <Badge variant="outline" className="gap-1 rounded-full border-emerald-200 bg-emerald-50 text-[11px] text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-400">
-                      <Moon className="h-3 w-3" aria-hidden /> Sharia
-                    </Badge>
-                  )}
-                </div>
-                <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-primary">
-                  View program
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
-                </span>
-              </Link>
-            </RevealItem>
-          )
-        })}
-      </RevealGroup>
+    <section className="pt-4">
+      <h2 className="h2-practical mb-4 text-bh-navy">More programs to compare</h2>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {related.map((p) => (
+          <div
+            key={p.id}
+            className="flex flex-col justify-between rounded-2xl border border-bh-border bg-bh-card p-5 shadow-card transition-all duration-300 hover:shadow-hover"
+          >
+            <div>
+              <div className="mb-2 inline-block rounded bg-bh-bg-gold px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-bh-gold-dark">
+                {PROGRAM_CATEGORIES[p.category]?.label ?? p.category}
+              </div>
+              <h3 className="text-base font-bold text-bh-navy">{p.name}</h3>
+              <p className="mb-3 text-xs text-bh-muted">by {p.entity.name}</p>
+              {p.summary && <p className="mb-4 line-clamp-2 text-xs leading-relaxed text-bh-subtle">{p.summary}</p>}
+              <div className="mb-4 flex flex-wrap gap-2 text-[11px] font-medium text-bh-navy">
+                {(p.amountMin != null || p.amountMax != null) && (
+                  <span className="rounded border border-bh-border bg-bh-page px-2 py-1">
+                    {p.serviceKind === 'ACCREDITATION' ? `fee ${money(p.amountMin ?? p.amountMax, p.currency)}` : moneyRange(p.amountMin, p.amountMax, p.currency)}
+                  </span>
+                )}
+                {tenorLabel(p.tenorMinMonths, p.tenorMaxMonths) && (
+                  <span className="rounded border border-bh-border bg-bh-page px-2 py-1">{tenorLabel(p.tenorMinMonths, p.tenorMaxMonths)}</span>
+                )}
+                {p.shariaCompliant && (
+                  <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-emerald-700">Sharia</span>
+                )}
+              </div>
+            </div>
+            <Link href={`/funding/programs/${p.id}`} className="inline-flex items-center gap-1 text-xs font-semibold text-bh-action transition-colors hover:text-bh-navy-deep">
+              View program <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+            </Link>
+          </div>
+        ))}
+      </div>
     </section>
   )
 }

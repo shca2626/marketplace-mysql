@@ -51,33 +51,33 @@ export default async function InsightArticlePage({ params }: Props) {
           <article className="mx-auto max-w-3xl">
             <Reveal>
               <div className="flex flex-wrap items-center gap-3">
-                <span className="rounded-full bg-primary/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-primary">
+                <span className="rounded-full bg-bh-bg-gold px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-bh-gold-dark">
                   {TOPIC_LABELS[post.topic] ?? post.topic}
                 </span>
-                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1 text-xs text-bh-muted">
                   <Clock className="h-3.5 w-3.5" aria-hidden />
                   {post.readMinutes} min read
                 </span>
               </div>
             </Reveal>
             <Reveal delay={1}>
-              <h1 className="mt-4 text-balance text-3xl font-bold leading-tight tracking-tight sm:text-4xl">{post.title}</h1>
+              <h1 className="mt-4 text-balance text-3xl font-bold leading-tight tracking-tight text-bh-navy sm:text-4xl">{post.title}</h1>
             </Reveal>
             <Reveal delay={2}>
-              <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 border-y py-4 text-sm text-muted-foreground">
-                <span className="inline-flex items-center gap-2 font-medium text-foreground">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary" aria-hidden>
+              <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 border-y border-bh-border py-4 text-sm text-bh-muted">
+                <span className="inline-flex items-center gap-2 font-medium text-bh-navy">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-bh-bg-gold text-bh-gold-dark" aria-hidden>
                     <User className="h-4 w-4" />
                   </span>
                   {post.authorName ?? 'Vendora Newsroom'}
                 </span>
-                {post.authorTitle && <span className="text-muted-foreground/80">{post.authorTitle}</span>}
+                {post.authorTitle && <span className="text-bh-faded">{post.authorTitle}</span>}
                 <span aria-hidden>·</span>
                 <time dateTime={post.publishedAt.toISOString()}>{formatDate(post.publishedAt)}</time>
               </div>
             </Reveal>
             <Reveal delay={3}>
-              <div className="relative mt-8 aspect-[16/8] overflow-hidden rounded-2xl border bg-muted">
+              <div className="relative mt-8 aspect-[16/8] overflow-hidden rounded-2xl border border-bh-border bg-bh-soft-blue">
                 {post.coverUrl ? (
                   <Image
                     src={post.coverUrl}
@@ -95,7 +95,7 @@ export default async function InsightArticlePage({ params }: Props) {
                 {body ? (
                   <Markdown body={body} />
                 ) : (
-                  <p className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+                  <p className="rounded-2xl border border-dashed border-bh-border-dark p-8 text-center text-sm text-bh-muted">
                     This article’s body is being edited — check back shortly.
                   </p>
                 )}
@@ -127,9 +127,9 @@ export default async function InsightArticlePage({ params }: Props) {
                 <Reveal key={p.id} delay={i}>
                   <Link
                     href={`/insights/${p.slug}`}
-                    className="group flex h-full flex-col overflow-hidden rounded-2xl border bg-card transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2"
+                    className="group flex h-full flex-col overflow-hidden rounded-2xl border border-bh-border bg-bh-card shadow-card transition-all duration-300 hover:-translate-y-1 hover:border-bh-gold/40 hover:shadow-hover focus-visible:outline-2 focus-visible:outline-offset-2"
                   >
-                    <span className="relative block aspect-[16/9] overflow-hidden bg-muted">
+                    <span className="relative block aspect-[16/9] overflow-hidden bg-bh-soft-blue">
                       {p.coverUrl ? (
                         <Image
                           src={p.coverUrl}
@@ -141,13 +141,13 @@ export default async function InsightArticlePage({ params }: Props) {
                       ) : null}
                     </span>
                     <span className="flex flex-1 flex-col p-4">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-primary">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-bh-gold-dark">
                         {TOPIC_LABELS[p.topic] ?? p.topic}
                       </span>
-                      <span className="mt-1.5 line-clamp-2 text-sm font-bold leading-snug tracking-tight transition-colors group-hover:text-primary">
+                      <span className="mt-1.5 line-clamp-2 text-sm font-bold leading-snug tracking-tight text-bh-navy transition-colors group-hover:text-bh-action">
                         {p.title}
                       </span>
-                      <span className="mt-auto pt-3 text-xs text-muted-foreground">
+                      <span className="mt-auto pt-3 text-xs text-bh-muted">
                         {formatDate(p.publishedAt)} · {p.readMinutes} min
                       </span>
                     </span>

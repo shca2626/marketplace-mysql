@@ -35,7 +35,7 @@ const COMPARE: {
     key: 'SHOP',
     label: 'Shop',
     icon: 'ShoppingCart',
-    accent: '#d97706',
+    accent: '#d3af3c',
     who: 'Households and small buyers',
     what: 'Retail shopping with engineer-reviewed specs',
     where: { href: '/market', label: 'The market' },
@@ -53,7 +53,7 @@ const COMPARE: {
     key: 'FUND',
     label: 'Fund your project',
     icon: 'Landmark',
-    accent: '#b45309',
+    accent: '#193d8f',
     who: 'Anyone financing a solar project',
     what: 'Binding offers from verified funding entities',
     where: { href: '/funding', label: 'The funding hub' },
@@ -86,7 +86,7 @@ export default async function HowItWorksPage() {
           asChild
           size="lg"
           variant="outline"
-          className="h-12 rounded-full border-amber-400/40 bg-amber-400/5 px-6 text-base text-amber-200 hover:bg-amber-400/15 hover:text-amber-100"
+          className="h-12 rounded-full border-white/25 bg-transparent px-6 text-base text-white hover:bg-white/10 hover:text-white"
         >
           <Link href="/funding">Get funding</Link>
         </Button>
@@ -117,19 +117,19 @@ export default async function HowItWorksPage() {
             sub="Same platform, different doors — here is how they differ before you commit."
           />
           <Reveal className="mt-10">
-            <div className="overflow-hidden rounded-3xl border bg-card">
+            <div className="overflow-hidden rounded-3xl border border-bh-border bg-bh-card shadow-card">
               {/* Desktop table */}
               <div className="hidden lg:grid lg:grid-cols-[150px_repeat(3,1fr)]">
-                <div className="border-b border-r bg-muted/60" aria-hidden />
+                <div className="border-b border-r border-bh-border bg-bh-soft-blue/60" aria-hidden />
                 {COMPARE.map((c) => (
-                  <div key={c.key} className="flex items-center gap-2.5 border-b border-l p-5">
+                  <div key={c.key} className="flex items-center gap-2.5 border-b border-l border-bh-border p-5">
                     <span
                       className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-                      style={{ backgroundColor: `${c.accent}14`, color: c.accent }}
+                      style={{ backgroundColor: `${c.accent}17`, color: c.accent }}
                     >
                       <Icon name={c.icon} className="h-4.5 w-4.5" />
                     </span>
-                    <p className="font-bold tracking-tight">{c.label}</p>
+                    <p className="font-bold tracking-tight text-bh-navy">{c.label}</p>
                   </div>
                 ))}
                 {[
@@ -137,21 +137,21 @@ export default async function HowItWorksPage() {
                   { label: 'What you get', get: (c: (typeof COMPARE)[number]) => c.what },
                 ].map((row) => (
                   <React.Fragment key={row.label}>
-                    <div className="flex items-center border-b border-r bg-muted/60 p-5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    <div className="flex items-center border-b border-r border-bh-border bg-bh-soft-blue/60 p-5 text-xs font-bold uppercase tracking-wider text-bh-muted">
                       {row.label}
                     </div>
                     {COMPARE.map((c) => (
-                      <div key={c.key} className="border-b border-l p-5 text-sm text-muted-foreground">
+                      <div key={c.key} className="border-b border-l border-bh-border p-5 text-sm text-bh-subtle">
                         {row.get(c)}
                       </div>
                     ))}
                   </React.Fragment>
                 ))}
-                <div className="flex items-center border-r bg-muted/60 p-5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                <div className="flex items-center border-r border-bh-border bg-bh-soft-blue/60 p-5 text-xs font-bold uppercase tracking-wider text-bh-muted">
                   Where it starts
                 </div>
                 {COMPARE.map((c) => (
-                  <div key={c.key} className="flex flex-col gap-2 border-l p-5">
+                  <div key={c.key} className="flex flex-col gap-2 border-l border-bh-border p-5">
                     <Link
                       href={c.where.href}
                       className="inline-flex min-h-11 items-center gap-1.5 self-start rounded-xl px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
@@ -161,36 +161,36 @@ export default async function HowItWorksPage() {
                       <ArrowRight className="h-4 w-4" aria-hidden />
                     </Link>
                     {tracks[c.key][0]?.title ? (
-                      <span className="text-xs text-muted-foreground">Starts with “{tracks[c.key][0]!.title}”</span>
+                      <span className="text-xs text-bh-muted">Starts with “{tracks[c.key][0]!.title}”</span>
                     ) : null}
                   </div>
                 ))}
               </div>
 
               {/* Mobile stacked cards */}
-              <div className="divide-y lg:hidden">
+              <div className="divide-y divide-bh-border lg:hidden">
                 {COMPARE.map((c) => (
                   <div key={c.key} className="p-5">
                     <div className="flex items-center gap-2.5">
                       <span
                         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-                        style={{ backgroundColor: `${c.accent}14`, color: c.accent }}
+                        style={{ backgroundColor: `${c.accent}17`, color: c.accent }}
                       >
                         <Icon name={c.icon} className="h-4.5 w-4.5" />
                       </span>
-                      <p className="font-bold tracking-tight">{c.label}</p>
+                      <p className="font-bold tracking-tight text-bh-navy">{c.label}</p>
                     </div>
                     <dl className="mt-4 space-y-3 text-sm">
                       <div className="flex flex-col gap-0.5">
-                        <dt className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Who it’s for</dt>
-                        <dd className="text-muted-foreground">{c.who}</dd>
+                        <dt className="text-xs font-bold uppercase tracking-wider text-bh-muted">Who it’s for</dt>
+                        <dd className="text-bh-subtle">{c.who}</dd>
                       </div>
                       <div className="flex flex-col gap-0.5">
-                        <dt className="text-xs font-bold uppercase tracking-wider text-muted-foreground">What you get</dt>
-                        <dd className="text-muted-foreground">{c.what}</dd>
+                        <dt className="text-xs font-bold uppercase tracking-wider text-bh-muted">What you get</dt>
+                        <dd className="text-bh-subtle">{c.what}</dd>
                       </div>
                       <div className="flex flex-col gap-0.5">
-                        <dt className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Where it starts</dt>
+                        <dt className="text-xs font-bold uppercase tracking-wider text-bh-muted">Where it starts</dt>
                         <dd>
                           <Link
                             href={c.where.href}
