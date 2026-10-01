@@ -15,7 +15,7 @@ const parseMetadata = (s: string | null): unknown => {
 
 // GET /api/admin/audit-logs — paginated platform audit trail
 export async function GET(req: NextRequest) {
-  const { error } = await requireAdmin()
+  const { error } = await requireAdmin('audit.view')
   if (error) return error
   try {
     const { searchParams } = new URL(req.url)

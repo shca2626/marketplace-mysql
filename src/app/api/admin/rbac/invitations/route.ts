@@ -1,0 +1,50 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { requireAdmin } from '@/server/guards'
+import { assertSameOrigin } from '@/lib/http'
+import { createInvitation, listInvitations, RbacServiceError } from '@/server/modules/rbac/service'
+
+// GET /api/admin/rbac/invitations — staff invitation list
+export async function GET() {
+  const { error } = await requireAdmin('staff.view')
+  if (error) return error
+  try {
+    const invitations = await listInvitations()
+    return NextResponse.json({ invitations })
+  } catch (err) {
+    console.error('rbac invitations GET error', err)
+    return NextResponse.json({ error: 'Failed to load invitations' }, { status: 500 })
+  }
+}
+
+const inviteSchema = z.object({
+  email: z.string().trim().email('Enter a valid email address'),
+  name: z.string().trim().max(60).nullable().optional(),
+  roleId: z.string().min(1),
+})
+
+// POST /api/admin/rbac/invitations — invite new platform staff by email
+export async function POST(req: NextRequest) {
+  const csrf = assertSameOrigin(req)
+  if (csrf) return csrf
+
+  const { user, error } = await requireAdmin('staff.invite')
+  if (error) return error
+  try {
+    const parsed = inviteSchema.safeParse(await req.json())
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message ?? 'Invalid input' },
+        { status: 400 }
+      )
+    }
+    const invitation = await createInvitation(user!, parsed.data)
+    return NextResponse.json({ invitation }, { status: 201 })
+  } catch (err) {
+    if (err instanceof RbacServiceError) {
+      return NextResponse.json({ error: err.message }, { status: err.status })
+    }
+    console.error('rbac invitations POST error', err)
+    return NextResponse.json({ error: 'Failed to create invitation' }, { status: 500 })
+  }
+}

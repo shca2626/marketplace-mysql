@@ -5,6 +5,7 @@ import { getSessionUser } from '@/lib/auth'
 import { favoriteIdsFor, productInclude, serializeProduct, serializeReview } from '@/lib/serialize'
 import { ensureUniqueSlug, productFormSchema } from '@/server/modules/products/service'
 import { recordAudit } from '@/server/modules/audit/service'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 
@@ -80,8 +81,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const { id } = await ctx.params
     const user = await getSessionUser()
     if (!user) return NextResponse.json({ error: 'Please sign in first' }, { status: 401 })
-    if (user.role !== 'ADMIN')
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+    // RBAC Phase 2: legacy admins bypass; staff need the catalog moderation
+    // permission (e.g. the Catalog Moderator role).
+    if (user.role !== 'ADMIN' && !(await userHasPlatformPermission(user.id, 'catalog.products.moderate')))
+      return NextResponse.json(
+        { error: 'Access denied — moderating products requires the "catalog.products.moderate" permission.' },
+        { status: 403 }
+      )
 
     const rl = enforceRateLimit(req, 'productWrite', RATE_LIMITS.productWrite, user.id)
     if (rl) return rl

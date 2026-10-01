@@ -7,7 +7,7 @@ import { FinancingError } from '@/server/modules/financing/shared'
 // POST /api/admin/financing/fees/[id]/mark-invoiced — ACCRUED → INVOICED
 // (the fee was invoiced to the financier externally — D-002).
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('financing.fees.manage')
   if (error) return error
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf

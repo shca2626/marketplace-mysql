@@ -27,7 +27,7 @@ const updateSchema = z.object({
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ orgId: string }> }) {
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('financing.institutions.manage')
   if (error) return error
   const rl = enforceRateLimit(req, 'admin:institution-update', { limit: 30, windowMs: 60_000 }, user.id)
   if (rl) return rl

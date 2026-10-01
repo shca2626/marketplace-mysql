@@ -20,7 +20,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
 
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('vendors.verify')
   if (error) return error
   try {
     const { id } = await ctx.params

@@ -5,7 +5,7 @@ import { adminListQuotes, RfqServiceError } from '@/server/modules/rfq/service'
 // GET /api/admin/quotes?status= — quote routing-review queue (ADMIN only).
 
 export async function GET(req: NextRequest) {
-  const { error } = await requireAdmin()
+  const { error } = await requireAdmin('rfq.pipeline.view')
   if (error) return error
   try {
     const { searchParams } = new URL(req.url)

@@ -5,6 +5,7 @@ import { setSessionCookie, toSessionUser, verifyPassword } from '@/lib/auth'
 import { assertSameOrigin, clientIp, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS, resetRateLimit } from '@/lib/rate-limit'
 import { recordAudit } from '@/server/modules/audit/service'
+import { buildSessionRbac } from '@/server/modules/rbac/service'
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -74,7 +75,8 @@ export async function POST(req: NextRequest) {
       summary: `Signed in: ${user.email}`,
     })
     resetRateLimit(`login:${clientIp(req)}`)
-    return NextResponse.json({ user: toSessionUser(user) })
+    const rbac = await buildSessionRbac(user)
+    return NextResponse.json({ user: toSessionUser(user, rbac) })
   } catch (err) {
     console.error('login error', err)
     return NextResponse.json({ error: 'Login failed' }, { status: 500 })

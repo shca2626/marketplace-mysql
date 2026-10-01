@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { getSessionUser, toSessionUser } from '@/lib/auth'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { recordAudit } from '@/server/modules/audit/service'
+import { buildSessionRbac } from '@/server/modules/rbac/service'
 
 const schema = z.object({
   storeName: z.string().min(2, 'Store name must be at least 2 characters').max(60),
@@ -22,7 +23,10 @@ export async function POST(req: NextRequest) {
     const rl = enforceRateLimit(req, 'become-seller', { limit: 5, windowMs: 10 * 60_000 }, user.id)
     if (rl) return rl
 
-    if (user.role === 'SELLER') return NextResponse.json({ user: toSessionUser(user) })
+    if (user.role === 'SELLER') {
+      const rbac = await buildSessionRbac(user)
+      return NextResponse.json({ user: toSessionUser(user, rbac) })
+    }
     // Admins must not lose their platform role through the storefront flow —
     // this guard prevents the "admin downgraded to seller" regression.
     if (user.role === 'ADMIN') {
@@ -59,7 +63,8 @@ export async function POST(req: NextRequest) {
       summary: `Account upgraded to seller: "${updated.storeName}"`,
     })
 
-    return NextResponse.json({ user: toSessionUser(updated) })
+    const rbac = await buildSessionRbac(updated)
+    return NextResponse.json({ user: toSessionUser(updated, rbac) })
   } catch (err) {
     console.error('become-seller error', err)
     return NextResponse.json({ error: 'Failed to upgrade account' }, { status: 500 })

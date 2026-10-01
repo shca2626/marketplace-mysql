@@ -14,7 +14,7 @@ import { FinancingError } from '@/server/modules/financing/shared'
 const schema = z.object({ reason: z.string().trim().min(3).max(500) })
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('financing.gate.review')
   if (error) return error
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf

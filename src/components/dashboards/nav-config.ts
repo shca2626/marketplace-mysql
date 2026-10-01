@@ -20,6 +20,7 @@ import {
   Palette,
   Scale,
   ScrollText,
+  ShieldCheck,
   Store,
   Tags,
   Ticket,
@@ -52,6 +53,9 @@ export interface NavItem {
   params?: ViewParams
   /** Optional static badge (e.g. "New") rendered on the item. */
   badge?: string
+  /** RBAC Phase 2 — platform permission required to see this admin section.
+   *  Undefined = visible to every console user; legacy ADMIN sees all. */
+  permission?: string
 }
 
 export interface NavGroup {
@@ -82,46 +86,48 @@ export const ADMIN_NAV: NavConfig = {
           label: 'Overview',
           icon: LayoutDashboard,
           description: 'Live marketplace KPIs & activity',
+          permission: 'platform.overview.view',
         },
       ],
     },
     {
       label: 'Operations',
       items: [
-        { key: 'vendors', label: 'Vendors', icon: StoreIcon, description: 'Seller directory, verification & suspension' },
-        { key: 'products', label: 'Products', icon: Package, description: 'Full catalog moderation & takedowns' },
-        { key: 'orders', label: 'Orders', icon: ShoppingBag, description: 'Every order across the marketplace' },
-        { key: 'organizations', label: 'Organizations', icon: Building2, description: 'Companies, banks, MFIs & e-wallets' },
-        { key: 'pricing', label: 'Pricing & Lists', icon: Tags, description: 'Price lists & customer groups' },
-        { key: 'coupons', label: 'Coupons', icon: Ticket, description: 'Promotions & discount codes' },
+        { key: 'vendors', label: 'Vendors', icon: StoreIcon, description: 'Seller directory, verification & suspension', permission: 'vendors.view' },
+        { key: 'products', label: 'Products', icon: Package, description: 'Full catalog moderation & takedowns', permission: 'catalog.products.view' },
+        { key: 'orders', label: 'Orders', icon: ShoppingBag, description: 'Every order across the marketplace', permission: 'orders.view' },
+        { key: 'organizations', label: 'Organizations', icon: Building2, description: 'Companies, banks, MFIs & e-wallets', permission: 'orgs.view' },
+        { key: 'pricing', label: 'Pricing & Lists', icon: Tags, description: 'Price lists & customer groups', permission: 'pricing.view' },
+        { key: 'coupons', label: 'Coupons', icon: Ticket, description: 'Promotions & discount codes', permission: 'coupons.view' },
       ],
     },
     {
       label: 'Finance',
       items: [
-        { key: 'payments', label: 'Payments', icon: Receipt, description: 'Money settlement & capture queue' },
-        { key: 'payouts', label: 'Payouts', icon: Banknote, description: 'Vendor settlement & commission' },
-        { key: 'financing', label: 'Financing', icon: Landmark, description: 'Verification gate, financiers & fees' },
+        { key: 'payments', label: 'Payments', icon: Receipt, description: 'Money settlement & capture queue', permission: 'payments.view' },
+        { key: 'payouts', label: 'Payouts', icon: Banknote, description: 'Vendor settlement & commission', permission: 'payouts.view' },
+        { key: 'financing', label: 'Financing', icon: Landmark, description: 'Verification gate, financiers & fees', permission: 'financing.gate.view' },
       ],
     },
     {
       label: 'B2B Engine',
       items: [
-        { key: 'rfqs', label: 'RFQ Pipeline', icon: FileText, description: 'Requests for quote & negotiations' },
-        { key: 'disputes', label: 'Disputes', icon: Scale, description: 'Resolution queue & outcomes' },
+        { key: 'rfqs', label: 'RFQ Pipeline', icon: FileText, description: 'Requests for quote & negotiations', permission: 'rfq.pipeline.view' },
+        { key: 'disputes', label: 'Disputes', icon: Scale, description: 'Resolution queue & outcomes', permission: 'disputes.view' },
       ],
     },
     {
       label: 'Configuration',
       items: [
-        { key: 'rfq-settings', label: 'RFQ Settings', icon: SlidersHorizontal, description: '22 scoped behavior panels' },
-        { key: 'storefront', label: 'Storefront Designer', icon: Palette, description: 'Branding, theme & hero slides' },
+        { key: 'rbac', label: 'Roles & Access', icon: ShieldCheck, description: 'Permissions, staff & teams', permission: 'staff.view', badge: 'New' },
+        { key: 'rfq-settings', label: 'RFQ Settings', icon: SlidersHorizontal, description: '22 scoped behavior panels', permission: 'rfq.settings.manage' },
+        { key: 'storefront', label: 'Storefront Designer', icon: Palette, description: 'Branding, theme & hero slides', permission: 'storefront.manage' },
       ],
     },
     {
       label: 'Compliance',
       items: [
-        { key: 'audit', label: 'Audit Log', icon: ScrollText, description: 'Immutable trail of critical actions' },
+        { key: 'audit', label: 'Audit Log', icon: ScrollText, description: 'Immutable trail of critical actions', permission: 'audit.view' },
       ],
     },
   ],
@@ -139,6 +145,7 @@ export const ADMIN_NAV: NavConfig = {
     rfqs: { title: 'RFQ Pipeline', description: 'Every request for quote, negotiation and conversion on the platform.' },
     disputes: { title: 'Disputes', description: 'Resolution queue with escalation paths and outcomes.' },
     'rfq-settings': { title: 'RFQ Settings', description: 'Scoped behavior configuration with change history & rollback.' },
+    rbac: { title: 'Roles & Access', description: 'The RBAC control center — permissions, platform staff, organization teams and invitations.' },
     storefront: { title: 'Storefront Designer', description: 'Brand the public marketplace: name, logo, theme, hero slides.' },
     audit: { title: 'Audit Log', description: 'Immutable, signed record of critical platform actions.' },
   },

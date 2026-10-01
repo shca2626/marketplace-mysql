@@ -9,7 +9,7 @@ import { adminAccreditationQueue } from '@/server/modules/financing/accreditatio
 // accreditation requests in SUBMITTED/UNDER_PLATFORM_REVIEW/RETURNED).
 // ?type=FINANCING|ACCREDITATION (default: both). Status + search + pagination.
 export async function GET(req: NextRequest) {
-  const { error } = await requireAdmin()
+  const { error } = await requireAdmin('financing.gate.view')
   if (error) return error
   try {
     const sp = req.nextUrl.searchParams

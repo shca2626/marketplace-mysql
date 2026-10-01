@@ -21,7 +21,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
 
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('pricing.manage')
   if (error) return error
   try {
     const { id } = await ctx.params

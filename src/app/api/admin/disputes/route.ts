@@ -6,7 +6,7 @@ import { adminListDisputes, DisputeServiceError } from '@/server/modules/rfq/dis
 // status filter: OPEN | SELLER_RESPONDED | ESCALATED | RESOLVED | CANCELLED | ALL
 
 export async function GET(req: NextRequest) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('disputes.view')
   if (error) return error
   try {
     const { searchParams } = new URL(req.url)

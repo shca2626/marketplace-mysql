@@ -7,7 +7,7 @@ import { FinancingError } from '@/server/modules/financing/shared'
 // POST /api/admin/financing/fees/[id]/mark-paid — INVOICED → PAID (the
 // external collection landed; mirrors the Payout mark-paid console).
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('financing.fees.manage')
   if (error) return error
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf

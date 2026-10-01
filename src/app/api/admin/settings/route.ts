@@ -17,7 +17,7 @@ async function requireAdmin() {
 }
 
 export async function GET() {
-  const guard = await requireAdmin()
+  const guard = await requireAdmin('storefront.manage')
   if (guard.error) return guard.error
   try {
     const [settings, slides] = await Promise.all([getStorefrontSettings(), getAllSlides()])
@@ -29,7 +29,7 @@ export async function GET() {
 }
 
 export async function PUT(req: NextRequest) {
-  const guard = await requireAdmin()
+  const guard = await requireAdmin('storefront.manage')
   if (guard.error) return guard.error
 
   const csrf = assertSameOrigin(req)

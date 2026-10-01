@@ -234,8 +234,10 @@ export function Header() {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {/* Role-aware dashboard entry — the internal dashboards are separate
-                    surfaces; the storefront menu is the doorway to them. */}
-                {user.role === 'ADMIN' && (
+                    surfaces; the storefront menu is the doorway to them.
+                    RBAC Phase 2: platform staff (scoped role holders) enter the
+                    admin console too — the server guards their actual reach. */}
+                {(user.role === 'ADMIN' || user.isPlatformStaff) && (
                   <DropdownMenuItem onClick={() => navigate('admin')} className="cursor-pointer font-medium">
                     <BarChart3 size={15} className="mr-2" /> Admin dashboard
                   </DropdownMenuItem>

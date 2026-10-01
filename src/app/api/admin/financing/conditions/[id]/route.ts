@@ -35,7 +35,7 @@ const patchSchema = z.object({
 // PATCH /api/admin/financing/conditions/[id] — update / deactivate a GENERAL
 // library condition.
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('financing.requirements.manage')
   if (error) return error
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf

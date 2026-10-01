@@ -4,6 +4,7 @@ import { getSessionUser } from '@/lib/auth'
 import { enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 import { checkMySqlServer } from '@/lib/mysql-check'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 
 // /api/admin/stats — READ-ONLY platform analytics overview.
 // Admin-only (session role check); aggregates existing data, writes nothing.
@@ -15,8 +16,12 @@ export async function GET(req: NextRequest) {
   try {
     const user = await getSessionUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    if (user.role !== 'ADMIN')
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+    // RBAC Phase 2: legacy admins bypass; platform staff need overview access.
+    if (user.role !== 'ADMIN' && !(await userHasPlatformPermission(user.id, 'platform.overview.view')))
+      return NextResponse.json(
+        { error: 'Access denied — the platform overview requires the "platform.overview.view" permission.' },
+        { status: 403 }
+      )
 
     // MySQL diagnostics branch (MYSQLTOOL-1) — report only, never writes.
     if (req.nextUrl.searchParams.get('mysql') === '1') {

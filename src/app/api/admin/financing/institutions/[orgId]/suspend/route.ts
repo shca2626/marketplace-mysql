@@ -8,7 +8,7 @@ import { FinancingError } from '@/server/modules/financing/shared'
 // institution: org → SUSPENDED (staff notified; public directory drops their
 // services). ?reactivate=true flips back to ACTIVE.
 export async function POST(req: NextRequest, ctx: { params: Promise<{ orgId: string }> }) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('financing.institutions.manage')
   if (error) return error
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf

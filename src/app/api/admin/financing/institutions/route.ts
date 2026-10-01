@@ -9,7 +9,7 @@ import { FinancingError } from '@/server/modules/financing/shared'
 // with OR without a profile) + stats (services, forwarded requests, live
 // accreditations, fees).
 export async function GET(req: NextRequest) {
-  const { error } = await requireAdmin()
+  const { error } = await requireAdmin('financing.institutions.manage')
   if (error) return error
   try {
     const sp = req.nextUrl.searchParams
@@ -59,7 +59,7 @@ const createSchema = z
 export async function POST(req: NextRequest) {
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('financing.institutions.manage')
   if (error) return error
   const rl = enforceRateLimit(req, 'admin:institution-create', { limit: 20, windowMs: 60_000 }, user.id)
   if (rl) return rl

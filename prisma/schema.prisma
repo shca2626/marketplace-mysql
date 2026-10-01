@@ -108,6 +108,9 @@ model User {
   digests    NotificationDigest[]
   digestPref UserDigestPref?
 
+  // ── RBAC role assignments (mergedplan.md Phase 2) ──
+  roleAssignments UserRole[]
+
   @@index([role])
 }
 
@@ -826,6 +829,88 @@ model AuditLog {
 model Sequence {
   key   String @id
   value Int    @default(0)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RBAC — roles, permissions & scoped assignments (mergedplan.md Phase 2)
+//
+// Answers owner gap #2/#3: full RBAC visibility, platform staff management
+// with scoped roles, and per-organization team roles. Scope model:
+//   • PLATFORM scope → UserRole.organizationId = "" (platform staff)
+//   • ORG scope       → UserRole.organizationId = <org id> (team members)
+// System roles are seeded by scripts/seed-rbac.ts and cannot be deleted;
+// platform.super-admin is the only fully locked role. User.role stays as the
+// legacy coarse column (BUYER/SELLER/ADMIN) — ADMIN is an implicit
+// super-admin bypass everywhere; staff users keep role=BUYER and gain
+// console access purely through role assignments.
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Permission {
+  key         String            @id // e.g. "financing.documents.verify"
+  domain      String            // catalog | vendors | financing | org-members | ... (UI grouping key)
+  description String?           @db.Text // MYSQL: free-form help text
+  roles       RolePermission[]
+
+  @@index([domain])
+}
+
+model Role {
+  id          String            @id @default(cuid())
+  key         String            @unique // e.g. "platform.super-admin" | "org.admin" | "custom.platform.x"
+  name        String
+  description String?           @db.Text // MYSQL: free-form description
+  scope       String            // PLATFORM | ORG
+  isSystem    Boolean           @default(false) // seeded, undeletable
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  permissions RolePermission[]
+  assignments UserRole[]
+  invitations StaffInvitation[]
+
+  @@index([scope])
+}
+
+model RolePermission {
+  roleId         String
+  permissionKey  String
+  role           Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission     Permission @relation(fields: [permissionKey], references: [key], onDelete: Cascade)
+
+  @@id([roleId, permissionKey])
+}
+
+model UserRole {
+  id             String   @id @default(cuid())
+  userId         String
+  roleId         String
+  organizationId String   @default("") // "" = platform scope; otherwise org id (loose FK — keeps composite unique simple on MySQL)
+  assignedAt     DateTime @default(now())
+  assignedBy     String? // admin user id (loose FK)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId, organizationId])
+  @@index([userId])
+  @@index([organizationId])
+}
+
+model StaffInvitation {
+  id             String    @id @default(cuid())
+  email          String
+  name           String?
+  roleId         String
+  organizationId String    @default("") // "" = platform staff
+  token          String    @unique
+  status         String    @default("PENDING") // PENDING | ACCEPTED | REVOKED
+  invitedBy      String // admin user id (loose FK)
+  invitedByName  String?
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  role           Role      @relation(fields: [roleId], references: [id])
+
+  @@index([email])
+  @@index([organizationId, status])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

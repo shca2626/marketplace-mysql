@@ -34,7 +34,7 @@ async function requireAdmin() {
 type RouteContext = { params: Promise<{ id: string }> }
 
 export async function PUT(req: NextRequest, { params }: RouteContext) {
-  const guard = await requireAdmin()
+  const guard = await requireAdmin('storefront.manage')
   if (guard.error) return guard.error
 
   const csrf = assertSameOrigin(req)
@@ -89,7 +89,7 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
 }
 
 export async function DELETE(req: NextRequest, { params }: RouteContext) {
-  const guard = await requireAdmin()
+  const guard = await requireAdmin('storefront.manage')
   if (guard.error) return guard.error
 
   const csrf = assertSameOrigin(req)

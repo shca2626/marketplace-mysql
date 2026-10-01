@@ -9,7 +9,7 @@ import {
 
 // GET /api/admin/organizations — every business account (filterable)
 export async function GET(req: NextRequest) {
-  const { error } = await requireAdmin()
+  const { error } = await requireAdmin('orgs.view')
   if (error) return error
   try {
     const { searchParams } = new URL(req.url)
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
 
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('orgs.view')
   if (error) return error
   try {
     const body = await req.json()

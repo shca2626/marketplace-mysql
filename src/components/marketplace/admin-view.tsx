@@ -6,6 +6,12 @@
 // URL-addressable via ?view=admin&tab=<section> so links are shareable and
 // the browser back/forward buttons work. Content sections are the existing,
 // battle-tested tab components — only the shell changed.
+//
+// RBAC (mergedplan.md Phase 2): entry is granted to legacy ADMINs (implicit
+// super-admins) and to platform staff (users holding any platform-scope
+// role). The nav is filtered per the user's effective permissions, and each
+// admin API enforces the same keys server-side — the UI filter is cosmetic,
+// the guards are the security boundary.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useMemo } from 'react'
@@ -13,7 +19,8 @@ import { ShieldAlert, ShieldCheck } from 'lucide-react'
 import { useMarketplace } from '@/store/marketplace'
 import { DashboardLayout, PageHeader, SignInRequired, AccessDenied } from '@/components/dashboards/dashboard-layout'
 import { ADMIN_NAV } from '@/components/dashboards/nav-config'
-import type { NavItem } from '@/components/dashboards/nav-config'
+import type { NavConfig, NavItem } from '@/components/dashboards/nav-config'
+import type { SessionUser } from '@/lib/types'
 import { AuditTab } from './admin/audit-tab'
 import { CouponsTab } from './admin/coupons-tab'
 import { OrganizationsTab } from './admin/organizations-tab'
@@ -27,17 +34,48 @@ import { AdminOrdersTab } from './admin/orders-tab'
 import { PaymentsTab } from './admin/payments-tab'
 import { PayoutsTab } from './admin/payouts-tab'
 import { FinancingTab } from './admin/financing-tab'
+import { RbacTab } from './admin/rbac-tab'
 import { AdminSettings } from './admin-settings'
 import { RfqSettings } from './admin/settings/rfq-settings'
 
-function AdminDashboard() {
+function hasPermission(user: SessionUser | null, permission?: string): boolean {
+  if (!permission) return true
+  if (!user) return false
+  if (user.role === 'ADMIN') return true
+  return (user.permissions ?? []).includes(permission)
+}
+
+function filterNavByPermissions(nav: NavConfig, user: SessionUser | null): NavConfig {
+  if (user?.role === 'ADMIN') return nav
+  const permissions = user?.permissions ?? []
+  return {
+    ...nav,
+    groups: nav.groups
+      .map((g) => ({ ...g, items: g.items.filter((i) => !i.permission || permissions.includes(i.permission)) }))
+      .filter((g) => g.items.length > 0),
+  }
+}
+
+function AdminDashboard({ user }: { user: SessionUser | null }) {
   const navigate = useMarketplace((s) => s.navigate)
   const params = useMarketplace((s) => s.params)
-  const activeSection = params.adminTab ?? 'overview'
+  const requested = params.adminTab ?? 'overview'
+
+  const nav = useMemo(() => filterNavByPermissions(ADMIN_NAV, user), [user])
 
   const onNavigate = (item: NavItem) => {
     navigate('admin', { adminTab: item.key === 'overview' ? undefined : item.key })
   }
+
+  // A staff user deep-linking to a section they cannot see falls back to the
+  // overview instead of an empty shell — the API would 403 anyway.
+  const activeSection = useMemo(
+    () =>
+      ADMIN_NAV.groups.flatMap((g) => g.items).some((i) => i.key === requested && hasPermission(user, i.permission))
+        ? requested
+        : 'overview',
+    [requested, user]
+  )
 
   const { icon: headerIcon, title, description } = useMemo(() => {
     const t = ADMIN_NAV.titles[activeSection] ?? ADMIN_NAV.titles.overview
@@ -46,7 +84,7 @@ function AdminDashboard() {
   }, [activeSection])
 
   return (
-    <DashboardLayout role="admin" nav={ADMIN_NAV} activeKey={activeSection} onNavigate={onNavigate}>
+    <DashboardLayout role="admin" nav={nav} activeKey={activeSection} onNavigate={onNavigate}>
       <PageHeader icon={headerIcon} title={title} description={description} />
       {activeSection === 'overview' && <OverviewTab />}
       {activeSection === 'vendors' && <VendorsTab />}
@@ -60,6 +98,7 @@ function AdminDashboard() {
       {activeSection === 'coupons' && <CouponsTab />}
       {activeSection === 'rfqs' && <RfqsTab />}
       {activeSection === 'disputes' && <DisputesTab />}
+      {activeSection === 'rbac' && <RbacTab />}
       {activeSection === 'rfq-settings' && <RfqSettings />}
       {activeSection === 'storefront' && <AdminSettings />}
       {activeSection === 'audit' && <AuditTab />}
@@ -76,21 +115,23 @@ export function AdminView() {
       <SignInRequired
         icon={ShieldCheck}
         title="Admin dashboard"
-        description="Sign in with a platform administrator account to operate the marketplace."
+        description="Sign in with a platform administrator or staff account to operate the marketplace."
         afterView="admin"
       />
     )
   }
 
-  if (user && user.role !== 'ADMIN') {
+  // RBAC Phase 2: legacy admins always enter; platform staff (any
+  // platform-scope role) enter with a permission-filtered console.
+  if (user && authChecked && user.role !== 'ADMIN' && !user.isPlatformStaff) {
     return (
       <AccessDenied
         icon={ShieldAlert}
         title="Admin access required"
-        description="The admin dashboard is restricted to marketplace administrators."
+        description="This console is restricted to platform administrators and staff. Ask an administrator to grant you a staff role."
       />
     )
   }
 
-  return <AdminDashboard />
+  return <AdminDashboard user={user} />
 }

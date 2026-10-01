@@ -10,7 +10,7 @@ import { FinancingError, GateBlockedError } from '@/server/modules/financing/sha
 // when every REQUIRED submission is VERIFIED or WAIVED-with-note (checked
 // inside the same transaction). Otherwise 422 with the blocking items.
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('financing.gate.review')
   if (error) return error
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf

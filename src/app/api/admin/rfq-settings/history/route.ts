@@ -6,7 +6,7 @@ import { listHistory, validateScope, SettingsServiceError } from '@/server/modul
 // GET ?key=&scopeType=&scopeId=&limit= → newest-first change rows.
 
 export async function GET(req: NextRequest) {
-  const { error } = await requireAdmin()
+  const { error } = await requireAdmin('rfq.settings.manage')
   if (error) return error
   try {
     const url = new URL(req.url)

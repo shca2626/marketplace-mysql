@@ -5,7 +5,7 @@ import { adminListFees } from '@/server/modules/financing/agreements'
 // GET /api/admin/financing/fees — the fee console: FinancingFee rows with
 // agreement context (ACCRUED → INVOICED → PAID mirrors the Payout console).
 export async function GET(req: NextRequest) {
-  const { error } = await requireAdmin()
+  const { error } = await requireAdmin('financing.fees.manage')
   if (error) return error
   try {
     const sp = req.nextUrl.searchParams

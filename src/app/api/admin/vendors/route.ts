@@ -5,7 +5,7 @@ import { listVendors } from '@/server/modules/vendors/service'
 // GET /api/admin/vendors — the platform vendor directory with marketplace
 // metrics (products, units sold, GMV, rating, verification, lifecycle status).
 export async function GET(req: NextRequest) {
-  const { error } = await requireAdmin()
+  const { error } = await requireAdmin('vendors.view')
   if (error) return error
   try {
     const sp = req.nextUrl.searchParams

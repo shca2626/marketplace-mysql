@@ -10,7 +10,7 @@ import { rollbackChange, SettingsServiceError } from '@/server/modules/settings/
 const rollbackSchema = z.object({ changeId: z.string().trim().min(1).max(64) })
 
 export async function POST(req: NextRequest) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('rfq.settings.manage')
   if (error) return error
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf

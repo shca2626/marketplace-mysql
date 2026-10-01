@@ -14,7 +14,7 @@ const resolveSchema = z.object({
 })
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('disputes.resolve')
   if (error) return error
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf

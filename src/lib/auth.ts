@@ -99,17 +99,20 @@ export async function getSessionUser() {
   return user
 }
 
-export function toSessionUser(user: {
-  id: string
-  name: string
-  email: string
-  role: string
-  image?: string | null
-  storeName?: string | null
-  storeBio?: string | null
-  createdAt?: Date
-  emailVerifiedAt?: Date | null
-}): SessionUser {
+export function toSessionUser(
+  user: {
+    id: string
+    name: string
+    email: string
+    role: string
+    image?: string | null
+    storeName?: string | null
+    storeBio?: string | null
+    createdAt?: Date
+    emailVerifiedAt?: Date | null
+  },
+  rbac?: { permissions: string[]; isPlatformStaff: boolean }
+) {
   return {
     id: user.id,
     name: user.name,
@@ -120,6 +123,11 @@ export function toSessionUser(user: {
     storeBio: user.storeBio ?? null,
     createdAt: user.createdAt ? user.createdAt.toISOString() : undefined,
     emailVerifiedAt: user.emailVerifiedAt ? user.emailVerifiedAt.toISOString() : null,
+    // RBAC (Phase 2): effective platform permissions + console-access flag.
+    // Legacy admins implicitly hold everything, so callers may omit the block
+    // for them; buyers without staff roles get empty arrays.
+    permissions: rbac?.permissions ?? (user.role === 'ADMIN' ? undefined : []),
+    isPlatformStaff: rbac?.isPlatformStaff ?? (user.role === 'ADMIN' ? true : undefined),
   }
 }
 

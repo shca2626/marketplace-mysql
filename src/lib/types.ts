@@ -11,6 +11,71 @@ export interface SessionUser {
   createdAt?: string
   /** AUTHSEC-1: null until the user confirms their email via the emailed link. */
   emailVerifiedAt?: string | null
+  // ── RBAC (mergedplan.md Phase 2) ──
+  /** Effective platform permissions (legacy ADMIN implicitly holds all). */
+  permissions?: string[]
+  /** True when the user may enter the admin console (legacy ADMIN or platform role holder). */
+  isPlatformStaff?: boolean
+}
+
+// ── RBAC DTOs (Roles & Access console) ──────────────────────────────────────
+
+export interface RbacRoleDTO {
+  id: string
+  key: string
+  name: string
+  description: string | null
+  scope: 'PLATFORM' | 'ORG'
+  isSystem: boolean
+  permissions: string[]
+  memberCount: number
+  createdAt: string
+}
+
+export interface RbacAssignmentDTO {
+  id: string
+  userId: string
+  userName: string
+  userEmail: string
+  userRole: string
+  roleId: string
+  roleKey: string
+  roleName: string
+  roleScope: 'PLATFORM' | 'ORG'
+  organizationId: string
+  organizationName: string | null
+  assignedAt: string
+}
+
+export interface RbacStaffDTO {
+  userId: string
+  name: string
+  email: string
+  userRole: string
+  isSuperAdmin: boolean
+  permissions: string[]
+  roles: { assignmentId: string; roleId: string; roleName: string; roleKey: string; assignedAt: string }[]
+}
+
+export interface RbacStaffUserDTO {
+  id: string
+  name: string
+  email: string
+  role: string
+}
+
+export interface RbacInvitationDTO {
+  id: string
+  email: string
+  name: string | null
+  roleId: string
+  roleKey: string
+  roleName: string
+  status: 'PENDING' | 'ACCEPTED' | 'REVOKED'
+  invitedByName: string | null
+  expiresAt: string
+  createdAt: string
+  token: string
 }
 
 export interface CategoryDTO {

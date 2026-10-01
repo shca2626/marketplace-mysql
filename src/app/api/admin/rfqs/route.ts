@@ -4,7 +4,7 @@ import { adminListRfqs, RfqServiceError } from '@/server/modules/rfq/service'
 
 // GET /api/admin/rfqs — platform-wide RFQ monitor (filterable)
 export async function GET(req: NextRequest) {
-  const { error } = await requireAdmin()
+  const { error } = await requireAdmin('rfq.pipeline.view')
   if (error) return error
   try {
     const { searchParams } = new URL(req.url)

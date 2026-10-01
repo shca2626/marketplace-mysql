@@ -13,7 +13,7 @@ import { FinancingError } from '@/server/modules/financing/shared'
 // profile + vault documents alongside (documents?userId= on /api/documents
 // is admin-visible via the dossier payload).
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { error } = await requireAdmin()
+  const { error } = await requireAdmin('financing.gate.review')
   if (error) return error
   try {
     const { id } = await ctx.params

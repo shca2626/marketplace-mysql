@@ -16,7 +16,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
 
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('pricing.manage')
   if (error) return error
   try {
     const { id } = await ctx.params
@@ -38,7 +38,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
 // DELETE /api/admin/customer-groups/[id]
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('pricing.manage')
   if (error) return error
   try {
     const { id } = await ctx.params

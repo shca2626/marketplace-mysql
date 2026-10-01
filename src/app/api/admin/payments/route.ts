@@ -5,7 +5,7 @@ import { adminListPayments, checkoutMethods, getPaymentsConfig } from '@/server/
 // GET /api/admin/payments — money settlement console: every payment with its
 // order + buyer context, filterable by status/method/search.
 export async function GET(req: NextRequest) {
-  const { error } = await requireAdmin()
+  const { error } = await requireAdmin('payments.view')
   if (error) return error
   try {
     const sp = req.nextUrl.searchParams

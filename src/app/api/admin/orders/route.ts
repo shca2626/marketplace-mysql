@@ -7,7 +7,7 @@ import { requireAdmin } from '@/server/guards'
 // This is the platform owner's order oversight surface (read-only; fulfillment
 // transitions stay with sellers via PATCH /api/orders/[id]).
 export async function GET(req: NextRequest) {
-  const { error } = await requireAdmin()
+  const { error } = await requireAdmin('orders.view')
   if (error) return error
   try {
     const sp = req.nextUrl.searchParams

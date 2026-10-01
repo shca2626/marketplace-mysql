@@ -7,7 +7,7 @@ import { adminListDocuments } from '@/server/modules/financing/documents'
 // applicant's vault (the gate review console joins checklist document
 // references against this). Read-only.
 export async function GET(req: NextRequest) {
-  const { error } = await requireAdmin()
+  const { error } = await requireAdmin('financing.documents.verify')
   if (error) return error
   try {
     const sp = req.nextUrl.searchParams

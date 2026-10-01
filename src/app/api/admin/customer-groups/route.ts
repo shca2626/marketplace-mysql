@@ -13,7 +13,7 @@ const createSchema = z.object({
 
 // GET /api/admin/customer-groups
 export async function GET() {
-  const { error } = await requireAdmin()
+  const { error } = await requireAdmin('pricing.view')
   if (error) return error
   try {
     const groups = await adminListGroups()
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
 
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('pricing.view')
   if (error) return error
   try {
     const body = await req.json()

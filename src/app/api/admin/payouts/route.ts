@@ -5,7 +5,7 @@ import { listPayouts } from '@/server/modules/payouts/service'
 // GET /api/admin/payouts — settlement console: payout batches with status
 // totals (pending / paid / cancelled) and commission collected.
 export async function GET(req: NextRequest) {
-  const { error } = await requireAdmin()
+  const { error } = await requireAdmin('payouts.view')
   if (error) return error
   try {
     const sp = req.nextUrl.searchParams

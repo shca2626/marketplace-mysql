@@ -11,7 +11,7 @@ import { FinancingError } from '@/server/modules/financing/shared'
 // GET /api/admin/financing/conditions — the GENERAL library (platform's
 // shared conditions — R-5). Admin role sees the full GENERAL scope.
 export async function GET(req: NextRequest) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('financing.requirements.manage')
   if (error) return error
   try {
     const sp = req.nextUrl.searchParams
@@ -70,7 +70,7 @@ const createSchema = z
 // POST /api/admin/financing/conditions — create a GENERAL library condition
 // (admin-only scope — DP-24).
 export async function POST(req: NextRequest) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('financing.requirements.manage')
   if (error) return error
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf

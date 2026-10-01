@@ -28,7 +28,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
 
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('orgs.update')
   if (error) return error
   try {
     const { id } = await ctx.params
@@ -51,7 +51,7 @@ import { assertSameOrigin } from '@/lib/http'
 
 // DELETE /api/admin/organizations/[id] — only orgs without trading history
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('orgs.update')
   if (error) return error
   try {
     const { id } = await ctx.params

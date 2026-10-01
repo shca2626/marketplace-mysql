@@ -5,7 +5,7 @@ import { assertSameOrigin } from '@/lib/http'
 
 // GET /api/admin/payouts/config — platform default commission percent.
 export async function GET() {
-  const { error } = await requireAdmin()
+  const { error } = await requireAdmin('payouts.manage')
   if (error) return error
   return NextResponse.json({ config: await getPayoutsConfig() })
 }
@@ -16,7 +16,7 @@ export async function PUT(req: NextRequest) {
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
 
-  const { error } = await requireAdmin()
+  const { error } = await requireAdmin('payouts.manage')
   if (error) return error
   try {
     const body = await req.json()

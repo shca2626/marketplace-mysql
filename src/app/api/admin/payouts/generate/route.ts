@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
 
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('payouts.manage')
   if (error) return error
   try {
     const body = await req.json()

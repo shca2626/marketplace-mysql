@@ -21,7 +21,7 @@ function scopeFromQuery(url: URL) {
 }
 
 export async function GET(req: NextRequest) {
-  const { error } = await requireAdmin()
+  const { error } = await requireAdmin('rfq.settings.manage')
   if (error) return error
   try {
     const url = new URL(req.url)
@@ -52,7 +52,7 @@ const saveSchema = z.object({
 })
 
 export async function PUT(req: NextRequest) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('rfq.settings.manage')
   if (error) return error
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
@@ -78,7 +78,7 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('rfq.settings.manage')
   if (error) return error
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf

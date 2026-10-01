@@ -5,7 +5,7 @@ import { assertSameOrigin } from '@/lib/http'
 
 // GET /api/admin/payments/config — bank-transfer details + offered methods.
 export async function GET() {
-  const { error } = await requireAdmin()
+  const { error } = await requireAdmin('payments.capture')
   if (error) return error
   const [config, methods] = await Promise.all([getPaymentsConfig(), Promise.resolve(checkoutMethods())])
   return NextResponse.json({ config, methods, cardGateway: process.env.PAYMENT_DRIVER !== 'manual' ? 'simulated' : 'disabled' })
@@ -17,7 +17,7 @@ export async function PUT(req: NextRequest) {
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
 
-  const { error } = await requireAdmin()
+  const { error } = await requireAdmin('payments.capture')
   if (error) return error
   try {
     const body = await req.json()

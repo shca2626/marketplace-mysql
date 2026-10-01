@@ -5,7 +5,7 @@ import { previewPayout, PayoutServiceError } from '@/server/modules/payouts/serv
 // GET /api/admin/payouts/preview?sellerId= — the payout math for one vendor
 // before generating: unsettled items, gross, commission rate, net.
 export async function GET(req: NextRequest) {
-  const { error } = await requireAdmin()
+  const { error } = await requireAdmin('payouts.manage')
   if (error) return error
   try {
     const sellerId = req.nextUrl.searchParams.get('sellerId')

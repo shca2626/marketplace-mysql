@@ -9,7 +9,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
 
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('payouts.manage')
   if (error) return error
   try {
     const { id } = await ctx.params

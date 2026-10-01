@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { getSessionUser, toSessionUser } from '@/lib/auth'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { recordAudit } from '@/server/modules/audit/service'
+import { buildSessionRbac } from '@/server/modules/rbac/service'
 import type { ApplicantProfileDTO } from '@/lib/types'
 
 // GET /api/auth/me — session restore. The base `user` shape is unchanged
@@ -44,7 +45,8 @@ function toApplicantProfile(user: {
 export async function GET() {
   const user = await getSessionUser()
   if (!user) return NextResponse.json({ user: null, applicant: null })
-  return NextResponse.json({ user: toSessionUser(user), applicant: toApplicantProfile(user) })
+  const rbac = await buildSessionRbac(user)
+  return NextResponse.json({ user: toSessionUser(user, rbac), applicant: toApplicantProfile(user) })
 }
 
 // ── PATCH /api/auth/me — profile self-service (BUY-211) ──────────────────────
@@ -148,7 +150,8 @@ export async function PATCH(req: NextRequest) {
     })
 
     // Same shape as GET so the client can swap its cached /me payload 1:1.
-    return NextResponse.json({ user: toSessionUser(updated), applicant: toApplicantProfile(updated) })
+    const rbac = await buildSessionRbac(updated)
+    return NextResponse.json({ user: toSessionUser(updated, rbac), applicant: toApplicantProfile(updated) })
   } catch (err) {
     console.error('me PATCH error', err)
     return NextResponse.json({ error: 'Could not update your profile' }, { status: 500 })
