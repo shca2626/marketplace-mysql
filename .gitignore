@@ -37,9 +37,6 @@ yarn-error.log*
 # sandbox platform auto-commits untracked files — a near-miss saw the real
 # credentials land in a local commit (caught before push). A fresh clone boots
 # fine without it: copy `.env.example` → `.env` (demo SQLite is committed).
-.env
-.env.*
-!.env.example
 
 # typescript
 *.tsbuildinfo
