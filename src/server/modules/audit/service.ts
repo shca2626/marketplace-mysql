@@ -30,7 +30,7 @@ export async function recordAudit(entry: AuditEntry): Promise<void> {
         entityType: entry.entityType,
         entityId: entry.entityId ?? null,
         summary: entry.summary,
-        // JSON-in-text (SQLite): metadata is stored as a serialized JSON string.
+        // JSON-in-text: metadata is stored as a serialized JSON string.
         metadata: entry.metadata === undefined ? undefined : JSON.stringify(entry.metadata),
       },
     })

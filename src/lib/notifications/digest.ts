@@ -521,8 +521,8 @@ export interface DigestBatchResult {
 
 /**
  * Iterate every ACTIVE user with a DAILY/WEEKLY preference, build + deliver +
- * persist their digest, and skip empty inboxes. Sequential on purpose — SQLite
- * single-writer; a queue/worker split can parallelize per-user later.
+ * persist their digest, and skip empty inboxes. Sequential on purpose (kept
+ * from the single-writer era); a queue/worker split can parallelize per-user later.
  */
 export async function runDigestBatch(): Promise<DigestBatchResult> {
   const prefs = await db.userDigestPref.findMany({

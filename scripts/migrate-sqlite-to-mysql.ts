@@ -72,6 +72,7 @@ const REGISTRY: ModelEntry[] = [
   { table: 'BannerSlide', prisma: 'bannerSlide', pk: 'id' },
   { table: 'RfqSetting', prisma: 'rfqSetting', pk: 'id' },
   { table: 'Coupon', prisma: 'coupon', pk: 'id' },
+  { table: 'ContactMessage', prisma: 'contactMessage', pk: 'id' }, // level 0 — no FKs
   // ── level 1 ──
   { table: 'Product', prisma: 'product', pk: 'id' }, // → Category, User
   { table: 'OrganizationMember', prisma: 'organizationMember', pk: 'id' }, // → Organization, User

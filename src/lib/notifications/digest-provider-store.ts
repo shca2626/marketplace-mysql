@@ -13,7 +13,7 @@ import path from 'path'
  * now (the running Prisma client cannot be regenerated in this environment —
  * editing the schema would desync it). So the ids live in a module-level Map
  * persisted best-effort to db/notification-digest-providers.json alongside
- * the SQLite file. Reads hydrate once per process; a missing or corrupt file
+ * the database. Reads hydrate once per process; a missing or corrupt file
  * simply starts empty (tracking is a progressive enhancement, never a
  * blocker for sending). When a schema change becomes possible, promote this
  * to a `providerMessageId` column and delete this module.

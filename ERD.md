@@ -4,7 +4,7 @@
 |---|---|
 | **Version** | 2.0 — recovery rebuild (ERD-14; previous ERD.md lost in environment rollback) |
 | **Date** | September 2026 |
-| **Source of truth** | `prisma/schema.prisma` — **52 models**, `provider = "sqlite"` — transcribed in full, nothing invented |
+| **Source of truth** | `prisma/schema.prisma` — **52 models**, `provider = "mysql"` (Aiven cloud, SSL) — transcribed in full, nothing invented |
 | **Companions** | `team/docs/01-domain-model.md`, `team/docs/06-data-dictionary.md`, `team/FINANCIER_SCHEMA.md` v5.0, `team/DECISIONS.md` (D-001…D-017, DP-1…DP-28) |
 | **Status** | IMPLEMENTED — describes the live database, not a plan. Rebuilt against the 50-model schema; the notification email digest (DIGEST-13: `NotificationDigest`, `UserDigestPref`) landed in the schema during this rebuild and is included — see §8.11. |
 
@@ -20,12 +20,12 @@ Verification anchor: `rg -c "^model " prisma/schema.prisma` → **52**, and sect
 
 ### 1.2 Scope and realization
 
-- **Database**: SQLite (Prisma 6). There are no `@db.*` attributes, no `@@map` — **table names equal Prisma model names**, and ids are `String @id @default(cuid())`.
-- **SQLite type mapping** (Prisma-managed): `String` → TEXT, `Int` → INTEGER, `Float` → REAL, `Boolean` → INTEGER (0/1), `DateTime` → DATETIME (text, UTC). `DateTime` columns use `@default(now())` / `@updatedAt`.
+- **Database**: MySQL 8.4, managed Aiven cloud service (Prisma 6). No `@@map` — **table names equal Prisma model names**, and ids are `String @id @default(cuid())`. `@db.Text` / `@db.MediumText` annotations carry long free-form content; everything else is the default `VARCHAR(191)`.
+- **MySQL type mapping** (Prisma-managed): `String` → VARCHAR(191) (`@db.Text` → TEXT), `Int` → INT, `Float` → DOUBLE, `Boolean` → TINYINT(1), `DateTime` → DATETIME(3). `DateTime` columns use `@default(now())` / `@updatedAt`.
 - **Money is `Float` everywhere** — the pre-conversion two-regime `Decimal(12,2)` / `Float` split described in `06-data-dictionary.md` predates the provider conversion (FIN-0); the current schema has no Decimal fields. Prisma types in this document are canonical.
-- **Enums are strings** — SQLite has no native enums. Every status/type column is a plain string whose values form a closed TypeScript union validated with zod at the boundary. Value sets are quoted from the schema comments.
+- **Enums are strings** — Prisma does not use native MySQL ENUMs. Every status/type column is a plain string whose values form a closed TypeScript union validated with zod at the boundary. Value sets are quoted from the schema comments.
 - **No multi-tenancy** (D-003) — no tenant discriminator exists anywhere; none may be added.
-- **Zero native JSON columns** — SQLite has none; commerce "JSON" fields are JSON-in-`Text` strings (LEGACY-JSON, frozen by DP-18). The financier domain has zero JSON columns of any kind (R-1) — every list is a child table.
+- **Zero native JSON columns** — commerce "JSON" fields are JSON-in-`Text` strings (LEGACY-JSON, frozen by DP-18). The financier domain has zero JSON columns of any kind (R-1) — every list is a child table.
 
 ### 1.3 How to read this document
 
@@ -1452,7 +1452,7 @@ The 12 applicant-profile columns (phone…residenceType) are additive and ALL nu
 
 ### 3.12 Financier — identity & services catalog
 
-> The financier domain implements FINANCIER_SCHEMA v5.0 rulings: zero Json columns (R-1), single entry per data point (R-2), reuse of existing substrate (R-3), the platform verification gate (R-4/DP-23), flexible requirements (R-5/DP-24). Money is Float (SQLite); statuses are string enums validated in TS/zod. Services, not products (DP-22); accreditation is a MAIN service (DP-26).
+> The financier domain implements FINANCIER_SCHEMA v5.0 rulings: zero Json columns (R-1), single entry per data point (R-2), reuse of existing substrate (R-3), the platform verification gate (R-4/DP-23), flexible requirements (R-5/DP-24). Money is Float (portability compromise); statuses are string enums validated in TS/zod. Services, not products (DP-22); accreditation is a MAIN service (DP-26).
 
 #### FinancierProfile
 
@@ -2123,7 +2123,7 @@ URL-level (value, not id) media references: `Product.images`, `ProductVariant.im
 
 Models with no secondary indexes: Category, Favorite (unique only), PlatformSetting, Sequence (key PK), UserDigestPref (userId is PK + FK). (Category, Favorite, PlatformSetting, Sequence have no `@@index`.)
 
-### 5.3 Check-style conventions enforced in code (SQLite has no CHECK/enum constraints)
+### 5.3 Check-style conventions enforced in code (no CHECK/enum constraints in the Prisma schema)
 
 All of the following are enforced by the service layer + zod, not the DB:
 
@@ -2185,10 +2185,10 @@ Surfaces: SPA views under `src/components/marketplace/**` (single route `/`, `?v
 6. **Snapshots at write time.** `OrderItem.title/image/variantName/price`, `RfqLine.productName/variantName`, `QuoteLine.variantName/unitPrice`, `Payout.commissionRate`, `FinancingFee.percentApplied` — display/settlement data is frozen against later edits.
 7. **Loose-FK polymorphism (the Dispute pattern).** Where a reference target is polymorphic or history must survive (`Order.sourceQuoteId`, `FinancingRequest.targetId`, `RequestAttachment.parentId`, `AuditLog.actorId`, `SettingChange.rollbackOfId`), a plain string column + service enforcement is preferred over speculative FKs.
 8. **Flat identity, additive profiles.** No separate applicant/financier user types: financing applicant data is 12 nullable columns on User; financier identity is Organization (orgType BANK/MFI/EWALLET) + a slim 1:1 FinancierProfile.
-9. **String enums + zod.** SQLite has no enums; every status/type column carries its value set as a schema comment and is validated at the boundary. `06-data-dictionary.md` §2 is the registry.
+9. **String enums + zod.** The schema uses no native enums; every status/type column carries its value set as a schema comment and is validated at the boundary. `06-data-dictionary.md` §2 is the registry.
 10. **Atomic numbering (D-006) and lazy sweeps, no cron (D-011).** All business numbers come from `Sequence`; all deadlines (`expiresAt`, `validUntil`, `escalateAt`, `nextRunAt`) are consumed by sweeps on traffic.
 11. **No multi-tenancy (D-003).** No tenant discriminator on any of the 50 models.
-12. **SQLite realization.** Float money, no `@db.*` attributes, no `@@map` (table names = model names), cuid string ids — the schema is provider-portable by design.
+12. **MySQL realization.** Float money, `@db.Text` only on long free-form content, no `@@map` (table names = model names), cuid string ids — the schema stays portable across engines by design.
 
 ---
 

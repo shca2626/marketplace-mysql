@@ -64,7 +64,7 @@ export function disputeOutcomeLabel(outcome: string): string {
   return OUTCOME_LABELS[outcome] ?? outcome
 }
 
-/** Money fields are SQLite floats — normalize defensively (null-safe). */
+/** Money fields are raw floats — normalize defensively (null-safe). */
 type DisputeRow = {
   id: string
   number: string

@@ -3,13 +3,13 @@
 > **A production-grade, self-contained Next.js 16 application**: B2C direct checkout + B2B
 > RFQ/quoting/purchased-order commerce + an institutional **financing & accreditation module**
 > (financier consoles, platform verification gate, offers → agreements → fees), backed by
-> **Prisma + SQLite** with a fully seeded demo dataset **committed to this repository**.
+> **Prisma + MySQL (Aiven cloud)** with a fully seeded demo dataset.
 
 | | |
 |---|---|
-| **Stack** | Next.js 16 (App Router) · React 19 · TypeScript 5 (strict) · Tailwind CSS 4 · shadcn/ui (New York) · Prisma 6 + SQLite · Zustand · react-hook-form + Zod · Recharts · pdf-lib · sharp |
+| **Stack** | Next.js 16 (App Router) · React 19 · TypeScript 5 (strict) · Tailwind CSS 4 · shadcn/ui (New York) · Prisma 6 + MySQL (Aiven) · Zustand · react-hook-form + Zod · Recharts · pdf-lib · sharp |
 | **Size** | ~75,000 lines of TS/TSX in `src/` · **50 Prisma models** · **148 API route files (~160 endpoints)** |
-| **Runs from clone** | `bun install && bunx prisma generate && bun run dev` — database file `db/custom.db` and the media store `uploads/` are both committed, so the app boots with a full demo dataset (users, orgs, products, orders, RFQs, financing requests) and zero external services. |
+| **Runs from clone** | `bun install && bunx prisma generate && bun run dev` — point `DATABASE_URL` in `.env` at the managed MySQL service and the app boots with the full demo dataset (users, orgs, products, orders, RFQs, financing requests). |
 | **Docs** | Full engineering documentation suite in [`team/docs/`](./team/docs) (domain model/ERD, use cases, API contract, 21 ADRs, design system, data dictionary, test plan, ops runbook, security/threat model) + an OpenAPI 3.1 spec with 149 live paths / 194 operations. |
 
 ---
@@ -59,8 +59,8 @@ bunx prisma generate        # generate the Prisma client (required after every s
 bun run dev                 # http://localhost:3000  (dev log: dev.log)
 ```
 
-That's it — the SQLite database (`db/custom.db`) and the media store (`uploads/`) are
-committed, so the app boots with the full demo dataset.
+That's it — the database is the managed Aiven MySQL service (`DATABASE_URL` in `.env`),
+and the media store (`uploads/`) is committed, so the app boots with the full demo dataset.
 
 > **Production build**: `bun run build && bun run start` (standalone output in `.next/standalone`).
 > Before starting in production you **must** set `AUTH_SECRET` (≥ 32 chars) — see §4.
@@ -105,8 +105,7 @@ Other maintenance scripts live in [`scripts/`](./scripts) — `db-status.ts` (DB
 ├── prisma/
 │   ├── schema.prisma          # 50 models — the single source of truth for data
 │   └── seed.ts                # core demo seed (users, categories, products, orders, reviews)
-├── db/
-│   └── custom.db              # SQLite database file (COMMITTED — demo dataset)
+├── db/                       # media/reference assets (images.json, static-images/…)
 ├── uploads/                   # live media store (COMMITTED — referenced by MediaAsset rows)
 │   └── 2026/09/<sha8>-<rand6>.{thumb|medium|large|full}.webp
 ├── src/
@@ -144,7 +143,7 @@ Other maintenance scripts live in [`scripts/`](./scripts) — `db-status.ts` (DB
 ## 4. Configuration
 
 Configuration lives in `.env`, copied from the committed `.env.example` template
-(`cp .env.example .env` — one command, then a clone boots on the demo SQLite DB).
+(`cp .env.example .env` — then set `DATABASE_URL` to the Aiven MySQL service URI).
 
 > **Changed 2026-09-28 (PRODENV-1):** `.env` was previously committed on purpose (demo
 > values only). Real provider credentials (Resend SMTP, remote MySQL) are configured now,
@@ -152,12 +151,11 @@ Configuration lives in `.env`, copied from the committed `.env.example` template
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `DATABASE_URL` | `file:./db/custom.db` | Prisma SQLite datasource. Point it at any path you like. |
+| `DATABASE_URL` | *(required)* | Prisma MySQL datasource — the Aiven cloud service URI (`mysql://…?ssl-mode=REQUIRED`). This is the ONE and ONLY database for every environment. |
 | `AUTH_SECRET` | *(dev fallback)* | HMAC secret signing the session cookie. **Required ≥ 32 chars in production** — boot fails fast otherwise (`src/lib/auth.ts`, SEC-01). Generate: `openssl rand -hex 32` |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | `smtp.resend.com` / `465` / `resend` / *(api key)* | Resend SMTP for transactional mail (digests). `465` = implicit TLS; `587` auto-upgrades via STARTTLS. Unset ⇒ digest delivery falls back to console logging. |
 | `SMTP_FROM` | `Vendora <onboarding@resend.dev>` | Sender address. Switch to your verified domain (e.g. `Vendora <no-reply@yourdomain.com>`) once verified in the Resend dashboard. |
 | `RESEND_API_KEY` | — | Resend REST API key (kept for API-based tooling). |
-| `MYSQL_DATABASE_URL` (+ `MYSQL_*`) | — | Remote MySQL target (production database). See §Deployment notes — local dev stays on SQLite. |
 | `STORAGE_DRIVER` | `local-disk` | Media storage adapter registry (`src/lib/storage/index.ts`). Only `local-disk` exists; S3/R2 adapters would register here. |
 | `STORAGE_ROOT` | `./uploads` | Root directory for the media store. The committed `uploads/` folder must stay the root unless you also move the DB's `MediaAsset` files. |
 
@@ -211,7 +209,7 @@ Browser ── / (SPA shell) ─────────────────
    │                                                        │
    └─ fetch /api/** (cookie session, JSON)                   ├─ src/app/api/**/route.ts   (thin HTTP layer)
                                                              │     └─ src/server/modules/** (business services)
-                                                             │           └─ src/lib/db.ts → Prisma → SQLite
+                                                             │           └─ src/lib/db.ts → Prisma → MySQL (Aiven, SSL)
                                                              └─ /api/media/[...key] → uploads/ (immutable cache)
 ```
 
@@ -375,7 +373,7 @@ honest current-state assessment); treat the docs' state-machine tables as the co
 ```bash
 bun run dev            # dev server on :3000, log teed to dev.log
 bun run lint           # ESLint (next/core-web-vitals + custom rules) — keep it green
-bun run db:push        # apply schema.prisma to SQLite (destructive sync — dev only)
+bun run db:push        # apply schema.prisma to MySQL (destructive sync — careful, it is the production DB)
 bunx prisma generate   # after ANY schema.prisma change
 bun run db:seed        # re-seed core demo data
 ```
@@ -388,20 +386,19 @@ Workflow rules that kept this codebase sane (please keep following them):
 3. **Business logic goes in `src/server/modules`** — routes stay thin.
 4. **Every privileged mutation writes an AuditLog entry** and, where user-relevant, a
    Notification.
-5. **Money is `Float`** (a deliberate SQLite-migration compromise — see data dictionary
-   TD-17; cent-rounding helpers in `src/lib/format.ts`). If you migrate to Postgres/MySQL,
-   switch money columns to `Decimal`/integer-cents first.
+5. **Money is `Float`** (a deliberate portability compromise — see data dictionary
+   TD-17; cent-rounding helpers in `src/lib/format.ts`).
 6. **Commit convention**: `AREA-NN: imperative summary — details` (e.g. `FIN-7: admin financing tab — …`).
 
 ---
 
 ## 11. Notes for a new developer
 
-- **Repo name**: `marketplace-mysql` is historical. The project was originally built on
-  MySQL/MariaDB, migrated to SQLite for sandbox portability (decision D-018/FIN-0 era),
-  and the runtime database is the committed `db/custom.db`. If you want MySQL back:
-  flip the `provider` in `prisma/schema.prisma`, adjust `DATABASE_URL`, and run
-  `prisma db push` — the schema itself is engine-agnostic (no `@db.*` annotations remain).
+- **Database**: the runtime database is the managed **Aiven cloud MySQL 8.4** service wired
+  through `DATABASE_URL` (SSL required). The project was originally built on
+  MySQL/MariaDB, briefly held a SQLite phase for sandbox portability (D-018/FIN-0 era),
+  and has now returned to managed MySQL for good — schema pushed with `prisma db push`,
+  data migrated from the previous local store.
 - **This repository was built with an autonomous agent loop** (plan → approve → implement
   → verify sprints). The loop's internal artifacts (worklog, task board, sprint plan,
   QA screenshots) are **deliberately excluded** from this repo; the *engineering output*
@@ -409,10 +406,10 @@ Workflow rules that kept this codebase sane (please keep following them):
 - **What's intentionally NOT here**: CI pipelines, unit tests on disk, Docker files,
   cloud deployment configs. Doc 08 (ops runbook) describes the deployment topology and
   the gaps to close for a real launch (managed DB, backups, secrets vault, CDN, HTTPS at edge).
-- **Sensitive-by-default files are committed on purpose** (`.env`, `db/custom.db`) per the
-  owner's explicit ruling to make the clone runnable. For any real deployment, rotate
-  credentials and move secrets out of git.
+- **`uploads/` and `db/images*.json` are committed on purpose** (demo media). The real
+  `.env` (with live Aiven credentials) is **gitignored** — the repo is public and must never
+  carry secrets.
 
 ---
 
-*Vendora · built 2026 · Next.js 16 / React 19 / TypeScript / Prisma + SQLite*
+*Vendora · built 2026 · Next.js 16 / React 19 / TypeScript / Prisma + MySQL (Aiven)*

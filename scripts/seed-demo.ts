@@ -6,7 +6,7 @@
  * Not for production environments with real data.
  *
  * Usage:
- *   bun scripts/seed-demo.ts        (DATABASE_URL from .env — SQLite file db/custom.db)
+ *   bun scripts/seed-demo.ts        (DATABASE_URL from .env — the Aiven MySQL service)
  *
  * Restores the demo state documented in worklog entries B2B-1 / 5-a / 5-b:
  *   Accounts
@@ -908,7 +908,7 @@ async function main() {
       registrationNumber: 'OR-2019-114852',
       industry: 'Industrial Supplies',
       website: 'https://acme.example.com',
-      // JSON-in-text (SQLite): billingAddress is stored as a serialized JSON string.
+      // JSON-in-text: billingAddress is stored as a serialized JSON string.
       billingAddress: JSON.stringify({
         line1: '500 Commerce Blvd',
         city: 'Portland',

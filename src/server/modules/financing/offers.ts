@@ -440,8 +440,8 @@ async function acceptOfferCore(
     data: { status: 'ACCEPTED', closedAt: now },
   })
   // FinancingAgreement via the AGR sequence (references the FROZEN offer — DP-20).
-  // The number is minted OUTSIDE the tx (nextNumber opens its own — SQLite
-  // write-lock discipline) and the fee percent is resolved before too.
+  // The number is minted OUTSIDE the tx (nextNumber opens its own — write-lock
+  // discipline) and the fee percent is resolved before too.
   const agreement = await tx.financingAgreement.create({
     data: { number: agreementNumber, offerId: offer.id, acceptedAt: now, status: 'ACTIVE', fundingStatus: 'PENDING' },
   })
@@ -484,7 +484,7 @@ export async function acceptOffer(
   }
 
   // mint the AGR number + resolve the fee percent BEFORE the transaction
-  // (nextNumber opens its own tx — SQLite write-lock discipline)
+  // (nextNumber opens its own tx — write-lock discipline)
   const [agreementNumber, feesPanel] = await Promise.all([
     nextNumber('AGR'),
     resolvePanel('financingFees'),

@@ -1,7 +1,7 @@
 /**
- * Vendora — database status (SQLite is the platform provider).
+ * Vendora — database status (MySQL is the platform provider).
  *
- *   bun run db:status
+ *   bun scripts/db-status.ts
  *
  * Truth = prisma/schema.prisma `provider` + .env `DATABASE_URL`.
  * The running dev server picks these up at START — if either changed
@@ -43,13 +43,14 @@ async function main() {
   console.log('  Vendora · database status')
   console.log('  ' + LINE)
 
-  if (schemaProvider !== 'sqlite' || !dbUrl.startsWith('file:')) {
-    console.log('  ✖ expected SQLite — check prisma/schema.prisma provider and .env DATABASE_URL')
+  if (schemaProvider !== 'mysql' || !dbUrl.startsWith('mysql://')) {
+    console.log('  ✖ expected MySQL — check prisma/schema.prisma provider and .env DATABASE_URL')
     console.log(`     provider = "${schemaProvider ?? '?'}", DATABASE_URL = ${dbUrl || '(missing)'}`)
     process.exit(1)
   }
 
-  console.log(`  Active provider : SQLITE (${dbUrl.replace(/^file:/, '')})`)
+  const host = /@([^:/?]+)/.exec(dbUrl)?.[1] ?? 'unknown-host'
+  console.log(`  Active provider : MYSQL (${host})`)
 
   // stale dev-server detection (env/schema changed without restart = old client)
   const envMtime = existsSync('.env') ? statSync('.env').mtime : null

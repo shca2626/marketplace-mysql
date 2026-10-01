@@ -1,51 +1,37 @@
 /**
- * Vendora — Remote MySQL (InfinityFree / byet.org MariaDB) connectivity core.
- * Shared by scripts/mysql-check.ts (CLI), scripts/migrate-sqlite-to-mysql.ts
- * (data migration) and the /api/admin/stats?mysql=1 admin diagnostics branch.
+ * Vendora — MySQL connectivity core (Aiven cloud MySQL 8.4).
  *
- * ENDPOINT FALLBACK CHAIN (why it exists):
- *   .env carries MYSQL_HOST=sql301.infinityfree.com — that hostname has NO
- *   public DNS record (verified via dns.google, see worklog PRODENV-1). The
- *   reachable endpoints for the same InfinityFree MySQL server are:
- *     1. $MYSQL_HOST (or the MYSQL_DATABASE_URL host) — only if it resolves
- *     2. sql301.byet.org        — the byet.org alias that DOES resolve
- *     3. 185.27.134.24          — the IP behind it (always "resolvable")
- *   The chain advances only on connection-level failures (DNS / TCP). An
- *   auth/access error (ER_ACCESS_DENIED_ERROR, ER_HOST_NOT_PRIVILEGED, …) means
- *   the server itself answered, so the failure is terminal — reported with the
- *   exact MySQL error code + message, which for access errors includes the
- *   client IP that must be whitelisted in the InfinityFree Remote MySQL panel.
+ * Shared by the CLI health check (scripts/mysql-check.ts), the one-shot data
+ * migration (scripts/migrate-sqlite-to-mysql.ts) and the
+ * /api/admin/stats?mysql=1 admin diagnostics branch.
  *
- * This module is server-side only (mysql2 + node:dns + fs) and never logs —
- * callers decide how to present results.
+ * TARGET: the single managed Aiven MySQL service reached via the URL in .env:
+ *   mysql://avnadmin:<password>@mysql-marketplace-sunsolar1.f.aivencloud.com:23363/defaultdb?ssl-mode=REQUIRED
+ *
+ * SSL is mandatory — Aiven rejects plaintext connections. Every connection in
+ * this module is created with TLS enabled. The server certificate is NOT
+ * verified against a pinned CA (that is exactly what ssl-mode=REQUIRED means
+ * in MySQL semantics: encrypt, don't verify), so no CA bundle is required on
+ * this host.
+ *
+ * Env resolution order:
+ *   1. MYSQL_DATABASE_URL — takes precedence while a migration is in flight
+ *   2. DATABASE_URL        — the normal state (the app's primary datasource)
+ *
+ * This module is server-side only (mysql2 + node:fs) and never logs — callers
+ * decide how to present results.
  */
 import { readFileSync } from 'fs'
-import { lookup } from 'node:dns/promises'
 import { createConnection, type Connection, type ConnectionOptions } from 'mysql2/promise'
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
-const FALLBACK_HOSTS = ['sql301.byet.org', '185.27.134.24'] as const
 const CONNECT_TIMEOUT_MS = 12_000
-const DNS_PROBE_TIMEOUT_MS = 4_000
 
-/** mysql2 error codes that mean "couldn't even reach a server" → try next endpoint. */
-const CONNECT_LEVEL_CODES = new Set([
-  'ENOTFOUND',
-  'EAI_AGAIN',
-  'ETIMEDOUT',
-  'ECONNREFUSED',
-  'ECONNRESET',
-  'EHOSTUNREACH',
-  'ENETUNREACH',
-  'EPIPE',
-  'EOF',
-])
-
-/** MySQL error codes that mean "the server answered and said no" → terminal. */
+/** Error codes that mean "the server answered and said no" → terminal. */
 const ACCESS_LEVEL_CODES = new Set([
   'ER_ACCESS_DENIED_ERROR', // 1045 — wrong user/password OR user@host not allowed
-  'ER_HOST_NOT_PRIVILEGED', // 1130 — host not allowed to connect (whitelist!)
+  'ER_HOST_NOT_PRIVILEGED', // 1130 — host not allowed to connect
   'ER_DBACCESS_DENIED_ERROR', // 1044 — no privileges on the database
   'ER_BAD_DB_ERROR', // 1049 — database does not exist on the server
   'ER_NOT_SUPPORTED_AUTH_MODE', // 1251 — auth plugin mismatch
@@ -56,7 +42,7 @@ const ACCESS_LEVEL_CODES = new Set([
 
 export interface MySqlEndpointAttempt {
   host: string
-  resolvable: boolean | 'skipped' // skipped = dropped by dedupe
+  resolvable: boolean | 'skipped' // kept for result-shape compatibility (single endpoint now)
   connected: boolean
   error?: { code: string; errno?: number; message: string }
 }
@@ -68,7 +54,7 @@ export interface MySqlCheckResult {
   endpointUsed?: string
   endpointsTried: MySqlEndpointAttempt[]
   server?: {
-    version: string // expect MariaDB ~10.x
+    version: string // expect MySQL 8.4.x on Aiven
     database: string
     currentUser: string
     characterSetServer: string
@@ -111,105 +97,55 @@ function envVar(key: string): string | undefined {
 
 // ── Config resolution ───────────────────────────────────────────────────────
 
-/** MYSQL_* explicit vars win over the MYSQL_DATABASE_URL components. */
+/**
+ * Resolve the MySQL connection config from .env.
+ * MYSQL_DATABASE_URL wins (migration override); otherwise DATABASE_URL —
+ * which must be a mysql:// URL (SQLite file: URLs are rejected with a clear
+ * message instead of producing a confusing parse failure).
+ */
 export function resolveMySqlConfig(): MySqlConnectionConfig {
-  const url = envVar('MYSQL_DATABASE_URL')
-  let cfg: MySqlConnectionConfig = {
-    user: '',
-    password: '',
-    database: '',
-    port: 3306,
-    source: 'env',
+  const url = envVar('MYSQL_DATABASE_URL') || envVar('DATABASE_URL') || ''
+
+  if (!url) {
+    return { user: '', password: '', database: '', port: 3306, source: 'env' }
   }
 
-  if (url) {
-    try {
-      const u = new URL(url)
-      cfg = {
-        user: decodeURIComponent(u.username),
-        password: decodeURIComponent(u.password),
-        database: u.pathname.replace(/^\//, ''),
-        port: u.port ? Number(u.port) : 3306,
-        preferredHost: u.hostname,
-        source: 'url',
-      }
-    } catch {
-      // malformed URL — fall through, explicit vars may still save us
+  if (!url.startsWith('mysql://')) {
+    // Only reachable while DATABASE_URL still points at the old SQLite file
+    // and MYSQL_DATABASE_URL is unset — after the switchover this cannot happen.
+    return { user: '', password: '', database: '', port: 3306, source: 'env' }
+  }
+
+  try {
+    const u = new URL(url)
+    return {
+      user: decodeURIComponent(u.username),
+      password: decodeURIComponent(u.password),
+      database: u.pathname.replace(/^\//, ''),
+      port: u.port ? Number(u.port) : 3306,
+      preferredHost: u.hostname,
+      source: 'url',
     }
+  } catch {
+    return { user: '', password: '', database: '', port: 3306, source: 'env' }
   }
-
-  if (envVar('MYSQL_USER')) cfg.user = envVar('MYSQL_USER') as string
-  if (envVar('MYSQL_PASSWORD')) cfg.password = envVar('MYSQL_PASSWORD') as string
-  if (envVar('MYSQL_DATABASE')) cfg.database = envVar('MYSQL_DATABASE') as string
-  if (envVar('MYSQL_PORT')) {
-    const p = Number(envVar('MYSQL_PORT'))
-    if (Number.isFinite(p) && p > 0) cfg.port = p
-  }
-  if (envVar('MYSQL_HOST')) cfg.preferredHost = envVar('MYSQL_HOST')
-
-  return cfg
 }
 
 export function isMySqlConfigComplete(cfg: MySqlConnectionConfig): boolean {
   return Boolean(cfg.user && cfg.password && cfg.database)
 }
 
-// ── Endpoint chain ───────────────────────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────────────────────
 
 function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout: () => T): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<T>((resolve) => {
     timer = setTimeout(() => resolve(onTimeout()), ms)
   })
-  return Promise.race([
-    promise,
-    timeout,
-  ]).finally(() => {
+  return Promise.race([promise, timeout]).finally(() => {
     if (timer) clearTimeout(timer)
   })
 }
-
-/** Numeric IPs are always considered resolvable (no DNS needed). */
-export async function isResolvable(host: string, timeoutMs = DNS_PROBE_TIMEOUT_MS): Promise<boolean> {
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return true
-  try {
-    await withTimeout(lookup(host, { family: 0 }), timeoutMs, () => {
-      throw new Error('dns probe timeout')
-    })
-    return true
-  } catch {
-    return false
-  }
-}
-
-export interface MySqlEndpoint {
-  host: string
-  resolvable: boolean | 'skipped'
-}
-
-/**
- * The ordered endpoint chain: preferred host (only if resolvable), then
- * sql301.byet.org, then the raw IP — deduplicated.
- */
-export async function buildEndpointChain(cfg: MySqlConnectionConfig): Promise<MySqlEndpoint[]> {
-  const chain: MySqlEndpoint[] = []
-  const seen = new Set<string>()
-
-  const push = async (host?: string) => {
-    if (!host || seen.has(host)) {
-      if (host && seen.has(host)) chain.push({ host, resolvable: 'skipped' })
-      return
-    }
-    seen.add(host)
-    chain.push({ host, resolvable: await isResolvable(host) })
-  }
-
-  await push(cfg.preferredHost)
-  for (const fallback of FALLBACK_HOSTS) await push(fallback)
-  return chain
-}
-
-// ── Error classification ────────────────────────────────────────────────────
 
 interface MySqlErrorLike {
   code?: string
@@ -227,14 +163,8 @@ function toErrorInfo(err: unknown): { code: string; errno?: number; message: str
   }
 }
 
-function isConnectLevel(err: unknown): boolean {
-  const { code } = toErrorInfo(err)
-  return CONNECT_LEVEL_CODES.has(code)
-}
-
 function isAccessLevel(err: unknown): boolean {
-  const { code } = toErrorInfo(err)
-  return ACCESS_LEVEL_CODES.has(code)
+  return ACCESS_LEVEL_CODES.has(toErrorInfo(err).code)
 }
 
 /** For access errors, MySQL's message embeds 'user'@'clientIP' — surface the IP. */
@@ -243,7 +173,7 @@ function clientIpFromMessage(message: string): string | undefined {
   return m?.[1]
 }
 
-// ── Connection helpers ───────────────────────────────────────────────────────
+// ── Connection helpers ──────────────────────────────────────────────────────
 
 function connectionOptions(host: string, cfg: MySqlConnectionConfig): ConnectionOptions {
   return {
@@ -254,6 +184,10 @@ function connectionOptions(host: string, cfg: MySqlConnectionConfig): Connection
     database: cfg.database,
     connectTimeout: CONNECT_TIMEOUT_MS,
     charset: 'UTF8MB4_UNICODE_CI', // match the utf8mb4 tables prisma db push creates
+    // Aiven rejects plaintext connections — TLS is non-negotiable. Certificate
+    // verification is disabled (ssl-mode=REQUIRED semantics): encrypt, don't
+    // verify. Pin a CA bundle here only if verification is ever required.
+    ssl: { rejectUnauthorized: false },
   }
 }
 
@@ -263,35 +197,24 @@ export interface MySqlConnected {
 }
 
 /**
- * Connect using the endpoint fallback chain. Throws the LAST meaningful error
- * (access errors short-circuit the chain — the server answered, other hosts
- * cannot change that answer).
+ * Connect to the configured MySQL service (single Aiven endpoint — no fallback
+ * chain). Kept under the historical export name `connectMySqlWithFallback` so
+ * existing importers stay source-compatible.
  */
 export async function connectMySqlWithFallback(
   cfg: MySqlConnectionConfig = resolveMySqlConfig(),
 ): Promise<MySqlConnected> {
   if (!isMySqlConfigComplete(cfg)) {
-    throw Object.assign(new Error('MySQL config incomplete — set MYSQL_DATABASE_URL (or MYSQL_USER/MYSQL_PASSWORD/MYSQL_DATABASE) in .env'), { code: 'CONFIG_MISSING' })
+    throw Object.assign(
+      new Error(
+        'MySQL config incomplete — set DATABASE_URL to the Aiven mysql:// URL in .env',
+      ),
+      { code: 'CONFIG_MISSING' },
+    )
   }
 
-  const chain = await buildEndpointChain(cfg)
-  let lastError: unknown = null
-
-  for (const endpoint of chain) {
-    if (endpoint.resolvable !== true) {
-      lastError ??= Object.assign(new Error(`Host ${endpoint.host} is not resolvable`), { code: 'ENOTFOUND' })
-      continue
-    }
-    try {
-      const connection = await createConnection(connectionOptions(endpoint.host, cfg))
-      return { connection, host: endpoint.host }
-    } catch (err) {
-      lastError = err
-      if (isAccessLevel(err)) throw err // terminal — server answered
-      // connect-level failure → next endpoint
-    }
-  }
-  throw lastError ?? new Error('No MySQL endpoint could be reached')
+  const host = cfg.preferredHost ?? 'mysql-marketplace-sunsolar1.f.aivencloud.com'
+  return { connection: await createConnection(connectionOptions(host, cfg)), host }
 }
 
 // ── The full check ──────────────────────────────────────────────────────────
@@ -310,54 +233,38 @@ async function runCheck(deadline: number): Promise<MySqlCheckResult> {
       durationMs: Date.now() - startedAt,
       error: {
         code: 'CONFIG_MISSING',
-        message: 'MySQL credentials incomplete — expected MYSQL_DATABASE_URL (or MYSQL_USER + MYSQL_PASSWORD + MYSQL_DATABASE) in .env',
+        message: 'MySQL credentials incomplete — expected DATABASE_URL to be the Aiven mysql:// URL in .env',
       },
-      hint: 'Copy the MySQL section from .env.example and fill in the InfinityFree credentials.',
+      hint: 'Set DATABASE_URL (mysql://…@mysql-marketplace-sunsolar1.f.aivencloud.com:23363/defaultdb?ssl-mode=REQUIRED) in .env.',
     }
   }
 
-  const chain = await buildEndpointChain(cfg)
-  let connection: Connection | null = null
-  let endpointUsed: string | undefined
-  let lastError: { code: string; errno?: number; message: string } | undefined
-
-  for (const endpoint of chain) {
-    if (Date.now() > deadline) {
-      return {
-        ...base,
-        durationMs: Date.now() - startedAt,
-        error: lastError ?? { code: 'CHECK_TIMEOUT', message: 'Check deadline exceeded before all endpoints were tried' },
-      }
-    }
-    if (endpoint.resolvable !== true) {
-      endpointsTried.push({ host: endpoint.host, resolvable: endpoint.resolvable, connected: false })
-      continue
-    }
-    try {
-      connection = await createConnection(connectionOptions(endpoint.host, cfg))
-      endpointUsed = endpoint.host
-      endpointsTried.push({ host: endpoint.host, resolvable: true, connected: true })
-      break
-    } catch (err) {
-      const info = toErrorInfo(err)
-      lastError = info
-      endpointsTried.push({ host: endpoint.host, resolvable: true, connected: false, error: info })
-      if (isAccessLevel(err)) break // terminal — report below
-      // connect-level → try next endpoint
-    }
-  }
-
-  if (!connection || !endpointUsed) {
-    const clientIpHint = lastError ? clientIpFromMessage(lastError.message) : undefined
-    const isAccess = lastError ? ACCESS_LEVEL_CODES.has(lastError.code) : false
+  const host = cfg.preferredHost ?? 'mysql-marketplace-sunsolar1.f.aivencloud.com'
+  let connection: Connection
+  try {
+    connection = await createConnection(connectionOptions(host, cfg))
+    endpointsTried.push({ host, resolvable: true, connected: true })
+  } catch (err) {
+    const info = toErrorInfo(err)
+    endpointsTried.push({ host, resolvable: true, connected: false, error: info })
+    const clientIpHint = clientIpFromMessage(info.message)
     return {
       ...base,
       durationMs: Date.now() - startedAt,
-      error: lastError ? { ...lastError, clientIpHint } : { code: 'NO_ENDPOINT', message: 'No MySQL endpoint could be reached' },
-      hint: isAccess
-        ? 'The MySQL server answered but refused this client. If the code is ER_ACCESS_DENIED_ERROR / ER_HOST_NOT_PRIVILEGED, add the client IP shown in the message to the InfinityFree Remote MySQL whitelist (client panel → MySQL → Remote MySQL), then retry.'
-        : 'No endpoint answered a TCP handshake. Check the endpoint chain and any firewall between this machine and the database server.',
+      error: { ...info, clientIpHint },
+      hint: isAccessLevel(err)
+        ? 'The MySQL server answered but refused this client. Check the Aiven service is running and the credentials in .env are current (Aiven console → service → Users).'
+        : 'Could not reach the Aiven MySQL service. Check the service URI/port in .env and that the Aiven service is powered on.',
     }
+  }
+
+  if (Date.now() > deadline) {
+    try {
+      await connection.end()
+    } catch {
+      /* already closing */
+    }
+    return { ...base, durationMs: Date.now() - startedAt, error: { code: 'CHECK_TIMEOUT', message: 'Check deadline exceeded' } }
   }
 
   // Connected — collect server facts, then close.
@@ -387,7 +294,7 @@ async function runCheck(deadline: number): Promise<MySqlCheckResult> {
       ok: true,
       checkedAt,
       durationMs: Date.now() - startedAt,
-      endpointUsed,
+      endpointUsed: host,
       endpointsTried,
       server: {
         version: s?.version ?? 'unknown',
@@ -413,7 +320,7 @@ async function runCheck(deadline: number): Promise<MySqlCheckResult> {
     return {
       ...base,
       durationMs: Date.now() - startedAt,
-      endpointUsed,
+      endpointUsed: host,
       endpointsTried,
       error: info,
       hint: 'Connected, but the diagnostic queries failed — the MySQL user may lack information_schema privileges.',
@@ -443,7 +350,7 @@ export async function checkMySqlServer(opts: { timeoutMs?: number } = {}): Promi
       durationMs: timeoutMs,
       endpointsTried: [],
       error: { code: 'CHECK_TIMEOUT', message: `Check did not finish within ${timeoutMs}ms` },
-      hint: 'The endpoint chain is slow or hanging — retry, or raise the timeout.',
+      hint: 'The Aiven endpoint is slow or hanging — retry, or raise the timeout.',
     }),
   )
 }

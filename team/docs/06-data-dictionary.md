@@ -6,7 +6,7 @@
 | **Date** | September 2026 |
 | **Audience** | Expert software engineers (Vendora core team) |
 | **Part A source** | `prisma/schema.prisma` (32 commerce models + **18 financier models IMPLEMENTED 2026-09-26, FIN-1** — the schema of record; every field below is transcribed from it, none invented, none dropped) |
-| **Part B source** | `team/FINANCIER_SCHEMA.md` v5.0 §3 — **IMPLEMENTED 2026-09-26 (FIN-1…FIN-9)**: SQLite realization (Float money, no @db attrs; see worklog FIN-0 for the provider conversion) |
+| **Part B source** | `team/FINANCIER_SCHEMA.md` v5.0 §3 — **IMPLEMENTED 2026-09-26 (FIN-1…FIN-9)**: Float money realization on the managed Aiven MySQL (see worklog FIN-0 for the original provider conversion) |
 | **Companion** | `01-domain-model.md` (ER diagrams, relationship inventory, state machines) |
 | **Changelog** | 1.1 (DOC-V5-e) — Part B, planned enum registry, field-count summary and appendix note rebuilt to FINANCIER_SCHEMA **v5.0** (D-015/D-016: services-not-products · platform verification gate · requirements engine · universal documents · accreditation as a main service · multi-financier sibling routing). Part A (existing schema) unchanged. |
 

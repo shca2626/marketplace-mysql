@@ -22,8 +22,8 @@ import {
  * config (isRequired / displayOrder / instructions / autoPassAccredited),
  * capped by financingRequirements.maxRequirementsPerService.
  *
- * ConditionTemplate.code is globally unique (service-layer guard — the
- * MySQL-null-dupes nuance does not apply on SQLite, but the guard stays).
+ * ConditionTemplate.code is globally unique (service-layer guard — belt and
+ * braces against the MySQL-null-dupes nuance; the guard stays).
  */
 
 // ── DTOs ────────────────────────────────────────────────────────────────────

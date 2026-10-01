@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { requireAdmin } from '@/server/guards'
 import type { AuditLogDTO } from '@/lib/types'
 
-// JSON-in-text (SQLite): metadata is stored serialized — parse for the client.
+// JSON-in-text: metadata is stored serialized — parse for the client.
 const parseMetadata = (s: string | null): unknown => {
   if (!s) return null
   try {
