@@ -95,8 +95,17 @@ export function AgreementsSection() {
                   )}
                   <span className="rounded-full bg-muted px-2 py-0.5">{a.offer.tenorMonths} months</span>
                   <span className="rounded-full bg-muted px-2 py-0.5">{a.offer.installments.length} installments</span>
+                  {/* FIN-008: label the platform's success fee explicitly and keep
+                      the financier's flat fee visible — two different fees, one
+                      word before. */}
+                  {a.offer.feeFlat != null && (
+                    <span className="rounded-full bg-muted px-2 py-0.5">
+                      Financier fee {formatMoney(a.offer.feeFlat, a.offer.currency)}
+                    </span>
+                  )}
                   <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5">
-                    <CircleDollarSign size={10} /> fee {formatMoney(a.fees[0]?.amount ?? 0, a.offer.currency)} ({a.fees[0]?.percentApplied ?? 0}%)
+                    <CircleDollarSign size={10} /> Vendora platform fee {formatMoney(a.fees[0]?.amount ?? 0, a.offer.currency)}
+                    {a.fees[0]?.percentApplied != null && a.fees[0].percentApplied > 0 ? ` (${a.fees[0].percentApplied}%)` : ''}
                   </span>
                 </div>
                 <Button
@@ -115,7 +124,7 @@ export function AgreementsSection() {
                       <LabeledValue label="Offer">{formatMoney(a.offer.amount, a.offer.currency)}</LabeledValue>
                       <LabeledValue label="Tenor">{a.offer.tenorMonths} months</LabeledValue>
                       <LabeledValue label="Collateral">{a.offer.collateralRequired ?? 'None stated'}</LabeledValue>
-                      <LabeledValue label="Fee status">
+                      <LabeledValue label="Platform fee status">
                         <span className="inline-flex items-center gap-1.5">
                           {a.fees[0] && <StatusBadge status={a.fees[0].status} map={FEE_STATUS_MAP} />}
                           {!a.fees[0] && '—'}

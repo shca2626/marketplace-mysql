@@ -359,15 +359,30 @@ export function ProductFormDialog({
         fd.append('file', blob, `${file.name.replace(/\.[^.]+$/, '') || 'image'}.${ext}`)
         fd.append('scope', 'products')
         const xhr = new XMLHttpRequest()
-        xhr.open('POST', '/api/upload')
+        xhr.open('POST', '/api/uploads')
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) patchUpload(id, { progress: Math.round((e.loaded / e.total) * 100) })
         }
         xhr.onload = () => {
           try {
-            const data = JSON.parse(xhr.responseText || '{}') as { url?: string; error?: string }
-            if (xhr.status >= 200 && xhr.status < 300 && data.url) resolve(data.url)
-            else reject(new Error(data.error || `Upload failed (${xhr.status})`))
+            const data = JSON.parse(xhr.responseText || '{}') as {
+              url?: string
+              assets?: { url?: string }[]
+              errors?: { name?: string; error?: string }[]
+              error?: string
+            }
+            const url = data.url ?? data.assets?.[0]?.url
+            if (xhr.status >= 200 && xhr.status < 300 && url) resolve(url)
+            else
+              reject(
+                new Error(
+                  data.error ??
+                    data.errors?.[0]?.error ??
+                    (data.errors?.[0]?.name
+                      ? `${data.errors[0].name}: upload failed`
+                      : `Upload failed (${xhr.status})`)
+                )
+              )
           } catch {
             reject(new Error(`Upload failed (${xhr.status})`))
           }

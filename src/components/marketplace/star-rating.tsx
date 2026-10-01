@@ -22,9 +22,9 @@ export function StarRating({ value, size = 14, className, showValue = false, cou
             className={cn(
               'shrink-0',
               value >= i - 0.25
-                ? 'fill-amber-400 text-amber-400'
+                ? 'fill-bh-gold text-bh-gold'
                 : value >= i - 0.75
-                  ? 'fill-amber-200 text-amber-400'
+                  ? 'fill-bh-gold/45 text-bh-gold'
                   : 'fill-muted text-muted-foreground/30'
             )}
           />
@@ -65,7 +65,7 @@ export function StarPicker({
             size={size}
             className={cn(
               'transition-colors',
-              value >= i ? 'fill-amber-400 text-amber-400' : 'fill-muted text-muted-foreground/40'
+              value >= i ? 'fill-bh-gold text-bh-gold' : 'fill-muted text-muted-foreground/40'
             )}
           />
         </button>

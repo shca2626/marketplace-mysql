@@ -183,15 +183,15 @@ export function CatalogView() {
                 htmlFor={row.id}
                 className={cn(
                   'flex w-full cursor-pointer items-center justify-between gap-2 rounded-xl px-2.5 py-1.5 transition-colors',
-                  selected ? 'bg-primary/10' : 'hover:bg-muted/70'
+                  selected ? 'bg-bh-soft-blue' : 'hover:bg-bh-soft-blue/60'
                 )}
               >
                 <span className="flex min-w-0 items-center gap-2.5">
-                  <RadioGroupItem value={row.value} id={row.id} className="border-muted-foreground/40" />
+                  <RadioGroupItem value={row.value} id={row.id} className="border-bh-faded" />
                   <span
                     className={cn(
                       'truncate text-sm',
-                      selected ? 'font-semibold text-primary' : 'font-normal text-foreground/90'
+                      selected ? 'font-semibold text-bh-navy' : 'font-normal text-bh-subtle'
                     )}
                   >
                     {row.name}
@@ -200,7 +200,7 @@ export function CatalogView() {
                 <span
                   className={cn(
                     'shrink-0 text-xs tabular-nums',
-                    selected ? 'font-semibold text-primary' : 'text-muted-foreground'
+                    selected ? 'font-semibold text-bh-gold-dark' : 'text-bh-muted'
                   )}
                 >
                   {row.count}
@@ -255,8 +255,8 @@ export function CatalogView() {
                 setPage(1)
               }}
               className={cn(
-                'rounded-full border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground',
-                minPrice === r.min && maxPrice === r.max && 'border-primary bg-primary/10 text-primary'
+                'rounded-full border border-bh-border bg-bh-card px-2.5 py-1 text-xs text-bh-muted transition-colors hover:border-bh-gold/50 hover:text-bh-navy',
+                minPrice === r.min && maxPrice === r.max && 'border-bh-navy bg-bh-navy text-white hover:border-bh-navy hover:text-white'
               )}
             >
               {r.label}
@@ -271,10 +271,10 @@ export function CatalogView() {
     <div className="mx-auto max-w-7xl px-4 py-8">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+        <h1 className="text-2xl font-bold tracking-tight text-bh-navy sm:text-3xl">
           {params.query ? (
             <>
-              Results for <span className="text-primary">“{params.query}”</span>
+              Results for <span className="text-bh-gold-dark">“{params.query}”</span>
             </>
           ) : category ? (
             categories.find((c) => c.slug === category)?.name ?? 'Products'
@@ -282,7 +282,7 @@ export function CatalogView() {
             'All products'
           )}
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 text-sm text-bh-muted">
           {loading ? 'Loading…' : `${total} ${total === 1 ? 'product' : 'products'} found`}
         </p>
       </div>
@@ -290,13 +290,13 @@ export function CatalogView() {
       <div className="flex gap-8">
         {/* Sidebar filters (desktop) */}
         <aside className="hidden w-56 shrink-0 lg:block" aria-label="Filters">
-          <div className="sticky top-36 space-y-6 rounded-2xl border bg-card p-5">
+          <div className="sticky top-36 space-y-6 rounded-2xl border border-bh-border bg-bh-card p-5 shadow-card">
             <div className="flex items-center justify-between">
-              <h3 className="flex items-center gap-1.5 text-sm font-semibold">
-                <SlidersHorizontal size={14} /> Filters
+              <h3 className="flex items-center gap-1.5 text-sm font-semibold text-bh-navy">
+                <SlidersHorizontal size={14} className="text-bh-gold-dark" /> Filters
               </h3>
               {hasFilters && (
-                <Button variant="ghost" size="sm" className="h-7 rounded-full px-2 text-xs text-primary" onClick={clearFilters}>
+                <Button variant="ghost" size="sm" className="h-7 rounded-full px-2 text-xs text-bh-action" onClick={clearFilters}>
                   Clear
                 </Button>
               )}
@@ -335,7 +335,7 @@ export function CatalogView() {
             )}
 
             <div className="ml-auto flex min-w-0 items-center gap-2">
-              <span className="hidden text-xs text-muted-foreground sm:block">Sort by</span>
+              <span className="hidden text-xs text-bh-muted sm:block">Sort by</span>
               <Select value={sort} onValueChange={(v) => { setSort(v); setPage(1) }}>
                 <SelectTrigger
                   size="sm"
@@ -359,26 +359,31 @@ export function CatalogView() {
           {(category || minPrice || maxPrice) && (
             <div className="mb-4 flex flex-wrap gap-2">
               {category && (
-                <Badge variant="secondary" className="gap-1 rounded-full py-1.5 pl-3 pr-2 text-xs">
+                <span className="inline-flex items-center gap-1 rounded-full bg-bh-navy py-1.5 pl-3 pr-2 text-xs font-medium text-white">
                   {categories.find((c) => c.slug === category)?.name ?? category}
-                  <button onClick={() => setCategory('')} aria-label="Remove category filter">
+                  <button
+                    onClick={() => setCategory('')}
+                    className="rounded-full p-0.5 transition-colors hover:text-bh-gold-light"
+                    aria-label="Remove category filter"
+                  >
                     <X size={12} />
                   </button>
-                </Badge>
+                </span>
               )}
               {(minPrice || maxPrice) && (
-                <Badge variant="secondary" className="gap-1 rounded-full py-1.5 pl-3 pr-2 text-xs">
+                <span className="inline-flex items-center gap-1 rounded-full bg-bh-navy py-1.5 pl-3 pr-2 text-xs font-medium text-white">
                   ${minPrice || '0'} – ${maxPrice || '∞'}
                   <button
                     onClick={() => {
                       setMinPrice('')
                       setMaxPrice('')
                     }}
+                    className="rounded-full p-0.5 transition-colors hover:text-bh-gold-light"
                     aria-label="Remove price filter"
                   >
                     <X size={12} />
                   </button>
-                </Badge>
+                </span>
               )}
             </div>
           )}
@@ -391,25 +396,28 @@ export function CatalogView() {
               ))}
             </div>
           ) : products.length === 0 ? (
-            <div className="flex flex-col items-center justify-center overflow-hidden rounded-2xl border border-dashed py-16 text-center">
+            <div className="flex flex-col items-center justify-center overflow-hidden rounded-2xl border border-bh-border bg-bh-card py-16 text-center shadow-card">
               <div className="relative">
-                <div className="absolute inset-0 -z-10 scale-150 rounded-full bg-primary/10 blur-2xl" aria-hidden />
-                <div className="flex h-20 w-20 items-center justify-center rounded-full border bg-card shadow-sm">
-                  <PackageSearch size={34} className="text-primary/70" />
+                <div className="absolute inset-0 -z-10 scale-150 rounded-full bg-bh-gold/15 blur-2xl" aria-hidden />
+                <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-bh-bg-gold text-bh-gold-dark shadow-sm">
+                  <PackageSearch size={34} aria-hidden />
                 </div>
               </div>
-              <h3 className="mt-5 text-lg font-semibold">No products found</h3>
-              <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+              <h3 className="mt-5 text-lg font-semibold text-bh-navy">No products found</h3>
+              <p className="mt-1 max-w-sm text-sm text-bh-muted">
                 {params.query
                   ? `Nothing matches “${params.query}” with these filters — try clearing them or search for something else.`
                   : 'Try adjusting your filters or browse a category below.'}
               </p>
-              <Button className="mt-5 rounded-full" onClick={clearFilters}>
+              <Button
+                className="mt-5 rounded-full bg-bh-gold font-semibold text-bh-navy-deep hover:bg-bh-gold-light"
+                onClick={clearFilters}
+              >
                 Clear all filters
               </Button>
               {categories.length > 0 && (
-                <div className="mt-7 w-full border-t bg-muted/30 px-6 py-5">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                <div className="mt-7 w-full border-t border-bh-border bg-bh-soft-blue/50 px-6 py-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-bh-muted">
                     Popular categories
                   </p>
                   <div className="mt-3 flex flex-wrap justify-center gap-2">
@@ -425,10 +433,10 @@ export function CatalogView() {
                             setPage(1)
                           }
                         }}
-                        className="rounded-full border bg-card px-3.5 py-1.5 text-xs font-medium text-foreground/90 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:text-primary"
+                        className="rounded-full border border-bh-border bg-bh-card px-3.5 py-1.5 text-xs font-medium text-bh-subtle shadow-sm transition-all hover:-translate-y-0.5 hover:border-bh-gold/50 hover:text-bh-navy"
                       >
                         {c.name}
-                        <span className="ml-1.5 text-muted-foreground">{c.productCount}</span>
+                        <span className="ml-1.5 text-bh-muted">{c.productCount}</span>
                       </button>
                     ))}
                   </div>
@@ -450,7 +458,7 @@ export function CatalogView() {
               {/* Infinite-scroll sentinel + Load more */}
               <div ref={sentinelRef} className="h-px" aria-hidden="true" />
               <div className="mt-8 flex flex-col items-center gap-2.5">
-                <p className="text-xs text-muted-foreground" aria-live="polite">
+                <p className="text-xs text-bh-muted" aria-live="polite">
                   Showing {products.length} of {total}{' '}
                   {total === 1 ? 'product' : 'products'}
                   {pages > 1 && !loadingMore && canLoadMore ? ' — scroll for more' : ''}

@@ -6,6 +6,7 @@ import {
   PROFILE_FIELD_KEYS,
   DOCUMENT_TYPES,
   assertFinancierStaffOfService,
+  requireFinancierContext,
   type ConditionScope,
   type ConditionType,
 } from './shared'
@@ -200,21 +201,18 @@ export async function listVisibleConditionTemplates(
       ...textWhere,
     }
   } else {
-    const membership = await db.organizationMember.findFirst({
-      where: { userId, role: { in: ['OWNER', 'ADMIN'] } },
-      include: { organization: { select: { financierProfile: { select: { id: true } } } } },
-      orderBy: { createdAt: 'asc' },
-    })
-    if (!membership || !membership.organization.financierProfile) {
-      throw new FinancingError('Financier staff access required', 403)
-    }
+    // Unified with getFinancierContext (FIN-003): resolve the caller's
+    // financier org the same way the console does — profile auto-provision
+    // included — instead of a raw first-membership lookup that 403-ed
+    // multi-org users whose first org predates its profile.
+    const ctx = await requireFinancierContext(userId)
     // GENERAL active + own FINANCIER (any active state — staff manage their own)
     where = {
       ...typeWhere,
       ...textWhere,
       OR: [
         { scope: 'GENERAL', isActive: true },
-        { scope: 'FINANCIER', organizationId: membership.organizationId },
+        { scope: 'FINANCIER', organizationId: ctx.organizationId },
       ],
     }
   }
@@ -258,17 +256,9 @@ export async function createConditionTemplate(
     if (!requirements.allowFinancierCustomConditions) {
       throw new FinancingError('Financier-specific conditions are disabled by the platform', 403)
     }
-    const membership = await db.organizationMember.findFirst({
-      where: {
-        userId: actor.id,
-        role: { in: ['OWNER', 'ADMIN'] },
-        organization: { financierProfile: { isNot: null } },
-      },
-      include: { organization: { select: { id: true, financierProfile: { select: { id: true } } } } },
-    })
-    if (!membership) throw new FinancingError('Financier staff access required', 403)
+    const ctx = await requireFinancierContext(actor.id)
     scope = 'FINANCIER'
-    organizationId = membership.organization.id
+    organizationId = ctx.organizationId
   }
 
   const created = await db.conditionTemplate.create({

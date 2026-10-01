@@ -863,6 +863,25 @@ export async function createQuote(
     }
   }
 
+  // BUY-202: quote quantity vs available stock. A seller quoting 25 units
+  // against 10 in stock dead-ends the buyer post-acceptance with a 409 on
+  // convert. Validate at send time so the problem surfaces where it's fixable.
+  {
+    const perProduct = new Map<string, number>()
+    for (const l of input.lines) {
+      perProduct.set(l.productId, (perProduct.get(l.productId) ?? 0) + l.quantity)
+    }
+    for (const [productId, qty] of perProduct) {
+      const p = productMap.get(productId)
+      if (p && p.stock < qty) {
+        throw new RfqServiceError(
+          `“${p.title}” only has ${p.stock} in stock — quote at most ${p.stock} unit${p.stock === 1 ? '' : 's'} or restock first.`,
+          409
+        )
+      }
+    }
+  }
+
   // Quote routing: does this quote need platform review before the buyer sees it?
   let quoteStatus: 'SENT' | 'PENDING_REVIEW' = 'SENT'
   if (routing.enabled && !isAdmin && routing.mode !== 'DIRECT') {
@@ -1262,7 +1281,13 @@ export async function sellerRfqInbox(sellerId: string): Promise<RfqDTO[]> {
   const rfqs = await db.rfq.findMany({
     where: {
       status: { in: ['SUBMITTED', 'UNDER_REVIEW', 'QUOTED'] },
-      lines: { some: { product: { sellerId } } },
+      // SEL-006: include RFQs I have already quoted even when none of the
+      // request's lines reference my catalog (open-notation lines, admin
+      // forwards) — sent quotes must never vanish from my own inbox.
+      OR: [
+        { lines: { some: { product: { sellerId } } } },
+        { quotes: { some: { sellerId } } },
+      ],
     },
     include: {
       ...rfqInclude,

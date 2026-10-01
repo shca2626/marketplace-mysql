@@ -30,12 +30,18 @@ export function DashboardLayout({
   activeKey,
   onNavigate,
   children,
+  roleBadgeLabel,
+  topbarSlot,
 }: {
   role: RoleKey
   nav: NavConfig
   activeKey: string
   onNavigate: (item: NavItem) => void
   children: ReactNode
+  /** Optional context-aware label for the topbar account chip (e.g. "Institution Staff"). */
+  roleBadgeLabel?: string
+  /** Optional compact control injected into the topbar (e.g. org switcher). */
+  topbarSlot?: ReactNode
 }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const activeItem = [...nav.groups.flatMap((g) => g.items)].find((i) => i.key === activeKey)
@@ -60,6 +66,8 @@ export function DashboardLayout({
           sectionLabel={sectionLabel}
           role={role}
           onOpenMobileNav={() => setMobileNavOpen(true)}
+          roleBadgeLabel={roleBadgeLabel}
+          topbarSlot={topbarSlot}
         />
 
         <main className="flex-1">

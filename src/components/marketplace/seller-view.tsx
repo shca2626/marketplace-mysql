@@ -13,6 +13,7 @@ import {
   Pencil,
   Plus,
   Scale,
+  Search,
   Star,
   Store,
   Trash2,
@@ -119,6 +120,13 @@ export function SellerView() {
     isSeller ? '/api/seller/stats' : null,
     { skip: !isSeller }
   )
+  // SEL-002: the payout card must show the REAL commission rate (per-vendor
+  // override or platform default) from /api/seller/earnings — never a hardcoded 8%.
+  const { data: earningsData } = useApi<{ commissionRate: number }>(
+    isSeller ? '/api/seller/earnings' : null,
+    { skip: !isSeller }
+  )
+  const commissionRate = earningsData?.commissionRate
   const {
     data: productsData,
     loading: productsLoading,
@@ -133,6 +141,19 @@ export function SellerView() {
   const stats = statsData?.stats
   const myProducts = productsData?.items ?? []
   const sellerOrders = ordersData?.orders ?? []
+
+  // SEL-004: catalog management needs search + status filtering, not a 48-row dump.
+  const [productQuery, setProductQuery] = useState('')
+  const [productStatus, setProductStatus] = useState<'ALL' | 'ACTIVE' | 'DRAFT' | 'ARCHIVED'>('ALL')
+  const visibleProducts = myProducts.filter((p) => {
+    if (productStatus !== 'ALL' && p.status !== productStatus) return false
+    const q = productQuery.trim().toLowerCase()
+    if (!q) return true
+    return (
+      p.title.toLowerCase().includes(q) ||
+      (p.sku ?? '').toLowerCase().includes(q)
+    )
+  })
 
   const refetchAll = () => {
     void refetchStats()
@@ -351,7 +372,8 @@ export function SellerView() {
                   <Wallet size={16} className="text-primary" /> Payouts
                 </CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Weekly payout runs every Friday · Vendora fee 8% of gross sales
+                  Weekly payout runs every Friday · Vendora fee{' '}
+                  {commissionRate != null ? `${commissionRate}% of gross sales` : 'per your vendor terms'}
                 </p>
               </CardHeader>
               <CardContent>
@@ -393,7 +415,7 @@ export function SellerView() {
                     <span className="tabular-nums">{formatUSD(stats.payouts.grossSales)}</span>
                   </div>
                   <div className="flex justify-between text-muted-foreground">
-                    <span>Vendora fee (8%)</span>
+                    <span>Vendora fee{commissionRate != null ? ` (${commissionRate}%)` : ''}</span>
                     <span className="tabular-nums">−{formatUSD(stats.payouts.platformFee)}</span>
                   </div>
                   <div className="flex justify-between border-t pt-1.5 font-bold">
@@ -603,6 +625,43 @@ export function SellerView() {
       {/* ── Products section ── */}
       {activeTab === 'products' && (
       <div>
+          {/* SEL-004: search + status toolbar for catalog management */}
+          <Card className="mb-4">
+            <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+              <div className="relative flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  className="h-9 rounded-lg pl-9"
+                  placeholder="Search your products by title or SKU…"
+                  value={productQuery}
+                  onChange={(e) => setProductQuery(e.target.value)}
+                  aria-label="Search your products"
+                />
+              </div>
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by status">
+                {(['ALL', 'ACTIVE', 'DRAFT', 'ARCHIVED'] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setProductStatus(s)}
+                    className={cn(
+                      'rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-colors',
+                      productStatus === s
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-border text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    {s === 'ALL' ? 'All' : s === 'ACTIVE' ? 'Active' : s === 'DRAFT' ? 'Drafts' : 'Archived'}
+                    <span className="ml-1 tabular-nums opacity-70">
+                      {s === 'ALL'
+                        ? myProducts.length
+                        : myProducts.filter((p) => p.status === s).length}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
           <Card>
             <CardContent className="p-0">
               {productsLoading ? (
@@ -620,6 +679,25 @@ export function SellerView() {
                     <Plus size={15} className="mr-1.5" /> Add product
                   </Button>
                 </div>
+              ) : visibleProducts.length === 0 ? (
+                <div className="flex flex-col items-center py-14 text-center">
+                  <PackageSearch size={36} className="text-muted-foreground/40" />
+                  <p className="mt-3 text-sm font-semibold">No products match</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Try a different search or clear the status filter.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-4 h-8 rounded-full text-xs"
+                    onClick={() => {
+                      setProductQuery('')
+                      setProductStatus('ALL')
+                    }}
+                  >
+                    Clear filters
+                  </Button>
+                </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -635,7 +713,7 @@ export function SellerView() {
                       </tr>
                     </thead>
                     <tbody>
-                      {myProducts.map((p) => (
+                      {visibleProducts.map((p) => (
                         <tr key={p.id} className="border-b transition-colors last:border-0 hover:bg-muted/30">
                           <td className="max-w-72 px-5 py-3">
                             <div className="flex items-center gap-3">

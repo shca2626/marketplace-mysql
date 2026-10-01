@@ -129,11 +129,16 @@ function UploadDocForm({
   const [orgScope, setOrgScope] = useState<string>(organizationId ?? '')
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
+  // BUY-206/207: server rejections (past expiry date, PDF/processing failures,
+  // size/type limits) render INLINE inside the open dialog instead of being
+  // swallowed by a transient toast the user never sees.
+  const [apiError, setApiError] = useState<string | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
 
   const submit = async () => {
     if (!file) return toast({ title: 'Pick a file to upload', variant: 'destructive' })
     setBusy(true)
+    setApiError(null)
     const form = new FormData()
     form.append('file', file)
     form.append('documentType', documentType)
@@ -146,7 +151,12 @@ function UploadDocForm({
       body: form as unknown as BodyInit,
     })
     setBusy(false)
-    if (!res.ok || !res.data) return toastApiError(res.error, 'Upload failed')
+    if (!res.ok || !res.data) {
+      // Keep the dialog open with the server's reason visible — the user can
+      // fix the field/file in place and retry.
+      setApiError(res.error ?? 'Upload failed — please check the file and try again.')
+      return
+    }
     toast({
       title: 'Document uploaded',
       description: `${DOCUMENT_TYPE_LABELS[documentType] ?? documentType} added to your vault — pending platform verification.`,
@@ -211,10 +221,22 @@ function UploadDocForm({
               ref={fileInput}
               type="file"
               accept="image/*,.pdf"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              onChange={(e) => {
+                setFile(e.target.files?.[0] ?? null)
+                setApiError(null)
+              }}
             />
             <p className="text-[11px] text-muted-foreground">Images and PDF · up to 8 MB · inspected by the media pipeline.</p>
           </div>
+          {apiError && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-xs font-semibold text-destructive"
+            >
+              <FileWarning size={14} className="mt-px shrink-0" />
+              <span className="min-w-0 break-words">{apiError}</span>
+            </div>
+          )}
         <DialogFooter>
           <Button variant="outline" className="rounded-xl" onClick={onClose}>
             Cancel
@@ -375,6 +397,11 @@ export function DocumentsSection() {
   const [replaceTarget, setReplaceTarget] = useState<AccountDocumentDTO | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<AccountDocumentDTO | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+  // BUY-209: the delete guard's answer — the server's block reason (with the
+  // live-reference count) shows inside the confirm dialog, and a second,
+  // explicit "remove anyway" action sends ?confirm=force.
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deleteBlocked, setDeleteBlocked] = useState(false)
 
   const url = scope === 'personal' ? '/api/documents' : `/api/documents?organizationId=${scope}`
   const { data, loading, error, refetch } = useApi<{ documents: AccountDocumentDTO[] }>(url)
@@ -396,14 +423,44 @@ export function DocumentsSection() {
     }
   }, [data])
 
-  const removeDoc = async (doc: AccountDocumentDTO) => {
+  const removeDoc = async (doc: AccountDocumentDTO, force = false) => {
     setBusyId(doc.id)
-    const res = await apiRequest(`/api/documents/${doc.id}`, { method: 'DELETE' })
-    setBusyId(null)
-    if (!res.ok) return toastApiError(res.error, 'Could not remove the document')
-    toast({ title: 'Document removed', description: 'Existing applications keep their evidence rows.' })
-    setDeleteTarget(null)
-    setVersion((v) => v + 1)
+    setDeleteError(null)
+    try {
+      const res = await fetch(`/api/documents/${doc.id}${force ? '?confirm=force' : ''}`, { method: 'DELETE' })
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string
+        references?: number
+        code?: string
+      }
+      if (!res.ok) {
+        if (json.code === 'DOCUMENT_REFERENCED' || (json.references ?? 0) > 0) {
+          // Blocked by the reference guard — show WHY inside the dialog and
+          // offer the explicit override instead of failing silently.
+          setDeleteError(json.error ?? 'This document is attached to active applications.')
+          setDeleteBlocked(true)
+        } else {
+          setDeleteError(json.error ?? 'Could not remove the document')
+          setDeleteBlocked(false)
+        }
+        return
+      }
+      toast({
+        title: 'Document removed',
+        description: force
+          ? 'Removed anyway — existing applications keep their archived evidence rows.'
+          : 'Existing applications keep their evidence rows.',
+      })
+      setDeleteTarget(null)
+      setDeleteError(null)
+      setDeleteBlocked(false)
+      setVersion((v) => v + 1)
+    } catch {
+      setDeleteError('Network error — please try again')
+      setDeleteBlocked(false)
+    } finally {
+      setBusyId(null)
+    }
   }
 
   const replaceDoc = async (newDoc: AccountDocumentDTO, old: AccountDocumentDTO) => {
@@ -560,9 +617,19 @@ export function DocumentsSection() {
         }}
       />
 
-      {/* Delete confirm */}
-      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <DialogContent className="sm:max-w-sm">
+      {/* Delete confirm — BUY-209: warns about active-application references
+          (server guard answer renders inline; "Remove anyway" sends confirm=force) */}
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTarget(null)
+            setDeleteError(null)
+            setDeleteBlocked(false)
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Remove this document?</DialogTitle>
             <DialogDescription>
@@ -571,17 +638,61 @@ export function DocumentsSection() {
                   {DOCUMENT_TYPE_LABELS[deleteTarget.documentType] ?? deleteTarget.documentType}
                   {deleteTarget.title ? ` — “${deleteTarget.title}”` : ''} will be archived. Applications that already
                   reference it keep their evidence rows, but new checklist items will not be able to pick it.
+                  If it is attached to any active application, we will stop and tell you first.
                 </>
               )}
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" className="rounded-xl" onClick={() => setDeleteTarget(null)}>
+          {deleteError && (
+            <div
+              role="alert"
+              className="flex items-start gap-2.5 rounded-xl border border-destructive/30 bg-destructive/10 px-3.5 py-3 text-xs font-semibold text-destructive"
+            >
+              <FileWarning size={15} className="mt-px shrink-0" />
+              <span className="min-w-0 break-words leading-relaxed">{deleteError}</span>
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              className="rounded-xl"
+              onClick={() => {
+                setDeleteTarget(null)
+                setDeleteError(null)
+                setDeleteBlocked(false)
+              }}
+            >
               Keep it
             </Button>
-            <Button variant="destructive" className="rounded-xl" onClick={() => deleteTarget && void removeDoc(deleteTarget)}>
-              <Trash2 size={14} className="mr-1.5" /> Remove
-            </Button>
+            {deleteBlocked ? (
+              <Button
+                variant="destructive"
+                className="rounded-xl"
+                disabled={busyId === deleteTarget?.id}
+                onClick={() => deleteTarget && void removeDoc(deleteTarget, true)}
+              >
+                {busyId === deleteTarget?.id ? (
+                  <Loader2 size={14} className="mr-1.5 animate-spin" />
+                ) : (
+                  <Trash2 size={14} className="mr-1.5" />
+                )}
+                Remove anyway
+              </Button>
+            ) : (
+              <Button
+                variant="destructive"
+                className="rounded-xl"
+                disabled={busyId === deleteTarget?.id}
+                onClick={() => deleteTarget && void removeDoc(deleteTarget)}
+              >
+                {busyId === deleteTarget?.id ? (
+                  <Loader2 size={14} className="mr-1.5 animate-spin" />
+                ) : (
+                  <Trash2 size={14} className="mr-1.5" />
+                )}
+                Remove
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -735,6 +735,8 @@ export interface FinancingRequestSummaryDTO {
   multiGroupId: string | null
   amountRequested: number
   currency: string
+  /** The tenor the applicant asked for (FIN-9 prefill source) */
+  tenorRequestedMonths: number | null
   activityName: string | null
   activityCity: string | null
   purpose: string | null
@@ -923,6 +925,8 @@ export interface FinancierInstitutionDTO {
   orgType: string
   status: string
   verifiedAt: string | null
+  website: string | null
+  /** null = BANK/MFI/EWALLET org without a profile yet (activate to enable its console). */
   profile: {
     id: string
     licenseNumber: string | null
@@ -931,8 +935,9 @@ export interface FinancierInstitutionDTO {
     contactPhone: string | null
     minTicket: number | null
     maxTicket: number | null
+    about: string | null
     branchCount: number
-  }
+  } | null
   stats: {
     services: number
     activeServices: number

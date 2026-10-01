@@ -13,7 +13,9 @@ import {
   Banknote,
   HandCoins,
   Inbox,
+  RotateCcw,
   ScrollText,
+  ShieldAlert,
   ShieldCheck,
 } from 'lucide-react'
 import { useMarketplace } from '@/store/marketplace'
@@ -25,6 +27,7 @@ import type {
   FinancierServiceDTO,
 } from '@/lib/types'
 import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import {
@@ -39,15 +42,15 @@ import {
 
 export function DashboardSection({ onNavigate }: { onNavigate: (section: string) => void }) {
   const navigate = useMarketplace((s) => s.navigate)
-  const { data: inboxData, loading: inboxLoading } = useApi<{
+  const { data: inboxData, loading: inboxLoading, error: inboxError, refetch: refetchInbox } = useApi<{
     requests: FinancingRequestSummaryDTO[]
     total: number
   }>('/api/financier/requests?limit=100')
-  const { data: accData } = useApi<{ requests: AccreditationRequestSummaryDTO[]; total: number }>(
+  const { data: accData, error: accError, refetch: refetchAcc } = useApi<{ requests: AccreditationRequestSummaryDTO[]; total: number }>(
     '/api/financier/accreditations?limit=100'
   )
-  const { data: servicesData } = useApi<{ services: FinancierServiceDTO[] }>('/api/financier/services')
-  const { data: agreementsData } = useApi<{ agreements: FinancingAgreementDTO[] }>('/api/financier/agreements')
+  const { data: servicesData, error: servicesError, refetch: refetchServices } = useApi<{ services: FinancierServiceDTO[] }>('/api/financier/services')
+  const { data: agreementsData, error: agreementsError, refetch: refetchAgreements } = useApi<{ agreements: FinancingAgreementDTO[] }>('/api/financier/agreements')
 
   const inbox = inboxData?.requests ?? []
   const accreditations = accData?.requests ?? []
@@ -67,8 +70,31 @@ export function DashboardSection({ onNavigate }: { onNavigate: (section: string)
   const activeServices = services.filter((s) => s.status === 'ACTIVE')
   const recent = [...inbox].sort((a, b) => (b.forwardedAt ?? '').localeCompare(a.forwardedAt ?? '')).slice(0, 5)
 
+  // FIN-001 follow-up: a failing financier API call must surface loudly —
+  // never silent zeros (the sections below already follow this pattern).
+  const loadError = inboxError ?? accError ?? servicesError ?? agreementsError ?? null
+  const retryAll = () => {
+    void refetchInbox()
+    void refetchAcc()
+    void refetchServices()
+    void refetchAgreements()
+  }
+
   return (
     <div className="space-y-5">
+      {loadError && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2.5 text-sm">
+            <ShieldAlert size={16} className="shrink-0 text-destructive" />
+            <span className="font-semibold">Could not load your institution data</span>
+            <span className="hidden truncate text-xs text-muted-foreground sm:inline">{loadError}</span>
+          </div>
+          <Button variant="outline" size="sm" className="rounded-xl" onClick={retryAll}>
+            <RotateCcw size={13} className="mr-1" /> Retry
+          </Button>
+        </div>
+      )}
+
       {/* Stat tiles */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         <StatTile

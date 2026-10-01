@@ -10,6 +10,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useTheme } from 'next-themes'
+import type { ReactNode } from 'react'
 import { ChevronRight, LogOut, Menu, Moon, Sun } from 'lucide-react'
 import { useMarketplace } from '@/store/marketplace'
 import { initials } from '@/lib/format'
@@ -40,11 +41,17 @@ export function DashboardTopbar({
   sectionLabel,
   role,
   onOpenMobileNav,
+  roleBadgeLabel,
+  topbarSlot,
 }: {
   consoleName: string
   sectionLabel: string
   role: RoleKey
   onOpenMobileNav: () => void
+  /** Optional context-aware chip label (e.g. "Institution Staff") — falls back to the platform role. */
+  roleBadgeLabel?: string
+  /** Optional compact control between the breadcrumb and the right cluster (e.g. org switcher). */
+  topbarSlot?: ReactNode
 }) {
   const user = useMarketplace((s) => s.user)
   const setUser = useMarketplace((s) => s.setUser)
@@ -56,6 +63,13 @@ export function DashboardTopbar({
     await fetch('/api/auth/logout', { method: 'POST' })
     setUser(null)
     navigate('home')
+  }
+
+  // SEL-010: for sellers, "View storefront" must open THEIR OWN public store
+  // page — not the marketplace home.
+  const openStorefront = () => {
+    if (role === 'seller' && user?.id) navigate('store', { sellerId: user.id })
+    else navigate('home')
   }
 
   return (
@@ -81,6 +95,9 @@ export function DashboardTopbar({
           </span>
         </nav>
 
+        {/* Injected control (org switcher on the financier console) */}
+        {topbarSlot && <div className="ml-1 hidden min-w-0 sm:block">{topbarSlot}</div>}
+
         {/* Right cluster */}
         <TooltipProvider delayDuration={250}>
           <div className="ml-auto flex items-center gap-0.5 sm:gap-1.5">
@@ -92,7 +109,7 @@ export function DashboardTopbar({
                   variant="ghost"
                   size="icon"
                   className="text-muted-foreground hover:text-foreground"
-                  onClick={() => navigate('home')}
+                  onClick={openStorefront}
                   aria-label={storefront.label}
                 >
                   <storefront.icon size={17} />
@@ -141,8 +158,15 @@ export function DashboardTopbar({
                   <DropdownMenuLabel className="space-y-1">
                     <div className="flex items-center gap-2">
                       <p className="truncate text-sm font-semibold">{user.name}</p>
-                      <Badge variant="secondary" className={ROLE_BADGE_CLASS[user.role] ?? 'rounded-full'}>
-                        {user.role}
+                      <Badge
+                        variant="secondary"
+                        className={
+                          roleBadgeLabel
+                            ? 'rounded-full bg-bh-bg-gold text-bh-gold-dark'
+                            : ROLE_BADGE_CLASS[user.role] ?? 'rounded-full'
+                        }
+                      >
+                        {roleBadgeLabel ?? user.role}
                       </Badge>
                     </div>
                     <p className="truncate text-xs font-normal text-muted-foreground">{user.email}</p>

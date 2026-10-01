@@ -20,7 +20,7 @@
 import { useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ThemeProvider } from 'next-themes'
-import { useMarketplace, type View } from '@/store/marketplace'
+import { useMarketplace, markStoreHydrated, type View } from '@/store/marketplace'
 import type { SessionUser } from '@/lib/types'
 import type { StorefrontSettings, BannerSlideDTO } from '@/lib/settings/schema'
 import { parseLocation } from '@/lib/routing'
@@ -93,20 +93,34 @@ export function MarketplaceApp() {
   // and keep state in sync when the user navigates with back/forward.
   useEffect(() => {
     let cancelled = false
-    void useMarketplace.persist.rehydrate()
+    void useMarketplace.persist.rehydrate().then(markStoreHydrated)
     if (parseLocation().view !== 'home') applyLocation()
     const onPopState = () => applyLocation()
     window.addEventListener('popstate', onPopState)
     const restore = async () => {
-      try {
-        const res = await fetch('/api/auth/me', { cache: 'no-store' })
-        const json = (await res.json()) as { user: SessionUser | null }
-        if (!cancelled) setUser(json.user)
-      } catch {
-        // offline — stay signed out
-      } finally {
-        if (!cancelled) setAuthChecked(true)
+      // ADM-001: a single transient /me failure (dev-server restart, HMR
+      // remount, network blip) must NOT render a valid session as signed-out.
+      // Only an explicit 401 concludes "signed out" — anything else retries
+      // briefly, then keeps the persisted user if we have one.
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const res = await fetch('/api/auth/me', { cache: 'no-store' })
+          if (res.status === 401) {
+            if (!cancelled) setUser(null)
+            break
+          }
+          if (res.ok) {
+            const json = (await res.json()) as { user: SessionUser | null }
+            if (!cancelled) setUser(json.user ?? null)
+            break
+          }
+          // 5xx / network-level weirdness — retry after a short backoff
+          await new Promise((r) => setTimeout(r, 350 * (attempt + 1)))
+        } catch {
+          await new Promise((r) => setTimeout(r, 350 * (attempt + 1)))
+        }
       }
+      if (!cancelled) setAuthChecked(true)
     }
     void restore()
     // Storefront configuration (branding, hero slides, sample images) —

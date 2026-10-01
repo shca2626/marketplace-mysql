@@ -47,13 +47,29 @@ function FinancingConsole() {
     }
   }
 
+  // Deep link: ?view=financing&section=<section> (Account → Document Vault
+  // sidebar handoff, direct URL). prev starts null so a fresh mount consumes
+  // the param; in-console sidebar clicks keep using setSection directly.
+  const [prevSectionLink, setPrevSectionLink] = useState<string | null>(null)
+  if ((params.financingSection ?? null) !== prevSectionLink) {
+    setPrevSectionLink(params.financingSection ?? null)
+    if (params.financingSection && SECTION_KEYS.has(params.financingSection as Section)) {
+      setSection(params.financingSection as Section)
+      setWizardServiceId(null)
+      setOpenRequestId(null)
+    }
+  }
+
   // Sidebar: financing-group items drive the internal section; everything else
   // navigates to its own view (orders / favorites / business …).
+  // IA-001/BUY-210: section clicks also push the URL param so each sidebar
+  // label is deep-linkable, bookmarkable and survives back/forward + remounts.
   const onNavigate = (item: NavItem) => {
     if (item.view === 'financing' && SECTION_KEYS.has(item.key as Section)) {
       setSection(item.key as Section)
       setWizardServiceId(null)
       setOpenRequestId(null)
+      navigate('financing', { financingSection: item.key })
       return
     }
     navigate(item.view ?? 'account', item.params)

@@ -110,7 +110,7 @@ export function HeroSlider() {
         onFocus={() => setPaused(true)}
         onBlur={() => setPaused(false)}
         className={cn(
-          'group/slider relative w-full touch-pan-y overflow-hidden bg-neutral-950 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          'group/slider relative w-full touch-pan-y overflow-hidden bg-bh-navy-deep outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
           HEIGHTS[config.height]
         )}
       >
@@ -131,7 +131,7 @@ export function HeroSlider() {
               onDragEnd={swipe}
               className="absolute inset-0 cursor-grab active:cursor-grabbing"
             >
-              {/* image + duotone overlay — text stays readable on any photo */}
+              {/* image + navy duotone overlay — text stays readable on any photo */}
               <img
                 src={slide.image}
                 alt={slide.title ?? 'Promotion'}
@@ -144,13 +144,14 @@ export function HeroSlider() {
                 className={cn(
                   'absolute inset-0',
                   vertical
-                    ? 'bg-gradient-to-t from-black/80 via-black/30 to-black/5'
-                    : 'bg-gradient-to-r from-black/75 via-black/35 to-transparent'
+                    ? 'bg-gradient-to-t from-[#052e56]/90 via-[#052e56]/40 to-transparent'
+                    : 'bg-gradient-to-r from-[#052e56]/90 via-[#052e56]/45 to-transparent'
                 )}
               />
 
               {/* content */}
-              <div className="container-app absolute inset-0 flex items-center">
+              <div className="absolute inset-0 flex items-center">
+                <div className="mx-auto w-full max-w-7xl px-4 sm:px-6">
                 <div className={cn('max-w-xl', vertical ? 'pb-14 sm:pb-16' : '')}>
                   <AnimatePresence mode="wait">
                     <motion.div
@@ -161,8 +162,8 @@ export function HeroSlider() {
                       transition={{ duration: 0.4, delay: 0.12 }}
                     >
                       {slide.eyebrow && (
-                        <p className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-white backdrop-blur-sm">
-                          <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden />
+                        <p className="mb-3 inline-flex items-center gap-2 rounded-full border border-bh-gold/30 bg-bh-gold/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-bh-gold backdrop-blur-sm">
+                          <span className="h-1.5 w-1.5 rounded-full bg-bh-gold" aria-hidden />
                           {slide.eyebrow}
                         </p>
                       )}
@@ -179,7 +180,7 @@ export function HeroSlider() {
                       {slide.ctaLabel && (
                         <Button
                           size="lg"
-                          className="mt-5 rounded-xl px-6"
+                          className="mt-5 rounded-xl bg-bh-gold px-6 font-bold text-bh-navy-deep hover:bg-bh-gold-light"
                           onClick={() =>
                             navigate(
                               (slide.ctaView as 'catalog' | 'seller' | 'home' | 'favorites' | 'orders' | 'account') ?? 'catalog',
@@ -192,6 +193,7 @@ export function HeroSlider() {
                       )}
                     </motion.div>
                   </AnimatePresence>
+                </div>
                 </div>
               </div>
             </motion.div>
@@ -305,7 +307,7 @@ function ArrowButton({
       aria-label={label}
       onClick={onClick}
       className={cn(
-        'flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-black/30 text-white backdrop-blur-md transition-all duration-200 hover:bg-black/55 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:pointer-events-none disabled:opacity-0',
+        'flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-[#052e56]/45 text-white backdrop-blur-md transition-all duration-200 hover:bg-[#052e56]/75 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:pointer-events-none disabled:opacity-0',
         hideUntilInteraction &&
           'opacity-0 group-hover/slider:opacity-100 focus-visible:opacity-100 max-md:opacity-100',
         className

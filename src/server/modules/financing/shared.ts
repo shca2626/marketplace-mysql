@@ -1,3 +1,4 @@
+import { cookies } from 'next/headers'
 import { db } from '@/lib/db'
 
 /**
@@ -95,33 +96,106 @@ export const DOCUMENT_TYPES = [
 
 // ── Financier staff context (DP-1: org membership, no global role) ──────────
 
+/** Org types that may carry a FinancierProfile (the legal-entity types). */
+export const FINANCIER_ORG_TYPES = ['BANK', 'MFI', 'EWALLET'] as const
+
+/** Cookie holding the multi-org staff member's active financier org (FIN-013). */
+export const FINANCIER_ORG_COOKIE = 'fin_org'
+
 export interface FinancierContext {
   organizationId: string
   financierProfileId: string
   organizationName: string
+  organizationType?: string
+}
+
+export interface FinancierContextOrg {
+  id: string
+  name: string
+  orgType: string
 }
 
 /**
- * The financier org a user acts for: an Organization with a FinancierProfile
- * where the user is an OWNER or ADMIN member. Returns null for non-staff.
+ * A user's financier-org memberships (OWNER/ADMIN, BANK/MFI/EWALLET — or any
+ * org that already carries a profile —, not suspended), oldest first.
  */
-export async function getFinancierContext(userId: string): Promise<FinancierContext | null> {
-  const membership = await db.organizationMember.findFirst({
+async function listFinancierMemberships(userId: string): Promise<FinancierContextOrg[]> {
+  const memberships = await db.organizationMember.findMany({
     where: {
       userId,
       role: { in: ['OWNER', 'ADMIN'] },
-      organization: { financierProfile: { isNot: null }, status: { not: 'SUSPENDED' } },
+      organization: {
+        status: { not: 'SUSPENDED' },
+        OR: [{ orgType: { in: [...FINANCIER_ORG_TYPES] } }, { financierProfile: { isNot: null } }],
+      },
     },
-    include: {
-      organization: { select: { id: true, name: true, financierProfile: { select: { id: true } } } },
-    },
+    select: { organization: { select: { id: true, name: true, orgType: true } } },
     orderBy: { createdAt: 'asc' },
   })
-  if (!membership) return null
+  return memberships.map((m) => m.organization)
+}
+
+/**
+ * The active-org cookie set by POST /api/financier/context. Read defensively:
+ * outside a request scope (scripts, tests) there is no cookie store — fall
+ * back to the first membership (previous behavior).
+ */
+async function readPreferredFinancierOrgId(): Promise<string | null> {
+  try {
+    const store = await cookies()
+    return store.get(FINANCIER_ORG_COOKIE)?.value ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Auto-provision fallback (FIN-001): a BANK/MFI/EWALLET org reaches the
+ * console before anyone created its FinancierProfile — create it with empty
+ * facts (verified stays false until the admin verifies the org) instead of
+ * 403-ing a newly provisioned institution into a dead console.
+ */
+async function ensureFinancierProfile(organizationId: string): Promise<string> {
+  const existing = await db.financierProfile.findUnique({
+    where: { organizationId },
+    select: { id: true },
+  })
+  if (existing) return existing.id
+  try {
+    const created = await db.financierProfile.create({
+      data: { organizationId },
+      select: { id: true },
+    })
+    return created.id
+  } catch {
+    // unique(organizationId) race — another concurrent request provisioned it
+    const raced = await db.financierProfile.findUnique({
+      where: { organizationId },
+      select: { id: true },
+    })
+    if (raced) return raced.id
+    throw new FinancingError('Could not provision the financier profile', 500)
+  }
+}
+
+/**
+ * The financier org a user acts for: an Organization where the user is an
+ * OWNER or ADMIN member. A missing FinancierProfile is auto-provisioned
+ * (empty facts, unverified) instead of blocking access — FIN-001. Multi-org
+ * staff get the org they last picked via the console switcher (cookie),
+ * else their first membership. Returns null for non-staff.
+ */
+export async function getFinancierContext(userId: string): Promise<FinancierContext | null> {
+  const orgs = await listFinancierMemberships(userId)
+  if (orgs.length === 0) return null
+  const preferred = await readPreferredFinancierOrgId()
+  const chosen = orgs.find((o) => o.id === preferred) ?? orgs[0]
+  const financierProfileId = await ensureFinancierProfile(chosen.id)
   return {
-    organizationId: membership.organization.id,
-    financierProfileId: membership.organization.financierProfile!.id,
-    organizationName: membership.organization.name,
+    organizationId: chosen.id,
+    financierProfileId,
+    organizationName: chosen.name,
+    organizationType: chosen.orgType,
   }
 }
 
@@ -130,6 +204,21 @@ export async function requireFinancierContext(userId: string): Promise<Financier
   const ctx = await getFinancierContext(userId)
   if (!ctx) throw new FinancingError('Financier staff access required', 403)
   return ctx
+}
+
+/**
+ * Every financier org the user could act for + which one is active — powers
+ * the console's institution switcher (FIN-013) and the header menu entry.
+ */
+export async function listFinancierContextOrgs(
+  userId: string
+): Promise<{ organizations: FinancierContextOrg[]; activeOrganizationId: string | null }> {
+  const orgs = await listFinancierMemberships(userId)
+  if (orgs.length === 0) return { organizations: [], activeOrganizationId: null }
+  const preferred = await readPreferredFinancierOrgId()
+  const active = orgs.find((o) => o.id === preferred) ?? orgs[0]
+  await ensureFinancierProfile(active.id)
+  return { organizations: orgs, activeOrganizationId: active.id }
 }
 
 /**

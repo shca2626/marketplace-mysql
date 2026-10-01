@@ -160,6 +160,7 @@ function serializeSummaryInner(
     multiGroupId: r.multiGroupId,
     amountRequested: r.amountRequested,
     currency: r.currency,
+    tenorRequestedMonths: r.tenorRequestedMonths ?? null,
     activityName: r.activityName,
     activityCity: r.activityCity,
     purpose: r.purpose,

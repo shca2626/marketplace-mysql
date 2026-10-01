@@ -171,14 +171,19 @@ export function BusinessView() {
   // ── Add member form ──
   const [memberForm, setMemberForm] = useState({ email: '', role: 'BUYER', jobTitle: '' })
   const [addingMember, setAddingMember] = useState(false)
+  // BUY-213: the invite answer renders INLINE under the field — a 404 "no
+  // account with that email" (or 403/409) is actionable right where the user
+  // typed it, instead of being swallowed after the field clears.
+  const [memberError, setMemberError] = useState<string | null>(null)
 
   const canManageMembers = detail?.myRole === 'OWNER' || detail?.myRole === 'ADMIN'
 
   const submitAddMember = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!activeOrgId) return
+    setMemberError(null)
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(memberForm.email.trim())) {
-      toast({ title: 'Enter a valid email', description: 'The email of an existing Vendora account.', variant: 'destructive' })
+      setMemberError('Enter a valid email — it must be an existing Vendora account.')
       return
     }
     setAddingMember(true)
@@ -195,6 +200,9 @@ export function BusinessView() {
     )
     setAddingMember(false)
     if (!res.ok) {
+      // Keep the typed email so it can be corrected — surface the server's
+      // reason (e.g. "No Vendora account exists with that email") inline.
+      setMemberError(res.error ?? 'Could not add this member — please try again.')
       toast({ title: 'Could not add member', description: res.error, variant: 'destructive' })
       return
     }
@@ -488,9 +496,13 @@ export function BusinessView() {
                         id="member-email"
                         type="email"
                         value={memberForm.email}
-                        onChange={(e) => setMemberForm((f) => ({ ...f, email: e.target.value }))}
+                        onChange={(e) => {
+                          setMemberForm((f) => ({ ...f, email: e.target.value }))
+                          if (memberError) setMemberError(null)
+                        }}
                         placeholder="colleague@company.com"
                         className="rounded-xl"
+                        aria-invalid={!!memberError}
                       />
                     </div>
                     <div className="space-y-1.5">
@@ -526,6 +538,15 @@ export function BusinessView() {
                       />
                     </div>
                   </div>
+                  {memberError && (
+                    <p
+                      role="alert"
+                      className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive"
+                    >
+                      <ShieldAlert size={14} className="mt-px shrink-0" />
+                      <span className="min-w-0 break-words">{memberError}</span>
+                    </p>
+                  )}
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <p className="text-xs text-muted-foreground">
                       They need an existing Vendora account with that email.

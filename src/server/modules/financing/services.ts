@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { recordAudit } from '@/server/modules/audit/service'
 import { emitNotification } from '@/server/modules/notifications/service'
+import { adminCreateOrganization } from '@/server/modules/organizations/service'
 import {
   FinancingError,
   requireFinancierContext,
@@ -550,6 +551,8 @@ export interface FinancierInstitutionDTO {
   orgType: string
   status: string
   verifiedAt: string | null
+  website: string | null
+  /** null = BANK/MFI/EWALLET org without a profile yet (activate to enable its console). */
   profile: {
     id: string
     licenseNumber: string | null
@@ -558,8 +561,9 @@ export interface FinancierInstitutionDTO {
     contactPhone: string | null
     minTicket: number | null
     maxTicket: number | null
+    about: string | null
     branchCount: number
-  }
+  } | null
   stats: {
     services: number
     activeServices: number
@@ -578,7 +582,7 @@ export async function adminListInstitutions(filter?: {
   const search = filter?.search?.trim()
   const orgs = await db.organization.findMany({
     where: {
-      financierProfile: { isNot: null },
+      orgType: { in: ['BANK', 'MFI', 'EWALLET'] },
       ...(filter?.status ? { status: filter.status } : {}),
       ...(search ? { name: { contains: search } } : {}),
     },
@@ -593,7 +597,23 @@ export async function adminListInstitutions(filter?: {
   const result: FinancierInstitutionDTO[] = []
   for (const org of orgs) {
     const profile = org.financierProfile
-    if (!profile) continue
+    if (!profile) {
+      // Financier-typed org without a profile — visible so the admin can
+      // activate it (one click creates the profile, FIN-002).
+      result.push({
+        organizationId: org.id,
+        name: org.name,
+        slug: org.slug,
+        orgType: org.orgType,
+        status: org.status,
+        verifiedAt: iso(org.verifiedAt),
+        website: org.website,
+        profile: null,
+        stats: { services: 0, activeServices: 0, requestsForwarded: 0, liveAccreditations: 0, feesAccrued: 0, feesPaid: 0 },
+        createdAt: org.createdAt.toISOString(),
+      })
+      continue
+    }
     const [activeServices, forwarded, liveAccreds, feeAgg] = await Promise.all([
       db.financierService.count({ where: { financierProfileId: profile.id, status: 'ACTIVE' } }),
       db.financingRequest.count({
@@ -621,6 +641,7 @@ export async function adminListInstitutions(filter?: {
       orgType: org.orgType,
       status: org.status,
       verifiedAt: iso(org.verifiedAt),
+      website: org.website,
       profile: {
         id: profile.id,
         licenseNumber: profile.licenseNumber,
@@ -629,6 +650,7 @@ export async function adminListInstitutions(filter?: {
         contactPhone: profile.contactPhone,
         minTicket: profile.minTicket,
         maxTicket: profile.maxTicket,
+        about: profile.about,
         branchCount: (profile._count as unknown as { branches: number })?.branches ?? 0,
       },
       stats: {
@@ -643,6 +665,177 @@ export async function adminListInstitutions(filter?: {
     })
   }
   return result
+}
+
+// ── Admin institution profile lifecycle (FIN-002) ───────────────────────────
+
+/** Profile facts an admin may set when creating / editing an institution. */
+export interface InstitutionFactsInput {
+  licenseNumber?: string | null
+  regulator?: string | null
+  minTicket?: number | null
+  maxTicket?: number | null
+  contactEmail?: string | null
+  contactPhone?: string | null
+  about?: string | null
+  website?: string | null
+}
+
+function assertTicketRange(input: InstitutionFactsInput): void {
+  if (
+    input.minTicket != null && input.maxTicket != null &&
+    Number(input.minTicket) > Number(input.maxTicket)
+  ) {
+    throw new FinancingError('Minimum ticket cannot exceed the maximum ticket')
+  }
+}
+
+function factsData(input: InstitutionFactsInput): Record<string, unknown> {
+  return {
+    ...(input.licenseNumber !== undefined ? { licenseNumber: input.licenseNumber?.trim() || null } : {}),
+    ...(input.regulator !== undefined ? { regulator: input.regulator?.trim() || null } : {}),
+    ...(input.minTicket !== undefined ? { minTicket: input.minTicket ?? null } : {}),
+    ...(input.maxTicket !== undefined ? { maxTicket: input.maxTicket ?? null } : {}),
+    ...(input.contactEmail !== undefined ? { contactEmail: input.contactEmail?.trim() || null } : {}),
+    ...(input.contactPhone !== undefined ? { contactPhone: input.contactPhone?.trim() || null } : {}),
+    ...(input.about !== undefined ? { about: input.about?.trim() || null } : {}),
+  }
+}
+
+/**
+ * Create the FinancierProfile for an existing BANK/MFI/EWALLET org (or a brand
+ * new org created on the spot) with the admin-provided facts. New orgs land in
+ * PENDING_VERIFICATION — the existing Verify action flips them ACTIVE once the
+ * license/regulator facts check out.
+ */
+export async function adminCreateInstitution(
+  adminId: string,
+  input: {
+    organizationId?: string
+    name?: string
+    orgType?: string
+    ownerEmail?: string
+  } & InstitutionFactsInput
+): Promise<FinancierInstitutionDTO> {
+  assertTicketRange(input)
+  let orgId = input.organizationId?.trim()
+
+  if (!orgId) {
+    // No existing org picked — create the legal entity first (reuses the
+    // organizations module: slug, audit, optional owner membership).
+    if (!input.name?.trim() || !input.orgType) {
+      throw new FinancingError('Pick an existing organization or provide a name and type for the new one')
+    }
+    const created = await adminCreateOrganization(adminId, {
+      name: input.name,
+      orgType: input.orgType,
+      website: input.website?.trim() || null,
+      status: 'PENDING_VERIFICATION',
+      ownerEmail: input.ownerEmail?.trim() || undefined,
+    })
+    orgId = created.id
+  }
+
+  const org = await db.organization.findUnique({
+    where: { id: orgId },
+    include: { financierProfile: { select: { id: true } } },
+  })
+  if (!org) throw new FinancingError('Organization not found', 404)
+  if (!['BANK', 'MFI', 'EWALLET'].includes(org.orgType)) {
+    throw new FinancingError('Only BANK, MFI or EWALLET organizations can become financier institutions', 400)
+  }
+  if (org.financierProfile) {
+    throw new FinancingError(`${org.name} already has a financier profile — edit it instead`, 409)
+  }
+
+  const profile = await db.financierProfile.create({
+    data: { organizationId: org.id, ...factsData(input) },
+  })
+  if (input.website !== undefined && input.website !== null && input.website.trim() && input.website.trim() !== (org.website ?? '')) {
+    await db.organization.update({ where: { id: org.id }, data: { website: input.website.trim() } })
+  }
+
+  await recordAudit({
+    actorId: adminId,
+    actorType: 'ADMIN',
+    action: 'INSTITUTION_PROFILE_CREATED',
+    entityType: 'Organization',
+    entityId: org.id,
+    summary: `Financier profile created for ${org.name}`,
+    metadata: {
+      profileId: profile.id,
+      licenseNumber: profile.licenseNumber,
+      regulator: profile.regulator,
+      createdOrg: !input.organizationId,
+    },
+  })
+
+  const listed = await adminListInstitutions()
+  return (
+    listed.find((i) => i.organizationId === org.id) ??
+    ({
+      organizationId: org.id,
+      name: org.name,
+      slug: org.slug,
+      orgType: org.orgType,
+      status: org.status,
+      verifiedAt: iso(org.verifiedAt),
+      website: org.website,
+      profile: {
+        id: profile.id,
+        licenseNumber: profile.licenseNumber,
+        regulator: profile.regulator,
+        contactEmail: profile.contactEmail,
+        contactPhone: profile.contactPhone,
+        minTicket: profile.minTicket,
+        maxTicket: profile.maxTicket,
+        about: profile.about,
+        branchCount: 0,
+      },
+      stats: { services: 0, activeServices: 0, requestsForwarded: 0, liveAccreditations: 0, feesAccrued: 0, feesPaid: 0 },
+      createdAt: org.createdAt.toISOString(),
+    } satisfies FinancierInstitutionDTO)
+  )
+}
+
+/** Edit an institution's profile facts (license, regulator, tickets, contacts, about, website). */
+export async function adminUpdateInstitution(
+  adminId: string,
+  organizationId: string,
+  input: InstitutionFactsInput
+): Promise<FinancierInstitutionDTO> {
+  assertTicketRange(input)
+  const org = await db.organization.findUnique({
+    where: { id: organizationId },
+    include: { financierProfile: true },
+  })
+  if (!org) throw new FinancingError('Organization not found', 404)
+  if (!org.financierProfile) {
+    throw new FinancingError('That organization has no financier profile yet — activate it first', 400)
+  }
+
+  const profile = await db.financierProfile.update({
+    where: { organizationId: org.id },
+    data: factsData(input),
+  })
+  if (input.website !== undefined && input.website !== null && input.website.trim() !== (org.website ?? '')) {
+    await db.organization.update({ where: { id: org.id }, data: { website: input.website.trim() || null } })
+  }
+
+  await recordAudit({
+    actorId: adminId,
+    actorType: 'ADMIN',
+    action: 'INSTITUTION_PROFILE_UPDATED',
+    entityType: 'Organization',
+    entityId: org.id,
+    summary: `Financier profile facts updated for ${org.name}`,
+    metadata: { profileId: profile.id },
+  })
+
+  const listed = await adminListInstitutions()
+  const found = listed.find((i) => i.organizationId === org.id)
+  if (!found) throw new FinancingError('Failed to reload the institution', 500)
+  return found
 }
 
 /** Verify / suspend / reactivate a financier institution (org status + audit + notify staff). */

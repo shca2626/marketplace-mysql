@@ -276,6 +276,11 @@ export function FinancierRequestDetail({ requestId, onBack }: { requestId: strin
             </LabeledValue>
             <LabeledValue label="Requested amount">
               <span className="font-bold text-primary">{formatMoney(r.amountRequested, r.currency)}</span>
+              {r.tenorRequestedMonths != null && (
+                <span className="block text-xs text-muted-foreground">
+                  Asked for {r.tenorRequestedMonths} month{r.tenorRequestedMonths === 1 ? '' : 's'}
+                </span>
+              )}
             </LabeledValue>
             <LabeledValue label="Submitted">
               <span className="font-semibold">{formatDate(r.submittedAt)}</span>
@@ -431,11 +436,14 @@ interface InstallmentRow {
 }
 
 function OfferComposer({ request: r, onSent }: { request: FinancingRequestDetailDTO; onSent: () => void }) {
+  // FIN-009: prefill from the applicant's own ask — amount AND tenor.
   const [amount, setAmount] = useState(String(r.amountRequested))
   const [rateType, setRateType] = useState('MURABAHA_ANNUAL')
   const [ratePercent, setRatePercent] = useState('')
   const [feeFlat, setFeeFlat] = useState('')
-  const [tenor, setTenor] = useState('12')
+  const [tenor, setTenor] = useState(
+    r.tenorRequestedMonths && r.tenorRequestedMonths >= 1 ? String(r.tenorRequestedMonths) : '12'
+  )
   const [collateral, setCollateral] = useState('')
   const [notes, setNotes] = useState('')
   const [validUntil, setValidUntil] = useState(() => {
@@ -473,6 +481,16 @@ function OfferComposer({ request: r, onSent }: { request: FinancingRequestDetail
     const months = Number(tenor)
     if (!months || months < 1) {
       toast({ title: 'Tenor required', description: 'Enter the tenor in months (1–120).', variant: 'destructive' })
+      return
+    }
+    // FIN-006: the API caps collateralRequired at 24 chars — validate here so
+    // the send never dead-ends on a silent 400.
+    if (collateral.trim().length > 24) {
+      toast({
+        title: 'Collateral note too long',
+        description: `Keep it under 25 characters (${collateral.trim().length}/24) — details belong in the notes field.`,
+        variant: 'destructive',
+      })
       return
     }
     setSubmitting(send ? 'send' : 'draft')
@@ -559,10 +577,32 @@ function OfferComposer({ request: r, onSent }: { request: FinancingRequestDetail
             <Input id="off-valid" type="date" className="h-9 rounded-lg" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
           </div>
           <div className="col-span-2 space-y-1">
-            <Label htmlFor="off-collateral" className="text-xs">
-              Collateral required
-            </Label>
-            <Input id="off-collateral" className="h-9 rounded-lg" value={collateral} onChange={(e) => setCollateral(e.target.value)} placeholder="e.g. GOLD — assigned deposit" />
+            <div className="flex items-baseline justify-between">
+              <Label htmlFor="off-collateral" className="text-xs">
+                Collateral required
+              </Label>
+              <span
+                className={`text-[10px] tabular-nums ${
+                  collateral.length > 24 ? 'font-semibold text-destructive' : 'text-muted-foreground'
+                }`}
+              >
+                {collateral.length}/24
+              </span>
+            </div>
+            <Input
+              id="off-collateral"
+              className="h-9 rounded-lg"
+              maxLength={40}
+              value={collateral}
+              onChange={(e) => setCollateral(e.target.value)}
+              aria-describedby={collateral.length > 24 ? 'off-collateral-hint' : undefined}
+              placeholder="e.g. GOLD — assigned deposit"
+            />
+            {collateral.length > 24 && (
+              <p id="off-collateral-hint" className="text-[11px] text-destructive">
+                Too long for the offer record — move details to the notes field.
+              </p>
+            )}
           </div>
           <div className="col-span-2 space-y-1">
             <Label htmlFor="off-notes" className="text-xs">

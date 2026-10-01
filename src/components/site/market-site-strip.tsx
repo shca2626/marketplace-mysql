@@ -39,7 +39,7 @@ export function MarketSiteStrip() {
           </span>
           Vendora
         </Link>
-        <ul className="flex items-center gap-1">
+        <ul className="hidden items-center gap-1 sm:flex">
           {links.map((l) => (
             <li key={l.href}>
               <Link
