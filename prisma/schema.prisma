@@ -1,9 +1,24 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// VENDORA — PRODUCTION SCHEMA (Aiven cloud MySQL 8.4 — the ONE and ONLY database)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Datasource: Aiven for MySQL, service "mysql-marketplace-sunsolar1"
+// (mysql-marketplace-sunsolar1.f.aivencloud.com:23363 / defaultdb, TLS required).
+// The complete 66-model graph. MySQL dialect notes: @db.Text on long free-form
+// fields, @db.VarChar(4000) on Product.images (TEXT can't take literal defaults
+// on MySQL 8.4), explicit composite-@@id M2M join models (Aiven enforces
+// sql_require_primary_key=1).
+//
+// Schema/DB sync:  bun run db:push    (prisma db push --accept-data-loss)
+// Client:          bun run db:generate
+// Health:          bun scripts/db-status.ts
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -26,16 +41,14 @@ model User {
   status         String    @default("ACTIVE") // ACTIVE | SUSPENDED — platform-controlled vendor lifecycle
   suspendedAt    DateTime?
   storeName      String?
-  storeBio       String?
+  storeBio       String?   @db.Text // MYSQL: vendor bio, free-form long content
   commissionRate Float? // vendor payout commission override (percent); null = platform default
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  // ── Auth hardening (AUTHSEC-1) ──
-  // Bumping sessionVersion invalidates EVERY issued stateless token (password
-  // reset, "sign out everywhere"). Tokens minted before the bump stop resolving.
+  // ── Auth hardening (AUTHSEC-1) — mirrors prisma/schema.prisma ──
   sessionVersion  Int       @default(0)
-  emailVerifiedAt DateTime? // null until the user confirms ownership via the emailed link
+  emailVerifiedAt DateTime?
 
   passwordResetTokens     PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
@@ -45,7 +58,7 @@ model User {
   reviews            Review[]
   favorites          Favorite[]
   memberships        OrganizationMember[]
-  groups             CustomerGroup[]      @relation("UserCustomerGroups")
+  groups             CustomerGroupUser[]  @relation("UserCustomerGroups")
   rfqs               Rfq[]
   quotesIssued       Quote[]              @relation("QuoteCreatedBy")
   rfqMessages        RfqMessage[]         @relation("RfqMessages")
@@ -59,7 +72,7 @@ model User {
   disputesResolved   Dispute[]            @relation("DisputeResolver")
   recurringSchedules RecurringRfq[]
   mediaAssets        MediaAsset[]         @relation("MediaAssets")
-  paymentsCaptured   Payment[]            @relation("PaymentsCapturedBy")
+  paymentsCaptured   Payment[]             @relation("PaymentsCapturedBy")
   payouts            Payout[]             @relation("PayoutSeller")
 
   // ── Applicant profile (FINANCIER_SCHEMA v5 §3.1) — additive, ALL nullable;
@@ -72,7 +85,7 @@ model User {
   nationality       String?
   identityType      String? // NATIONAL_ID | PASSPORT | RESIDENCE_PERMIT | OTHER
   identityNumber    String?
-  residenceStreet   String?
+  residenceStreet   String? @db.Text // MYSQL: street address, free-form
   residenceCity     String?
   residenceDistrict String?
   residenceType     String? // OWNED | RENTED
@@ -109,10 +122,10 @@ model Category {
 model Product {
   id             String   @id @default(cuid())
   title          String
-  description    String
+  description    String   @db.Text // MYSQL: long product description
   price          Float // retail list price (fallback of the pricing pipeline)
   compareAtPrice Float?
-  images         String   @default("[]") // JSON string array of URLs
+  images         String   @default("[]") @db.VarChar(4000) // MYSQL: JSON string array of URLs (Aiven MySQL 8.4: TEXT columns can't take literal defaults — VarChar can; measured max ~50 chars, 4000 = ample headroom)
   categoryId     String
   category       Category @relation(fields: [categoryId], references: [id])
   sellerId       String
@@ -127,10 +140,10 @@ model Product {
   sku             String?
   barcode         String?
   videoUrl        String?
-  highlights      String? // JSON array of bullet strings (About this item)
-  specs           String? // JSON array of {label, value} (Specifications)
-  materials       String?
-  care            String?
+  highlights      String?  @db.Text // MYSQL: JSON array of bullet strings (About this item)
+  specs           String?  @db.Text // MYSQL: JSON array of {label, value} (Specifications)
+  materials       String?  @db.Text // MYSQL: free-form materials text
+  care            String?  @db.Text // MYSQL: free-form care instructions
   weightGrams     Int?
   lengthCm        Float?
   widthCm         Float?
@@ -138,12 +151,12 @@ model Product {
   processingDays  Int? // handling time before dispatch
   freeShipping    Boolean  @default(false)
   shippingFee     Float? // flat rate; ignored when freeShipping = true
-  shippingPolicy  String?
+  shippingPolicy  String?  @db.Text // MYSQL: free-form policy text
   slug            String?  @unique // SEO handle / future deep links
   metaTitle       String?
-  metaDescription String?
+  metaDescription String?  @db.Text // MYSQL: SEO description, can run long
   moq             Int? // minimum order quantity enforced by RFQ commercial rules (null = none)
-  priceTiers      String? // JSON [{from,to,price}] quantity-break ladder applied in quotes
+  priceTiers      String?  @db.Text // MYSQL: JSON [{from,to,price}] quantity-break ladder applied in quotes
   status          String   @default("ACTIVE") // ACTIVE | DRAFT | ARCHIVED
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -170,7 +183,7 @@ model Order {
   total     Float
   status    String      @default("PAID") // PENDING_PAYMENT | PENDING_APPROVAL | PAID | PROCESSING | SHIPPED | DELIVERED | CANCELLED
   fullName  String
-  address   String
+  address   String      @db.Text // MYSQL: shipping address, free-form
   city      String
   country   String
   zip       String
@@ -214,6 +227,7 @@ model OrderItem {
   @@index([productId])
   @@index([sellerId])
   @@index([sellerId, payoutId])
+  @@index([payoutId]) // MYSQL-FK-INDEX: payoutId relation needs its own leftmost index
 }
 
 model ProductVariant {
@@ -221,7 +235,7 @@ model ProductVariant {
   productId      String
   product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   name           String // display label, e.g. M / Black
-  options        String // JSON map Size -> M, Color -> Black
+  options        String   @db.Text // MYSQL: JSON map Size -> M, Color -> Black
   price          Float? // null = inherit product price
   compareAtPrice Float?
   stock          Int      @default(0)
@@ -241,7 +255,7 @@ model Review {
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   rating    Int // 1..5
-  comment   String
+  comment   String   @db.Text // MYSQL: review body, free-form long content
   verified  Boolean  @default(false)
   createdAt DateTime @default(now())
 
@@ -258,6 +272,7 @@ model Favorite {
   createdAt DateTime @default(now())
 
   @@unique([userId, productId])
+  @@index([productId]) // MYSQL-FK-INDEX: productId relation needs its own leftmost index
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -277,13 +292,13 @@ model Organization {
   registrationNumber String?
   industry           String?
   website            String?
-  billingAddress     String?
+  billingAddress     String?   @db.Text // MYSQL: free-form billing address
   status             String    @default("PENDING_VERIFICATION") // PENDING_VERIFICATION | ACTIVE | SUSPENDED | REJECTED
   verifiedAt         DateTime?
   creditTermsDays    Int       @default(0) // 0 = prepaid; 30 = NET-30 invoicing
   creditLimit        Float     @default(0)
   approvalThreshold  Float? // orders/quote-accepts at or above this total placed by BUYER-role members require org approval (null = off)
-  notes              String?
+  notes              String?   @db.Text // MYSQL: free-form notes
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -291,7 +306,7 @@ model Organization {
   priceLists       PriceList[]
   rfqs             Rfq[]
   orders           Order[]
-  groups           CustomerGroup[]      @relation("OrganizationCustomerGroups")
+  groups           CustomerGroupOrganization[] @relation("OrganizationCustomerGroups")
   approvalRequests ApprovalRequest[]
 
   // ── financing-domain back-relations (FINANCIER_SCHEMA v5) ──
@@ -325,15 +340,39 @@ model CustomerGroup {
   id            String         @id @default(cuid())
   key           String         @unique
   name          String
-  description   String?
+  description   String?        @db.Text // MYSQL: free-form segment description
   priority      Int            @default(0) // higher wins when several groups apply
   isDefault     Boolean        @default(false)
   createdAt     DateTime       @default(now())
-  users         User[]         @relation("UserCustomerGroups")
-  organizations Organization[] @relation("OrganizationCustomerGroups")
+  customerGroupUsers         CustomerGroupUser[]         @relation("UserCustomerGroups")
+  customerGroupOrganizations CustomerGroupOrganization[] @relation("OrganizationCustomerGroups")
   priceLists    PriceList[]
 
   @@index([isDefault])
+}
+
+// ── Explicit M2M join models ── Aiven MySQL 8.4 runs sql_require_primary_key=1,
+// and Prisma's implicit M2M join tables carry only a unique index (no PK), so
+// the platform CANNOT push them. These explicit models give the join tables a
+// real composite @@id. (Aiven = the one and only production database, forever.)
+model CustomerGroupUser {
+  customerGroupId String
+  userId          String
+  customerGroup   CustomerGroup @relation("UserCustomerGroups", fields: [customerGroupId], references: [id], onDelete: Cascade)
+  user            User         @relation("UserCustomerGroups", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([customerGroupId, userId])
+  @@index([userId]) // MYSQL-FK-INDEX: userId relation needs its own leftmost index
+}
+
+model CustomerGroupOrganization {
+  customerGroupId String
+  organizationId  String
+  customerGroup   CustomerGroup @relation("OrganizationCustomerGroups", fields: [customerGroupId], references: [id], onDelete: Cascade)
+  organization    Organization  @relation("OrganizationCustomerGroups", fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@id([customerGroupId, organizationId])
+  @@index([organizationId]) // MYSQL-FK-INDEX: organizationId relation needs its own leftmost index
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -345,7 +384,7 @@ model CustomerGroup {
 model PriceList {
   id              String         @id @default(cuid())
   name            String
-  description     String?
+  description     String?        @db.Text // MYSQL: free-form description
   scope           String // ORG | GROUP | CHANNEL
   status          String         @default("ACTIVE") // ACTIVE | DRAFT | ARCHIVED
   priority        Int            @default(0)
@@ -392,7 +431,7 @@ model Rfq {
   userId            String
   organizationId    String?
   title             String?
-  description       String?
+  description       String?       @db.Text // MYSQL: free-form RFQ description
   status            String        @default("DRAFT") // DRAFT | SUBMITTED | UNDER_REVIEW | QUOTED | ACCEPTED | REJECTED | CANCELLED | EXPIRED | ORDERED
   submittedAt       DateTime?
   respondedAt       DateTime?
@@ -418,13 +457,13 @@ model RfqLine {
   id          String   @id @default(cuid())
   rfqId       String
   productId   String? // null = open/free item ("250 units of something like this")
-  productName String // snapshot title / free description
+  productName String   @db.Text // MYSQL: snapshot title / free description
   sku         String?
   variantId   String? // referenced catalog variant (optional)
   variantName String? // snapshot "Color: Black / Bundle: Duo"
   quantity    Int
   targetPrice Float? // buyer's target unit price (optional)
-  notes       String?
+  notes       String? @db.Text // MYSQL: free-form line notes
   rfq         Rfq      @relation(fields: [rfqId], references: [id], onDelete: Cascade)
   product     Product? @relation(fields: [productId], references: [id])
 
@@ -450,7 +489,7 @@ model Quote {
   total         Float
   paymentTerms  String? // e.g. NET-30
   validUntil    DateTime?
-  notes         String?
+  notes         String?   @db.Text // MYSQL: free-form quote notes
   sentAt        DateTime?
   acceptedAt    DateTime?
   declinedAt    DateTime?
@@ -465,6 +504,7 @@ model Quote {
 
   @@index([rfqId])
   @@index([status])
+  @@index([createdById]) // MYSQL-FK-INDEX: createdById relation needs its own leftmost index
 }
 
 // B2B purchase-approval workflow: BUYER-role members trigger a request when an
@@ -479,11 +519,11 @@ model ApprovalRequest {
   rfqId          String? // owning RFQ context (QUOTE_ACCEPT)
   requesterId    String
   amount         Float
-  note           String? // requester's justification
+  note           String?   @db.Text // MYSQL: requester's justification
   status         String    @default("PENDING") // PENDING | APPROVED | REJECTED | CANCELLED
   decidedById    String?
   decidedAt      DateTime?
-  decisionNote   String?
+  decisionNote   String?   @db.Text // MYSQL: decision note
   createdAt      DateTime  @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -494,6 +534,7 @@ model ApprovalRequest {
 
   @@index([organizationId, status])
   @@index([requesterId])
+  @@index([decidedById]) // MYSQL-FK-INDEX: decidedById relation needs its own leftmost index
 }
 
 model QuoteLine {
@@ -511,6 +552,7 @@ model QuoteLine {
 
   @@index([quoteId])
   @@index([productId])
+  @@index([rfqLineId]) // MYSQL-FK-INDEX: rfqLineId relation needs its own leftmost index
 }
 
 // ── Server-side notification feed (RFQ / approval / message events) ─────────
@@ -521,7 +563,7 @@ model Notification {
   userId    String
   type      String // RFQ_SUBMITTED_SELLER | RFQ_QUOTE_RECEIVED | RFQ_QUOTE_ACCEPTED | RFQ_QUOTE_DECLINED | RFQ_QUOTE_WITHDRAWN | RFQ_QUOTE_CONVERTED | RFQ_STATUS | RFQ_MESSAGE | APPROVAL_REQUESTED | APPROVAL_DECIDED
   title     String
-  body      String?
+  body      String?   @db.Text // MYSQL: notification body, free-form
   linkView  String // SPA destination: rfq | orders | business | seller
   linkId    String? // rfqId / orderId / approval context id
   readAt    DateTime?
@@ -542,12 +584,12 @@ model Notification {
 model NotificationDigest {
   id          String   @id @default(cuid())
   userId      String
-  kind        String   // DAILY | WEEKLY
+  kind        String // DAILY | WEEKLY
   periodStart DateTime
   periodEnd   DateTime
   itemCount   Int
   subject     String
-  html        String
+  html        String   @db.MediumText // MYSQL: full branded inline-styled email HTML (16MB)
   status      String   @default("LOGGED") // LOGGED now; SENT when a transport is configured
   createdAt   DateTime @default(now())
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -563,9 +605,6 @@ model UserDigestPref {
 }
 
 // ── Auth hardening (AUTHSEC-1): single-use, hashed, expiring tokens ─────────
-// Only the SHA-256 hash of the raw token is stored; the raw value exists
-// solely inside the emailed link. Single-use enforced via usedAt.
-
 model PasswordResetToken {
   id        String    @id @default(cuid())
   userId    String
@@ -596,12 +635,13 @@ model RfqMessage {
   id        String   @id @default(cuid())
   rfqId     String
   authorId  String
-  body      String
+  body      String   @db.Text // MYSQL: message body, free-form long content
   createdAt DateTime @default(now())
   rfq       Rfq      @relation(fields: [rfqId], references: [id], onDelete: Cascade)
   author    User     @relation("RfqMessages", fields: [authorId], references: [id])
 
   @@index([rfqId, createdAt])
+  @@index([authorId]) // MYSQL-FK-INDEX: authorId relation needs its own leftmost index
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -619,7 +659,7 @@ model MediaAsset {
   width            Int?
   height           Int?
   sha256           String            @unique
-  variants         String? // JSON {thumb,medium,large,full} storage keys
+  variants         String?           @db.Text // MYSQL: JSON {thumb,medium,large,full} storage keys
   uploadedById     String
   uploadedBy       User              @relation("MediaAssets", fields: [uploadedById], references: [id])
   accountDocuments AccountDocument[] @relation("AccountDocumentMedia")
@@ -646,14 +686,14 @@ model Dispute {
   seller            User      @relation("DisputeSeller", fields: [sellerId], references: [id])
   rfqId             String? // loose FK: RFQ context when the order came from a quote
   reason            String // NOT_AS_DESCRIBED | DAMAGED | LATE_DELIVERY | WRONG_QUANTITY | QUALITY_ISSUE | PAYMENT_NOT_RECEIVED | OTHER
-  description       String
+  description       String    @db.Text // MYSQL: dispute description, free-form long content
   amount            Float? // claimed amount (partial resolution support)
   status            String    @default("OPEN") // OPEN | SELLER_RESPONDED | ESCALATED | RESOLVED | CLOSED | CANCELLED
-  sellerResponse    String?
+  sellerResponse    String?   @db.Text // MYSQL: seller's response, free-form
   sellerRespondedAt DateTime?
   escalateAt        DateTime? // autoEscalateDays deadline while unresolved
   outcome           String? // FULL_REFUND | PARTIAL_REFUND | REPLACEMENT | REPAIR | NO_ACTION | SELLER_PENALTY
-  resolutionNote    String?
+  resolutionNote    String?   @db.Text // MYSQL: resolution note, free-form
   resolvedById      String?
   resolvedBy        User?     @relation("DisputeResolver", fields: [resolvedById], references: [id])
   resolvedAt        DateTime?
@@ -665,6 +705,7 @@ model Dispute {
   @@index([raisedById])
   @@index([sellerId])
   @@index([orderId])
+  @@index([resolvedById]) // MYSQL-FK-INDEX: resolvedById relation needs its own leftmost index
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -679,11 +720,11 @@ model RecurringRfq {
   user              User      @relation(fields: [userId], references: [id])
   organizationId    String? // loose FK: org context for settings resolution
   title             String?
-  description       String?
+  description       String?   @db.Text // MYSQL: free-form description
   frequency         String // WEEKLY | BIWEEKLY | MONTHLY | QUARTERLY | CUSTOM
   intervalDays      Int       @default(0) // CUSTOM: every N days
-  lines             String // JSON snapshot of line inputs [{productId, variantId, productName, quantity, targetPrice, notes}]
-  recipientIds      String? // JSON array of seller ids (keepSameRecipients)
+  lines             String    @db.Text // MYSQL: JSON snapshot of line inputs [{productId, variantId, productName, quantity, targetPrice, notes}]
+  recipientIds      String?   @db.Text // MYSQL: JSON array of seller ids (keepSameRecipients)
   active            Boolean   @default(true)
   pausedUntil       DateTime?
   lastRunAt         DateTime?
@@ -716,17 +757,18 @@ model Payment {
   amount       Float
   currency     String    @default("USD")
   reference    String? // buyer-supplied transfer reference / gateway txn id
-  instructions String? // manual-payment instructions snapshot for the buyer
+  instructions String?   @db.Text // MYSQL: manual-payment instructions snapshot for the buyer
   dueAt        DateTime? // INVOICE: NET-terms due date
   paidAt       DateTime?
   capturedById String?
   capturedBy   User?     @relation("PaymentsCapturedBy", fields: [capturedById], references: [id])
-  note         String? // admin note on capture / failure
+  note         String?   @db.Text // MYSQL: admin note on capture / failure
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   @@index([status, createdAt])
   @@index([method, status])
+  @@index([capturedById]) // MYSQL-FK-INDEX: capturedById relation needs its own leftmost index
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -751,7 +793,7 @@ model Payout {
   netAmount      Float     @default(0)
   status         String    @default("PENDING") // PENDING | PAID | CANCELLED
   paidAt         DateTime?
-  note           String?
+  note           String?   @db.Text // MYSQL: free-form payout note
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -772,8 +814,8 @@ model AuditLog {
   action     String // e.g. ORG_VERIFIED, RFQ_SUBMITTED, PRICELIST_UPDATED
   entityType String
   entityId   String?
-  summary    String?
-  metadata   String?
+  summary    String?  @db.Text // MYSQL: human-readable summary
+  metadata   String?  @db.MediumText // MYSQL: JSON payload blob (16MB)
   createdAt  DateTime @default(now())
 
   @@index([entityType, entityId])
@@ -786,14 +828,14 @@ model Sequence {
   value Int    @default(0)
 }
 
-// ═════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
 // Settings storage — platform key/value documents + scoped RFQ configuration
-// ═════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
 
 // Generic platform-level documents (storefront config today).
 model PlatformSetting {
   key       String   @id
-  value     String // JSON document
+  value     String   @db.MediumText // MYSQL: JSON document (16MB)
   updatedAt DateTime @updatedAt
 }
 
@@ -823,7 +865,7 @@ model RfqSetting {
   key         String // panel key, e.g. "quoteRouting"
   scopeType   String // PLATFORM | ORG_TYPE | ORG | CATEGORY | REGION
   scopeId     String   @default("")
-  value       String // JSON document of the panel's fields
+  value       String   @db.MediumText // MYSQL: JSON document of the panel's fields (16MB)
   updatedById String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -841,8 +883,8 @@ model SettingChange {
   scopeType    String
   scopeId      String   @default("")
   field        String // field path within the panel
-  oldValue     String?
-  newValue     String?
+  oldValue     String?  @db.Text // MYSQL: JSON value snapshot
+  newValue     String?  @db.Text // MYSQL: JSON value snapshot
   userId       String
   rollbackOfId String? // set when this change reverts an earlier one
   createdAt    DateTime @default(now())
@@ -850,13 +892,14 @@ model SettingChange {
   user User @relation("SettingChangeUser", fields: [userId], references: [id])
 
   @@index([settingKey, scopeType, scopeId, createdAt])
+  @@index([userId]) // MYSQL-FK-INDEX: userId relation needs its own leftmost index
 }
 
 // Coupons moved from hardcoded constants to data (admin-managed).
 model Coupon {
   id             String   @id @default(cuid())
   code           String   @unique
-  description    String
+  description    String   @db.Text // MYSQL: free-form coupon description
   percentOff     Int
   minSubtotal    Float    @default(0)
   firstOrderOnly Boolean  @default(false)
@@ -867,7 +910,7 @@ model Coupon {
   @@index([active])
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 // FINANCIER MODULE — FINANCIER_SCHEMA v5.0 (18 models, ZERO Json columns)
 // Services not products (DP-22) · platform verification gate (DP-23) ·
 // requirements engine (DP-24) · multi-financier sibling routing (DP-25) ·
@@ -881,7 +924,7 @@ model FinancierProfile {
   organizationId String       @unique // 1:1 — the legal entity (BANK | MFI | EWALLET)
   organization   Organization @relation("FinancierProfileOrg", fields: [organizationId], references: [id], onDelete: Cascade)
 
-  about         String? // public marketing text (About tab)
+  about         String? @db.Text // MYSQL: public marketing text (About tab)
   licenseNumber String?
   regulator     String?
   logoUrl       String? // MediaAsset-backed URL (existing pattern: User.image)
@@ -903,20 +946,6 @@ model FinancierProfile {
   @@index([organizationId])
 }
 
-// ── 3.3a FinancierSocialLink — public social profiles on the entity page ──
-model FinancierSocialLink {
-  id                 String           @id @default(cuid())
-  financierProfileId String
-  financierProfile   FinancierProfile @relation(fields: [financierProfileId], references: [id], onDelete: Cascade)
-  platform           String // FACEBOOK | X | INSTAGRAM | LINKEDIN | WHATSAPP | TELEGRAM | YOUTUBE | WEBSITE
-  url                String
-  label              String?
-  position           Int              @default(0)
-  createdAt          DateTime         @default(now())
-
-  @@index([financierProfileId])
-}
-
 // ── 3.3 FinancierBranch — typed address columns (no Json, no geo tables) ──
 model FinancierBranch {
   id                 String           @id @default(cuid())
@@ -924,7 +953,7 @@ model FinancierBranch {
   financierProfile   FinancierProfile @relation(fields: [financierProfileId], references: [id], onDelete: Cascade)
   name               String
   kind               String           @default("BRANCH") // BRANCH | AGENT | ATM
-  street             String?
+  street             String?          @db.Text // MYSQL: street address, free-form
   city               String?
   district           String?
   latitude           Float?
@@ -947,8 +976,8 @@ model FinancierService {
   category                 String // FINANCING: WORKING_CAPITAL | INVOICE_FINANCING | PO_FINANCING | EQUIPMENT | VEHICLE | HOME | EDUCATION | AGRICULTURE | MICROENTERPRISE | SME | OTHER
   // ACCREDITATION: SUPPLIER_QUALIFICATION | VENDOR_APPROVAL
   name                     String
-  summary                  String? // one-line card text
-  description              String?
+  summary                  String?          @db.Text // MYSQL: one-line card text
+  description              String?          @db.Text // MYSQL: full service description
   targetSegment            String? // BUSINESS | INDIVIDUAL | BOTH (DP-13)
   status                   String           @default("ACTIVE") // DRAFT | ACTIVE | ARCHIVED
   currency                 String           @default("YER")
@@ -965,14 +994,11 @@ model FinancierService {
   processingDays           Int?
   accreditationValidMonths Int? // ACCREDITATION kind: lifetime of the grant once ACCREDITED
   accreditationFeeAmount   Float? // ACCREDITATION kind: fee (invoiced externally, D-002)
-
-  // ── rich program-detail content (user structure, Phase 3.5 redesign) ──
-  financingLimitText String? // prose, e.g. "Financing ranges from 50,000 to 50 million Yemeni Rials."
-  targetAudience     String? // newline-separated audience lines
-  termsNote          String? // callout, e.g. Murabaha rate cap / min tenor note
-  guaranteeTypes     String? // JSON string[] — Bank/Gold/Personal/Commercial guarantee
-  financingPeriods   String? // JSON string[] — Monthly/Seasonal
-
+  financingLimitText       String? @db.Text // MYSQL: rich detail — financing limit display text
+  targetAudience           String? @db.Text // MYSQL: rich detail — who the program is for
+  termsNote                String? @db.Text // MYSQL: rich detail — terms callout (e.g. murabaha cap)
+  guaranteeTypes            String? @db.Text // MYSQL: rich detail — comma-separated guarantee kinds
+  financingPeriods         String? @db.Text // MYSQL: rich detail — comma-separated periods
   viewCount                Int              @default(0)
   createdAt                DateTime         @default(now())
   updatedAt                DateTime         @updatedAt
@@ -994,7 +1020,7 @@ model FinancierServiceAttribute {
   service   FinancierService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   kind      String // FEATURE | ELIGIBILITY_CONDITION
   position  Int              @default(0)
-  text      String
+  text      String           @db.Text // MYSQL: bullet text, free-form
 
   @@unique([serviceId, kind, position])
   @@index([serviceId, kind])
@@ -1020,7 +1046,7 @@ model ConditionTemplate {
   conditionType   String // DOCUMENT | PROFILE_FIELD | DECLARATION | TEXT | NUMBER | DATE | SELECT | MULTI_SELECT
   code            String? // optional stable ref, e.g. "COM-REG" (uniqueness enforced in service layer)
   title           String
-  description     String? // instructions shown to the applicant
+  description     String?       @db.Text // MYSQL: instructions shown to the applicant
   profileFieldKey String? // PROFILE_FIELD only — closed set, zod-validated
   documentType    String? // DOCUMENT only — expected AccountDocument.documentType
   validationMin   Float? // NUMBER only — inclusive lower bound
@@ -1038,6 +1064,8 @@ model ConditionTemplate {
 
   @@index([scope, organizationId, isActive])
   @@index([conditionType, isActive])
+  @@index([organizationId]) // MYSQL-FK-INDEX: organizationId is 2nd col of the index above — MySQL needs it leftmost
+  @@index([createdById]) // MYSQL-FK-INDEX: createdById relation needs its own leftmost index
 }
 
 // SELECT / MULTI_SELECT choices — every list a table (R-1).
@@ -1061,7 +1089,7 @@ model ServiceRequirement {
   conditionTemplate   ConditionTemplate @relation(fields: [conditionTemplateId], references: [id])
   isRequired          Boolean           @default(true) // optional conditions inform but never gate
   displayOrder        Int               @default(0)
-  instructions        String? // financier's per-service override text
+  instructions        String?           @db.Text // MYSQL: financier's per-service override text
   autoPassAccredited  Boolean           @default(false) // auto-VERIFIED when applicant org holds a live accreditation from THIS financier (DP-26)
   isActive            Boolean           @default(true)
   createdAt           DateTime          @default(now())
@@ -1071,6 +1099,7 @@ model ServiceRequirement {
 
   @@unique([serviceId, conditionTemplateId])
   @@index([serviceId, isActive, displayOrder])
+  @@index([conditionTemplateId]) // MYSQL-FK-INDEX: conditionTemplateId is 2nd col of the unique above — MySQL needs it leftmost
 }
 
 // ── 3.6 RequirementSubmission — per-request checklist row + THE GATE's verification unit ──
@@ -1086,7 +1115,7 @@ model RequirementSubmission {
   accreditationRequest   AccreditationRequest? @relation(fields: [accreditationRequestId], references: [id], onDelete: Cascade)
 
   status            String           @default("PENDING") // PENDING | SUBMITTED | VERIFIED | REJECTED | WAIVED
-  valueText         String? // TEXT / DECLARATION / SELECT answers
+  valueText         String?          @db.Text // MYSQL: TEXT / DECLARATION / SELECT answers
   valueNumber       Float? // NUMBER answers
   valueDate         DateTime? // DATE answers
   accountDocumentId String? // DOCUMENT evidence — REUSE of an AccountDocument
@@ -1095,13 +1124,16 @@ model RequirementSubmission {
   verifiedAt        DateTime?
   verifiedById      String? // the platform admin (or system for autoPass)
   verifiedBy        User?            @relation("RequirementSubmissionsVerifiedBy", fields: [verifiedById], references: [id])
-  decisionNote      String? // rejection reason / waiver reason — shown to applicant
+  decisionNote      String?          @db.Text // MYSQL: rejection reason / waiver reason — shown to applicant
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 
   @@unique([financingRequestId, serviceRequirementId])
   @@unique([accreditationRequestId, serviceRequirementId])
   @@index([status])
+  @@index([serviceRequirementId]) // MYSQL-FK-INDEX: serviceRequirementId is 2nd col of both uniques above — MySQL needs it leftmost
+  @@index([accountDocumentId]) // MYSQL-FK-INDEX: accountDocumentId relation needs its own leftmost index
+  @@index([verifiedById]) // MYSQL-FK-INDEX: verifiedById relation needs its own leftmost index
 }
 
 // ── 3.7 AccountDocument + RequestAttachment — universal documents (R-2, DP-27) ──
@@ -1121,7 +1153,7 @@ model AccountDocument {
   reviewedById   String?
   reviewedBy     User?         @relation("AccountDocumentsReviewedBy", fields: [reviewedById], references: [id])
   reviewedAt     DateTime?
-  note           String? // verification / rejection note
+  note           String?       @db.Text // MYSQL: verification / rejection note
   isActive       Boolean       @default(true) // soft-delete
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
@@ -1132,6 +1164,7 @@ model AccountDocument {
   @@index([userId, documentType, status])
   @@index([organizationId])
   @@index([mediaId])
+  @@index([reviewedById]) // MYSQL-FK-INDEX: reviewedById relation needs its own leftmost index
 }
 
 // Free-form request attachments not tied to a specific requirement (loose-parent pattern).
@@ -1171,11 +1204,11 @@ model FinancingRequest {
   // ACTIVITY (wizard step 2)
   activityStatus        String?
   activityName          String?
-  activityDescription   String?
+  activityDescription   String? @db.Text // MYSQL: free-form activity description
   activityStartDate     DateTime?
   activityCity          String?
   activityDistrict      String?
-  activityAddress       String?
+  activityAddress       String? @db.Text // MYSQL: street address, free-form
   activityLocationType  String? // OWNED | RENTED
   activityCategory      String?
   activityCategoryOther String?
@@ -1185,12 +1218,12 @@ model FinancingRequest {
   ownContributionAmount      Float?
   monthlyInstallmentCapacity Float?
   previousFinancing          Boolean?
-  otherIncomeSources         String?
+  otherIncomeSources         String? @db.Text // MYSQL: free-form income listing
 
   // THE ASK
   amountRequested      Float
   currency             String  @default("YER")
-  purpose              String?
+  purpose              String? @db.Text // MYSQL: free-form purpose text
   tenorRequestedMonths Int?
 
   // GUARANTEE
@@ -1200,16 +1233,16 @@ model FinancingRequest {
   guaranteeStatusOther String?
 
   // CONSENT
-  applicantNotes String?
+  applicantNotes String? @db.Text // MYSQL: free-form applicant notes
   consentAt      DateTime?
 
   // THE PLATFORM GATE (R-4, DP-23)
   platformReviewedById String?
   platformReviewedBy   User?     @relation("FinancingPlatformReviews", fields: [platformReviewedById], references: [id])
   platformReviewedAt   DateTime?
-  platformNote         String?
+  platformNote         String?   @db.Text // MYSQL: free-form gate note
   returnedAt           DateTime?
-  returnedReason       String?
+  returnedReason       String?   @db.Text // MYSQL: free-form return reason
   forwardedAt          DateTime?
 
   // LIFECYCLE (§5.1)
@@ -1245,21 +1278,22 @@ model FinancingOffer {
   ratePercent        Float?
   feeFlat            Float?
   tenorMonths        Int
-  collateralRequired String? // from the guarantee taxonomy (§3.8)
-  notes              String?
+  collateralRequired String? @db.Text // MYSQL: from the guarantee taxonomy (§3.8), free-form
+  notes              String? @db.Text // MYSQL: free-form offer notes
   validUntil         DateTime?
   status             String           @default("DRAFT") // DRAFT | SENT | ACCEPTED | DECLINED | EXPIRED | WITHDRAWN
   sentAt             DateTime?
   acceptedAt         DateTime?
   declinedAt         DateTime?
   withdrawnAt        DateTime?
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
   installments FinancingOfferInstallment[]
   agreement    FinancingAgreement?
 
   @@index([requestId, status])
+  @@index([createdById]) // MYSQL-FK-INDEX: createdById relation needs its own leftmost index
 }
 
 model FinancingOfferInstallment {
@@ -1302,12 +1336,13 @@ model FinancingEvent {
   type         String // DISBURSEMENT | REPAYMENT | EARLY_SETTLEMENT | LATE_FEE | NOTE
   eventDate    DateTime
   amount       Float?
-  note         String?
+  note         String?            @db.Text // MYSQL: free-form ledger note
   reportedById String?
   reportedBy   User?              @relation("FinancingEventsReportedBy", fields: [reportedById], references: [id])
   createdAt    DateTime           @default(now())
 
   @@index([agreementId, eventDate])
+  @@index([reportedById]) // MYSQL-FK-INDEX: reportedById relation needs its own leftmost index
 }
 
 // ── 3.12 FinancingFee — commission accounting, invoiced externally (D-001/002) ──
@@ -1347,16 +1382,16 @@ model AccreditationRequest {
   // MULTI-FINANCIER ROUTING (DP-25)
   multiGroupId String?
 
-  scopeNotes String?
+  scopeNotes String? @db.Text // MYSQL: free-form scope notes
   consentAt  DateTime?
 
   // THE PLATFORM GATE (R-4)
   platformReviewedById String?
   platformReviewedBy   User?     @relation("AccreditationPlatformReviews", fields: [platformReviewedById], references: [id])
   platformReviewedAt   DateTime?
-  platformNote         String?
+  platformNote         String?   @db.Text // MYSQL: free-form gate note
   returnedAt           DateTime?
-  returnedReason       String?
+  returnedReason       String?   @db.Text // MYSQL: free-form return reason
   forwardedAt          DateTime?
 
   // LIFECYCLE (§5.2)
@@ -1365,13 +1400,13 @@ model AccreditationRequest {
   decidedById      String?
   decidedBy        User?     @relation("AccreditationsDecidedBy", fields: [decidedById], references: [id])
   decidedAt        DateTime?
-  decisionNote     String?
+  decisionNote     String?   @db.Text // MYSQL: free-form decision note
   accreditedAt     DateTime?
   validUntil       DateTime? // grant lifetime — service.accreditationValidMonths default
   revokedById      String?
   revokedBy        User?     @relation("AccreditationsRevokedBy", fields: [revokedById], references: [id])
   revokedAt        DateTime?
-  revocationReason String?
+  revocationReason String?   @db.Text // MYSQL: free-form revocation reason
   expiresAt        DateTime? // REQUEST-level expiry (pre-decision)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
@@ -1383,6 +1418,10 @@ model AccreditationRequest {
   @@index([status, createdAt])
   @@index([multiGroupId])
   @@index([validUntil])
+  @@index([submittedById]) // MYSQL-FK-INDEX: submittedById relation needs its own leftmost index
+  @@index([platformReviewedById]) // MYSQL-FK-INDEX: platformReviewedById relation needs its own leftmost index
+  @@index([decidedById]) // MYSQL-FK-INDEX: decidedById relation needs its own leftmost index
+  @@index([revokedById]) // MYSQL-FK-INDEX: revokedById relation needs its own leftmost index
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1394,7 +1433,7 @@ model ContactMessage {
   name      String // "Newsletter" for newsletter signups
   email     String
   topic     String   @default("general") // order | funding | selling | partnership | newsletter | general
-  message   String
+  message   String   @db.Text
   handled   Boolean  @default(false) // triage flag for the future admin inbox
   createdAt DateTime @default(now())
 
@@ -1402,21 +1441,43 @@ model ContactMessage {
   @@index([handled])
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// SITE CONTENT — Phase 3–4 public pages (fully DB-driven, no hardcoded copy)
-// ═══════════════════════════════════════════════════════════════════════════
+// ═══ REDSIGN-ERA MODELS (ported to MySQL dialect) ═══
 
-// ── Funding success stories — case-study cards on /funding + entity pages ──
+model FaqItem {
+  id       String   @id @default(cuid())
+  topic    String   @default("GENERAL") // GENERAL | FUNDING | MARKET | SELL | B2B | ACCOUNT
+  question String
+  answer   String   @db.Text // MYSQL: long-form answer
+  position Int      @default(0)
+  featured Boolean  @default(false)
+  isActive Boolean  @default(true)
+
+  @@index([topic, position])
+}
+
+model FinancierSocialLink {
+  id                 String           @id @default(cuid())
+  financierProfileId String
+  financierProfile   FinancierProfile @relation(fields: [financierProfileId], references: [id], onDelete: Cascade)
+  platform           String // FACEBOOK | X | INSTAGRAM | LINKEDIN | WHATSAPP | TELEGRAM | YOUTUBE | WEBSITE
+  url                String
+  label              String?
+  position           Int              @default(0)
+  createdAt          DateTime         @default(now())
+
+  @@index([financierProfileId]) // MYSQL-FK-INDEX: financierProfileId relation needs its own leftmost index
+}
+
 model FundingStory {
   id                 String            @id @default(cuid())
   financierProfileId String? // null = platform-level story
   financierProfile   FinancierProfile? @relation(fields: [financierProfileId], references: [id], onDelete: SetNull)
   title              String
-  summary            String
-  body               String? // long-form, markdown-lite
+  summary            String            @db.Text // MYSQL: card summary
+  body               String?           @db.Text // MYSQL: long-form, markdown-lite
   imageUrl           String? // MediaAsset-backed URL
   sector             String? // AGRICULTURE | RETAIL | MANUFACTURING | HEALTH | EDUCATION | SERVICES | ENERGY
-  location            String?
+  location           String?
   year               Int?
   amountFinanced     Float?
   currency           String            @default("YER")
@@ -1430,10 +1491,44 @@ model FundingStory {
   updatedAt          DateTime          @updatedAt
 
   @@index([status, featured])
-  @@index([financierProfileId])
+  @@index([financierProfileId]) // MYSQL-FK-INDEX: financierProfileId relation needs its own leftmost index
 }
 
-// ── Partners — logo marquee; platform-level (null) or per-financier ──
+model InsightPost {
+  id           String    @id @default(cuid())
+  slug         String    @unique
+  title        String
+  excerpt      String    @db.Text // MYSQL: article teaser
+  body         String    @db.Text // MYSQL: markdown-lite
+  coverUrl     String?
+  authorName   String?
+  authorTitle  String?
+  topic        String    @default("GUIDE") // GUIDE | NEWS | POLICY | FUNDING | MARKET
+  tags         String? // comma-separated
+  readMinutes  Int       @default(4)
+  featured     Boolean   @default(false)
+  status       String    @default("PUBLISHED") // DRAFT | PUBLISHED | ARCHIVED
+  publishedAt  DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status, publishedAt])
+  @@index([topic])
+}
+
+model LegalDocument {
+  id          String   @id @default(cuid())
+  slug        String   @unique // terms | privacy | cookies
+  title       String
+  summary     String? @db.Text // MYSQL: short lead-in
+  body        String   @db.Text // MYSQL: markdown-lite
+  version     String   @default("1.0")
+  effectiveAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([slug])
+}
+
 model Partner {
   id                 String            @id @default(cuid())
   financierProfileId String? // null = platform-level
@@ -1448,10 +1543,9 @@ model Partner {
   createdAt          DateTime          @default(now())
 
   @@index([isActive])
-  @@index([financierProfileId])
+  @@index([financierProfileId]) // MYSQL-FK-INDEX: financierProfileId relation needs its own leftmost index
 }
 
-// ── Site steps — process timelines for /funding, /how-it-works (3 tracks), /sell ──
 model SiteStep {
   id        String   @id @default(cuid())
   page      String // FUNDING | HOW_WORKS | SELL
@@ -1460,7 +1554,7 @@ model SiteStep {
   icon      String? // lucide icon name, mapped by the UI kit
   title     String
   subtitle  String?
-  body      String?
+  body      String? @db.Text // MYSQL: step explanation
   stat      String? // optional micro-stat chip ("2–5 days")
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -1468,13 +1562,12 @@ model SiteStep {
   @@index([page, track, position])
 }
 
-// ── Solutions — segment landing pages (/solutions/[slug]) ──
 model Solution {
   id           String            @id @default(cuid())
   slug         String            @unique
   title        String
   tagline      String?
-  description  String?
+  description  String?           @db.Text // MYSQL: long description
   audience     String            @default("HOME") // HOME | FARM | BUSINESS
   icon         String? // lucide icon name
   imageUrl     String?
@@ -1496,57 +1589,7 @@ model SolutionFeature {
   position   Int      @default(0)
   icon       String?
   title      String
-  body       String?
+  body       String? @db.Text // MYSQL: feature explanation
 
-  @@index([solutionId])
-}
-
-// ── Insights — guides & news (/insights, /insights/[slug]) ──
-model InsightPost {
-  id           String    @id @default(cuid())
-  slug         String    @unique
-  title        String
-  excerpt      String
-  body         String // markdown-lite
-  coverUrl     String?
-  authorName   String?
-  authorTitle  String?
-  topic        String    @default("GUIDE") // GUIDE | NEWS | POLICY | FUNDING | MARKET
-  tags         String? // comma-separated
-  readMinutes  Int       @default(4)
-  featured     Boolean   @default(false)
-  status       String    @default("PUBLISHED") // DRAFT | PUBLISHED | ARCHIVED
-  publishedAt  DateTime  @default(now())
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  @@index([status, publishedAt])
-  @@index([topic])
-}
-
-// ── FAQ — accordion items grouped by topic (/faq + section embeds) ──
-model FaqItem {
-  id       String   @id @default(cuid())
-  topic    String   @default("GENERAL") // GENERAL | FUNDING | MARKET | SELL | B2B | ACCOUNT
-  question String
-  answer   String
-  position Int      @default(0)
-  featured Boolean  @default(false)
-  isActive Boolean  @default(true)
-
-  @@index([topic, position])
-}
-
-// ── Legal documents — /legal/[slug] (terms, privacy, …) ──
-model LegalDocument {
-  id          String   @id @default(cuid())
-  slug        String   @unique // terms | privacy | cookies
-  title       String
-  summary     String?
-  body        String // markdown-lite
-  version     String   @default("1.0")
-  effectiveAt DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([slug])
+  @@index([solutionId]) // MYSQL-FK-INDEX: solutionId relation needs its own leftmost index
 }

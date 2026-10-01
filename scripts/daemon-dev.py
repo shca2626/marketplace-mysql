@@ -65,6 +65,12 @@ def spawn_server() -> subprocess.Popen:
     log = open(DEV_LOG, "ab")
     env = dict(os.environ)
     env["NODE_OPTIONS"] = "--max-old-space-size=2048"
+    # Never let a stale shell-exported DATABASE_URL (e.g. an old SQLite
+    # file:// URL) override .env — Next.js loads .env itself at boot and
+    # process.env always wins there, which once pointed the live server at
+    # the deleted SQLite file. The Aiven URI in .env is the only truth.
+    env.pop("DATABASE_URL", None)
+    env.pop("MYSQL_DATABASE_URL", None)
     proc = subprocess.Popen(
         [NEXT_BIN, "dev", "-p", "3000"],
         stdout=log,

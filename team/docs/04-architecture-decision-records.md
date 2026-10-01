@@ -93,7 +93,7 @@ threat model).
 **Context.** Schema-first development with frequent additive changes in a sandbox where
 `prisma db push --accept-data-loss` is the de-facto migration tool; native MySQL enums make
 additive value changes painful and Prisma's enum handling historically diverges across
-providers (the repo even ships `scripts/db-provider.ts` to flip mysql⇄sqlite).
+providers (the SQLite-era flip script was removed with that phase — one provider now).
 
 **Decision.** All status/type columns are `String @db.VarChar(n)` with the allowed values
 documented in schema comments and enforced in TypeScript union types + zod schemas at the route

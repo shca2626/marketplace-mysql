@@ -80,7 +80,7 @@ function serializeOrg(
       user: { id: m.user.id, name: m.user.name, email: m.user.email },
       createdAt: m.createdAt.toISOString(),
     })),
-    groups: org.groups?.map((g) => ({
+    groups: org.groups?.map((cg) => cg.customerGroup).map((g) => ({
       id: g.id,
       key: g.key,
       name: g.name,
@@ -167,7 +167,7 @@ export async function getOrganization(
         include: { user: { select: { id: true, name: true, email: true } } },
         orderBy: { createdAt: 'asc' },
       },
-      groups: true,
+      groups: { include: { customerGroup: true } },
       _count: { select: { members: true } },
     },
   })
@@ -208,7 +208,7 @@ export async function updateApprovalThreshold(
         include: { user: { select: { id: true, name: true, email: true } } },
         orderBy: { createdAt: 'asc' },
       },
-      groups: true,
+      groups: { include: { customerGroup: true } },
       _count: { select: { members: true } },
     },
   })
@@ -439,7 +439,7 @@ export async function adminListOrganizations(filter?: {
           }
         : {}),
     },
-    include: { _count: { select: { members: true, rfqs: true, priceLists: true } }, groups: true },
+    include: { _count: { select: { members: true, rfqs: true, priceLists: true } }, groups: { include: { customerGroup: true } } },
     orderBy: { createdAt: 'desc' },
   })
   return orgs.map((o) => serializeOrg(o as never))
@@ -522,12 +522,13 @@ export async function adminUpdateOrganization(
     data.approvalThreshold = input.approvalThreshold // null disables the approval workflow
   }
   if (input.notes !== undefined) data.notes = input.notes
-  if (input.groupIds !== undefined) data.groups = { set: input.groupIds.map((id) => ({ id })) }
+  if (input.groupIds !== undefined)
+    data.groups = { deleteMany: {}, create: input.groupIds.map((id) => ({ customerGroupId: id })) }
 
   const updated = await db.organization.update({
     where: { id: orgId },
     data,
-    include: { _count: { select: { members: true } }, groups: true },
+    include: { _count: { select: { members: true } }, groups: { include: { customerGroup: true } } },
   })
 
   if (input.status && input.status !== org.status) {

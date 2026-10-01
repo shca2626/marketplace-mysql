@@ -14,10 +14,7 @@
     "db:seed": "bun scripts/seed-solar.ts",
     "db:seed:b2b": "bun scripts/seed-b2b.ts",
     "mysql:check": "bun scripts/mysql-check.ts",
-    "mysql:migrate": "bun scripts/migrate-sqlite-to-mysql.ts",
-    "mysql:push": "DATABASE_URL=\"$MYSQL_DATABASE_URL\" prisma db push --schema prisma/schema.mysql.prisma --skip-generate",
-    "mysql:dump": "bun scripts/dump-sqlite-to-sql.ts",
-    "mysql:sync": "bun scripts/mysql-sync.ts"
+    "db:status": "bun scripts/db-status.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",

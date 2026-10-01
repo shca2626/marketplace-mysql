@@ -922,7 +922,7 @@ async function main() {
       creditLimit: 75000,
       approvalThreshold: 500, // orders/quote-accepts ≥ $500 by BUYER members need approval
       notes: 'Verified trading company — boutique hotel supply chain.',
-      groups: { connect: [{ id: wholesale.id }] },
+      groups: { create: [{ customerGroupId: wholesale.id }] },
     },
   })
   await db.organizationMember.create({

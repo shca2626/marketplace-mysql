@@ -64,14 +64,14 @@ export async function buildBuyerContext(
   requestedOrgId?: string | null
 ): Promise<BuyerContext> {
   const [user, memberships] = await Promise.all([
-    db.user.findUnique({ where: { id: userId }, select: { groups: { select: { id: true } } } }),
+    db.user.findUnique({ where: { id: userId }, select: { groups: { select: { customerGroupId: true } } } }),
     db.organizationMember.findMany({
       where: { userId },
       select: { organizationId: true },
     }),
   ])
 
-  const userGroupIds = (user?.groups ?? []).map((g) => g.id)
+  const userGroupIds = (user?.groups ?? []).map((cg) => cg.customerGroupId)
 
   let organizationId: string | null = null
   if (requestedOrgId && memberships.some((m) => m.organizationId === requestedOrgId)) {
@@ -85,11 +85,11 @@ export async function buildBuyerContext(
   if (organizationId) {
     const org = await db.organization.findUnique({
       where: { id: organizationId },
-      select: { status: true, groups: { select: { id: true } } },
+      select: { status: true, groups: { select: { customerGroupId: true } } },
     })
     if (org) {
       organizationStatus = org.status
-      orgGroupIds = org.groups.map((g) => g.id)
+      orgGroupIds = org.groups.map((cg) => cg.customerGroupId)
     }
   }
 
