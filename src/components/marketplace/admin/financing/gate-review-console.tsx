@@ -410,8 +410,15 @@ export function GateReviewConsole({ requestId, onBack }: { requestId: string; on
                     ? `${
                         docsData.documents.filter((d) =>
                           isFin
-                            ? d.userId === fin!.applicant.id || d.organizationId === fin!.organizationId
-                            : (request as { organizationId: string }).organizationId === d.organizationId ||
+                            ? // FIN-007: an individual applicant has organizationId null — a naive
+                              // `d.organizationId === fin.organizationId` matches EVERY org-less
+                              // (personal) document platform-wide. Null-check first so only the
+                              // applicant's own docs and their actual org's docs count.
+                              d.userId === fin!.applicant.id ||
+                              (fin!.organizationId !== null && d.organizationId === fin!.organizationId)
+                            : (request as { organizationId: string | null }).organizationId !== null &&
+                                d.organizationId ===
+                                  (request as { organizationId: string | null }).organizationId ||
                               d.userId === (request as { submittedBy: { id: string } }).submittedBy.id
                         ).length
                       } on file`

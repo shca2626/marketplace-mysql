@@ -9,6 +9,7 @@ import {
   ChevronDown,
   FileText,
   Heart,
+  Landmark,
   LayoutDashboard,
   LogIn,
   LogOut,
@@ -23,7 +24,7 @@ import {
 } from 'lucide-react'
 import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
-import type { CategoryDTO } from '@/lib/types'
+import type { CategoryDTO, OrganizationDTO } from '@/lib/types'
 import { initials } from '@/lib/format'
 import { SearchBox } from './search-box'
 import { NotificationsBell } from './notifications-bell'
@@ -63,6 +64,18 @@ export function Header() {
   const { data: catData } = useApi<{ categories: CategoryDTO[] }>('/api/categories')
   const categories = catData?.categories ?? []
 
+  // Financier console entry (FIN-005): visible for OWNER/ADMIN members of a
+  // BANK/MFI/EWALLET org — same membership the console guard checks.
+  const { data: myOrgsData } = useApi<{ organizations: OrganizationDTO[] }>(
+    user ? '/api/organizations' : null,
+    { skip: !user }
+  )
+  const isFinancierStaff = (myOrgsData?.organizations ?? []).some(
+    (o) =>
+      ['BANK', 'MFI', 'EWALLET'].includes(o.orgType ?? '') &&
+      (o.myRole === 'OWNER' || o.myRole === 'ADMIN')
+  )
+
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
     setUser(null)
@@ -70,11 +83,11 @@ export function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b bg-background/85 backdrop-blur-md">
+    <header className="sticky top-0 z-40 w-full border-b border-bh-border bg-bh-card/95 backdrop-blur-md">
       {/* Announcement bar — admin-controlled (Platform Settings → Branding) */}
       {announcement?.announcementEnabled !== false && (
-        <div className="bg-primary text-primary-foreground">
-          <p className="mx-auto max-w-7xl px-4 py-1.5 text-center text-xs font-medium tracking-wide sm:text-[13px]">
+        <div className="bg-gradient-to-r from-[#052e56] via-[#06396c] to-[#0a4a8c]">
+          <p className="mx-auto max-w-7xl px-4 py-1.5 text-center text-xs font-medium tracking-wide text-white/90 sm:text-[13px]">
             {announcement?.announcementText ||
               'Free shipping on orders over $100 · Engineer-reviewed solar gear · Use code SUN10 for 10% off your first array'}
           </p>
@@ -93,18 +106,21 @@ export function Header() {
           <SheetContent side="left" className="w-72">
             <SheetHeader>
               <SheetTitle className="flex items-center gap-2 text-left">
-                <Store className="text-primary" size={20} /> Vendora
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-bh-navy-deep text-bh-gold">
+                  <Store size={15} />
+                </span>
+                Vendora
               </SheetTitle>
             </SheetHeader>
             <div className="mt-2 space-y-1 px-2">
               {/* Mobile search (desktop search lives in the top bar) */}
               <div className="mb-2 md:hidden">
                 <SearchBox
-                  inputClassName="h-11 rounded-xl bg-muted/60 pl-10 text-sm"
+                  inputClassName="h-11 rounded-xl bg-bh-soft-blue/70 pl-10 text-sm focus-visible:border-bh-gold/60 focus-visible:ring-bh-gold/40"
                   onNavigate={() => setMobileOpen(false)}
                 />
               </div>
-              <p className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <p className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wider text-bh-muted">
                 Shop
               </p>
               <Button
@@ -128,7 +144,7 @@ export function Header() {
                   }}
                 >
                   <span>{c.name}</span>
-                  <span className="text-xs text-muted-foreground">{c.productCount}</span>
+                  <span className="text-xs text-bh-muted">{c.productCount}</span>
                 </Button>
               ))}
             </div>
@@ -144,17 +160,17 @@ export function Header() {
             navigate('home')
           }}
         >
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-bh-navy-deep text-bh-gold shadow-card">
             <Store size={19} />
           </span>
-          <span className="hidden text-xl font-extrabold tracking-tight sm:block">Vendora</span>
+          <span className="hidden text-xl font-extrabold tracking-tight text-bh-navy sm:block">Vendora</span>
         </Link>
 
         {/* Search (desktop) — with live product suggestions */}
         <SearchBox
           className="hidden flex-1 md:block"
           placeholder="Search products, brands and stores…"
-          inputClassName="h-10 rounded-full border-input bg-muted/50 pr-12 text-sm shadow-none focus-visible:ring-1"
+          inputClassName="h-10 rounded-full border-bh-border-dark bg-bh-card pr-12 text-sm shadow-none focus-visible:border-bh-gold/60 focus-visible:ring-bh-gold/40"
         />
 
         {/* Actions */}
@@ -162,7 +178,7 @@ export function Header() {
           <Button
             variant="ghost"
             size="icon"
-            className="text-muted-foreground"
+            className="text-bh-muted hover:text-bh-gold-dark"
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             aria-label="Toggle theme"
           >
@@ -173,7 +189,7 @@ export function Header() {
           <Button
             variant="ghost"
             size="icon"
-            className="relative text-muted-foreground"
+            className="relative text-bh-muted hover:text-bh-gold-dark"
             onClick={() => (user ? navigate('favorites') : openAuth('login', { view: 'favorites' }))}
             aria-label="Favorites"
           >
@@ -185,13 +201,13 @@ export function Header() {
           <Button
             variant="ghost"
             size="icon"
-            className="relative text-muted-foreground"
+            className="relative text-bh-muted hover:text-bh-gold-dark"
             onClick={() => setCartOpen(true)}
             aria-label={`Cart with ${cartCount} items`}
           >
             <ShoppingCart size={19} />
             {cartCount > 0 && (
-              <Badge className="absolute -right-0.5 -top-0.5 h-5 min-w-5 justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-primary-foreground">
+              <Badge className="absolute -right-0.5 -top-0.5 h-5 min-w-5 justify-center rounded-full bg-bh-gold px-1 text-[10px] font-bold leading-none text-bh-navy-deep">
                 {cartCount > 99 ? '99+' : cartCount}
               </Badge>
             )}
@@ -205,7 +221,7 @@ export function Header() {
                   aria-label="Account menu"
                 >
                   <Avatar className="h-9 w-9 border">
-                    <AvatarFallback className="bg-primary/10 text-xs font-bold text-primary">
+                    <AvatarFallback className="bg-bh-bg-gold text-xs font-bold text-bh-gold-dark">
                       {initials(user.name)}
                     </AvatarFallback>
                   </Avatar>
@@ -213,8 +229,8 @@ export function Header() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-60">
                 <DropdownMenuLabel>
-                  <p className="truncate text-sm font-semibold">{user.name}</p>
-                  <p className="truncate text-xs font-normal text-muted-foreground">{user.email}</p>
+                  <p className="truncate text-sm font-semibold text-bh-navy">{user.name}</p>
+                  <p className="truncate text-xs font-normal text-bh-muted">{user.email}</p>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {/* Role-aware dashboard entry — the internal dashboards are separate
@@ -234,6 +250,11 @@ export function Header() {
                     <LayoutDashboard size={15} className="mr-2" /> My dashboard
                   </DropdownMenuItem>
                 )}
+                {isFinancierStaff && (
+                  <DropdownMenuItem onClick={() => navigate('financier')} className="cursor-pointer font-medium">
+                    <Landmark size={15} className="mr-2" /> Financier console
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => navigate('orders')} className="cursor-pointer">
                   <Package size={15} className="mr-2" /> My Orders
@@ -247,7 +268,12 @@ export function Header() {
                 <DropdownMenuItem onClick={() => navigate('business')} className="cursor-pointer">
                   <Building2 size={15} className="mr-2" /> Business Account
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate('account')} className="cursor-pointer">
+                {/* IA-100: "Account settings" opens the dedicated Profile &
+                    Security tab; "My dashboard" above keeps the overview. */}
+                <DropdownMenuItem
+                  onClick={() => navigate('account', { accountTab: 'profile' })}
+                  className="cursor-pointer"
+                >
                   <Settings size={15} className="mr-2" /> Account settings
                 </DropdownMenuItem>
                 {(user.role === 'BUYER' || !user.role) && (
@@ -270,32 +296,30 @@ export function Header() {
         </div>
       </div>
 
-      {/* Category nav (desktop) */}
-      <nav className="hidden border-t lg:block" aria-label="Categories">
-        <div className="mx-auto flex h-10 max-w-7xl items-center gap-1 px-4">
+      {/* Category nav (desktop) — bh pill chips */}
+      <nav className="hidden border-t border-bh-border lg:block" aria-label="Categories">
+        <div className="mx-auto flex h-10 max-w-7xl items-center gap-1.5 px-4">
           <button
             onClick={() => navigate('catalog')}
             className={cn(
-              'relative flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent hover:text-foreground',
-              'after:absolute after:-bottom-px after:left-3 after:right-3 after:h-0.5 after:origin-center after:rounded-full after:bg-primary after:transition-transform after:duration-300',
+              'flex items-center gap-1 rounded-full border px-3 py-1 text-[13px] font-medium transition-colors',
               view === 'catalog' && !activeCategory
-                ? 'bg-accent text-primary after:scale-x-100'
-                : 'text-foreground/80 after:scale-x-0 hover:after:scale-x-75'
+                ? 'border-bh-navy bg-bh-navy text-white'
+                : 'border-transparent text-bh-subtle hover:border-bh-gold/50 hover:text-bh-navy'
             )}
           >
             All Products
-            <ChevronDown size={13} className="text-muted-foreground" />
+            <ChevronDown size={13} className="opacity-60" />
           </button>
           {categories.map((c) => (
             <button
               key={c.id}
               onClick={() => navigate('catalog', { category: c.slug })}
               className={cn(
-                'group relative rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-accent hover:text-foreground',
-                'after:absolute after:-bottom-px after:left-3 after:right-3 after:h-0.5 after:origin-center after:rounded-full after:bg-primary after:transition-transform after:duration-300',
+                'group rounded-full border px-3 py-1 text-[13px] transition-colors',
                 view === 'catalog' && activeCategory === c.slug
-                  ? 'bg-accent font-medium text-primary after:scale-x-100'
-                  : 'text-foreground/70 after:scale-x-0 hover:after:scale-x-75'
+                  ? 'border-bh-navy bg-bh-navy font-medium text-white'
+                  : 'border-transparent text-bh-subtle hover:border-bh-gold/50 hover:text-bh-navy'
               )}
             >
               {c.name}
@@ -303,19 +327,19 @@ export function Header() {
                 className={cn(
                   'ml-1.5 inline-block rounded-full px-1.5 py-px text-[10px] font-semibold leading-none tabular-nums transition-colors',
                   view === 'catalog' && activeCategory === c.slug
-                    ? 'bg-primary/15 text-primary'
-                    : 'bg-muted text-muted-foreground/70 group-hover:bg-primary/10 group-hover:text-primary'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-bh-soft-blue text-bh-muted group-hover:bg-bh-bg-gold group-hover:text-bh-gold-dark'
                 )}
               >
                 {c.productCount}
               </span>
             </button>
           ))}
-          <span className="mx-1 h-4 w-px bg-border" />
+          <span className="mx-1 h-4 w-px bg-bh-border" />
           {user?.role !== 'ADMIN' && (
             <button
               onClick={() => navigate('seller')}
-              className="relative rounded-md px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-accent"
+              className="rounded-full px-3 py-1 text-[13px] font-semibold text-bh-gold-dark transition-colors hover:bg-bh-bg-gold/60 hover:text-bh-navy"
             >
               Sell on Vendora
             </button>

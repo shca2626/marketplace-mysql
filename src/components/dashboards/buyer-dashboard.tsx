@@ -6,6 +6,11 @@
 // clear profile & security sections and one consistent page header. All other
 // buyer surfaces (RFQs, Business, Orders, Favorites) are sidebar entries that
 // stay inside this same console shell.
+//
+// Tabs (IA-100): ?view=account is the overview; ?view=account&tab=profile is
+// the dedicated Profile & Security panel (BUY-211). The storefront account
+// dropdown's "Account settings" entry points at the profile tab while "My
+// dashboard" keeps the overview.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useMemo, useState } from 'react'
@@ -27,6 +32,7 @@ import {
   ShoppingBag,
   Sparkles,
   Store,
+  UserCog,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
@@ -34,6 +40,7 @@ import { useApi } from '@/hooks/use-api'
 import { formatDate, initials } from '@/lib/format'
 import type { OrderDTO, RfqDTO } from '@/lib/types'
 import { DashboardLayout, PageHeader, SignInRequired } from './dashboard-layout'
+import { ProfileSecurityPanel } from './buyer-profile-security'
 import { BUYER_NAV } from './nav-config'
 import type { NavItem } from './nav-config'
 import { Button } from '@/components/ui/button'
@@ -47,8 +54,14 @@ export function BuyerDashboard() {
   const authChecked = useMarketplace((s) => s.authChecked)
   const navigate = useMarketplace((s) => s.navigate)
   const setUser = useMarketplace((s) => s.setUser)
+  const params = useMarketplace((s) => s.params)
   const [sendingVerify, setSendingVerify] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
+
+  // IA-100: ?view=account&tab=profile opens the Profile & Security panel;
+  // every other value (or none) lands on the overview. (routing only parses
+  // `tab` while the account view is active, so this can't leak across views.)
+  const tab = params.accountTab === 'profile' ? 'profile' : 'overview'
 
   const resendVerification = async () => {
     if (sendingVerify) return
@@ -97,6 +110,8 @@ export function BuyerDashboard() {
   const { data: ordersData } = useApi<{ orders: OrderDTO[] }>(user ? '/api/orders' : null, { skip: !user })
   const { data: rfqData } = useApi<{ rfqs: RfqDTO[] }>(user ? '/api/rfqs' : null, { skip: !user })
 
+  // Sidebar items carry their own view + params (nav-config); the Profile &
+  // Security item navigates to this same view with accountTab=profile.
   const onNavigate = (item: NavItem) => navigate(item.view ?? 'account', item.params)
 
   const tiles = useMemo(
@@ -149,6 +164,15 @@ export function BuyerDashboard() {
   }
   if (!user) return null
 
+  // ── Profile & Security tab (BUY-211 / IA-100) ──
+  if (tab === 'profile') {
+    return (
+      <DashboardLayout role="buyer" nav={BUYER_NAV} activeKey="profile" onNavigate={onNavigate}>
+        <ProfileSecurityPanel />
+      </DashboardLayout>
+    )
+  }
+
   return (
     <DashboardLayout role="buyer" nav={BUYER_NAV} activeKey="account" onNavigate={onNavigate}>
       <PageHeader
@@ -192,10 +216,13 @@ export function BuyerDashboard() {
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         {/* Profile */}
         <Card className="lg:col-span-2">
-          <CardHeader className="pb-3">
+          <CardHeader className="flex-row items-start justify-between space-y-0 pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <BadgeCheck size={16} className="text-primary" /> Profile
             </CardTitle>
+            <Button size="sm" variant="outline" className="rounded-lg" onClick={() => navigate('account', { accountTab: 'profile' })}>
+              <UserCog size={13} className="mr-1.5" /> Edit profile & security
+            </Button>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="flex flex-wrap items-center gap-5">
@@ -329,19 +356,29 @@ export function BuyerDashboard() {
             </div>
             <Separator />
             <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-muted-foreground">Password</span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 rounded-lg px-2.5 text-xs text-primary hover:text-primary"
-                  onClick={() => navigate('forgot-password')}
-                >
-                  <KeyRound size={12} className="mr-1" /> Reset via email
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 rounded-lg px-2.5 text-xs text-primary hover:text-primary"
+                    onClick={() => navigate('account', { accountTab: 'profile' })}
+                  >
+                    <KeyRound size={12} className="mr-1" /> Change password
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 rounded-lg px-2.5 text-xs text-muted-foreground hover:text-muted-foreground"
+                    onClick={() => navigate('forgot-password')}
+                  >
+                    <MailCheck size={12} className="mr-1" /> Reset via email
+                  </Button>
+                </div>
               </div>
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Changing your password signs out every device.
+                Change it right here while signed in — other devices sign out, this one stays.
               </p>
             </div>
             <Separator />

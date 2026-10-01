@@ -89,6 +89,32 @@ export interface UploadDocumentInput {
   organizationId?: string | null
 }
 
+// 4-digit year + sane range guard (BUY-206): native date inputs can commit
+// 5-digit years (e.g. 99999) that overflow SQLite datetime → opaque 500.
+// Every vault date goes through this parser → structured 400s instead.
+export function parseDocDateSafe(raw: string, label: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw.trim())
+  if (!m) throw new FinancingError(`${label} must be a valid calendar date (YYYY-MM-DD)`, 400)
+  const year = Number(m[1])
+  const month = Number(m[2])
+  const day = Number(m[3])
+  if (month < 1 || month > 12 || day < 1 || day > 31) {
+    throw new FinancingError(`${label} is not a valid calendar date`, 400)
+  }
+  if (year < 1900 || year > 2100) {
+    throw new FinancingError(`${label} year must be between 1900 and 2100`, 400)
+  }
+  const d = new Date(Date.UTC(year, month - 1, day))
+  if (
+    d.getUTCFullYear() !== year ||
+    d.getUTCMonth() !== month - 1 ||
+    d.getUTCDate() !== day
+  ) {
+    throw new FinancingError(`${label} is not a valid calendar date (day out of range)`, 400)
+  }
+  return d
+}
+
 export async function createAccountDocument(
   userId: string,
   input: UploadDocumentInput
@@ -113,17 +139,33 @@ export async function createAccountDocument(
   let issuedAt: Date | null = null
   let expiresAt: Date | null = null
   try {
-    issuedAt = input.issuedAt ? new Date(input.issuedAt) : null
-    expiresAt = input.expiresAt ? new Date(input.expiresAt) : null
-  } catch {
-    throw new FinancingError('Invalid issued/expires date')
+    issuedAt = input.issuedAt ? parseDocDateSafe(input.issuedAt, 'Issue date') : null
+    expiresAt = input.expiresAt ? parseDocDateSafe(input.expiresAt, 'Expiry date') : null
+  } catch (err) {
+    if (err instanceof FinancingError) throw err
+    throw new FinancingError('Invalid issued/expires date', 400)
+  }
+  if (issuedAt && expiresAt && expiresAt.getTime() < issuedAt.getTime()) {
+    throw new FinancingError('Expiry date cannot be before the issue date', 400)
   }
   if (expiresAt && expiresAt.getTime() < Date.now()) {
-    throw new FinancingError('This document is already expired — upload a current version')
+    throw new FinancingError('This document is already expired — upload a current version', 400)
   }
 
-  // The REAL pipeline: magic-sniff, size-cap, webp renditions, sha256
-  const processed = await processImageUpload(input.file.buffer)
+  // The REAL pipeline: magic-sniff, size-cap, webp renditions, sha256.
+  // PDFs and other non-image files fail the sniff — translate to a clear
+  // 415 instead of the opaque 500 (BUY-206 family).
+  const processed = await processImageUpload(input.file.buffer).catch((err: unknown) => {
+    if (err instanceof FinancingError) throw err
+    const msg = err instanceof Error ? err.message : String(err)
+    if (/magic|format|type|image|unsupported|not an image/i.test(msg)) {
+      throw new FinancingError(
+        'This file type is not supported — the vault accepts JPG, PNG, WebP or GIF images (PDF is not supported yet)',
+        415
+      )
+    }
+    throw new FinancingError(`Could not process the image — ${msg}`, 400)
+  })
 
   const doc = await db.$transaction(async (tx) => {
     // Dedupe by content hash — same bytes never stored twice
@@ -262,10 +304,13 @@ export async function updateAccountDocument(
   let issuedAt: Date | null = doc.issuedAt
   let expiresAt: Date | null = doc.expiresAt
   try {
-    if (input.issuedAt !== undefined) issuedAt = input.issuedAt ? new Date(input.issuedAt) : null
-    if (input.expiresAt !== undefined) expiresAt = input.expiresAt ? new Date(input.expiresAt) : null
-  } catch {
-    throw new FinancingError('Invalid issued/expires date')
+    if (input.issuedAt !== undefined)
+      issuedAt = input.issuedAt ? parseDocDateSafe(input.issuedAt, 'Issue date') : null
+    if (input.expiresAt !== undefined)
+      expiresAt = input.expiresAt ? parseDocDateSafe(input.expiresAt, 'Expiry date') : null
+  } catch (err) {
+    if (err instanceof FinancingError) throw err
+    throw new FinancingError('Invalid issued/expires date', 400)
   }
 
   const updated = await db.accountDocument.update({

@@ -1,10 +1,16 @@
 'use client'
 
-import { Store, ShieldCheck, Truck, RotateCcw, CreditCard } from 'lucide-react'
+import { Store } from 'lucide-react'
 import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
 import type { CategoryDTO } from '@/lib/types'
 
+/**
+ * Market SPA footer — Vendora "bh" system. Mirrors the site footer
+ * (src/components/site/site-footer.tsx): white surface, gold-dot trust
+ * markers, navy column heads, navy-deep + gold brand tile — with the
+ * market's SPA navigation and content.
+ */
 export function Footer() {
   const navigate = useMarketplace((s) => s.navigate)
   const { data } = useApi<{ categories: CategoryDTO[] }>('/api/categories')
@@ -40,23 +46,21 @@ export function Footer() {
   ]
 
   return (
-    <footer className="mt-auto border-t bg-muted/40">
-      {/* Trust badges */}
-      <div className="border-b bg-background">
-        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-4 px-4 py-6 sm:grid-cols-4">
+    <footer className="mt-auto border-t border-bh-border bg-bh-card">
+      {/* Trust markers — gold dots (site-footer pattern) */}
+      <div className="border-b border-bh-border">
+        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-4 px-4 py-6 sm:grid-cols-4 sm:px-6 lg:px-8">
           {[
-            { icon: Truck, title: 'Fast Shipping', text: 'Free over $75' },
-            { icon: RotateCcw, title: 'Easy Returns', text: '30-day guarantee' },
-            { icon: ShieldCheck, title: 'Secure Checkout', text: '256-bit SSL' },
-            { icon: CreditCard, title: 'Flexible Payment', text: 'All major cards' },
+            { title: 'Fast Shipping', text: 'Free over $75' },
+            { title: 'Easy Returns', text: '30-day guarantee' },
+            { title: 'Secure Checkout', text: '256-bit SSL' },
+            { title: 'Flexible Payment', text: 'All major cards' },
           ].map((b) => (
-            <div key={b.title} className="group flex items-center gap-3 rounded-xl px-1 py-0.5 transition-colors">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary transition-all duration-300 group-hover:bg-primary group-hover:text-primary-foreground group-hover:shadow-md group-hover:shadow-primary/25">
-                <b.icon size={18} className="transition-transform duration-300 group-hover:-translate-y-px" />
-              </span>
-              <div>
-                <p className="text-sm font-semibold leading-tight">{b.title}</p>
-                <p className="text-xs text-muted-foreground">{b.text}</p>
+            <div key={b.title} className="flex items-center gap-3 px-1 py-0.5">
+              <span className="h-2 w-2 shrink-0 rounded-full bg-bh-gold" aria-hidden />
+              <div className="min-w-0">
+                <p className="text-xs font-bold leading-tight text-bh-navy">{b.title}</p>
+                <p className="text-xs text-bh-muted">{b.text}</p>
               </div>
             </div>
           ))}
@@ -64,36 +68,36 @@ export function Footer() {
       </div>
 
       {/* Main footer */}
-      <div className="mx-auto grid max-w-7xl grid-cols-2 gap-8 px-4 py-10 sm:grid-cols-3 lg:grid-cols-5">
-        <div className="col-span-2 lg:col-span-2">
+      <div className="mx-auto grid max-w-7xl grid-cols-2 gap-8 px-4 py-10 sm:grid-cols-3 sm:px-6 lg:grid-cols-5 lg:px-8">
+        <div className="col-span-2">
           <div className="flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <Store size={18} />
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-bh-navy-deep text-bh-gold">
+              <Store size={16} />
             </span>
-            <span className="text-lg font-extrabold tracking-tight">Vendora</span>
+            <span className="text-lg font-extrabold tracking-tight text-bh-navy">Vendora</span>
           </div>
-          <p className="mt-3 max-w-xs text-sm leading-relaxed text-muted-foreground">
+          <p className="mt-3 max-w-xs text-sm leading-relaxed text-bh-muted">
             The solar energy marketplace where engineer-owned stores meet thoughtful buyers. Real systems,
             real warranties, fair prices.
           </p>
           <div className="mt-4 flex items-center gap-2" aria-hidden>
-            <span className="h-1 w-8 rounded-full bg-primary/60" />
-            <span className="h-1 w-3 rounded-full bg-primary/35" />
-            <span className="h-1 w-1.5 rounded-full bg-primary/20" />
+            <span className="h-1 w-8 rounded-full bg-bh-gold/70" />
+            <span className="h-1 w-4 rounded-full bg-bh-gold/40" />
+            <span className="h-1 w-2 rounded-full bg-bh-gold/25" />
           </div>
-          <p className="mt-4 text-xs text-muted-foreground">
+          <p className="mt-4 text-xs text-bh-muted">
             © {new Date().getFullYear()} Vendora Inc. All rights reserved.
           </p>
         </div>
         {links.map((col) => (
           <nav key={col.title} aria-label={col.title}>
-            <h4 className="mb-3 text-sm font-semibold">{col.title}</h4>
-            <ul className="space-y-2">
+            <h3 className="text-[11px] font-bold uppercase tracking-[0.14em] text-bh-navy">{col.title}</h3>
+            <ul className="mt-3 space-y-2">
               {col.items.map((item) => (
                 <li key={item.label}>
                   <button
                     onClick={item.onClick}
-                    className="-ml-1 rounded-md px-1 text-sm text-muted-foreground transition-all duration-200 hover:translate-x-1 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="text-sm text-bh-muted transition-colors hover:text-bh-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     {item.label}
                   </button>

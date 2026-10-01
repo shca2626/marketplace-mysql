@@ -395,26 +395,26 @@ export function ProductView() {
   if (!loading && !product) {
     return (
       <div className="mx-auto flex max-w-xl flex-col items-center px-4 py-20 text-center">
-        <div className="rounded-full bg-muted p-5">
-          <PackageSearch size={36} className="text-primary/70" aria-hidden />
+        <div className="rounded-2xl bg-bh-bg-gold p-5 text-bh-gold-dark shadow-card">
+          <PackageSearch size={36} aria-hidden />
         </div>
-        <h1 className="mt-6 text-2xl font-semibold tracking-tight">
+        <h1 className="mt-6 text-2xl font-semibold tracking-tight text-bh-navy">
           Product not found
         </h1>
-        <p className="mt-2 max-w-sm text-balance text-muted-foreground">
+        <p className="mt-2 max-w-sm text-balance text-bh-muted">
           {error ?? "This listing is no longer available — it may have been removed or the link is out of date."}
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <button
             onClick={() => navigate('catalog')}
-            className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground transition-transform hover:scale-[1.02] active:scale-[0.98]"
+            className="inline-flex h-11 items-center gap-2 rounded-xl bg-bh-navy px-5 text-sm font-semibold text-white transition-transform hover:scale-[1.02] active:scale-[0.98]"
           >
             <ArrowLeft size={16} aria-hidden />
             Browse the catalog
           </button>
           <button
             onClick={() => navigate('home')}
-            className="inline-flex h-11 items-center rounded-xl border bg-background px-5 text-sm font-medium transition-colors hover:bg-muted"
+            className="inline-flex h-11 items-center rounded-xl border border-bh-border bg-bh-card px-5 text-sm font-medium text-bh-subtle transition-colors hover:border-bh-gold/50 hover:text-bh-navy"
           >
             Back to home
           </button>
@@ -470,16 +470,16 @@ export function ProductView() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
       {/* Breadcrumb */}
-      <nav className="mb-6 flex flex-wrap items-center gap-1 text-sm text-muted-foreground" aria-label="Breadcrumb">
-        <button className="hover:text-primary" onClick={() => navigate('home')}>
+      <nav className="mb-6 flex flex-wrap items-center gap-1 text-xs text-bh-muted" aria-label="Breadcrumb">
+        <button className="hover:text-bh-navy" onClick={() => navigate('home')}>
           Home
         </button>
-        <ChevronRight size={13} />
-        <button className="hover:text-primary" onClick={() => navigate('catalog', { category: product.category.slug })}>
+        <ChevronRight size={13} className="text-bh-faded" />
+        <button className="hover:text-bh-navy" onClick={() => navigate('catalog', { category: product.category.slug })}>
           {product.category.name}
         </button>
-        <ChevronRight size={13} />
-        <span className="line-clamp-1 max-w-64 font-medium text-foreground">{product.title}</span>
+        <ChevronRight size={13} className="text-bh-faded" />
+        <span className="line-clamp-1 max-w-64 font-semibold text-bh-navy">{product.title}</span>
       </nav>
 
       <div className="grid gap-10 lg:grid-cols-2">
@@ -490,7 +490,7 @@ export function ProductView() {
             initial={{ opacity: 0.4, scale: 0.99 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.25 }}
-            className="group relative overflow-hidden rounded-2xl border bg-muted"
+            className="group relative overflow-hidden rounded-2xl border border-bh-border bg-bh-card shadow-card"
           >
             {product.images[activeImage] ? (
               <button
@@ -503,15 +503,15 @@ export function ProductView() {
                   alt={`${product.title} — image ${activeImage + 1}`}
                   className="aspect-square w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
                 />
-                <span className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-background/80 text-foreground opacity-0 shadow-sm backdrop-blur transition-opacity duration-200 group-hover:opacity-100">
+                <span className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-bh-card/90 text-bh-navy opacity-0 shadow-sm backdrop-blur transition-opacity duration-200 group-hover:opacity-100">
                   <ZoomIn size={16} />
                 </span>
               </button>
             ) : (
-              <div className="flex aspect-square items-center justify-center text-muted-foreground">No image</div>
+              <div className="flex aspect-square items-center justify-center text-bh-muted">No image</div>
             )}
             {discount !== null && (
-              <Badge className="absolute left-3 top-3 bg-red-500/95 text-sm font-bold text-white hover:bg-red-500">
+              <Badge className="absolute left-3 top-3 bg-destructive/95 text-sm font-bold text-white hover:bg-destructive">
                 -{discount}%
               </Badge>
             )}
@@ -524,7 +524,9 @@ export function ProductView() {
                   onClick={() => setActiveImage(i)}
                   className={cn(
                     'h-20 w-20 shrink-0 overflow-hidden rounded-xl border-2 transition-all',
-                    i === activeImage ? 'border-primary' : 'border-transparent opacity-60 hover:opacity-100'
+                    i === activeImage
+                      ? 'border-bh-gold'
+                      : 'border-transparent opacity-60 hover:opacity-100'
                   )}
                   aria-label={`Show image ${i + 1}`}
                 >
@@ -557,24 +559,24 @@ export function ProductView() {
 
         {/* ── Info ── */}
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-          <Badge variant="secondary" className="rounded-full text-xs font-medium">
+          <Badge className="rounded-full border border-bh-gold/25 bg-bh-bg-gold text-xs font-semibold text-bh-gold-dark hover:bg-bh-bg-gold">
             {product.category.name}
           </Badge>
-          <h1 className="mt-3 text-2xl font-bold leading-snug tracking-tight sm:text-3xl">{product.title}</h1>
+          <h1 className="mt-3 text-2xl font-bold leading-snug tracking-tight text-bh-navy sm:text-3xl">{product.title}</h1>
 
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
             <div className="flex items-center gap-1.5">
-              <Star size={15} className="fill-amber-400 text-amber-400" />
-              <span className="font-semibold">{product.rating.toFixed(1)}</span>
+              <Star size={15} className="fill-bh-gold text-bh-gold" />
+              <span className="font-semibold text-bh-navy">{product.rating.toFixed(1)}</span>
               <button
-                className="text-muted-foreground underline-offset-2 hover:underline"
+                className="text-bh-muted underline-offset-2 hover:text-bh-navy hover:underline"
                 onClick={() => document.getElementById('reviews-tab')?.click()}
               >
                 {product.reviewCount} reviews
               </button>
             </div>
-            <span className="text-muted-foreground">·</span>
-            <span className="text-muted-foreground">{formatNumber(product.soldCount)} sold</span>
+            <span className="text-bh-faded">·</span>
+            <span className="text-bh-muted">{formatNumber(product.soldCount)} sold</span>
           </div>
 
           {/* Price — contract pricing for verified businesses, retail otherwise */}
@@ -583,22 +585,22 @@ export function ProductView() {
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.25 }}
-              className="mt-5 rounded-2xl border border-primary/30 bg-primary/5 p-4"
+              className="mt-5 rounded-2xl border border-bh-gold/40 bg-bh-gold-pale p-4"
               data-testid="contract-price"
             >
               <div className="flex flex-wrap items-center gap-2">
-                <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-primary">
+                <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-bh-gold-dark">
                   <BadgePercent size={13} /> Your price
                 </span>
-                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                <span className="rounded-full bg-bh-navy/10 px-2 py-0.5 text-[10px] font-semibold text-bh-navy">
                   {contract.source === 'CONTRACT' ? 'Contract pricing' : 'Group pricing'}
                 </span>
               </div>
               <div className="mt-1.5 flex flex-wrap items-end gap-x-3 gap-y-1">
-                <span className="text-4xl font-extrabold tracking-tight" data-testid="contract-unit-price">
+                <span className="text-4xl font-extrabold tracking-tight text-bh-navy" data-testid="contract-unit-price">
                   {formatUSD(contract.unitPrice)}
                 </span>
-                <span className="pb-1 text-lg text-muted-foreground line-through">
+                <span className="pb-1 text-lg text-bh-muted line-through">
                   {formatUSD(contract.listPrice)}
                 </span>
                 {contract.savingsPercent > 0 && (
@@ -610,16 +612,16 @@ export function ProductView() {
                   </span>
                 )}
               </div>
-              <p className="mt-1.5 text-xs text-muted-foreground">
+              <p className="mt-1.5 text-xs text-bh-muted">
                 {contract.priceListName ? `${contract.priceListName} · ` : ''}at qty {quantity}
                 {activeOrg ? ` · for ${activeOrg.name}` : ''}
               </p>
             </motion.div>
           ) : (
             <div className="mt-5 flex items-end gap-3">
-              <span className="text-4xl font-extrabold tracking-tight">{formatUSD(effectivePrice)}</span>
+              <span className="text-4xl font-extrabold tracking-tight text-bh-navy">{formatUSD(effectivePrice)}</span>
               {effectiveCompareAt && (
-                <span className="pb-1 text-lg text-muted-foreground line-through">
+                <span className="pb-1 text-lg text-bh-muted line-through">
                   {formatUSD(effectiveCompareAt)}
                 </span>
               )}
@@ -631,17 +633,17 @@ export function ProductView() {
             </div>
           )}
 
-          <p className="mt-4 leading-relaxed text-muted-foreground">{product.description}</p>
+          <p className="mt-4 leading-relaxed text-bh-subtle">{product.description}</p>
 
           {/* ── Variant selector (seller-defined options) ── */}
           {variantGroups.length > 0 && (
             <div className="mt-6 space-y-4">
               {variantGroups.map((g) => (
                 <div key={g.name}>
-                  <p className="mb-2 text-sm font-semibold">
+                  <p className="mb-2 text-sm font-semibold text-bh-navy">
                     {g.name}
                     {selectedOptions[g.name] && (
-                      <span className="ml-1 font-normal text-muted-foreground">: {selectedOptions[g.name]}</span>
+                      <span className="ml-1 font-normal text-bh-muted">: {selectedOptions[g.name]}</span>
                     )}
                   </p>
                   <div className="flex flex-wrap gap-2" role="group" aria-label={`Choose ${g.name}`}>
@@ -655,8 +657,8 @@ export function ProductView() {
                           className={cn(
                             'h-9 min-w-11 rounded-lg border px-3 text-sm font-medium transition-colors',
                             active
-                              ? 'border-primary bg-primary/10 text-primary'
-                              : 'border-border text-foreground hover:border-primary/50 hover:bg-muted/50',
+                              ? 'border-bh-navy bg-bh-navy text-white'
+                              : 'border-bh-border-dark bg-bh-card text-bh-subtle hover:border-bh-gold/50 hover:text-bh-navy',
                             hasVariantSelectionPending && !active && 'opacity-60'
                           )}
                           aria-pressed={active}
@@ -681,22 +683,22 @@ export function ProductView() {
             <span
               className={cn(
                 'h-2 w-2 rounded-full',
-                effectiveStock === 0 ? 'bg-destructive' : effectiveStock <= 5 ? 'bg-amber-500' : 'bg-emerald-500'
+                effectiveStock === 0 ? 'bg-destructive' : effectiveStock <= 5 ? 'bg-bh-gold' : 'bg-emerald-500'
               )}
             />
             {effectiveStock === 0 ? (
               <span className="font-medium text-destructive">Out of stock</span>
             ) : effectiveStock <= 5 ? (
-              <span className="font-medium text-amber-600 dark:text-amber-400">
+              <span className="font-medium text-bh-gold-dark">
                 Selling fast — only {effectiveStock} left
               </span>
             ) : (
-              <span className="text-muted-foreground">{effectiveStock} in stock</span>
+              <span className="text-bh-muted">{effectiveStock} in stock</span>
             )}
             {effectiveSku && (
               <>
-                <span className="text-muted-foreground">·</span>
-                <span className="text-muted-foreground">
+                <span className="text-bh-faded">·</span>
+                <span className="text-bh-muted">
                   SKU <span className="font-mono text-xs">{effectiveSku}</span>
                 </span>
               </>
@@ -705,10 +707,10 @@ export function ProductView() {
 
           {/* Quantity + actions */}
           <div ref={buyActionsRef} className="mt-6 flex flex-wrap items-center gap-3">
-            <QuantityInput value={quantity} onChange={setQuantity} max={Math.max(1, effectiveStock)} />
+            <QuantityInput value={quantity} onChange={setQuantity} max={Math.max(1, effectiveStock)} className="border-bh-border-dark shadow-card" />
             <Button
               size="lg"
-              className="h-12 flex-1 rounded-xl text-base sm:flex-none sm:px-8"
+              className="h-12 flex-1 rounded-xl bg-bh-gold text-base font-bold text-bh-navy-deep shadow-card hover:bg-bh-gold-light sm:flex-none sm:px-8"
               disabled={effectiveStock === 0 || hasVariantSelectionPending}
               onClick={() => handleAddToCart(false)}
             >
@@ -716,8 +718,8 @@ export function ProductView() {
             </Button>
             <Button
               size="lg"
-              variant="secondary"
-              className="h-12 rounded-xl border text-base sm:px-8"
+              variant="outline"
+              className="h-12 rounded-xl border-bh-border-dark text-base sm:px-8"
               disabled={effectiveStock === 0 || hasVariantSelectionPending}
               onClick={handleBuyNow}
             >
@@ -725,8 +727,8 @@ export function ProductView() {
             </Button>
             <Button
               size="lg"
-              variant="secondary"
-              className="h-12 flex-1 rounded-xl border text-base sm:flex-none sm:px-8"
+              variant="outline"
+              className="h-12 flex-1 rounded-xl border-bh-border-dark text-base sm:flex-none sm:px-8"
               onClick={handleRequestQuote}
             >
               <FileText size={16} className="mr-2" /> Request a quote
@@ -758,11 +760,11 @@ export function ProductView() {
           </div>
 
           {/* Bulk-buy hint under the actions */}
-          <p className="mt-3 text-xs text-muted-foreground">
+          <p className="mt-3 text-xs text-bh-muted">
             Buying in bulk?{' '}
             <button
               onClick={handleRequestQuote}
-              className="font-semibold text-primary underline-offset-2 hover:underline"
+              className="font-semibold text-bh-action underline-offset-2 hover:text-bh-navy hover:underline"
             >
               Request a quote
             </button>{' '}
@@ -780,10 +782,10 @@ export function ProductView() {
               { icon: RotateCcw, title: 'Easy returns', text: 'Within 30 days' },
               { icon: ShieldCheck, title: 'Warranty', text: '1-year coverage' },
             ].map((perk) => (
-              <div key={perk.title} className="rounded-xl border bg-card p-3.5 text-center">
-                <perk.icon size={18} className="mx-auto text-primary" />
-                <p className="mt-2 text-xs font-semibold leading-tight">{perk.title}</p>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">{perk.text}</p>
+              <div key={perk.title} className="rounded-xl border border-bh-border bg-bh-card p-3.5 text-center shadow-card">
+                <perk.icon size={18} className="mx-auto text-bh-gold" />
+                <p className="mt-2 text-xs font-semibold leading-tight text-bh-navy">{perk.title}</p>
+                <p className="mt-0.5 text-[11px] text-bh-muted">{perk.text}</p>
               </div>
             ))}
           </div>
@@ -791,34 +793,34 @@ export function ProductView() {
           {/* Seller card — links to the public storefront */}
           {data.seller && (
             <Card
-              className="group mt-7 cursor-pointer p-5 transition-all hover:border-primary/40 hover:shadow-md"
+              className="group mt-7 cursor-pointer border-bh-border bg-bh-card p-5 shadow-card transition-all hover:-translate-y-0.5 hover:border-bh-gold/40 hover:shadow-hover"
               onClick={() => navigate('store', { sellerId: data.seller!.id })}
               role="link"
               aria-label={`Visit ${data.seller.storeName ?? data.seller.name} store`}
             >
               <div className="flex items-center gap-4">
                 <Avatar className="h-13 w-13 border">
-                  <AvatarFallback className="bg-primary/10 font-bold text-primary">
+                  <AvatarFallback className="bg-bh-bg-gold font-bold text-bh-gold-dark">
                     {initials(data.seller.storeName ?? data.seller.name)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
-                    <p className="truncate font-semibold group-hover:text-primary">
+                    <p className="truncate font-semibold text-bh-navy group-hover:text-bh-action">
                       {data.seller.storeName ?? data.seller.name}
                     </p>
-                    <BadgeCheck size={15} className="shrink-0 text-primary" />
+                    <BadgeCheck size={15} className="shrink-0 text-bh-gold" />
                   </div>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
+                  <p className="mt-0.5 text-xs text-bh-muted">
                     Member since {formatDate(data.seller.memberSince)} · {data.seller.activeListings} listings
                   </p>
                   {data.seller.storeBio && (
-                    <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                    <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-bh-muted">
                       {data.seller.storeBio}
                     </p>
                   )}
                 </div>
-                <span className="hidden shrink-0 items-center gap-1 text-xs font-semibold text-primary sm:flex">
+                <span className="hidden shrink-0 items-center gap-1 text-xs font-semibold text-bh-action sm:flex">
                   View store
                   <ChevronRight size={14} className="transition-transform group-hover:translate-x-0.5" />
                 </span>
@@ -896,7 +898,7 @@ export function ProductView() {
 
       {/* ── Tabs: description / reviews ── */}
       <Tabs defaultValue="description" className="mt-14">
-        <TabsList className="h-11 w-full justify-start gap-1 overflow-x-auto rounded-xl bg-muted/60 p-1 sm:w-auto">
+        <TabsList className="h-11 w-full justify-start gap-1 overflow-x-auto rounded-xl bg-bh-soft-blue/70 p-1 sm:w-auto">
           <TabsTrigger value="description" className="rounded-lg px-5 text-sm">
             Description
           </TabsTrigger>
@@ -906,19 +908,19 @@ export function ProductView() {
         </TabsList>
 
         <TabsContent value="description" className="mt-6">
-          <Card className="p-6">
-            <h2 className="text-lg font-bold">About this item</h2>
-            <p className="mt-3 leading-relaxed text-muted-foreground">{product.description}</p>
+          <Card className="border-bh-border bg-bh-card p-6 shadow-card">
+            <h2 className="text-lg font-bold text-bh-navy">About this item</h2>
+            <p className="mt-3 leading-relaxed text-bh-subtle">{product.description}</p>
 
             {/* Seller-defined highlights (product form → Details tab) */}
             {product.highlights && product.highlights.length > 0 && (
               <>
                 <Separator className="my-5" />
-                <h3 className="text-sm font-bold">Highlights</h3>
+                <h3 className="text-sm font-bold text-bh-navy">Highlights</h3>
                 <ul className="mt-3 space-y-2">
                   {product.highlights.map((h, i) => (
-                    <li key={`${i}-${h.slice(0, 20)}`} className="flex items-start gap-2 text-sm text-muted-foreground">
-                      <Check size={15} className="mt-0.5 shrink-0 text-primary" />
+                    <li key={`${i}-${h.slice(0, 20)}`} className="flex items-start gap-2 text-sm text-bh-subtle">
+                      <Check size={15} className="mt-0.5 shrink-0 text-bh-gold" />
                       <span>{h}</span>
                     </li>
                   ))}
@@ -930,34 +932,34 @@ export function ProductView() {
             {(detailRows.length > 0 || (product.specs && product.specs.length > 0)) && (
               <>
                 <Separator className="my-5" />
-                <h3 className="text-sm font-bold">Specifications</h3>
+                <h3 className="text-sm font-bold text-bh-navy">Specifications</h3>
                 <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
-                  <div className="flex justify-between rounded-lg bg-muted/50 px-4 py-2.5">
-                    <span className="text-muted-foreground">Category</span>
-                    <span className="font-medium">{product.category.name}</span>
+                  <div className="flex justify-between rounded-lg bg-bh-soft-blue/60 px-4 py-2.5">
+                    <span className="text-bh-muted">Category</span>
+                    <span className="font-medium text-bh-ink">{product.category.name}</span>
                   </div>
-                  <div className="flex justify-between rounded-lg bg-muted/50 px-4 py-2.5">
-                    <span className="text-muted-foreground">Listed</span>
-                    <span className="font-medium">{formatDate(product.createdAt)}</span>
+                  <div className="flex justify-between rounded-lg bg-bh-soft-blue/60 px-4 py-2.5">
+                    <span className="text-bh-muted">Listed</span>
+                    <span className="font-medium text-bh-ink">{formatDate(product.createdAt)}</span>
                   </div>
-                  <div className="flex justify-between rounded-lg bg-muted/50 px-4 py-2.5">
-                    <span className="text-muted-foreground">Units sold</span>
-                    <span className="font-medium">{formatNumber(product.soldCount)}</span>
+                  <div className="flex justify-between rounded-lg bg-bh-soft-blue/60 px-4 py-2.5">
+                    <span className="text-bh-muted">Units sold</span>
+                    <span className="font-medium text-bh-ink">{formatNumber(product.soldCount)}</span>
                   </div>
-                  <div className="flex justify-between rounded-lg bg-muted/50 px-4 py-2.5">
-                    <span className="text-muted-foreground">Ships from</span>
-                    <span className="font-medium">Vendora fulfillment</span>
+                  <div className="flex justify-between rounded-lg bg-bh-soft-blue/60 px-4 py-2.5">
+                    <span className="text-bh-muted">Ships from</span>
+                    <span className="font-medium text-bh-ink">Vendora fulfillment</span>
                   </div>
                   {(product.specs ?? []).map((s, i) => (
-                    <div key={`${i}-${s.label}`} className="flex justify-between gap-4 rounded-lg bg-muted/50 px-4 py-2.5">
-                      <span className="shrink-0 text-muted-foreground">{s.label}</span>
-                      <span className="text-right font-medium">{s.value}</span>
+                    <div key={`${i}-${s.label}`} className="flex justify-between gap-4 rounded-lg bg-bh-soft-blue/60 px-4 py-2.5">
+                      <span className="shrink-0 text-bh-muted">{s.label}</span>
+                      <span className="text-right font-medium text-bh-ink">{s.value}</span>
                     </div>
                   ))}
                   {detailRows.map((row) => (
-                    <div key={row.label} className="flex justify-between gap-4 rounded-lg bg-muted/50 px-4 py-2.5">
-                      <span className="shrink-0 text-muted-foreground">{row.label}</span>
-                      <span className="text-right font-medium">{row.value}</span>
+                    <div key={row.label} className="flex justify-between gap-4 rounded-lg bg-bh-soft-blue/60 px-4 py-2.5">
+                      <span className="shrink-0 text-bh-muted">{row.label}</span>
+                      <span className="text-right font-medium text-bh-ink">{row.value}</span>
                     </div>
                   ))}
                 </div>
@@ -967,26 +969,26 @@ export function ProductView() {
 
           {/* Shipping & fulfillment (product form → Shipping tab) */}
           {hasShippingInfo && (
-            <Card className="mt-4 p-6">
-              <h2 className="flex items-center gap-2 text-lg font-bold">
-                <Truck size={18} className="text-primary" /> Shipping &amp; fulfillment
+            <Card className="mt-4 border-bh-border bg-bh-card p-6 shadow-card">
+              <h2 className="flex items-center gap-2 text-lg font-bold text-bh-navy">
+                <Truck size={18} className="text-bh-gold-dark" /> Shipping &amp; fulfillment
               </h2>
               <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
                 {product.processingDays != null && (
-                  <div className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-2.5">
-                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <div className="flex items-center justify-between rounded-lg bg-bh-soft-blue/60 px-4 py-2.5">
+                    <span className="flex items-center gap-1.5 text-bh-muted">
                       <Package size={14} /> Processing time
                     </span>
-                    <span className="font-medium">
+                    <span className="font-medium text-bh-ink">
                       {product.processingDays} business {product.processingDays === 1 ? 'day' : 'days'}
                     </span>
                   </div>
                 )}
-                <div className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-2.5">
-                  <span className="flex items-center gap-1.5 text-muted-foreground">
+                <div className="flex items-center justify-between rounded-lg bg-bh-soft-blue/60 px-4 py-2.5">
+                  <span className="flex items-center gap-1.5 text-bh-muted">
                     <Truck size={14} /> Shipping cost
                   </span>
-                  <span className="font-medium">
+                  <span className="font-medium text-bh-ink">
                     {product.freeShipping
                       ? 'Free shipping'
                       : product.shippingFee != null
@@ -995,11 +997,11 @@ export function ProductView() {
                   </span>
                 </div>
                 {(product.lengthCm || product.widthCm || product.heightCm || product.weightGrams) && (
-                  <div className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-2.5">
-                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <div className="flex items-center justify-between rounded-lg bg-bh-soft-blue/60 px-4 py-2.5">
+                    <span className="flex items-center gap-1.5 text-bh-muted">
                       <Ruler size={14} /> Package
                     </span>
-                    <span className="font-medium">
+                    <span className="font-medium text-bh-ink">
                       {[
                         product.weightGrams ? `${product.weightGrams} g` : null,
                         [product.lengthCm, product.widthCm, product.heightCm].some((d) => d != null)
@@ -1015,7 +1017,7 @@ export function ProductView() {
                 )}
               </div>
               {product.shippingPolicy && (
-                <p className="mt-4 rounded-lg bg-muted/30 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
+                <p className="mt-4 rounded-lg bg-bh-soft-blue/40 px-4 py-3 text-sm leading-relaxed text-bh-subtle">
                   {product.shippingPolicy}
                 </p>
               )}
@@ -1026,9 +1028,9 @@ export function ProductView() {
         <TabsContent value="reviews" className="mt-6">
           <div className="grid gap-6 lg:grid-cols-3">
             {/* Summary */}
-            <Card className="h-fit p-6">
+            <Card className="h-fit border-bh-border bg-bh-card p-6 shadow-card">
               <div className="flex items-end gap-2">
-                <span className="text-5xl font-extrabold leading-none">{product.rating.toFixed(1)}</span>
+                <span className="text-5xl font-extrabold leading-none text-bh-navy">{product.rating.toFixed(1)}</span>
                 <div className="pb-1">
                   <div className="flex">
                     {[1, 2, 3, 4, 5].map((i) => (
@@ -1037,26 +1039,26 @@ export function ProductView() {
                         size={16}
                         className={
                           product.rating >= i - 0.25
-                            ? 'fill-amber-400 text-amber-400'
+                            ? 'fill-bh-gold text-bh-gold'
                             : 'fill-muted text-muted-foreground/30'
                         }
                       />
                     ))}
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">{totalReviews} reviews</p>
+                  <p className="mt-1 text-xs text-bh-muted">{totalReviews} reviews</p>
                 </div>
               </div>
               <div className="mt-5 space-y-2">
                 {ratingBuckets.map((b) => (
                   <div key={b.star} className="flex items-center gap-2 text-xs">
-                    <span className="w-7 shrink-0 text-muted-foreground">{b.star}★</span>
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                    <span className="w-7 shrink-0 text-bh-muted">{b.star}★</span>
+                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-bh-soft-blue">
                       <div
-                        className="h-full rounded-full bg-amber-400 transition-all"
+                        className="h-full rounded-full bg-bh-gold transition-all"
                         style={{ width: `${totalReviews ? (b.count / totalReviews) * 100 : 0}%` }}
                       />
                     </div>
-                    <span className="w-6 shrink-0 text-right text-muted-foreground">{b.count}</span>
+                    <span className="w-6 shrink-0 text-right text-bh-muted">{b.count}</span>
                   </div>
                 ))}
               </div>
@@ -1065,7 +1067,7 @@ export function ProductView() {
 
               {/* Review form */}
               <form onSubmit={submitReview} className="space-y-3">
-                <p className="text-sm font-semibold">
+                <p className="text-sm font-semibold text-bh-navy">
                   {myReview ? 'Update your review' : 'Write a review'}
                 </p>
                 <StarPicker value={reviewRating} onChange={setReviewRating} size={22} />
@@ -1084,7 +1086,7 @@ export function ProductView() {
                   {submittingReview ? 'Submitting…' : myReview ? 'Update review' : 'Submit review'}
                 </Button>
                 {!user && (
-                  <p className="text-center text-xs text-muted-foreground">Sign in to leave a review</p>
+                  <p className="text-center text-xs text-bh-muted">Sign in to leave a review</p>
                 )}
               </form>
             </Card>
@@ -1092,23 +1094,23 @@ export function ProductView() {
             {/* Review list */}
             <div className="space-y-4 lg:col-span-2">
               {data.reviews.length === 0 ? (
-                <Card className="flex flex-col items-center p-10 text-center">
-                  <Star size={36} className="text-muted-foreground/40" />
-                  <p className="mt-3 font-semibold">No reviews yet</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Be the first to review this product</p>
+                <Card className="flex flex-col items-center border-bh-border bg-bh-card p-10 text-center shadow-card">
+                  <Star size={36} className="text-bh-gold/50" />
+                  <p className="mt-3 font-semibold text-bh-navy">No reviews yet</p>
+                  <p className="mt-1 text-sm text-bh-muted">Be the first to review this product</p>
                 </Card>
               ) : (
                 data.reviews.map((review) => (
-                  <Card key={review.id} className="p-5">
+                  <Card key={review.id} className="border-bh-border bg-bh-card p-5 shadow-card">
                     <div className="flex items-start gap-3">
                       <Avatar className="h-9 w-9">
-                        <AvatarFallback className="bg-primary/10 text-xs font-bold text-primary">
+                        <AvatarFallback className="bg-bh-bg-gold text-xs font-bold text-bh-gold-dark">
                           {initials(review.user.name)}
                         </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm font-semibold">{review.user.name}</p>
+                          <p className="text-sm font-semibold text-bh-navy">{review.user.name}</p>
                           {review.verified && (
                             <Badge variant="secondary" className="h-5 gap-1 rounded-full px-2 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
                               <BadgeCheck size={11} /> Verified purchase
@@ -1123,15 +1125,15 @@ export function ProductView() {
                                 size={13}
                                 className={
                                   review.rating >= i
-                                    ? 'fill-amber-400 text-amber-400'
+                                    ? 'fill-bh-gold text-bh-gold'
                                     : 'fill-muted text-muted-foreground/30'
                                 }
                               />
                             ))}
                           </div>
-                          <span className="text-xs text-muted-foreground">{timeAgo(review.createdAt)}</span>
+                          <span className="text-xs text-bh-muted">{timeAgo(review.createdAt)}</span>
                         </div>
-                        <p className="mt-2.5 text-sm leading-relaxed text-foreground/90">{review.comment}</p>
+                        <p className="mt-2.5 text-sm leading-relaxed text-bh-subtle">{review.comment}</p>
                       </div>
                     </div>
                   </Card>
@@ -1145,9 +1147,14 @@ export function ProductView() {
       {/* ── Related ── */}
       {data.related.length > 0 && (
         <section className="mt-16" aria-labelledby="related-heading">
-          <h2 id="related-heading" className="mb-5 text-xl font-bold tracking-tight">
-            You might also like
-          </h2>
+          <div className="mb-5">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-bh-gold/25 bg-bh-bg-gold px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-bh-gold-dark">
+              Related
+            </span>
+            <h2 id="related-heading" className="mt-3 text-xl font-bold tracking-tight text-bh-navy">
+              You might also like
+            </h2>
+          </div>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
             {data.related.map((p, i) => (
               <ProductCard key={p.id} product={p} index={i} />
@@ -1162,36 +1169,36 @@ export function ProductView() {
           initial={{ y: 88, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-          className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 shadow-[0_-4px_20px_rgb(0_0_0/0.06)] backdrop-blur sm:hidden"
+          className="fixed inset-x-0 bottom-0 z-40 border-t border-bh-border bg-bh-card/95 shadow-[0_-4px_20px_rgb(6_57_108/0.08)] backdrop-blur sm:hidden"
           style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
           role="complementary"
           aria-label="Quick purchase bar"
         >
           <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2.5">
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[11px] leading-tight text-muted-foreground">
+              <p className="truncate text-[11px] leading-tight text-bh-muted">
                 {product.title}
                 {selectedVariant ? ` · ${selectedVariant.name}` : ''}
               </p>
               <p className="mt-0.5 flex items-baseline gap-1.5 leading-tight">
-                <span className="text-lg font-extrabold tracking-tight">{formatUSD(effectivePrice)}</span>
+                <span className="text-lg font-extrabold tracking-tight text-bh-navy">{formatUSD(effectivePrice)}</span>
                 {effectiveCompareAt && (
-                  <span className="text-xs font-normal text-muted-foreground line-through">
+                  <span className="text-xs font-normal text-bh-muted line-through">
                     {formatUSD(effectiveCompareAt)}
                   </span>
                 )}
               </p>
             </div>
             <Button
-              className="h-11 shrink-0 rounded-xl px-5"
+              className="h-11 shrink-0 rounded-xl bg-bh-gold font-bold text-bh-navy-deep hover:bg-bh-gold-light px-5"
               disabled={effectiveStock === 0 || hasVariantSelectionPending}
               onClick={() => handleAddToCart(false)}
             >
               <ShoppingCart size={16} className="mr-1.5" /> Add
             </Button>
             <Button
-              variant="secondary"
-              className="h-11 shrink-0 rounded-xl border px-5"
+              variant="outline"
+              className="h-11 shrink-0 rounded-xl border-bh-border-dark px-5"
               disabled={effectiveStock === 0 || hasVariantSelectionPending}
               onClick={handleBuyNow}
             >

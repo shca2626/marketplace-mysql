@@ -8,6 +8,30 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* ── Vendora "bh" brand tokens (dual-theme, light default) ── */
+  --color-bh-navy: var(--bh-navy); /* #06396c headings & accents */
+  --color-bh-navy-deep: var(--bh-navy-deep); /* #052e56 hero/nav bg */
+  --color-bh-action: var(--bh-action); /* #193d8f buttons & links */
+  --color-bh-soft-blue: var(--bh-soft-blue); /* #edf6ff soft highlight bg */
+  --color-bh-gold: var(--bh-gold); /* #d3af3c brand accent */
+  --color-bh-gold-light: var(--bh-gold-light);
+  --color-bh-gold-dark: var(--bh-gold-dark); /* accessible gold text */
+  --color-bh-gold-pale: var(--bh-gold-pale);
+  --color-bh-bg-gold: var(--bh-bg-gold); /* #fbf1dd icon container bg */
+  --color-bh-page: var(--bh-page); /* app canvas */
+  --color-bh-card: var(--bh-card); /* card surface */
+  --color-bh-ink: var(--bh-ink); /* headings */
+  --color-bh-subtle: var(--bh-subtle); /* body text */
+  --color-bh-muted: var(--bh-muted); /* captions */
+  --color-bh-faded: var(--bh-faded); /* metadata */
+  --color-bh-border: var(--bh-border); /* #e5eaf0 */
+  --color-bh-border-dark: var(--bh-border-dark); /* #e0e4eb */
+
+  /* Reference shadows (subtle navy-tinted) */
+  --shadow-card: 0 1px 3px 0 rgba(6, 57, 108, 0.04), 0 1px 2px -1px rgba(6, 57, 108, 0.02);
+  --shadow-hover: 0 10px 28px -6px rgba(6, 57, 108, 0.13), 0 4px 10px -4px rgba(6, 57, 108, 0.06);
+
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -43,73 +67,116 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* ── Vendora brand tokens — LIGHT (default) ────────────────────────────── */
+:root {
+  --bh-navy: #06396c;
+  --bh-navy-deep: #052e56;
+  --bh-action: #193d8f;
+  --bh-soft-blue: #edf6ff;
+  --bh-gold: #d3af3c;
+  --bh-gold-light: #d4a843;
+  --bh-gold-dark: #605631;
+  --bh-gold-pale: #f8f3e2;
+  --bh-bg-gold: #fbf1dd;
+  --bh-page: #f3f6fc;
+  --bh-card: #ffffff;
+  --bh-ink: #0f172a;
+  --bh-subtle: #4a5462;
+  --bh-muted: #6a7282;
+  --bh-faded: #99a1af;
+  --bh-border: #e5eaf0;
+  --bh-border-dark: #e0e4eb;
+}
+
+/* ── Vendora brand tokens — DARK ───────────────────────────────────────── */
+.dark {
+  --bh-navy: #9ec2f0; /* navy headings become soft blue on dark */
+  --bh-navy-deep: #0b1121;
+  --bh-action: #2563eb;
+  --bh-soft-blue: rgba(148, 163, 184, 0.09);
+  --bh-gold: #d3af3c;
+  --bh-gold-light: #d4a843;
+  --bh-gold-dark: #fbf1dd;
+  --bh-gold-pale: rgba(211, 175, 60, 0.15);
+  --bh-bg-gold: rgba(211, 175, 60, 0.14);
+  --bh-page: #0f172a;
+  --bh-card: #1e293b;
+  --bh-ink: #ffffff;
+  --bh-subtle: #e2e8f0;
+  --bh-muted: #94a3b8;
+  --bh-faded: #64748b;
+  --bh-border: rgba(255, 255, 255, 0.09);
+  --bh-border-dark: rgba(255, 255, 255, 0.13);
+}
+
+/* ── shadcn semantic tokens mapped to the brand system ────────────────── */
 :root {
   --radius: 0.625rem;
-  --background: oklch(0.995 0.004 85);
-  --foreground: oklch(0.22 0.015 55);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.22 0.015 55);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.22 0.015 55);
-  --primary: oklch(0.63 0.185 42);
-  --primary-foreground: oklch(0.99 0.005 80);
-  --secondary: oklch(0.955 0.015 75);
-  --secondary-foreground: oklch(0.3 0.02 50);
-  --muted: oklch(0.955 0.012 75);
-  --muted-foreground: oklch(0.5 0.02 60);
-  --accent: oklch(0.95 0.025 70);
-  --accent-foreground: oklch(0.3 0.03 45);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.912 0.015 70);
-  --input: oklch(0.912 0.015 70);
-  --ring: oklch(0.63 0.185 42);
-  --chart-1: oklch(0.63 0.185 42);
-  --chart-2: oklch(0.72 0.15 65);
-  --chart-3: oklch(0.55 0.12 145);
-  --chart-4: oklch(0.76 0.13 90);
-  --chart-5: oklch(0.6 0.16 25);
-  --sidebar: oklch(0.985 0.005 80);
-  --sidebar-foreground: oklch(0.22 0.015 55);
-  --sidebar-primary: oklch(0.63 0.185 42);
-  --sidebar-primary-foreground: oklch(0.99 0.005 80);
-  --sidebar-accent: oklch(0.95 0.025 70);
-  --sidebar-accent-foreground: oklch(0.3 0.03 45);
-  --sidebar-border: oklch(0.912 0.015 70);
-  --sidebar-ring: oklch(0.63 0.185 42);
+  --background: #f3f6fc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #193d8f;
+  --primary-foreground: #ffffff;
+  --secondary: #edf6ff;
+  --secondary-foreground: #06396c;
+  --muted: #eef2f9;
+  --muted-foreground: #6a7282;
+  --accent: #fbf1dd;
+  --accent-foreground: #605631;
+  --destructive: #dc2626;
+  --border: #e0e4eb;
+  --input: #e0e4eb;
+  --ring: #193d8f;
+  --chart-1: #06396c;
+  --chart-2: #d3af3c;
+  --chart-3: #059669;
+  --chart-4: #0e7490;
+  --chart-5: #605631;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0f172a;
+  --sidebar-primary: #193d8f;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #edf6ff;
+  --sidebar-accent-foreground: #06396c;
+  --sidebar-border: #e5eaf0;
+  --sidebar-ring: #193d8f;
 }
 
 .dark {
-  --background: oklch(0.19 0.012 55);
-  --foreground: oklch(0.93 0.01 75);
-  --card: oklch(0.24 0.014 55);
-  --card-foreground: oklch(0.93 0.01 75);
-  --popover: oklch(0.24 0.014 55);
-  --popover-foreground: oklch(0.93 0.01 75);
-  --primary: oklch(0.72 0.16 45);
-  --primary-foreground: oklch(0.17 0.02 50);
-  --secondary: oklch(0.29 0.015 55);
-  --secondary-foreground: oklch(0.93 0.01 75);
-  --muted: oklch(0.29 0.015 55);
-  --muted-foreground: oklch(0.68 0.015 65);
-  --accent: oklch(0.31 0.02 55);
-  --accent-foreground: oklch(0.93 0.01 75);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.72 0.16 45);
-  --chart-1: oklch(0.72 0.16 45);
-  --chart-2: oklch(0.76 0.14 70);
-  --chart-3: oklch(0.66 0.12 150);
-  --chart-4: oklch(0.8 0.12 95);
-  --chart-5: oklch(0.65 0.15 25);
-  --sidebar: oklch(0.24 0.014 55);
-  --sidebar-foreground: oklch(0.93 0.01 75);
-  --sidebar-primary: oklch(0.72 0.16 45);
-  --sidebar-primary-foreground: oklch(0.17 0.02 50);
-  --sidebar-accent: oklch(0.31 0.02 55);
-  --sidebar-accent-foreground: oklch(0.93 0.01 75);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.72 0.16 45);
+  --background: #0f172a;
+  --foreground: #e2e8f0;
+  --card: #1e293b;
+  --card-foreground: #e2e8f0;
+  --popover: #1e293b;
+  --popover-foreground: #e2e8f0;
+  --primary: #d3af3c;
+  --primary-foreground: #052e56;
+  --secondary: #243247;
+  --secondary-foreground: #e2e8f0;
+  --muted: #1a2537;
+  --muted-foreground: #94a3b8;
+  --accent: rgba(211, 175, 60, 0.16);
+  --accent-foreground: #fbf1dd;
+  --destructive: #ef4444;
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.14);
+  --ring: #d3af3c;
+  --chart-1: #d3af3c;
+  --chart-2: #7ea6e0;
+  --chart-3: #4ade80;
+  --chart-4: #38bdf8;
+  --chart-5: #fbf1dd;
+  --sidebar: #0f172a;
+  --sidebar-foreground: #e2e8f0;
+  --sidebar-primary: #d3af3c;
+  --sidebar-primary-foreground: #052e56;
+  --sidebar-accent: rgba(211, 175, 60, 0.14);
+  --sidebar-accent-foreground: #fbf1dd;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: #d3af3c;
 }
 
 @layer base {
@@ -117,8 +184,49 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-bh-page text-bh-ink font-sans antialiased;
   }
+  ::selection {
+    background: var(--bh-gold-pale);
+    color: var(--bh-navy);
+  }
+  html.dark ::selection {
+    background: rgba(211, 175, 60, 0.3);
+    color: #ffffff;
+  }
+}
+
+/* Reference page scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bh-border-dark);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--bh-muted);
+}
+
+/* Practical type scale (reference spec: 30/20/16px) */
+.h1-practical {
+  font-size: 30px;
+  line-height: 38px;
+  font-weight: 700;
+}
+.h2-practical {
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 700;
+}
+.h3-practical {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
 }
 
 /* Custom slim scrollbars for long lists */
@@ -145,12 +253,6 @@ html {
   scroll-behavior: smooth;
 }
 
-/* Hide the Next.js dev-tools indicator ("N" button) in development.
-   The element only exists in dev mode; production builds are unaffected. */
-nextjs-portal {
-  display: none;
-}
-
 /* Reserve room for the mobile sticky buy bar (product page) so it never
    covers the footer while it is visible. */
 @media (max-width: 639px) {
@@ -163,9 +265,10 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* Subtle selection styling */
-::selection {
-  background: oklch(0.63 0.185 42 / 20%);
+/* Hide the Next.js dev-tools indicator ("N" button) in development.
+   The element only exists in dev mode; production builds are unaffected. */
+nextjs-portal {
+  display: none;
 }
 
 /* ── Invoice printing ──────────────────────────────────────────────────
@@ -263,3 +366,33 @@ body {
 }
 
 /* cache-bust r9: force recompile of globals (step-pulse delivery) */
+
+/* ── Site kit: logo marquee ── */
+@keyframes marquee-x {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes marquee-x-reverse {
+  from {
+    transform: translateX(-50%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+.animate-marquee {
+  animation: marquee-x linear infinite;
+}
+.animate-marquee-reverse {
+  animation: marquee-x-reverse linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee,
+  .animate-marquee-reverse {
+    animation: none;
+  }
+}

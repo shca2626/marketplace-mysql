@@ -20,7 +20,7 @@ import {
   Sun,
   Wallet,
 } from 'lucide-react'
-import { useMarketplace } from '@/store/marketplace'
+import { useMarketplace, markStoreHydrated } from '@/store/marketplace'
 import { initials } from '@/lib/format'
 import { AuthModal } from '@/components/marketplace/auth-modal'
 import { SolarIcon } from './solar-icon'
@@ -87,7 +87,7 @@ export function SiteHeader() {
   // the session and load admin-controlled announcement text. All setState
   // calls live inside async callbacks (external-system sync).
   useEffect(() => {
-    void useMarketplace.persist.rehydrate()
+    void useMarketplace.persist.rehydrate().then(markStoreHydrated)
     let cancelled = false
     void (async () => {
       try {

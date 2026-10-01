@@ -18,10 +18,24 @@ export function ProductCard({ product, index = 0 }: { product: ProductDTO; index
   const addToCart = useMarketplace((s) => s.addToCart)
   const user = useMarketplace((s) => s.user)
   const openAuth = useMarketplace((s) => s.openAuth)
+  const spaActive = useMarketplace((s) => s.spaActive)
   const [favorited, setFavorited] = useState(Boolean(product.favorited))
   const discount = discountPercent(product.price, product.compareAtPrice)
 
-  const openProduct = () => navigate('product', { productId: product.id })
+  // Real public URLs (pagedesign Phase 2) — the href is the crawlable/shareable
+  // target; inside the SPA we preventDefault and navigate instantly instead.
+  const productHref = `/market/product/${product.id}`
+  const storeHref = `/market/store/${product.sellerId}`
+
+  const openProduct = () => {
+    // Outside the SPA (homepage preview, real market pages): full navigation to
+    // the real product page — no middleware hop needed.
+    if (!spaActive) {
+      window.location.assign(productHref)
+      return
+    }
+    navigate('product', { productId: product.id })
+  }
 
   // Keyboard access: the card behaves as a button (Enter/Space opens the product).
   // Inner interactive elements (favorite / add / store link) already stopPropagation
@@ -36,7 +50,22 @@ export function ProductCard({ product, index = 0 }: { product: ProductDTO; index
 
   const openStore = (e: React.MouseEvent) => {
     e.stopPropagation()
+    // Modifier clicks keep native behavior (open in new tab/window).
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+    if (!spaActive) return // outside the SPA — the href navigates natively
+    e.preventDefault()
     navigate('store', { sellerId: product.sellerId })
+  }
+
+  // Product link (image + title): href → real page; plain clicks inside the
+  // SPA navigate instantly, everything else (middle-click, open-in-new-tab,
+  // crawlers, no-JS) follows the real URL.
+  const onProductLinkClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
+    if (!spaActive) return
+    e.preventDefault()
+    navigate('product', { productId: product.id })
   }
 
   const handleAdd = (e: React.MouseEvent) => {
@@ -94,6 +123,14 @@ export function ProductCard({ product, index = 0 }: { product: ProductDTO; index
       >
         <CardHeader className="relative z-10 p-0">
           <div className="relative aspect-square overflow-hidden bg-muted">
+            {/* Stretched product link — real URL fallback under the image;
+                badges and the favorite button sit above it in DOM order. */}
+            <a
+              href={productHref}
+              onClick={onProductLinkClick}
+              className="absolute inset-0 z-0 rounded-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              aria-label={`View ${product.title}`}
+            />
             {product.images[0] ? (
               <img
                 src={product.images[0]}
@@ -146,9 +183,16 @@ export function ProductCard({ product, index = 0 }: { product: ProductDTO; index
             {product.category.name}
           </span>
           <h3 className="line-clamp-2 min-h-10 w-full text-sm font-medium leading-5 text-foreground/90">
-            {product.title}
+            <a
+              href={productHref}
+              onClick={onProductLinkClick}
+              className="rounded-sm transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+            >
+              {product.title}
+            </a>
           </h3>
-          <button
+          <a
+            href={storeHref}
             className="flex w-full items-center gap-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-primary"
             onClick={openStore}
             aria-label={`Visit ${(product.seller?.storeName ?? product.seller?.name) || 'seller'} store`}
@@ -157,7 +201,7 @@ export function ProductCard({ product, index = 0 }: { product: ProductDTO; index
             <span className="truncate">
               {product.seller?.storeName ?? product.seller?.name ?? 'Vendora seller'}
             </span>
-          </button>
+          </a>
           <div className="flex w-full items-baseline justify-between gap-2">
             <div className="flex min-w-0 items-baseline gap-1.5">
               <span className="truncate text-base font-bold text-foreground">{formatUSD(product.price)}</span>

@@ -238,18 +238,21 @@ export function NotificationsBell() {
 
   const markServerRead = useCallback(
     async (id: string) => {
-      // Fire-and-forget — the next poll re-syncs the feed if the POST fails
+      // Mark + immediate badge re-sync (BUY-214): the POST only returns {ok},
+      // so a silent refetch pulls the fresh unreadCount/feed right away —
+      // otherwise the badge stayed stale until the next 45s poll.
       try {
         await fetch('/api/notifications/read', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id }),
         })
+        void refetchServer({ silent: true })
       } catch {
         /* next poll will re-sync */
       }
     },
-    []
+    [refetchServer]
   )
 
   const markAllRead = useCallback(() => {
@@ -284,13 +287,20 @@ export function NotificationsBell() {
   const unreadCount = (server?.unreadCount ?? 0) + orderEvents.filter((e) => !seen.has(e.key)).length
 
   const openItem = useCallback(
-    (item: FeedItem) => {
+    async (item: FeedItem) => {
       setOpen(false)
       if (item.kind === 'order') {
         navigate('orders')
         return
       }
-      void markServerRead(item.n.id)
+      // BUY-214: let the mark-read POST commit BEFORE navigating away — the
+      // freshly mounted view's bell would otherwise race the write and boot
+      // with a stale unread count. Bounded by a 4s safety timeout so a slow
+      // network can never trap the click.
+      await Promise.race([
+        markServerRead(item.n.id),
+        new Promise<void>((resolve) => setTimeout(resolve, 4000)),
+      ])
       switch (item.n.linkView) {
         case 'rfq':
           // Deep-link straight to the RFQ detail when we know which one

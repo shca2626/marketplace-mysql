@@ -5,6 +5,43 @@ import type { StorefrontSettings, BannerSlideDTO } from '@/lib/settings/schema'
 import { DEFAULT_STOREFRONT_SETTINGS } from '@/lib/settings/schema'
 import { parseLocation, viewToQuery } from '@/lib/routing'
 
+// ── Pre-hydration write gate ─────────────────────────────────────────────────
+// The persist middleware serializes partialized state on EVERY set(). Child
+// effects run BEFORE the root component's rehydrate() (child-first ordering),
+// so an early set() (e.g. ProductView's trackView, setSpaActive) writes the
+// initial EMPTY cart over the persisted one before it is ever read — the
+// "cart resets on every reload" bug. Writes are deferred until rehydrate
+// completes; the last deferred write is flushed when the gate opens.
+type HydrationGlobals = typeof globalThis & { __vendoraStoreHydrated?: boolean; __vendoraPendingWrite?: [string, string] | null }
+const g = () => globalThis as HydrationGlobals
+const isStoreHydrated = () => g().__vendoraStoreHydrated === true
+
+/** Opens the write gate and flushes the deferred write (call after rehydrate). */
+export const markStoreHydrated = () => {
+  g().__vendoraStoreHydrated = true
+  const pending = g().__vendoraPendingWrite
+  g().__vendoraPendingWrite = null
+  if (pending && typeof window !== 'undefined') {
+    try {
+      window.localStorage.setItem(pending[0], pending[1])
+    } catch {
+      /* storage full/unavailable — same as any dropped write */
+    }
+  }
+}
+
+const gatedStorage = createJSONStorage(() => ({
+  getItem: (name: string) => window.localStorage.getItem(name),
+  setItem: (name: string, value: string) => {
+    if (!isStoreHydrated()) {
+      g().__vendoraPendingWrite = [name, value]
+      return
+    }
+    window.localStorage.setItem(name, value)
+  },
+  removeItem: (name: string) => window.localStorage.removeItem(name),
+}))
+
 /**
  * Cart lines are keyed by product AND variant: the same product in two
  * combinations (e.g. different sizes) is two independent lines.
@@ -45,6 +82,8 @@ export interface ViewParams {
   disputeId?: string // seller dashboard: open a specific dispute
   scheduleId?: string // buyer RFQ view: open a specific recurring schedule
   requestId?: string // financing view: open a specific financing/accreditation request
+  financingSection?: string // financing view: boot on a specific section (overview | services | requests | accreditation | documents | agreements)
+  accountTab?: string // buyer account console: open a specific tab (?view=account&tab=profile — IA-100)
   authToken?: string // AUTHSEC-1: raw token from reset/verify email links
 }
 
@@ -262,7 +301,7 @@ export const useMarketplace = create<MarketplaceState>()(
     }),
     {
       name: 'vendora-store',
-      storage: createJSONStorage(() => localStorage),
+      storage: gatedStorage,
       partialize: (state) => ({
         cart: state.cart,
         savedForLater: state.savedForLater,

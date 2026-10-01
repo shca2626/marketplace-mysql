@@ -35,6 +35,7 @@ import {
   ListChecks,
   HandCoins,
   BadgeCheck,
+  UserCog,
 } from 'lucide-react'
 import type { View, ViewParams } from '@/store/marketplace'
 
@@ -203,11 +204,10 @@ export const BUYER_NAV: NavConfig = {
     {
       label: 'Financing',
       items: [
-        { key: 'overview', label: 'Financing & Accreditation', icon: Wallet, description: 'Services, applications, documents & agreements', view: 'financing' },
+        { key: 'overview', label: 'Financing & Accreditation', icon: Wallet, description: 'Services, applications & agreements', view: 'financing' },
         { key: 'services', label: 'Financing Services', icon: Banknote, description: 'Browse financing & accreditation offerings', view: 'financing' },
         { key: 'requests', label: 'My Applications', icon: ListChecks, description: 'Requests, gate status, offers & agreements', view: 'financing' },
         { key: 'accreditation', label: 'Accreditation', icon: BadgeCheck, description: 'Company programs, grants & renewals', view: 'financing' },
-        { key: 'documents', label: 'Document Vault', icon: FolderLock, description: 'Upload once — reuse on every application', view: 'financing' },
         { key: 'agreements', label: 'Agreements', icon: ScrollText, description: 'Schedules, fees & money events', view: 'financing' },
       ],
     },
@@ -218,9 +218,18 @@ export const BUYER_NAV: NavConfig = {
         { key: 'favorites', label: 'Favorites', icon: Heart, description: 'Products saved for later', view: 'favorites' },
       ],
     },
+    {
+      // §12.1 / IA-002: identity + vault live in the Account domain — not Financing.
+      label: 'Account',
+      items: [
+        { key: 'profile', label: 'Profile & Security', icon: UserCog, description: 'Name, phone, email & password', view: 'account', params: { accountTab: 'profile' } },
+        { key: 'documents', label: 'Document Vault', icon: FolderLock, description: 'Upload once — reuse on every application', view: 'financing', params: { financingSection: 'documents' } },
+      ],
+    },
   ],
   titles: {
     account: { title: 'Account Dashboard', description: 'Your profile, security and everything you do on Vendora.' },
+    profile: { title: 'Profile & Security', description: 'Your identity, contact details and sign-in security — editable, right here.' },
     rfqs: { title: 'My RFQs', description: 'Requests for quote, negotiations and recurring schedules.' },
     business: { title: 'Business Account', description: 'Your organization, team members and contract pricing.' },
     overview: { title: 'Financing & Accreditation', description: 'Apply for financing, track applications and manage your document vault.' },

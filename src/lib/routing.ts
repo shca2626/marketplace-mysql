@@ -14,6 +14,8 @@ import type { View, ViewParams } from '@/store/marketplace'
  *   /market?view=cart | checkout | orders | favorites | account | admin
  *   /market?view=seller&tab=orders    → seller dashboard tab
  *   /market?view=rfqs | business      → B2B: requests for quote / business account
+ *   /market?view=account&tab=profile  → buyer account console, Profile & Security tab
+ *   /market?view=financing&section=documents → financing console, documents vault
  *
  * Legacy deep links on / (?view=…) are 301'd to /market by src/middleware.ts.
  */
@@ -51,10 +53,12 @@ export function viewToQuery(view: View, params: ViewParams = {}): string {
   }
   if (view === 'seller' && params.sellerTab) sp.set('tab', params.sellerTab)
   if (view === 'admin' && params.adminTab) sp.set('tab', params.adminTab)
+  if (view === 'account' && params.accountTab) sp.set('tab', params.accountTab)
   if (view === 'rfqs' && params.rfqId) sp.set('rfq', params.rfqId)
   if (view === 'rfqs' && params.scheduleId) sp.set('schedule', params.scheduleId)
   if (view === 'seller' && params.disputeId) sp.set('dispute', params.disputeId)
   if (view === 'financing' && params.requestId) sp.set('request', params.requestId)
+  if (view === 'financing' && params.financingSection) sp.set('section', params.financingSection)
   if ((view === 'reset-password' || view === 'verify-email') && params.authToken) sp.set('token', params.authToken)
   const qs = sp.toString()
   return qs
@@ -96,6 +100,10 @@ export function parseLocation(href: string = typeof window !== 'undefined' ? win
       const tab = sp.get('tab')
       if (tab) params.adminTab = tab
     }
+    if (view === 'account') {
+      const tab = sp.get('tab')
+      if (tab) params.accountTab = tab
+    }
     if (view === 'rfqs') {
       const rfq = sp.get('rfq')
       if (rfq) params.rfqId = rfq
@@ -109,6 +117,8 @@ export function parseLocation(href: string = typeof window !== 'undefined' ? win
     if (view === 'financing') {
       const request = sp.get('request')
       if (request) params.requestId = request
+      const section = sp.get('section')
+      if (section) params.financingSection = section
     }
     if (view === 'reset-password' || view === 'verify-email') {
       const token = sp.get('token')

@@ -51,7 +51,7 @@ export function CartDrawer() {
       <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-md" aria-describedby={undefined}>
         <SheetHeader className="border-b p-4">
           <SheetTitle className="flex items-center gap-2 text-left">
-            <ShoppingCart size={18} className="text-primary" />
+            <ShoppingCart size={18} className="text-bh-gold-dark" />
             Your cart
             <Badge variant="secondary" className="rounded-full">
               {cart.reduce((sum, i) => sum + i.quantity, 0)}
@@ -61,12 +61,12 @@ export function CartDrawer() {
 
         {cart.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 overflow-y-auto p-8 text-center">
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted">
-              <ShoppingCart size={30} className="text-muted-foreground" />
+            <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-bh-bg-gold text-bh-gold-dark">
+              <ShoppingCart size={30} aria-hidden />
             </div>
             <div>
-              <p className="font-semibold">Your cart is empty</p>
-              <p className="mt-1 text-sm text-muted-foreground">Looks like you haven’t added anything yet.</p>
+              <p className="font-semibold text-bh-navy">Your cart is empty</p>
+              <p className="mt-1 text-sm text-bh-muted">Looks like you haven’t added anything yet.</p>
             </div>
             {savedForLater.length > 0 ? (
               <Button
@@ -110,9 +110,9 @@ export function CartDrawer() {
                   <p className="text-xs text-muted-foreground">
                     Add <strong className="text-foreground">{formatUSD(remaining)}</strong> more for free shipping
                   </p>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div className="h-1.5 overflow-hidden rounded-full bg-bh-soft-blue">
                     <div
-                      className="h-full rounded-full bg-primary transition-all duration-500"
+                      className="h-full rounded-full bg-bh-gold transition-all duration-500"
                       style={{ width: `${Math.min(100, (subtotal / FREE_SHIPPING_THRESHOLD) * 100)}%` }}
                     />
                   </div>
@@ -306,7 +306,7 @@ export function CartDrawer() {
                 >
                   View cart
                 </Button>
-                <Button className="rounded-xl" onClick={goToCheckout}>
+                <Button className="rounded-xl bg-bh-gold font-semibold text-bh-navy-deep hover:bg-bh-gold-light" onClick={goToCheckout}>
                   Checkout
                 </Button>
               </div>

@@ -284,7 +284,13 @@ export function ServicesSection() {
                       <div>
                         <p className="text-muted-foreground">Rate cap</p>
                         <p className="font-semibold">
-                          {svc.rateType ? `${RATE_TYPE_LABELS[svc.rateType] ?? svc.rateType}${svc.rateMax != null ? ` · ${svc.rateMax}%` : ''}` : '—'}
+                          {/* FIN-010: show the cap value even when the type
+                              combobox was left unset — never hide a stored number. */}
+                          {svc.rateType
+                            ? `${RATE_TYPE_LABELS[svc.rateType] ?? svc.rateType}${svc.rateMax != null ? ` · ${svc.rateMax}%` : ''}`
+                            : svc.rateMax != null
+                              ? `${svc.rateMax}% cap`
+                              : '—'}
                         </p>
                       </div>
                       <div>
@@ -448,6 +454,16 @@ export function ServiceFormDialog({
   const submit = async () => {
     if (form.name.trim().length < 3) {
       toast({ title: 'Name too short', description: 'Give the service a name of at least 3 characters.', variant: 'destructive' })
+      return
+    }
+    // FIN-010: a rate cap without a rate type renders "—" on public cards —
+    // require the pair together (or clear both).
+    if (!isAccreditation && form.rateMax.trim() !== '' && !form.rateType) {
+      toast({
+        title: 'Pick a rate type',
+        description: 'A rate cap without a rate type will not display on your public service card. Choose a type (or clear the cap).',
+        variant: 'destructive',
+      })
       return
     }
     const base = {

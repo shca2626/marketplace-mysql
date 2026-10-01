@@ -77,13 +77,13 @@ export function ContactForm() {
           <CheckCircle2 size={28} aria-hidden />
         </span>
         <div>
-          <h3 className="text-lg font-bold">Message sent</h3>
-          <p className="mx-auto mt-1 max-w-md text-sm leading-relaxed text-muted-foreground">
+          <h3 className="text-lg font-bold text-bh-navy">Message sent</h3>
+          <p className="mx-auto mt-1 max-w-md text-sm leading-relaxed text-bh-subtle">
             Thanks — we&apos;ve got it. We&apos;ll reply to{' '}
-            <span className="font-medium text-foreground">{email}</span> within 1 business day.
+            <span className="font-medium text-bh-navy">{email}</span> within 1 business day.
           </p>
         </div>
-        <Button variant="outline" className="rounded-xl" onClick={reset}>
+        <Button variant="outline" className="rounded-xl border-bh-border-dark text-bh-navy hover:text-bh-action" onClick={reset}>
           Send another message
         </Button>
       </div>
@@ -152,7 +152,7 @@ export function ContactForm() {
           placeholder="Tell us a little about what you need — include your order number if it's about an order."
           className="min-h-32"
         />
-        <p className="text-xs text-muted-foreground">Minimum 10 characters, maximum 2000.</p>
+        <p className="text-xs text-bh-muted">Minimum 10 characters, maximum 2000.</p>
       </div>
 
       {error ? (
@@ -176,7 +176,7 @@ export function ContactForm() {
             </>
           )}
         </Button>
-        <p className="text-xs text-muted-foreground">We reply within 1 business day.</p>
+        <p className="text-xs text-bh-muted">We reply within 1 business day.</p>
       </div>
     </form>
   )

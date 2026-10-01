@@ -393,7 +393,7 @@ function ConditionPicker({
   const [typeFilter, setTypeFilter] = useState('ALL')
   const [scopeFilter, setScopeFilter] = useState('ALL')
 
-  const { data, loading } = useApi<{ templates: ConditionTemplateDTO[] }>(
+  const { data, loading, error: libError, refetch: refetchLib } = useApi<{ templates: ConditionTemplateDTO[] }>(
     `/api/financier/conditions?q=${encodeURIComponent(debounced)}&conditionType=${typeFilter === 'ALL' ? '' : typeFilter}`,
     { skip: false }
   )
@@ -458,6 +458,23 @@ function ConditionPicker({
       </div>
 
       <div className="max-h-[430px] space-y-3 overflow-y-auto pr-0.5 [scrollbar-width:thin]">
+        {/* FIN-004: never render a fake empty library — surface API errors. */}
+        {libError ? (
+          <div className="flex flex-col items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-center">
+            <p className="text-sm font-semibold text-destructive">Could not load the condition library</p>
+            <p className="max-w-sm text-xs text-muted-foreground">{libError}</p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 rounded-lg"
+              onClick={() => void refetchLib()}
+            >
+              Retry
+            </Button>
+          </div>
+        ) : (
+          <>
         {(['FINANCIER', 'GENERAL'] as const).map((scope) => {
           const list = scope === 'GENERAL' ? general : own
           if (!list.length) return null
@@ -489,10 +506,12 @@ function ConditionPicker({
             </div>
           )
         })}
-        {!loading && templates.length === 0 && (
+        {!loading && templates.length === 0 && !libError && (
           <p className="py-8 text-center text-xs text-muted-foreground">
             No conditions match — try another search or create a private template.
           </p>
+        )}
+          </>
         )}
       </div>
 
