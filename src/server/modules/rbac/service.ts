@@ -33,7 +33,11 @@ import { recordAudit } from '@/server/modules/audit/service'
 //  • Platform staff = users with at least one UserRole where organizationId
 //    is "" (platform scope). They keep their legacy User.role (BUYER/…) and
 //    gain console access purely through assignments.
-//  • System roles can be edited by super admins only, and never deleted.
+//  • System roles can be edited and deleted by super admins only — except
+//    the two LOCKED roles (platform.super-admin, org.owner) which are
+//    permanent for everyone: they cannot be deleted, narrowed or tampered
+//    with. Custom roles are deletable by any holder of rbac.roles.delete
+//    within their privilege bracket.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export class RbacServiceError extends Error {
@@ -355,11 +359,19 @@ export async function deleteRole(actor: RbacActor, id: string, force = false): P
   if (!role) throw new RbacServiceError('Role not found', 404)
   // RBACSEC-1: protected roles do not exist for non-super-admins.
   assertCanSeeRole(ctx, role)
-  if (role.isSystem) {
+  // RBACSEC-2: locked roles are permanent — nobody can delete them.
+  if (role.isProtected) {
     throw new RbacServiceError(
-      'System roles cannot be deleted — they are part of the platform. Remove assignments instead.',
+      role.key === 'platform.super-admin'
+        ? 'The Super Administrator role is locked — it cannot be deleted. Revoke assignments instead if you need to limit who holds it.'
+        : 'The Organization Owner role is locked — it cannot be deleted. Revoke assignments instead if you need to limit who holds it.',
       403
     )
+  }
+  // RBACSEC-2: system-role templates are deletable by super admins only —
+  // staff with rbac.roles.delete can still delete custom roles (bracketed).
+  if (role.isSystem && !ctx.isSuperAdmin) {
+    throw new RbacServiceError('System roles can only be deleted by super administrators', 403)
   }
   // RBACSEC-1: privilege bracketing — you cannot delete a role above your pay grade.
   ensureWithinBracket(ctx, role.permissions.map((p) => p.permissionKey), `delete "${role.name}"`)

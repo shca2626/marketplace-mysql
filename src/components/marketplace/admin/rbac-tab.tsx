@@ -212,6 +212,20 @@ export function RbacTab({ user }: { user: SessionUser | null }) {
   const canCreateRoles = can('rbac.roles.create', 'rbac.manage')
   const canUpdateRoles = can('rbac.roles.update', 'rbac.manage')
   const canDeleteRoles = can('rbac.roles.delete', 'rbac.manage')
+
+  // RBACSEC-2 — per-card delete gating, mirroring the server exactly:
+  //   • locked roles (platform.super-admin, org.owner) — permanent for everyone
+  //   • other system-role templates — deletable by super admins only
+  //   • custom roles — any holder of rbac.roles.delete (bracketing applies server-side)
+  // When blocked we render a disabled locked button with the reason as its
+  // tooltip instead of silently hiding it, so the rule is always legible.
+  const deleteBlockedReason = (role: RbacRoleDTO): string | null => {
+    if (role.isProtected)
+      return 'Locked role — permanent by design. Super Administrators and Organization Owners can never be deleted; revoke their assignments instead if you need to limit who holds them.'
+    if (role.isSystem && !isSuperAdmin)
+      return 'System roles can only be deleted by super administrators.'
+    return null
+  }
   const canManageAssignments = can('staff.manage', 'rbac.manage')
   const canInviteStaff = can('staff.invite', 'rbac.manage')
 
@@ -332,14 +346,17 @@ export function RbacTab({ user }: { user: SessionUser | null }) {
   const deleteRole = async (role: RbacRoleDTO) => {
     // RBACSEC-1 — force-delete flow: roles with members can only be removed
     // by un-assigning everyone first (the server does it in one transaction).
+    const systemWarning = role.isSystem
+      ? '\n\nHeads-up: this is a built-in SYSTEM role — deleting it is permanent. (It can be restored later by re-running the RBAC seed.)'
+      : ''
     let force = false
     if (role.memberCount > 0) {
       force = confirm(
-        `The role "${role.name}" is still assigned to ${role.memberCount} member(s).\n\nDelete it anyway? Their access from this role is revoked immediately.`
+        `The role "${role.name}" is still assigned to ${role.memberCount} member(s).${systemWarning}\n\nDelete it anyway? Their access from this role is revoked immediately.`
       )
       if (!force) return
     } else {
-      if (!confirm(`Delete the role "${role.name}"? This cannot be undone.`)) return
+      if (!confirm(`Delete the role "${role.name}"? This cannot be undone.${systemWarning}`)) return
     }
     const res = await apiRequest<{ revoked: number }>(
       `/api/admin/rbac/roles/${role.id}${force ? '?force=1' : ''}`,
@@ -528,6 +545,32 @@ export function RbacTab({ user }: { user: SessionUser | null }) {
             />
           </div>
 
+          {/* RBACSEC-2 — delete rules legend: who can delete what, at a glance. */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border bg-muted/40 px-4 py-2.5 text-[11px] leading-snug text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5 font-semibold text-foreground">
+              <Trash2 size={12} className="text-destructive" /> Who can delete:
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Badge className="rounded-full border-0 bg-muted text-[9px] font-semibold">Custom</Badge>
+              anyone holding <code className="text-foreground">rbac.roles.delete</code>
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Badge className="rounded-full border-0 bg-muted text-[9px] font-semibold">System</Badge>
+              super administrators only
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Badge className="rounded-full border-0 bg-amber-100 text-[9px] font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                <Lock size={9} className="mr-0.5" /> LOCKED
+              </Badge>
+              never deletable — permanent by design
+            </span>
+            {canDeleteRoles && !isSuperAdmin && (
+              <span className="inline-flex items-center gap-1.5 italic">
+                You can delete custom roles; system-role deletion needs a super administrator.
+              </span>
+            )}
+          </div>
+
           {rolesQ.loading ? (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {[...Array(6)].map((_, i) => (
@@ -554,9 +597,9 @@ export function RbacTab({ user }: { user: SessionUser | null }) {
                           {role.isProtected && (
                             <Badge
                               className="rounded-full border-0 bg-amber-100 text-[10px] font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-300"
-                              title="Protected role — visible and manageable only by super administrators"
+                              title="Locked role — visible only to super administrators; cannot be deleted or narrowed"
                             >
-                              <Lock size={10} className="mr-1" /> PROTECTED
+                              <Lock size={10} className="mr-1" /> LOCKED
                             </Badge>
                           )}
                           {role.key === 'platform.super-admin' && (
@@ -603,7 +646,10 @@ export function RbacTab({ user }: { user: SessionUser | null }) {
                           <Copy size={13} className="mr-1" /> Duplicate
                         </Button>
                       )}
-                      {!role.isSystem && canDeleteRoles && (
+                      {/* RBACSEC-2 — delete: enabled when permitted, visibly locked
+                          (with the reason as tooltip) when not. Never silently hidden
+                          when the viewer holds the delete permission. */}
+                      {canDeleteRoles && !deleteBlockedReason(role) && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -611,6 +657,17 @@ export function RbacTab({ user }: { user: SessionUser | null }) {
                           onClick={() => deleteRole(role)}
                         >
                           <Trash2 size={13} className="mr-1" /> Delete
+                        </Button>
+                      )}
+                      {canDeleteRoles && deleteBlockedReason(role) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled
+                          className="h-8 cursor-not-allowed rounded-lg px-2.5 text-xs text-muted-foreground"
+                          title={deleteBlockedReason(role) ?? undefined}
+                        >
+                          <Lock size={13} className="mr-1" /> Delete
                         </Button>
                       )}
                     </div>

@@ -35,7 +35,7 @@ function serialize(g: {
   priority: number
   isDefault: boolean
   createdAt: Date
-  _count?: { users: number; organizations: number; priceLists: number }
+  _count?: { customerGroupUsers: number; customerGroupOrganizations: number; priceLists: number }
 }): CustomerGroupDTO {
   return {
     id: g.id,
@@ -46,12 +46,20 @@ function serialize(g: {
     isDefault: g.isDefault,
     createdAt: g.createdAt.toISOString(),
     _count: g._count
-      ? { users: g._count.users, organizations: g._count.organizations, priceLists: g._count.priceLists }
+      ? {
+          users: g._count.customerGroupUsers,
+          organizations: g._count.customerGroupOrganizations,
+          priceLists: g._count.priceLists,
+        }
       : undefined,
   }
 }
 
-const countInclude = { _count: { select: { users: true, organizations: true, priceLists: true } } } as const
+// MYSQL/Aiven note: the join relations are the explicit M2M models
+// (customerGroupUsers / customerGroupOrganizations) — NOT "users"/"organizations".
+const countInclude = {
+  _count: { select: { customerGroupUsers: true, customerGroupOrganizations: true, priceLists: true } },
+} as const
 
 export async function adminListGroups(): Promise<CustomerGroupDTO[]> {
   const groups = await db.customerGroup.findMany({ include: countInclude, orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }] })
@@ -126,7 +134,7 @@ export async function adminUpdateGroup(
 export async function adminDeleteGroup(id: string, adminId: string): Promise<void> {
   const group = await db.customerGroup.findUnique({
     where: { id },
-    include: { _count: { select: { priceLists: true, organizations: true } } },
+    include: { _count: { select: { priceLists: true, customerGroupOrganizations: true } } },
   })
   if (!group) throw new GroupServiceError('Customer group not found', 404)
   if (group.isDefault) throw new GroupServiceError('The default group cannot be deleted')
@@ -144,6 +152,6 @@ export async function adminDeleteGroup(id: string, adminId: string): Promise<voi
     entityType: 'CustomerGroup',
     entityId: id,
     summary: `Customer group "${group.name}" deleted`,
-    metadata: { organizationsWereMapped: group._count.organizations },
+    metadata: { organizationsWereMapped: group._count.customerGroupOrganizations },
   })
 }
