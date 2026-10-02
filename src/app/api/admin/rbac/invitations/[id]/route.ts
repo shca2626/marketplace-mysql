@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin } from '@/server/guards'
+import { requireAdminAny } from '@/server/guards'
 import { assertSameOrigin } from '@/lib/http'
 import { revokeInvitation, RbacServiceError } from '@/server/modules/rbac/service'
 
@@ -8,7 +8,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
 
-  const { user, error } = await requireAdmin('staff.invite')
+  const { user, error } = await requireAdminAny(['staff.invite', 'rbac.manage'])
   if (error) return error
   try {
     const { id } = await ctx.params

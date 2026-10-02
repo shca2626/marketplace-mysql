@@ -181,12 +181,16 @@ export const PERMISSION_DOMAINS: PermissionDomain[] = [
     key: 'staff',
     label: 'Staff & Access',
     scope: 'PLATFORM',
-    description: 'Platform staff, roles and permissions (this console).',
+    description: 'Platform staff, role CRUD, assignments and invitations (this console).',
     permissions: [
       { key: 'staff.view', label: 'View staff & roles', description: 'See staff members, role assignments and the permission catalog.' },
-      { key: 'staff.invite', label: 'Invite staff', description: 'Send and revoke staff invitations.' },
-      { key: 'staff.manage', label: 'Manage assignments', description: 'Grant and revoke role assignments for any user.' },
-      { key: 'rbac.manage', label: 'Manage roles', description: 'Create, edit and delete roles and their permission sets.' },
+      { key: 'staff.invite', label: 'Invite staff', description: 'Send and revoke staff invitations (only for roles within your own access).' },
+      { key: 'staff.manage', label: 'Manage assignments', description: 'Grant and revoke role assignments — only for roles within your own permissions.' },
+      { key: 'rbac.roles.view', label: 'View roles', description: 'Browse the role catalog with permission matrices. Protected roles (Super Admin) stay hidden unless you hold them.' },
+      { key: 'rbac.roles.create', label: 'Create roles', description: 'Create custom roles — the permission set can never exceed your own access.' },
+      { key: 'rbac.roles.update', label: 'Update roles', description: 'Rename and re-permission custom roles — never beyond your own access.' },
+      { key: 'rbac.roles.delete', label: 'Delete roles', description: 'Delete custom roles and un-assign their members.' },
+      { key: 'rbac.manage', label: 'Manage roles (full)', description: 'Umbrella: create, update and delete roles. Grant the granular keys above to delegate partial control instead.' },
     ],
   },
 
@@ -456,4 +460,20 @@ export const ORG_ROLE_BY_LEGACY: Record<string, string> = {
   BUYER: 'org.buyer',
   APPROVER: 'org.approver',
   VIEWER: 'org.viewer',
+}
+
+// ── Protected roles (RBACSEC-1) ────────────────────────────────────────────
+//
+// Protected roles are INVISIBLE to everyone except super administrators:
+//   • hidden from the roles list, staff cards, assignments and invitations
+//   • cannot be read, updated, deleted, assigned or revoked by non-super-admins
+//     (the API answers 404 so their very existence is not revealed)
+//   • holders (and legacy User.role === 'ADMIN' accounts) are hidden from the
+//     staff list and user search of non-super-admin staff
+// Super administrators = legacy ADMIN bypass or platform.super-admin holders.
+
+export const PROTECTED_ROLE_KEYS: string[] = ['platform.super-admin', 'org.owner']
+
+export function isProtectedRoleKey(key: string): boolean {
+  return PROTECTED_ROLE_KEYS.includes(key)
 }

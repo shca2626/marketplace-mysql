@@ -11,7 +11,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { db } from '../src/lib/db'
-import { ORG_ROLE_BY_LEGACY, PERMISSION_DOMAINS, SYSTEM_ROLES } from '../src/lib/rbac-catalog'
+import { ORG_ROLE_BY_LEGACY, PERMISSION_DOMAINS, SYSTEM_ROLES, isProtectedRoleKey } from '../src/lib/rbac-catalog'
 
 async function main() {
   console.log('── RBAC seed ────────────────────────────────────────────')
@@ -31,16 +31,20 @@ async function main() {
   console.log(`✓ permissions upserted: ${permCount}`)
 
   // 2. System roles + permission sync ──────────────────────────────────────
+  // RBACSEC-1: protected roles (platform.super-admin, org.owner) get
+  // isProtected=true — invisible and untouchable for non-super-admins.
   for (const r of SYSTEM_ROLES) {
+    const isProtected = isProtectedRoleKey(r.key)
     const role = await db.role.upsert({
       where: { key: r.key },
-      update: { name: r.name, description: r.description, scope: r.scope, isSystem: true },
+      update: { name: r.name, description: r.description, scope: r.scope, isSystem: true, isProtected },
       create: {
         key: r.key,
         name: r.name,
         description: r.description,
         scope: r.scope,
         isSystem: true,
+        isProtected,
         permissions: { create: r.permissions.map((permissionKey) => ({ permissionKey })) },
       },
     })

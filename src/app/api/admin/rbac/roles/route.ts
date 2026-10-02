@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireAdmin } from '@/server/guards'
+import { requireAdminAny } from '@/server/guards'
 import { assertSameOrigin } from '@/lib/http'
 import { createRole, listRoles, RbacServiceError } from '@/server/modules/rbac/service'
 
 // GET /api/admin/rbac/roles — every role with its permission keys + member count
+// (protected roles are only returned to super administrators — RBACSEC-1)
 export async function GET() {
-  const { error } = await requireAdmin('staff.view')
+  const { user, error } = await requireAdminAny(['staff.view', 'rbac.roles.view', 'rbac.manage'])
   if (error) return error
   try {
-    const roles = await listRoles()
+    const roles = await listRoles(user!)
     return NextResponse.json({ roles })
   } catch (err) {
     console.error('rbac roles GET error', err)
@@ -24,12 +25,12 @@ const createSchema = z.object({
   permissionKeys: z.array(z.string()).min(1),
 })
 
-// POST /api/admin/rbac/roles — create a custom role
+// POST /api/admin/rbac/roles — create a custom role (within your own permissions)
 export async function POST(req: NextRequest) {
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
 
-  const { user, error } = await requireAdmin('rbac.manage')
+  const { user, error } = await requireAdminAny(['rbac.roles.create', 'rbac.manage'])
   if (error) return error
   try {
     const parsed = createSchema.safeParse(await req.json())

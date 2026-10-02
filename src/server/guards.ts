@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/auth'
-import { userHasPlatformPermission } from '@/server/modules/rbac/service'
+import { userHasAnyPlatformPermission, userHasPlatformPermission } from '@/server/modules/rbac/service'
 
 /**
  * Route-level authorization helpers.
@@ -49,6 +49,38 @@ export async function requireAdmin(permission?: string): Promise<
       user: null,
       error: NextResponse.json(
         { error: `Access denied — this action requires the "${permission}" permission. Ask a platform administrator to grant it.` },
+        { status: 403 }
+      ),
+    }
+  }
+  return result
+}
+
+/**
+ * RBACSEC-1: admin gate accepting any of several permission keys — used by
+ * the Roles & Access routes where the granular role-module CRUD keys
+ * (rbac.roles.create/update/delete, rbac.manage) are interchangeable.
+ * Legacy User.role === 'ADMIN' always bypasses.
+ */
+export async function requireAdminAny(
+  permissions: string[]
+): Promise<{ user: GuardUser; error: null } | { user: null; error: NextResponse }> {
+  const result = await requireUser()
+  if (result.error) return result
+  const user = result.user!
+  if (user.role === 'ADMIN') return result
+
+  if (permissions.length === 0) {
+    return { user: null, error: NextResponse.json({ error: 'Admin access required' }, { status: 403 }) }
+  }
+  const allowed = await userHasAnyPlatformPermission(user.id, permissions)
+  if (!allowed) {
+    return {
+      user: null,
+      error: NextResponse.json(
+        {
+          error: `Access denied — this action requires one of: ${permissions.join(', ')}. Ask a platform administrator to grant it.`,
+        },
         { status: 403 }
       ),
     }

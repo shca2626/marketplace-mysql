@@ -861,6 +861,7 @@ model Role {
   description String?           @db.Text // MYSQL: free-form description
   scope       String            // PLATFORM | ORG
   isSystem    Boolean           @default(false) // seeded, undeletable
+  isProtected Boolean           @default(false) // RBACSEC-1: hidden & untouchable for non-super-admins (super-admin, org.owner)
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
   permissions RolePermission[]

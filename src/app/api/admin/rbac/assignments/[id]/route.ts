@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin } from '@/server/guards'
+import { requireAdminAny } from '@/server/guards'
 import { assertSameOrigin } from '@/lib/http'
 import { revokeAssignment, RbacServiceError } from '@/server/modules/rbac/service'
 
 // DELETE /api/admin/rbac/assignments/[id] — revoke a role from a user
+// (protected-role seats answer 404 for non-super-admins — RBACSEC-1)
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
 
-  const { user, error } = await requireAdmin('staff.manage')
+  const { user, error } = await requireAdminAny(['staff.manage', 'rbac.manage'])
   if (error) return error
   try {
     const { id } = await ctx.params

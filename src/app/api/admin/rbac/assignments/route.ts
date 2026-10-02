@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireAdmin } from '@/server/guards'
+import { requireAdminAny } from '@/server/guards'
 import { assertSameOrigin } from '@/lib/http'
 import { assignRole, listAssignments, RbacServiceError } from '@/server/modules/rbac/service'
 
 // GET /api/admin/rbac/assignments?scope=platform|org&organizationId=&userId=
+// (protected-role assignments are only returned to super admins — RBACSEC-1)
 export async function GET(req: NextRequest) {
-  const { error } = await requireAdmin('staff.view')
+  const { user, error } = await requireAdminAny(['staff.view', 'staff.manage', 'rbac.roles.view', 'rbac.manage'])
   if (error) return error
   try {
     const { searchParams } = new URL(req.url)
     const scopeParam = searchParams.get('scope')
-    const assignments = await listAssignments({
+    const assignments = await listAssignments(user!, {
       scope: scopeParam === 'platform' || scopeParam === 'org' ? scopeParam : undefined,
       userId: searchParams.get('userId') ?? undefined,
       organizationId: searchParams.get('organizationId') ?? undefined,
@@ -30,11 +31,12 @@ const assignSchema = z.object({
 })
 
 // POST /api/admin/rbac/assignments — grant a role to a user
+// (only roles whose permissions are within the actor's own access — RBACSEC-1)
 export async function POST(req: NextRequest) {
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
 
-  const { user, error } = await requireAdmin('staff.manage')
+  const { user, error } = await requireAdminAny(['staff.manage', 'rbac.manage'])
   if (error) return error
   try {
     const parsed = assignSchema.safeParse(await req.json())

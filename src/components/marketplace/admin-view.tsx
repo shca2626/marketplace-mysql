@@ -38,11 +38,13 @@ import { RbacTab } from './admin/rbac-tab'
 import { AdminSettings } from './admin-settings'
 import { RfqSettings } from './admin/settings/rfq-settings'
 
-function hasPermission(user: SessionUser | null, permission?: string): boolean {
-  if (!permission) return true
+function hasPermission(user: SessionUser | null, item: NavItem): boolean {
+  const keys = item.anyPermissions ?? (item.permission ? [item.permission] : [])
+  if (keys.length === 0) return true
   if (!user) return false
   if (user.role === 'ADMIN') return true
-  return (user.permissions ?? []).includes(permission)
+  const permissions = user.permissions ?? []
+  return keys.some((k) => permissions.includes(k))
 }
 
 function filterNavByPermissions(nav: NavConfig, user: SessionUser | null): NavConfig {
@@ -51,7 +53,13 @@ function filterNavByPermissions(nav: NavConfig, user: SessionUser | null): NavCo
   return {
     ...nav,
     groups: nav.groups
-      .map((g) => ({ ...g, items: g.items.filter((i) => !i.permission || permissions.includes(i.permission)) }))
+      .map((g) => ({
+        ...g,
+        items: g.items.filter((i) => {
+          const keys = i.anyPermissions ?? (i.permission ? [i.permission] : [])
+          return keys.length === 0 || keys.some((k) => permissions.includes(k))
+        }),
+      }))
       .filter((g) => g.items.length > 0),
   }
 }
@@ -71,7 +79,7 @@ function AdminDashboard({ user }: { user: SessionUser | null }) {
   // overview instead of an empty shell — the API would 403 anyway.
   const activeSection = useMemo(
     () =>
-      ADMIN_NAV.groups.flatMap((g) => g.items).some((i) => i.key === requested && hasPermission(user, i.permission))
+      ADMIN_NAV.groups.flatMap((g) => g.items).some((i) => i.key === requested && hasPermission(user, i))
         ? requested
         : 'overview',
     [requested, user]
@@ -98,7 +106,7 @@ function AdminDashboard({ user }: { user: SessionUser | null }) {
       {activeSection === 'coupons' && <CouponsTab />}
       {activeSection === 'rfqs' && <RfqsTab />}
       {activeSection === 'disputes' && <DisputesTab />}
-      {activeSection === 'rbac' && <RbacTab />}
+      {activeSection === 'rbac' && <RbacTab user={user} />}
       {activeSection === 'rfq-settings' && <RfqSettings />}
       {activeSection === 'storefront' && <AdminSettings />}
       {activeSection === 'audit' && <AuditTab />}

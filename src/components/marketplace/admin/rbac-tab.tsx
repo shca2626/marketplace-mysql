@@ -22,6 +22,7 @@ import {
   Copy,
   Crown,
   Loader2,
+  Lock,
   MailPlus,
   Pencil,
   Plus,
@@ -42,6 +43,7 @@ import type {
   RbacRoleDTO,
   RbacStaffDTO,
   RbacStaffUserDTO,
+  SessionUser,
 } from '@/lib/types'
 import { timeAgo } from '@/lib/format'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -198,9 +200,20 @@ interface RoleDialogState {
 
 type SubView = 'roles' | 'staff' | 'invitations'
 
-export function RbacTab() {
+export function RbacTab({ user }: { user: SessionUser | null }) {
   const [subView, setSubView] = useState<SubView>('roles')
   const [scopeFilter, setScopeFilter] = useState<'' | 'PLATFORM' | 'ORG'>('')
+
+  // RBACSEC-1 — button-level permission gating (the API is the security
+  // boundary; this is UX so staff don't see buttons that would 403).
+  const isSuperAdmin = user?.role === 'ADMIN'
+  const perms = useMemo(() => new Set(user?.permissions ?? []), [user])
+  const can = (...keys: string[]) => isSuperAdmin || keys.some((k) => perms.has(k))
+  const canCreateRoles = can('rbac.roles.create', 'rbac.manage')
+  const canUpdateRoles = can('rbac.roles.update', 'rbac.manage')
+  const canDeleteRoles = can('rbac.roles.delete', 'rbac.manage')
+  const canManageAssignments = can('staff.manage', 'rbac.manage')
+  const canInviteStaff = can('staff.invite', 'rbac.manage')
 
   // Roles + staff + invitations + org assignments (org assignments feed the
   // org-teams visibility block).
@@ -242,11 +255,14 @@ export function RbacTab() {
       description: role.description ?? '',
       scope: role.scope,
       selected: new Set(role.permissions),
-      locked: role.key === 'platform.super-admin' || role.key === 'org.owner',
-      lockReason:
-        role.key === 'platform.super-admin'
+      locked: role.isProtected || (role.isSystem && !isSuperAdmin),
+      lockReason: role.isProtected
+        ? role.key === 'platform.super-admin'
           ? 'Super Administrators always hold every platform permission — this role cannot be narrowed.'
-          : 'Organization Owners always hold every organization permission — this role cannot be narrowed.',
+          : 'Organization Owners always hold every organization permission — this role cannot be narrowed.'
+        : role.isSystem && !isSuperAdmin
+          ? 'System roles can only be edited by super administrators.'
+          : undefined,
     })
   const openDuplicate = (role: RbacRoleDTO) =>
     setDialog({
@@ -314,14 +330,34 @@ export function RbacTab() {
   }
 
   const deleteRole = async (role: RbacRoleDTO) => {
-    if (!confirm(`Delete the role "${role.name}"? This cannot be undone.`)) return
-    const res = await apiRequest(`/api/admin/rbac/roles/${role.id}`, { method: 'DELETE' })
+    // RBACSEC-1 — force-delete flow: roles with members can only be removed
+    // by un-assigning everyone first (the server does it in one transaction).
+    let force = false
+    if (role.memberCount > 0) {
+      force = confirm(
+        `The role "${role.name}" is still assigned to ${role.memberCount} member(s).\n\nDelete it anyway? Their access from this role is revoked immediately.`
+      )
+      if (!force) return
+    } else {
+      if (!confirm(`Delete the role "${role.name}"? This cannot be undone.`)) return
+    }
+    const res = await apiRequest<{ revoked: number }>(
+      `/api/admin/rbac/roles/${role.id}${force ? '?force=1' : ''}`,
+      { method: 'DELETE' }
+    )
     if (!res.ok) {
       toastApiError(res.error)
       return
     }
-    toast({ title: 'Role deleted', description: `"${role.name}" is gone.` })
-    void rolesQ.refetch()
+    const revoked = res.data?.revoked ?? 0
+    toast({
+      title: 'Role deleted',
+      description:
+        revoked > 0
+          ? `"${role.name}" is gone — ${revoked} member assignment(s) revoked.`
+          : `"${role.name}" is gone.`,
+    })
+    refreshAll()
   }
 
   // ── Grant-role dialog state ──
@@ -454,19 +490,23 @@ export function RbacTab() {
           </Button>
         </div>
         <div className="flex items-center gap-2">
-          {subView === 'roles' && (
+          {subView === 'roles' && canCreateRoles && (
             <Button size="sm" className="rounded-xl" onClick={openCreate}>
               <Plus size={15} className="mr-1.5" /> New role
             </Button>
           )}
           {subView === 'staff' && (
             <>
-              <Button variant="outline" size="sm" className="rounded-xl" onClick={() => setInviteOpen(true)}>
-                <MailPlus size={15} className="mr-1.5" /> Invite staff
-              </Button>
-              <Button size="sm" className="rounded-xl" onClick={() => setGrantOpen(true)}>
-                <UserPlus size={15} className="mr-1.5" /> Grant role
-              </Button>
+              {canInviteStaff && (
+                <Button variant="outline" size="sm" className="rounded-xl" onClick={() => setInviteOpen(true)}>
+                  <MailPlus size={15} className="mr-1.5" /> Invite staff
+                </Button>
+              )}
+              {canManageAssignments && (
+                <Button size="sm" className="rounded-xl" onClick={() => setGrantOpen(true)}>
+                  <UserPlus size={15} className="mr-1.5" /> Grant role
+                </Button>
+              )}
             </>
           )}
         </div>
@@ -511,6 +551,14 @@ export function RbacTab() {
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="truncate text-sm font-semibold">{role.name}</p>
+                          {role.isProtected && (
+                            <Badge
+                              className="rounded-full border-0 bg-amber-100 text-[10px] font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                              title="Protected role — visible and manageable only by super administrators"
+                            >
+                              <Lock size={10} className="mr-1" /> PROTECTED
+                            </Badge>
+                          )}
                           {role.key === 'platform.super-admin' && (
                             <Badge className="rounded-full border-0 bg-amber-100 text-[10px] font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-300">
                               <Crown size={10} className="mr-1" /> ALL ACCESS
@@ -540,18 +588,22 @@ export function RbacTab() {
                       )}
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5 border-t pt-3">
-                      <Button variant="outline" size="sm" className="h-8 rounded-lg px-2.5 text-xs" onClick={() => openEdit(role)}>
-                        <Pencil size={13} className="mr-1" /> Permissions
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 rounded-lg px-2.5 text-xs"
-                        onClick={() => openDuplicate(role)}
-                      >
-                        <Copy size={13} className="mr-1" /> Duplicate
-                      </Button>
-                      {!role.isSystem && (
+                      {canUpdateRoles && (
+                        <Button variant="outline" size="sm" className="h-8 rounded-lg px-2.5 text-xs" onClick={() => openEdit(role)}>
+                          <Pencil size={13} className="mr-1" /> Permissions
+                        </Button>
+                      )}
+                      {canCreateRoles && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 rounded-lg px-2.5 text-xs"
+                          onClick={() => openDuplicate(role)}
+                        >
+                          <Copy size={13} className="mr-1" /> Duplicate
+                        </Button>
+                      )}
+                      {!role.isSystem && canDeleteRoles && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -605,15 +657,17 @@ export function RbacTab() {
                     <Badge className="rounded-full border-0 bg-muted text-[10px] font-semibold text-muted-foreground">
                       {a.roleName}
                     </Badge>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 rounded-md px-1.5 text-[11px] text-destructive hover:bg-destructive/10"
-                      onClick={() => revoke(a.id, a.userName, a.roleName)}
-                      aria-label={`Revoke ${a.roleName} from ${a.userName}`}
-                    >
-                      <X size={12} />
-                    </Button>
+                    {canManageAssignments && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 rounded-md px-1.5 text-[11px] text-destructive hover:bg-destructive/10"
+                        onClick={() => revoke(a.id, a.userName, a.roleName)}
+                        aria-label={`Revoke ${a.roleName} from ${a.userName}`}
+                      >
+                        <X size={12} />
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -640,12 +694,16 @@ export function RbacTab() {
               description="Grant a platform role to an existing user, or send an invitation."
             >
               <div className="flex gap-2">
-                <Button size="sm" className="rounded-xl" onClick={() => setGrantOpen(true)}>
-                  <UserPlus size={15} className="mr-1.5" /> Grant role
-                </Button>
-                <Button variant="outline" size="sm" className="rounded-xl" onClick={() => setInviteOpen(true)}>
-                  <MailPlus size={15} className="mr-1.5" /> Invite staff
-                </Button>
+                {canManageAssignments && (
+                  <Button size="sm" className="rounded-xl" onClick={() => setGrantOpen(true)}>
+                    <UserPlus size={15} className="mr-1.5" /> Grant role
+                  </Button>
+                )}
+                {canInviteStaff && (
+                  <Button variant="outline" size="sm" className="rounded-xl" onClick={() => setInviteOpen(true)}>
+                    <MailPlus size={15} className="mr-1.5" /> Invite staff
+                  </Button>
+                )}
               </div>
             </AdminEmptyState>
           ) : (
@@ -691,14 +749,16 @@ export function RbacTab() {
                           className="inline-flex items-center gap-1 rounded-full border bg-background px-2.5 py-1 text-[11px] font-semibold"
                         >
                           {r.roleName}
-                          <button
-                            type="button"
-                            className="rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                            aria-label={`Revoke ${r.roleName}`}
-                            onClick={() => revoke(r.assignmentId, member.name, r.roleName)}
-                          >
-                            <X size={11} />
-                          </button>
+                          {canManageAssignments && (
+                            <button
+                              type="button"
+                              className="rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                              aria-label={`Revoke ${r.roleName}`}
+                              onClick={() => revoke(r.assignmentId, member.name, r.roleName)}
+                            >
+                              <X size={11} />
+                            </button>
+                          )}
                         </span>
                       ))}
                     </div>
@@ -721,6 +781,8 @@ export function RbacTab() {
                         variant="outline"
                         size="sm"
                         className="ml-auto h-7 rounded-lg px-2 text-[11px]"
+                        disabled={!canManageAssignments}
+                        title={canManageAssignments ? undefined : 'Requires the staff.manage permission'}
                         onClick={() => {
                           setGrantUser({ id: member.userId, name: member.name, email: member.email, role: member.userRole })
                           setGrantOpen(true)
@@ -767,9 +829,11 @@ export function RbacTab() {
               title="No invitations yet"
               description="Invite future staff by email — when they register with the invitation token, the role is granted automatically."
             >
-              <Button size="sm" className="rounded-xl" onClick={() => setInviteOpen(true)}>
-                <MailPlus size={15} className="mr-1.5" /> Invite staff
-              </Button>
+              {canInviteStaff && (
+                <Button size="sm" className="rounded-xl" onClick={() => setInviteOpen(true)}>
+                  <MailPlus size={15} className="mr-1.5" /> Invite staff
+                </Button>
+              )}
             </AdminEmptyState>
           ) : (
             <div className="overflow-hidden rounded-2xl border">

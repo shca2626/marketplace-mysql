@@ -56,6 +56,9 @@ export interface NavItem {
   /** RBAC Phase 2 — platform permission required to see this admin section.
    *  Undefined = visible to every console user; legacy ADMIN sees all. */
   permission?: string
+  /** RBACSEC-1 — any-of permission list: the section is visible when the
+   *  user holds at least one of these (overrides `permission` when set). */
+  anyPermissions?: string[]
 }
 
 export interface NavGroup {
@@ -119,7 +122,7 @@ export const ADMIN_NAV: NavConfig = {
     {
       label: 'Configuration',
       items: [
-        { key: 'rbac', label: 'Roles & Access', icon: ShieldCheck, description: 'Permissions, staff & teams', permission: 'staff.view', badge: 'New' },
+        { key: 'rbac', label: 'Roles & Access', icon: ShieldCheck, description: 'Permissions, staff & teams', anyPermissions: ['staff.view', 'rbac.roles.view', 'rbac.manage'], badge: 'New' },
         { key: 'rfq-settings', label: 'RFQ Settings', icon: SlidersHorizontal, description: '22 scoped behavior panels', permission: 'rfq.settings.manage' },
         { key: 'storefront', label: 'Storefront Designer', icon: Palette, description: 'Branding, theme & hero slides', permission: 'storefront.manage' },
       ],

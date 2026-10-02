@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireAdmin } from '@/server/guards'
+import { requireAdminAny } from '@/server/guards'
 import { assertSameOrigin } from '@/lib/http'
 import { deleteRole, RbacServiceError, updateRole } from '@/server/modules/rbac/service'
 
@@ -11,11 +11,12 @@ const updateSchema = z.object({
 })
 
 // PATCH /api/admin/rbac/roles/[id] — rename / re-permission a role
+// (protected roles answer 404 for non-super-admins — RBACSEC-1)
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
 
-  const { user, error } = await requireAdmin('rbac.manage')
+  const { user, error } = await requireAdminAny(['rbac.roles.update', 'rbac.manage'])
   if (error) return error
   try {
     const { id } = await ctx.params
@@ -37,17 +38,20 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
 }
 
-// DELETE /api/admin/rbac/roles/[id] — delete a custom, unassigned role
+// DELETE /api/admin/rbac/roles/[id]?force=1 — delete a custom role.
+// With force=1 the role's assignments are revoked (and audited) first, so
+// super admins can delete roles that still have members.
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
 
-  const { user, error } = await requireAdmin('rbac.manage')
+  const { user, error } = await requireAdminAny(['rbac.roles.delete', 'rbac.manage'])
   if (error) return error
   try {
     const { id } = await ctx.params
-    await deleteRole(user!, id)
-    return NextResponse.json({ ok: true })
+    const force = new URL(req.url).searchParams.get('force') === '1'
+    const { revoked } = await deleteRole(user!, id, force)
+    return NextResponse.json({ ok: true, revoked })
   } catch (err) {
     if (err instanceof RbacServiceError) {
       return NextResponse.json({ error: err.message }, { status: err.status })

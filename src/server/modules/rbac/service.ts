@@ -12,14 +12,28 @@ import { recordAudit } from '@/server/modules/audit/service'
 // RBAC SERVICE — roles, permissions, assignments & staff invitations.
 // (mergedplan.md Phase 2 — answers owner gaps #2 and #3.)
 //
+// RBACSEC-1 hardening (role module CRUD + isolation):
+//  • Granular role permissions: rbac.roles.view / create / update / delete on
+//    top of the rbac.manage umbrella and staff.view / staff.invite /
+//    staff.manage — see src/lib/rbac-catalog.ts.
+//  • PROTECTED ROLES (platform.super-admin, org.owner): invisible and
+//    untouchable for anyone who is not a super administrator. Reads, updates,
+//    deletes, assignments and revocations answer 404 so their very existence
+//    is not revealed. Their holders and legacy ADMIN accounts are hidden from
+//    the staff list and user search of non-super-admin staff.
+//  • PRIVILEGE BRACKETING: staff may only create / edit / grant / revoke /
+//    invite with roles whose permission set is a subset of their own —
+//    nobody can hand out more access than they have.
+//  • FORCE DELETE: super admins can delete a role that still has members;
+//    the assignments are revoked (and audited) in the same transaction.
+//
 // Design notes:
 //  • User.role === 'ADMIN' is an implicit super-admin bypass everywhere — the
 //    platform owner never depends on a role row existing.
 //  • Platform staff = users with at least one UserRole where organizationId
 //    is "" (platform scope). They keep their legacy User.role (BUYER/…) and
 //    gain console access purely through assignments.
-//  • System roles can be edited (except platform.super-admin / org.owner,
-//    locked) but never deleted.
+//  • System roles can be edited by super admins only, and never deleted.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export class RbacServiceError extends Error {
@@ -40,6 +54,64 @@ function slugify(name: string): string {
       .replace(/^-+|-+$/g, '')
       .slice(0, 40) || 'role'
   )
+}
+
+// ── Actor context (RBACSEC-1) ───────────────────────────────────────────────
+
+export interface RbacActor {
+  id: string
+  role: string
+  name: string
+  email: string
+}
+
+export interface ActorContext {
+  /** Legacy ADMIN bypass or platform.super-admin holder. */
+  isSuperAdmin: boolean
+  /** Effective platform permissions of the actor (empty set = none). */
+  permissions: Set<string>
+}
+
+export async function getActorContext(user: { id: string; role: string }): Promise<ActorContext> {
+  if (user.role === 'ADMIN') {
+    return { isSuperAdmin: true, permissions: new Set(ALL_PLATFORM_PERMISSIONS) }
+  }
+  const assignments = await db.userRole.findMany({
+    where: { userId: user.id, organizationId: '' },
+    select: { role: { select: { key: true, permissions: { select: { permissionKey: true } } } } },
+    take: 50,
+  })
+  const permissions = new Set<string>()
+  let isSuperAdmin = false
+  for (const a of assignments) {
+    if (a.role.key === 'platform.super-admin') isSuperAdmin = true
+    for (const p of a.role.permissions) permissions.add(p.permissionKey)
+  }
+  return { isSuperAdmin, permissions }
+}
+
+/**
+ * Privilege bracketing — a staff member can never manage (create / edit /
+ * grant / revoke / invite with) a role whose permission set exceeds their own.
+ */
+function ensureWithinBracket(actor: ActorContext, keys: string[], action: string): void {
+  if (actor.isSuperAdmin) return
+  const outside = keys.filter((k) => !actor.permissions.has(k))
+  if (outside.length > 0) {
+    throw new RbacServiceError(
+      `Access denied — you cannot ${action} because it includes permissions you do not hold: ${outside
+        .slice(0, 5)
+        .join(', ')}${outside.length > 5 ? '…' : ''}`,
+      403
+    )
+  }
+}
+
+/** Protected roles must not even be revealed to non-super-admins → 404. */
+function assertCanSeeRole(actor: ActorContext, role: { key: string; isProtected: boolean }): void {
+  if (role.isProtected && !actor.isSuperAdmin) {
+    throw new RbacServiceError('Role not found', 404)
+  }
 }
 
 // ── Session context (used by /api/auth/* to enrich SessionUser) ────────────
@@ -77,6 +149,19 @@ export async function userHasPlatformPermission(userId: string, permission: stri
   return count > 0
 }
 
+/** True when the user holds ANY of the given permissions through platform-scope roles. */
+export async function userHasAnyPlatformPermission(userId: string, permissions: string[]): Promise<boolean> {
+  if (permissions.length === 0) return false
+  const count = await db.userRole.count({
+    where: {
+      userId,
+      organizationId: '',
+      role: { permissions: { some: { permissionKey: { in: permissions } } } },
+    },
+  })
+  return count > 0
+}
+
 // ── Catalog ─────────────────────────────────────────────────────────────────
 
 export function getCatalog(): PermissionDomain[] {
@@ -92,6 +177,7 @@ export interface RoleDTO {
   description: string | null
   scope: 'PLATFORM' | 'ORG'
   isSystem: boolean
+  isProtected: boolean
   permissions: string[]
   memberCount: number
   createdAt: string
@@ -109,6 +195,7 @@ type RoleWithRelations = {
   description: string | null
   scope: string
   isSystem: boolean
+  isProtected: boolean
   createdAt: Date
   permissions: { permissionKey: string }[]
   _count: { assignments: number }
@@ -122,24 +209,28 @@ function toRoleDTO(role: RoleWithRelations): RoleDTO {
     description: role.description,
     scope: role.scope === 'ORG' ? 'ORG' : 'PLATFORM',
     isSystem: role.isSystem,
+    isProtected: role.isProtected,
     permissions: role.permissions.map((p) => p.permissionKey),
     memberCount: role._count.assignments,
     createdAt: role.createdAt.toISOString(),
   }
 }
 
-export async function listRoles(): Promise<RoleDTO[]> {
+export async function listRoles(actor: RbacActor): Promise<RoleDTO[]> {
+  const ctx = await getActorContext(actor)
   const roles = await db.role.findMany({
     include: roleInclude,
     orderBy: [{ scope: 'asc' }, { isSystem: 'desc' }, { name: 'asc' }],
   })
-  return roles.map(toRoleDTO)
+  // RBACSEC-1: protected roles are invisible to non-super-admins.
+  return roles.filter((r) => ctx.isSuperAdmin || !r.isProtected).map(toRoleDTO)
 }
 
 export async function createRole(
-  actor: { id: string; name: string; email: string },
+  actor: RbacActor,
   input: { name: string; description?: string | null; scope: 'PLATFORM' | 'ORG'; permissionKeys: string[] }
 ): Promise<RoleDTO> {
+  const ctx = await getActorContext(actor)
   const name = input.name.trim()
   if (name.length < 2 || name.length > 60) throw new RbacServiceError('Role name must be 2–60 characters')
   const allowed = input.scope === 'PLATFORM' ? ALL_PLATFORM_PERMISSIONS : ALL_ORG_PERMISSIONS
@@ -147,6 +238,8 @@ export async function createRole(
   const invalid = keys.filter((k) => !allowed.includes(k))
   if (invalid.length > 0) throw new RbacServiceError(`Permissions not valid for this scope: ${invalid.join(', ')}`)
   if (keys.length === 0) throw new RbacServiceError('Select at least one permission for the role')
+  // RBACSEC-1: privilege bracketing — no handing out more than you have.
+  ensureWithinBracket(ctx, keys, 'create a role that grants')
 
   const base = `custom.${input.scope.toLowerCase()}.${slugify(name)}`
   let key = base
@@ -180,17 +273,24 @@ export async function createRole(
 }
 
 export async function updateRole(
-  actor: { id: string; name: string; email: string },
+  actor: RbacActor,
   id: string,
   input: { name?: string; description?: string | null; permissionKeys?: string[] }
 ): Promise<RoleDTO> {
+  const ctx = await getActorContext(actor)
   const role = await db.role.findUnique({ where: { id }, include: roleInclude })
   if (!role) throw new RbacServiceError('Role not found', 404)
+  // RBACSEC-1: protected roles do not exist for non-super-admins.
+  assertCanSeeRole(ctx, role)
   if (role.key === 'platform.super-admin') {
     throw new RbacServiceError('The Super Administrator role is locked — it always grants every permission', 403)
   }
   if (role.key === 'org.owner') {
     throw new RbacServiceError('The Organization Owner role is locked — owners always hold every organization permission', 403)
+  }
+  // RBACSEC-1: system role templates are only editable by super admins.
+  if (role.isSystem && !ctx.isSuperAdmin) {
+    throw new RbacServiceError('System roles can only be edited by super administrators', 403)
   }
 
   const data: { name?: string; description?: string | null } = {}
@@ -208,6 +308,8 @@ export async function updateRole(
     const invalid = wanted.filter((k) => !allowed.includes(k))
     if (invalid.length > 0) throw new RbacServiceError(`Permissions not valid for this scope: ${invalid.join(', ')}`)
     if (wanted.length === 0) throw new RbacServiceError('A role needs at least one permission')
+    // RBACSEC-1: privilege bracketing — cannot widen a role beyond your own access.
+    ensureWithinBracket(ctx, wanted, `re-permission "${role.name}" with`)
     const existing = new Set(role.permissions.map((p) => p.permissionKey))
     permissionChanges = {
       added: wanted.filter((k) => !existing.has(k)),
@@ -244,23 +346,68 @@ export async function updateRole(
   return toRoleDTO(updated)
 }
 
-export async function deleteRole(actor: { id: string; name: string; email: string }, id: string): Promise<void> {
-  const role = await db.role.findUnique({ where: { id }, include: { _count: { select: { assignments: true } } } })
+export async function deleteRole(actor: RbacActor, id: string, force = false): Promise<{ revoked: number }> {
+  const ctx = await getActorContext(actor)
+  const role = await db.role.findUnique({
+    where: { id },
+    include: { permissions: { select: { permissionKey: true } }, _count: { select: { assignments: true } } },
+  })
   if (!role) throw new RbacServiceError('Role not found', 404)
-  if (role.isSystem) throw new RbacServiceError('System roles cannot be deleted — remove assignments instead', 403)
-  if (role._count.assignments > 0) {
-    throw new RbacServiceError(`This role is still assigned to ${role._count.assignments} member(s) — revoke the assignments first`)
+  // RBACSEC-1: protected roles do not exist for non-super-admins.
+  assertCanSeeRole(ctx, role)
+  if (role.isSystem) {
+    throw new RbacServiceError(
+      'System roles cannot be deleted — they are part of the platform. Remove assignments instead.',
+      403
+    )
   }
-  await db.role.delete({ where: { id } })
+  // RBACSEC-1: privilege bracketing — you cannot delete a role above your pay grade.
+  ensureWithinBracket(ctx, role.permissions.map((p) => p.permissionKey), `delete "${role.name}"`)
+
+  const memberCount = role._count.assignments
+  if (memberCount > 0 && !force) {
+    throw new RbacServiceError(
+      `This role is still assigned to ${memberCount} member(s) — revoke the assignments first, or delete it with force to un-assign everyone.`,
+      409
+    )
+  }
+
+  const revoked = await db.$transaction(async (tx) => {
+    let n = 0
+    if (memberCount > 0) {
+      const assignments = await tx.userRole.findMany({
+        where: { roleId: id },
+        include: { user: { select: { id: true, email: true } } },
+      })
+      await tx.userRole.deleteMany({ where: { roleId: id } })
+      n = assignments.length
+      // Bump sessionVersion so revoked staff lose console access immediately.
+      for (const a of assignments) {
+        await tx.user.update({
+          where: { id: a.user.id },
+          data: { sessionVersion: { increment: 1 } },
+        })
+      }
+    }
+    // Drop invitation rows referencing this role (FK constraint; audit keeps history).
+    await tx.staffInvitation.deleteMany({ where: { roleId: id } })
+    await tx.role.delete({ where: { id } })
+    return n
+  })
+
   await recordAudit({
     actorId: actor.id,
     actorType: 'ADMIN',
     action: 'ROLE_DELETED',
     entityType: 'Role',
     entityId: id,
-    summary: `Role "${role.name}" deleted`,
-    metadata: { key: role.key, scope: role.scope },
+    summary:
+      revoked > 0
+        ? `Role "${role.name}" force-deleted — ${revoked} member assignment(s) revoked`
+        : `Role "${role.name}" deleted`,
+    metadata: { key: role.key, scope: role.scope, force: revoked > 0, revoked },
   })
+  return { revoked }
 }
 
 // ── Assignments ─────────────────────────────────────────────────────────────
@@ -282,7 +429,7 @@ export interface AssignmentDTO {
 
 const assignmentInclude = {
   user: { select: { id: true, name: true, email: true, role: true } },
-  role: { select: { id: true, key: true, name: true, scope: true } },
+  role: { select: { id: true, key: true, name: true, scope: true, isProtected: true } },
 } as const
 
 type AssignmentWithRelations = {
@@ -293,7 +440,7 @@ type AssignmentWithRelations = {
   assignedAt: Date
   assignedBy: string | null
   user: { id: string; name: string; email: string; role: string }
-  role: { id: string; key: string; name: string; scope: string }
+  role: { id: string; key: string; name: string; scope: string; isProtected: boolean }
 }
 
 function toAssignmentDTO(a: AssignmentWithRelations, organizationName: string | null): AssignmentDTO {
@@ -313,11 +460,15 @@ function toAssignmentDTO(a: AssignmentWithRelations, organizationName: string | 
   }
 }
 
-export async function listAssignments(filter: {
-  scope?: 'platform' | 'org'
-  userId?: string
-  organizationId?: string
-}): Promise<AssignmentDTO[]> {
+export async function listAssignments(
+  actor: RbacActor,
+  filter: {
+    scope?: 'platform' | 'org'
+    userId?: string
+    organizationId?: string
+  }
+): Promise<AssignmentDTO[]> {
+  const ctx = await getActorContext(actor)
   const where: { organizationId?: string; userId?: string } = {}
   if (filter.scope === 'platform') where.organizationId = ''
   if (filter.scope === 'org' && filter.organizationId) where.organizationId = filter.organizationId
@@ -329,31 +480,48 @@ export async function listAssignments(filter: {
     orderBy: { assignedAt: 'desc' },
     take: 500,
   })
+  // RBACSEC-1: protected-role assignments are invisible to non-super-admins.
+  const visible = assignments.filter((a) => ctx.isSuperAdmin || !a.role.isProtected)
 
   // Resolve organization names in one pass (org assignments only)
-  const orgIds = [...new Set(assignments.filter((a) => a.organizationId).map((a) => a.organizationId))]
+  const orgIds = [...new Set(visible.filter((a) => a.organizationId).map((a) => a.organizationId))]
   const orgs = orgIds.length
     ? await db.organization.findMany({ where: { id: { in: orgIds } }, select: { id: true, name: true } })
     : []
   const orgNameById = new Map(orgs.map((o) => [o.id, o.name]))
 
-  return assignments.map((a) =>
+  return visible.map((a) =>
     toAssignmentDTO(a, a.organizationId ? (orgNameById.get(a.organizationId) ?? null) : null)
   )
 }
 
 export async function assignRole(
-  actor: { id: string; name: string; email: string },
+  actor: RbacActor,
   input: { userId: string; roleId: string; organizationId?: string }
 ): Promise<AssignmentDTO> {
-  const role = await db.role.findUnique({ where: { id: input.roleId } })
+  const ctx = await getActorContext(actor)
+  const role = await db.role.findUnique({
+    where: { id: input.roleId },
+    include: { permissions: { select: { permissionKey: true } } },
+  })
   if (!role) throw new RbacServiceError('Role not found', 404)
+  // RBACSEC-1: protected roles cannot be granted by non-super-admins (404 —
+  // do not reveal that the role exists).
+  assertCanSeeRole(ctx, role)
+  // RBACSEC-1: privilege bracketing — no granting roles above your own access.
+  ensureWithinBracket(ctx, role.permissions.map((p) => p.permissionKey), `grant "${role.name}"`)
+
   const user = await db.user.findUnique({
     where: { id: input.userId },
     select: { id: true, name: true, email: true, role: true, status: true },
   })
   if (!user) throw new RbacServiceError('User not found', 404)
   if (user.status === 'SUSPENDED') throw new RbacServiceError('This account is suspended', 403)
+  // RBACSEC-1: legacy ADMIN accounts are implicit super-admins — only
+  // super admins may attach further roles to them.
+  if (user.role === 'ADMIN' && !ctx.isSuperAdmin) {
+    throw new RbacServiceError('Access denied — this account is a super administrator', 403)
+  }
 
   let organizationId = ''
   let organizationName: string | null = null
@@ -380,6 +548,8 @@ export async function assignRole(
     data: { userId: user.id, roleId: role.id, organizationId, assignedBy: actor.id },
     include: assignmentInclude,
   })
+  // The user may have gained console access — invalidate their session payload.
+  await db.user.update({ where: { id: user.id }, data: { sessionVersion: { increment: 1 } } })
 
   await recordAudit({
     actorId: actor.id,
@@ -393,22 +563,36 @@ export async function assignRole(
   return toAssignmentDTO(assignment, organizationName)
 }
 
-export async function revokeAssignment(actor: { id: string; name: string; email: string }, id: string): Promise<void> {
+export async function revokeAssignment(actor: RbacActor, id: string): Promise<void> {
+  const ctx = await getActorContext(actor)
   const assignment = await db.userRole.findUnique({
     where: { id },
     include: {
-      user: { select: { id: true, name: true, email: true } },
-      role: { select: { id: true, key: true, name: true } },
+      user: { select: { id: true, name: true, email: true, role: true } },
+      role: { select: { id: true, key: true, name: true, isProtected: true, permissions: { select: { permissionKey: true } } } },
     },
   })
   if (!assignment) throw new RbacServiceError('Assignment not found', 404)
-
-  // Self-lockout guard: an admin cannot revoke their own super-admin seat.
-  if (assignment.role.key === 'platform.super-admin' && assignment.userId === actor.id) {
-    throw new RbacServiceError('You cannot revoke your own Super Administrator access', 403)
+  // RBACSEC-1: protected-role seats (super-admin, org.owner) can only be
+  // revoked by super admins — and never your own super-admin seat.
+  if (assignment.role.isProtected) {
+    if (!ctx.isSuperAdmin) throw new RbacServiceError('Assignment not found', 404)
+    if (assignment.role.key === 'platform.super-admin' && assignment.userId === actor.id) {
+      throw new RbacServiceError('You cannot revoke your own Super Administrator access', 403)
+    }
+  } else {
+    // Privilege bracketing on revocation (mirrors the grant rule).
+    ensureWithinBracket(
+      ctx,
+      assignment.role.permissions.map((p) => p.permissionKey),
+      `revoke "${assignment.role.name}"`
+    )
   }
 
   await db.userRole.delete({ where: { id } })
+  // Refresh the affected user's session payload (permissions may have shrunk).
+  await db.user.update({ where: { id: assignment.userId }, data: { sessionVersion: { increment: 1 } } })
+
   await recordAudit({
     actorId: actor.id,
     actorType: 'ADMIN',
@@ -432,7 +616,8 @@ export interface StaffDTO {
   roles: { assignmentId: string; roleId: string; roleName: string; roleKey: string; assignedAt: string }[]
 }
 
-export async function listPlatformStaff(): Promise<StaffDTO[]> {
+export async function listPlatformStaff(actor: RbacActor): Promise<StaffDTO[]> {
+  const ctx = await getActorContext(actor)
   const assignments = await db.userRole.findMany({
     where: { organizationId: '' },
     include: {
@@ -443,22 +628,27 @@ export async function listPlatformStaff(): Promise<StaffDTO[]> {
     take: 500,
   })
 
-  // Legacy admins always belong on this list even before their seeded
-  // super-admin assignment exists (User.role === 'ADMIN' is an implicit bypass).
-  const legacyAdmins = await db.user.findMany({
-    where: { role: 'ADMIN' },
-    select: { id: true, name: true, email: true, role: true },
-  })
+  // RBACSEC-1: for non-super-admins, drop protected-role assignments entirely
+  // and never list legacy admins (implicit super-admins).
+  const visible = assignments.filter((a) => ctx.isSuperAdmin || !a.role.isProtected)
+  const legacyAdmins =
+    ctx.isSuperAdmin
+      ? await db.user.findMany({
+          where: { role: 'ADMIN' },
+          select: { id: true, name: true, email: true, role: true },
+        })
+      : []
+
   const byUser = new Map<string, StaffDTO>()
   const ensure = (id: string, name: string, email: string, userRole: string): StaffDTO => {
     let entry = byUser.get(id)
     if (!entry) {
-      entry = { userId: id, name, email, userRole, isSuperAdmin: userRole === 'ADMIN', permissions: [], roles: [] }
+      entry = { userId: id, name, email, userRole, isSuperAdmin: false, permissions: [], roles: [] }
       byUser.set(id, entry)
     }
     return entry
   }
-  for (const a of assignments) {
+  for (const a of visible) {
     const entry = ensure(a.user.id, a.user.name, a.user.email, a.user.role)
     entry.roles.push({
       assignmentId: a.id,
@@ -470,7 +660,10 @@ export async function listPlatformStaff(): Promise<StaffDTO[]> {
     if (a.role.key === 'platform.super-admin') entry.isSuperAdmin = true
     for (const p of a.role.permissions) entry.permissions.push(p.permissionKey)
   }
-  for (const admin of legacyAdmins) ensure(admin.id, admin.name, admin.email, admin.role)
+  for (const admin of legacyAdmins) {
+    const entry = ensure(admin.id, admin.name, admin.email, admin.role)
+    entry.isSuperAdmin = true
+  }
   for (const entry of byUser.values()) entry.permissions = [...new Set(entry.permissions)]
   return [...byUser.values()].sort((a, b) =>
     a.isSuperAdmin === b.isSuperAdmin ? a.name.localeCompare(b.name) : a.isSuperAdmin ? -1 : 1
@@ -486,7 +679,8 @@ export interface StaffUserDTO {
   role: string
 }
 
-export async function searchUsers(query: string): Promise<StaffUserDTO[]> {
+export async function searchUsers(actor: RbacActor, query: string): Promise<StaffUserDTO[]> {
+  const ctx = await getActorContext(actor)
   const q = query.trim()
   if (q.length < 2) return []
   const users = await db.user.findMany({
@@ -498,7 +692,8 @@ export async function searchUsers(query: string): Promise<StaffUserDTO[]> {
     take: 10,
     orderBy: { createdAt: 'desc' },
   })
-  return users
+  // RBACSEC-1: legacy ADMIN accounts are invisible to non-super-admin staff.
+  return users.filter((u) => ctx.isSuperAdmin || u.role !== 'ADMIN')
 }
 
 // ── Staff invitations ────────────────────────────────────────────────────────
@@ -527,7 +722,7 @@ type InvitationRow = {
   expiresAt: Date
   createdAt: Date
   roleId: string
-  role: { id: string; key: string; name: string }
+  role: { id: string; key: string; name: string; isProtected: boolean }
 }
 
 function toInvitationDTO(inv: InvitationRow): InvitationDTO {
@@ -546,24 +741,34 @@ function toInvitationDTO(inv: InvitationRow): InvitationDTO {
   }
 }
 
-export async function listInvitations(): Promise<InvitationDTO[]> {
+export async function listInvitations(actor: RbacActor): Promise<InvitationDTO[]> {
+  const ctx = await getActorContext(actor)
   const invitations = await db.staffInvitation.findMany({
-    include: { role: { select: { id: true, key: true, name: true } } },
+    include: { role: { select: { id: true, key: true, name: true, isProtected: true } } },
     orderBy: { createdAt: 'desc' },
     take: 200,
   })
-  return invitations.map(toInvitationDTO)
+  // RBACSEC-1: invitations for protected roles are invisible to non-super-admins.
+  return invitations.filter((i) => ctx.isSuperAdmin || !i.role.isProtected).map(toInvitationDTO)
 }
 
 export async function createInvitation(
-  actor: { id: string; name: string; email: string },
+  actor: RbacActor,
   input: { email: string; name?: string | null; roleId: string }
 ): Promise<InvitationDTO> {
+  const ctx = await getActorContext(actor)
   const email = input.email.trim().toLowerCase()
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new RbacServiceError('Enter a valid email address')
-  const role = await db.role.findUnique({ where: { id: input.roleId } })
+  const role = await db.role.findUnique({
+    where: { id: input.roleId },
+    include: { permissions: { select: { permissionKey: true } } },
+  })
   if (!role) throw new RbacServiceError('Role not found', 404)
   if (role.scope !== 'PLATFORM') throw new RbacServiceError('Invitations currently target platform roles only')
+  // RBACSEC-1: no inviting people as super-admin / org.owner unless you are one.
+  assertCanSeeRole(ctx, role)
+  // RBACSEC-1: privilege bracketing on invitations too.
+  ensureWithinBracket(ctx, role.permissions.map((p) => p.permissionKey), `invite staff to "${role.name}"`)
 
   const existingUser = await db.user.findUnique({ where: { email }, select: { id: true } })
   if (existingUser) {
@@ -586,7 +791,7 @@ export async function createInvitation(
       invitedByName: actor.name,
       expiresAt: new Date(Date.now() + INVITE_TTL_MS),
     },
-    include: { role: { select: { id: true, key: true, name: true } } },
+    include: { role: { select: { id: true, key: true, name: true, isProtected: true } } },
   })
 
   await recordAudit({
@@ -601,8 +806,11 @@ export async function createInvitation(
   return toInvitationDTO(invitation)
 }
 
-export async function revokeInvitation(actor: { id: string; name: string; email: string }, id: string): Promise<void> {
-  const invitation = await db.staffInvitation.findUnique({ where: { id } })
+export async function revokeInvitation(actor: RbacActor, id: string): Promise<void> {
+  const invitation = await db.staffInvitation.findUnique({
+    where: { id },
+    include: { role: { select: { key: true } } },
+  })
   if (!invitation) throw new RbacServiceError('Invitation not found', 404)
   if (invitation.status !== 'PENDING') throw new RbacServiceError('Only pending invitations can be revoked', 409)
   await db.staffInvitation.update({ where: { id }, data: { status: 'REVOKED' } })

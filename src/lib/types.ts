@@ -27,6 +27,8 @@ export interface RbacRoleDTO {
   description: string | null
   scope: 'PLATFORM' | 'ORG'
   isSystem: boolean
+  /** RBACSEC-1: protected roles (super-admin, org.owner) — only visible/editable by super admins. */
+  isProtected: boolean
   permissions: string[]
   memberCount: number
   createdAt: string
