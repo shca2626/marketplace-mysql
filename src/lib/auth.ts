@@ -108,6 +108,7 @@ export function toSessionUser(
     image?: string | null
     storeName?: string | null
     storeBio?: string | null
+    storeCover?: string | null
     createdAt?: Date
     emailVerifiedAt?: Date | null
   },
@@ -121,6 +122,8 @@ export function toSessionUser(
     image: user.image ?? null,
     storeName: user.storeName ?? null,
     storeBio: user.storeBio ?? null,
+    // STAB-8: curated storefront cover id — persisted on the seller profile.
+    storeCover: user.storeCover ?? null,
     createdAt: user.createdAt ? user.createdAt.toISOString() : undefined,
     emailVerifiedAt: user.emailVerifiedAt ? user.emailVerifiedAt.toISOString() : null,
     // RBAC (Phase 2): effective platform permissions + console-access flag.

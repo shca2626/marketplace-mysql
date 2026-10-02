@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { recordAudit } from '@/server/modules/audit/service'
-import { emitNotification } from '@/server/modules/notifications/service'
+import { emitNotification, emitNotifications, type EmitInput } from '@/server/modules/notifications/service'
 
 /**
  * Payments — explicit money settlement for orders.
@@ -168,11 +168,13 @@ export async function ensurePayment(
 }
 
 /** Mark a payment SUCCEEDED and (unless the order runs on invoice terms) flip
- *  the order to PAID. Used by the card gateway path and admin capture. */
+ *  the order to PAID. Used by the card gateway path and admin capture.
+ *  Returns whether the ORDER flipped to PAID so callers can fan out the
+ *  ORDER_STATUS notifications AFTER their transaction commits. */
 export async function succeedPayment(
   tx: Tx,
   input: { paymentId: string; capturedById?: string | null; reference?: string | null; note?: string | null; orderBecomesPaid?: boolean }
-) {
+): Promise<{ orderBecamePaid: boolean }> {
   const payment = await tx.payment.findUnique({ where: { id: input.paymentId }, include: { order: true } })
   if (!payment) throw new PaymentServiceError('Payment not found', 404)
   if (payment.status === 'SUCCEEDED') throw new PaymentServiceError('Payment already captured', 409)
@@ -193,10 +195,47 @@ export async function succeedPayment(
   // Quote-conversion orders run on NET terms — fulfillment continues regardless;
   // money is tracked on the payment row only.
   const orderOnTerms = payment.order.sourceType === 'RFQ' || !!payment.order.paymentTerms
-  if (input.orderBecomesPaid !== false && !orderOnTerms) {
+  const orderBecamePaid = input.orderBecomesPaid !== false && !orderOnTerms
+  if (orderBecamePaid) {
     await tx.order.update({ where: { id: payment.orderId }, data: { status: 'PAID' } })
   }
-  return payment
+  return { orderBecamePaid }
+}
+
+/** Best-effort fan-out when a captured payment flips an order to PAID: the
+ *  buyer gets a payment confirmation and every participating seller learns
+ *  that fulfillment is unlocked. Call AFTER the payment transaction commits
+ *  (no ghost pings on rollback). Never throws. */
+export async function notifyOrderPaid(orderId: string): Promise<void> {
+  try {
+    const order = await db.order.findUnique({ where: { id: orderId }, include: { items: true } })
+    if (!order) return
+    const number = order.poNumber ?? order.id.slice(-8).toUpperCase()
+    const inputs: EmitInput[] = [
+      {
+        userId: order.buyerId,
+        type: 'ORDER_STATUS',
+        title: `Payment confirmed — order ${number}`,
+        body: 'Your payment was confirmed and the order is now being processed.',
+        linkView: 'orders',
+        linkId: order.id,
+      },
+    ]
+    for (const sellerId of new Set(order.items.map((i) => i.sellerId))) {
+      if (sellerId === order.buyerId) continue
+      inputs.push({
+        userId: sellerId,
+        type: 'ORDER_STATUS',
+        title: `Order ${number} paid`,
+        body: "The buyer's payment was confirmed — fulfillment is unlocked.",
+        linkView: 'seller',
+        linkId: order.id,
+      })
+    }
+    await emitNotifications(inputs)
+  } catch (err) {
+    console.error('order notification error', err)
+  }
 }
 
 /** Cancel the pending payment of a cancelled order (idempotent). */
@@ -227,7 +266,8 @@ export async function buyerPayOrder(
   const method: PaymentMethod = input.method ?? order.payment?.method ?? 'BANK_TRANSFER'
   if (method === 'INVOICE') throw new PaymentServiceError('Invoices are settled by the platform', 400)
 
-  return db.$transaction(async (tx) => {
+  let becamePaid = false
+  const result = await db.$transaction(async (tx) => {
     const payment = await ensurePayment(tx, {
       orderId: order.id,
       amount: order.total,
@@ -237,7 +277,8 @@ export async function buyerPayOrder(
     })
 
     if (method === 'CARD') {
-      await succeedPayment(tx, { paymentId: payment.id, reference: `SIM-${Date.now().toString(36).toUpperCase()}` })
+      const settled = await succeedPayment(tx, { paymentId: payment.id, reference: `SIM-${Date.now().toString(36).toUpperCase()}` })
+      becamePaid = settled.orderBecamePaid
       return { order: await tx.order.findUnique({ where: { id: order.id } }), payment: await tx.payment.findUnique({ where: { id: payment.id } }), paid: true }
     }
 
@@ -250,6 +291,10 @@ export async function buyerPayOrder(
     }
     return { order, payment: await tx.payment.findUnique({ where: { id: payment.id } }), paid: false }
   })
+
+  // Order-side fan-out — only after the transaction commits
+  if (becamePaid) await notifyOrderPaid(order.id)
+  return result
 }
 
 // ── Admin actions ───────────────────────────────────────────────────────────
@@ -346,8 +391,10 @@ export async function adminListPayments(filters: {
 }
 
 export async function adminCapturePayment(adminId: string, paymentId: string, note?: string) {
+  let becamePaid = false
   const result = await db.$transaction(async (tx) => {
-    const payment = await succeedPayment(tx, { paymentId, capturedById: adminId, note })
+    const settled = await succeedPayment(tx, { paymentId, capturedById: adminId, note })
+    becamePaid = settled.orderBecamePaid
     return tx.payment.findUnique({
       where: { id: paymentId },
       include: { order: { include: { buyer: { select: { id: true, name: true } } } } },
@@ -372,6 +419,10 @@ export async function adminCapturePayment(adminId: string, paymentId: string, no
     linkView: 'orders',
     linkId: result!.orderId,
   })
+
+  // Order-side fan-out when the capture flipped the order to PAID
+  // (after the transaction commits)
+  if (becamePaid) await notifyOrderPaid(result!.orderId)
 
   return result
 }

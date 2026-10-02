@@ -146,8 +146,10 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/85 backdrop-blur-md">
-      {/* Announcement bar — admin-controlled (Platform Settings → Branding) */}
-      {announcement?.enabled !== false && (
+      {/* Announcement bar — admin-controlled (Platform Settings → Branding).
+          Financing surfaces are YER-primary — the retail USD announcement
+          stays off them (Phase 1 currency policy). */}
+      {!pathname.startsWith('/funding') && announcement?.enabled !== false && (
         <div className="bg-primary text-primary-foreground">
           <p className="mx-auto max-w-7xl px-4 py-1.5 text-center text-xs font-medium tracking-wide sm:text-[13px]">
             {announcement?.text || DEFAULT_ANNOUNCEMENT}

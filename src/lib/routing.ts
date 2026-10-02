@@ -57,6 +57,7 @@ export function viewToQuery(view: View, params: ViewParams = {}): string {
   if (view === 'rfqs' && params.rfqId) sp.set('rfq', params.rfqId)
   if (view === 'rfqs' && params.scheduleId) sp.set('schedule', params.scheduleId)
   if (view === 'seller' && params.disputeId) sp.set('dispute', params.disputeId)
+  if (view === 'seller' && params.rfqId) sp.set('rfq', params.rfqId) // seller RFQ inbox deep-link (bell → inbox detail)
   if (view === 'financing' && params.requestId) sp.set('request', params.requestId)
   if (view === 'financing' && params.financingSection) sp.set('section', params.financingSection)
   if (view === 'financing' && params.financingWizard) sp.set('wizard', params.financingWizard)
@@ -114,6 +115,8 @@ export function parseLocation(href: string = typeof window !== 'undefined' ? win
     if (view === 'seller') {
       const dispute = sp.get('dispute')
       if (dispute) params.disputeId = dispute
+      const rfq = sp.get('rfq')
+      if (rfq) params.rfqId = rfq
     }
     if (view === 'financing') {
       const request = sp.get('request')

@@ -3,14 +3,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Ban,
+  Banknote,
   Bell,
   CalendarCheck,
   CalendarClock,
   CalendarX,
   CheckCheck,
   ClipboardList,
+  Coins,
+  FileCheck2,
   FileText,
+  FileX2,
   Handshake,
+  Landmark,
   Mail,
   MessageSquareText,
   PackageCheck,
@@ -18,8 +23,11 @@ import {
   Scale,
   ShieldCheck,
   ShieldQuestion,
+  ShieldX,
   Truck,
   Undo2,
+  Wallet,
+  XCircle,
 } from 'lucide-react'
 import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
@@ -152,6 +160,100 @@ const NOTIF_META: Record<string, { icon: BellIcon; iconClass: string }> = {
   RECURRING_PAUSED: {
     icon: CalendarX,
     iconClass: 'bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400',
+  },
+  // ── order + payment lifecycle ──
+  ORDER_STATUS: {
+    icon: PackageCheck,
+    iconClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+  },
+  PAYMENT_STATUS: {
+    icon: Wallet,
+    iconClass: 'bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300',
+  },
+  PAYOUT_STATUS: {
+    icon: Banknote,
+    iconClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+  },
+  VENDOR_STATUS: {
+    icon: ShieldCheck,
+    iconClass: 'bg-stone-200 text-stone-700 dark:bg-stone-800 dark:text-stone-300',
+  },
+  // ── financing module (applicant / financier / admin) ──
+  PLATFORM_RETURNED_REQUEST: {
+    icon: Undo2,
+    iconClass: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+  },
+  PLATFORM_FORWARDED_REQUEST: {
+    icon: Landmark,
+    iconClass: 'bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300',
+  },
+  FINANCING_REQUEST_RECEIVED: {
+    icon: Landmark,
+    iconClass: 'bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300',
+  },
+  FINANCING_STATUS_CHANGED: {
+    icon: FileText,
+    iconClass: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+  },
+  REQUIREMENT_VERIFIED: {
+    icon: CheckCheck,
+    iconClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+  },
+  REQUIREMENT_REJECTED: {
+    icon: XCircle,
+    iconClass: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300',
+  },
+  DOCUMENT_VERIFIED: {
+    icon: FileCheck2,
+    iconClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+  },
+  DOCUMENT_REJECTED: {
+    icon: FileX2,
+    iconClass: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300',
+  },
+  OFFER_RECEIVED: {
+    icon: Wallet,
+    iconClass: 'bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300',
+  },
+  OFFER_ACCEPTED: {
+    icon: Handshake,
+    iconClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+  },
+  OFFER_DECLINED: {
+    icon: Ban,
+    iconClass: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300',
+  },
+  OFFER_WITHDRAWN: {
+    icon: Undo2,
+    iconClass: 'bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400',
+  },
+  FEE_ACCRUED: {
+    icon: Coins,
+    iconClass: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+  },
+  AGREEMENT_STATUS_CHANGED: {
+    icon: Handshake,
+    iconClass: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+  },
+  ACCREDITATION_RECEIVED: {
+    icon: ShieldQuestion,
+    iconClass: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+  },
+  ACCREDITATION_GRANTED: {
+    icon: ShieldCheck,
+    iconClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+  },
+  ACCREDITATION_REJECTED: {
+    icon: Ban,
+    iconClass: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300',
+  },
+  ACCREDITATION_REVOKED: {
+    icon: ShieldX,
+    iconClass: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300',
+  },
+  ACCREDITATION_EXPIRING: {
+    icon: CalendarClock,
+    iconClass: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
   },
 }
 const FALLBACK_META = {

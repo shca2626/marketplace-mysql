@@ -53,6 +53,7 @@ import {
   StepFlow,
   money,
   moneyRange,
+  plural,
   tenorLabel,
   PROGRAM_CATEGORIES,
   RATE_LABELS,
@@ -109,12 +110,13 @@ function EmptyNote({
   )
 }
 
-/** Small icon + number + label, used in entity directory rows. */
+/** Small icon + number + label, used in entity directory rows.
+ *  The label is pluralized against the value (STAB-7: "1 program"). */
 function MicroStat({ icon: IconCmp, value, label }: { icon: LucideIcon; value: number; label: string }) {
   return (
     <span className="inline-flex items-center gap-1.5 text-xs font-medium text-bh-muted">
       <IconCmp className="h-3.5 w-3.5 text-bh-gold" aria-hidden />
-      <span className="font-bold tabular-nums text-bh-navy">{value}</span> {label}
+      <span className="font-bold tabular-nums text-bh-navy">{value}</span> {plural(label, value)}
     </span>
   )
 }
@@ -415,8 +417,8 @@ export function StoryWall({ stories, stats }: { stories: PublicStory[]; stats: F
         <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatTile icon="HandCoins" label="Total financed (YER)" value={stats.totalFinanced} compact />
           <StatTile icon="Users" label="People impacted" value={stats.peopleImpacted} compact />
-          <StatTile icon="Moon" label="Sharia-compliant programs" value={stats.shariaPrograms} compact />
-          <StatTile icon="Leaf" label="CO₂ avoided (tonnes)" value={stats.co2Avoided} compact decimals={0} />
+          <StatTile icon="Moon" label={plural('Sharia-compliant programs', stats.shariaPrograms)} value={stats.shariaPrograms} compact />
+          <StatTile icon="Leaf" label={plural('CO₂ avoided (tonnes)', stats.co2Avoided)} value={stats.co2Avoided} compact decimals={0} />
         </div>
       </SectionContainer>
     </Section>
@@ -653,18 +655,24 @@ export function KeyFactsPanel({ service }: { service: ProgramDetailData }) {
   if (isAccreditation) {
     if (service.accreditationFeeAmount != null)
       rows.push({ label: 'Program fee', value: `from ${money(service.accreditationFeeAmount, service.currency)}` })
-    if (service.processingDays != null) rows.push({ label: 'Decision time', value: `≈ ${service.processingDays} days` })
-    if (service.accreditationValidMonths != null) rows.push({ label: 'Accreditation valid', value: `${service.accreditationValidMonths} months` })
+    if (service.processingDays != null)
+      rows.push({ label: 'Decision time', value: `≈ ${service.processingDays} ${plural('days', service.processingDays)}` })
+    if (service.accreditationValidMonths != null)
+      rows.push({ label: 'Accreditation valid', value: `${service.accreditationValidMonths} ${plural('months', service.accreditationValidMonths)}` })
   } else {
     if (service.amountMin != null || service.amountMax != null)
       rows.push({ label: 'Financing range', value: moneyRange(service.amountMin, service.amountMax, service.currency) })
     if (service.rateMax != null && service.rateType)
       rows.push({ label: 'Rate cap', value: `${RATE_LABELS[service.rateType] ?? service.rateType} ≤ ${service.rateMax}%` })
-    if (service.gracePeriodDays != null) rows.push({ label: 'Grace period', value: `up to ${Math.round(service.gracePeriodDays / 30)} months` })
+    if (service.gracePeriodDays != null) {
+      const graceMonths = Math.round(service.gracePeriodDays / 30)
+      rows.push({ label: 'Grace period', value: `up to ${graceMonths} ${plural('months', graceMonths)}` })
+    }
     const tenor = tenorLabel(service.tenorMinMonths, service.tenorMaxMonths)
     if (tenor) rows.push({ label: 'Repayment period', value: tenor })
     if (REPAYMENT_LABELS[service.repaymentFrequency ?? '']) rows.push({ label: 'Repayment', value: REPAYMENT_LABELS[service.repaymentFrequency] })
-    if (service.processingDays != null) rows.push({ label: 'Decision time', value: `≈ ${service.processingDays} days` })
+    if (service.processingDays != null)
+      rows.push({ label: 'Decision time', value: `≈ ${service.processingDays} ${plural('days', service.processingDays)}` })
     rows.push({ label: 'Currency', value: service.currency === 'YER' ? 'Yemeni Rial (YER)' : service.currency })
   }
 
@@ -903,7 +911,7 @@ export function ProgramRequirements({ requirements }: { requirements: ProgramDet
                   <span className="rounded bg-bh-soft-blue px-2 py-0.5 text-[10px] font-bold text-bh-action">Required</span>
                 )}
                 {r.validityMonths != null && (
-                  <span className="rounded bg-bh-bg-gold px-2 py-0.5 text-[10px] font-medium text-bh-gold-dark">Valid {r.validityMonths} mos</span>
+                  <span className="rounded bg-bh-bg-gold px-2 py-0.5 text-[10px] font-medium text-bh-gold-dark">Valid {r.validityMonths} {plural('mos', r.validityMonths)}</span>
                 )}
                 {r.autoPassAccredited && (
                   <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">

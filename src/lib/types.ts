@@ -8,6 +8,8 @@ export interface SessionUser {
   image?: string | null
   storeName?: string | null
   storeBio?: string | null
+  /** STAB-8: curated storefront cover id (see src/lib/store-covers.ts). */
+  storeCover?: string | null
   createdAt?: string
   /** AUTHSEC-1: null until the user confirms their email via the emailed link. */
   emailVerifiedAt?: string | null
@@ -215,6 +217,12 @@ export interface StoreDTO {
   name: string
   storeName: string | null
   storeBio: string | null
+  /** STAB-8: curated cover id (STORE_COVERS) — null = default gradient. */
+  storeCover: string | null
+  /** Resolved server-side (id → url) so clients don't need the cover map. */
+  storeCoverUrl: string | null
+  /** Cover label for alt text (resolved alongside storeCoverUrl). */
+  storeCoverLabel: string | null
   memberSince: string
   activeListings: number
   totalSold: number
@@ -475,6 +483,39 @@ export interface RfqMessageDTO {
   author: { id: string; name: string; role: string }
   body: string
   createdAt: string
+}
+
+// ── Open Requests directory (seller console, STAB-6) ────────────────────────
+
+/** One free-form ("open item") line of an RFQ — productId is null. */
+export interface OpenRfqLineDTO {
+  id: string
+  productName: string
+  sku?: string | null
+  quantity: number
+  targetPrice?: number | null
+  notes?: string | null
+}
+
+/**
+ * Open Requests directory entry — a live, quotable RFQ that carries at least
+ * one free-form line (productId = null), surfaced to sellers by keyword match
+ * against their ACTIVE catalog. Buyer identity is limited to name + org
+ * (no contact details — negotiation stays on the RFQ thread).
+ */
+export interface OpenRfqDTO {
+  id: string
+  number: string
+  title?: string | null
+  description?: string | null
+  createdAt: string
+  expiresAt?: string | null
+  buyer: { id?: string; name: string; orgName?: string | null }
+  openLines: OpenRfqLineDTO[]
+  /** Catalog keywords this request matched (top ~6, most frequent first). */
+  matchedKeywords: string[]
+  /** Always 0 by construction (the query excludes RFQs I already quoted). */
+  myQuoteCount: number
 }
 
 // ── Media library (uploads) ──

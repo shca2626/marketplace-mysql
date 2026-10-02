@@ -140,11 +140,18 @@ export function RfqView() {
 
   // Deep link: / with params.rfqId (notification bell, handoffs) opens the
   // detail directly. Consumed once — navigating back shows the list.
+  // SELLERS are redirected to their console's RFQ inbox detail instead — the
+  // buyer detail page (cancel action, owner copy) is never the right surface
+  // for a seller who followed an "open request" or quote notification.
   const deepLinkConsumed = useRef<string | null>(null)
   useEffect(() => {
     const target = viewParams.rfqId
     if (!user || !target || deepLinkConsumed.current === target) return
     deepLinkConsumed.current = target
+    if (user.role === 'SELLER') {
+      navigate('seller', { sellerTab: 'rfqs', rfqId: target })
+      return
+    }
     setMode({ type: 'detail', id: target })
     navigate('rfqs', {})
   }, [user, viewParams.rfqId, navigate])

@@ -6,7 +6,7 @@ import { emitNotification, emitNotifications, type EmitInput } from '@/server/mo
 import { resolvePanel } from '@/server/modules/settings/service'
 import { ensurePayment } from '@/server/modules/payments/service'
 import { openDisputeCountBySeller, lostDisputeCountBySeller } from './disputes'
-import type { RfqDTO, QuoteDTO, RfqLineDTO, QuoteLineDTO, RfqMessageDTO } from '@/lib/types'
+import type { RfqDTO, QuoteDTO, RfqLineDTO, QuoteLineDTO, RfqMessageDTO, OpenRfqDTO } from '@/lib/types'
 
 /**
  * RFQ / QUOTE — the B2B negotiation primitive.
@@ -626,7 +626,14 @@ export async function getRfq(rfqId: string, viewer: { id: string; role: string }
   // (they need this to discover requests and respond with quotes).
   const isLineSeller = rfq.lines.some((l) => l.product && l.product.sellerId === viewer.id)
   const isInvolvedSeller = rfq.quotes.some((q) => q.sellerId === viewer.id)
-  if (!isOwner && !isAdmin && !isLineSeller && !isInvolvedSeller) {
+  // STAB-6: open-item RFQs (free-form lines with productId=null) are a public
+  // RFQ board — any seller can discover live ones via the Open Requests
+  // directory, so viewing is allowed without a catalog reference too.
+  const isOpenBoardViewer =
+    viewer.role === 'SELLER' &&
+    ['SUBMITTED', 'UNDER_REVIEW', 'QUOTED'].includes(rfq.status) &&
+    rfq.lines.some((l) => l.productId === null)
+  if (!isOwner && !isAdmin && !isLineSeller && !isInvolvedSeller && !isOpenBoardViewer) {
     throw new RfqServiceError('Access denied', 403)
   }
 
@@ -742,6 +749,54 @@ export async function rfqTransition(
         linkId: rfqId,
       }
     })
+
+    // ── STAB-6: open-item routing ──
+    // Free-form lines (productId=null) reference no catalog product, so
+    // computeEligibleSellers can't see them. Extend the fan-out: also notify
+    // sellers whose ACTIVE catalog keyword-matches the open-line text — they'll
+    // find the request in their "Open requests" directory too.
+    const openLines = await db.rfqLine.findMany({
+      where: { rfqId, productId: null },
+      select: { productName: true, notes: true },
+    })
+    if (openLines.length > 0) {
+      const openTokens = new Set(
+        tokenizeKeywords(...openLines.flatMap((l) => [l.productName, l.notes]))
+      )
+      if (openTokens.size > 0) {
+        // Exclude the buyer's own seller account + sellers already notified
+        const excluded = new Set<string>([...eligible, rfq.userId])
+        const products = await db.product.findMany({
+          where: { status: 'ACTIVE', sellerId: { notIn: [...excluded] } },
+          select: { sellerId: true, title: true, category: { select: { name: true } } },
+          orderBy: { createdAt: 'desc' },
+          take: 2000,
+        })
+        const keywordsBySeller = new Map<string, Set<string>>()
+        for (const p of products) {
+          const kw = keywordsBySeller.get(p.sellerId) ?? new Set<string>()
+          for (const t of tokenizeKeywords(p.title, p.category?.name)) kw.add(t)
+          keywordsBySeller.set(p.sellerId, kw)
+        }
+        const matchedSellers = [...keywordsBySeller.entries()]
+          .map(([sellerId, kw]) => ({ sellerId, hits: [...openTokens].filter((t) => kw.has(t)) }))
+          .filter((m) => m.hits.length > 0)
+          .sort((a, b) => b.hits.length - a.hits.length)
+          .slice(0, 20)
+
+        const firstOpenLine = (openLines[0]?.productName ?? 'open item').slice(0, 80)
+        emits.push(
+          ...matchedSellers.map((m) => ({
+            userId: m.sellerId,
+            type: 'RFQ_SUBMITTED_SELLER' as const,
+            title: `Open request ${rfq.number}: ${firstOpenLine}`,
+            body: `Open request matches your catalog: ${m.hits.slice(0, 5).join(', ')}`,
+            linkView: 'rfq' as const,
+            linkId: rfqId,
+          }))
+        )
+      }
+    }
     await emitNotifications(emits)
   } else if (action === 'REVIEW' || action === 'REJECT') {
     await emitNotification({
@@ -1305,6 +1360,120 @@ export async function sellerRfqInbox(sellerId: string): Promise<RfqDTO[]> {
   })
 }
 
+// ── Open Requests directory (STAB-6: open-item RFQ routing) ─────────────────
+
+/** Lowercase word tokens of ≥3 chars (latin + digits) — shared keyword matcher. */
+function tokenizeKeywords(...texts: (string | null | undefined)[]): string[] {
+  const tokens: string[] = []
+  for (const t of texts) {
+    if (!t) continue
+    tokens.push(...(t.toLowerCase().match(/[a-z0-9]{3,}/g) ?? []))
+  }
+  return tokens
+}
+
+/**
+ * Keyword set for a seller's ACTIVE catalog — product titles plus category
+ * names (categories match directly so a "Solar Panels" seller surfaces a
+ * "photovoltaic" request that names the category).
+ */
+async function sellerKeywordSet(sellerId: string): Promise<Set<string>> {
+  const products = await db.product.findMany({
+    where: { sellerId, status: 'ACTIVE' },
+    select: { title: true, category: { select: { name: true } } },
+    take: 500,
+  })
+  return new Set(products.flatMap((p) => tokenizeKeywords(p.title, p.category?.name)))
+}
+
+/** Distinct rfqTokens present in the seller's keyword set, most frequent first. */
+function matchKeywords(
+  rfqTokens: string[],
+  sellerKeywords: Set<string>
+): { keyword: string; count: number }[] {
+  const counts = new Map<string, number>()
+  for (const t of rfqTokens) {
+    if (sellerKeywords.has(t)) counts.set(t, (counts.get(t) ?? 0) + 1)
+  }
+  return [...counts.entries()]
+    .map(([keyword, count]) => ({ keyword, count }))
+    .sort((a, b) => b.count - a.count || a.keyword.localeCompare(b.keyword))
+}
+
+/**
+ * Open Requests directory — live, quotable RFQs that carry at least one
+ * free-form line (productId=null). Sellers reach these by keyword match
+ * against their ACTIVE catalog; matched requests rank first, then newest.
+ * The buyer's identity is limited to name + org (negotiation happens on the
+ * RFQ thread, not via contact details).
+ */
+export async function openRfqDirectory(sellerId: string): Promise<OpenRfqDTO[]> {
+  await expireStaleQuotes()
+  await nudgeBackgroundSweeps()
+
+  const keywords = await sellerKeywordSet(sellerId)
+
+  const rfqs = await db.rfq.findMany({
+    where: {
+      status: { in: ['SUBMITTED', 'UNDER_REVIEW', 'QUOTED'] },
+      // at least one open/free-form line — that's what makes it "open"
+      lines: { some: { productId: null } },
+      // requests I already quoted stay in my main inbox, not the directory
+      quotes: { none: { sellerId } },
+      // deadline not passed (null expiresAt = no deadline)
+      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      // a seller doesn't see their own buyer-side requests
+      userId: { not: sellerId },
+    },
+    include: {
+      user: { select: { id: true, name: true } },
+      organization: { select: { name: true } },
+      lines: { where: { productId: null } },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+  })
+
+  const entries = rfqs.map((r) => {
+    const rfqTokens = tokenizeKeywords(
+      r.title,
+      r.description,
+      ...r.lines.flatMap((l) => [l.productName, l.notes]),
+    )
+    const matched = matchKeywords(rfqTokens, keywords)
+    const dto: OpenRfqDTO = {
+      id: r.id,
+      number: r.number,
+      title: r.title,
+      description: r.description,
+      createdAt: r.createdAt.toISOString(),
+      expiresAt: r.expiresAt?.toISOString() ?? null,
+      buyer: {
+        id: r.user.id,
+        name: r.user.name,
+        orgName: r.organization?.name ?? null,
+      },
+      openLines: r.lines.map((l) => ({
+        id: l.id,
+        productName: l.productName,
+        sku: l.sku,
+        quantity: l.quantity,
+        targetPrice: l.targetPrice ?? null,
+        notes: l.notes,
+      })),
+      matchedKeywords: matched.slice(0, 6).map((m) => m.keyword),
+      // 0 by construction (query excludes RFQs with my quote) — kept for
+      // symmetry with the inbox DTO so consumers can rely on it.
+      myQuoteCount: 0,
+    }
+    return { dto, matchCount: matched.length, createdAtMs: r.createdAt.getTime() }
+  })
+
+  // Keyword matches first (strongest signal), then newest; cap the board at 60.
+  entries.sort((a, b) => b.matchCount - a.matchCount || b.createdAtMs - a.createdAtMs)
+  return entries.slice(0, 60).map((e) => e.dto)
+}
+
 // ── Negotiation thread ──────────────────────────────────────────────────────
 
 async function assertRfqThreadAccess(
@@ -1315,7 +1484,8 @@ async function assertRfqThreadAccess(
     where: { id: rfqId },
     select: {
       userId: true,
-      lines: { select: { product: { select: { sellerId: true } } } },
+      status: true,
+      lines: { select: { productId: true, product: { select: { sellerId: true } } } },
       quotes: { select: { sellerId: true } },
     },
   })
@@ -1324,7 +1494,14 @@ async function assertRfqThreadAccess(
   const isAdmin = viewer.role === 'ADMIN'
   const isLineSeller = rfq.lines.some((l) => l.product && l.product.sellerId === viewer.id)
   const isInvolvedSeller = rfq.quotes.some((q) => q.sellerId === viewer.id)
-  if (!isOwner && !isAdmin && !isLineSeller && !isInvolvedSeller) {
+  // STAB-6: open-item RFQs are a public RFQ board — sellers arriving via the
+  // Open Requests directory may negotiate on the thread without a catalog
+  // reference (same live statuses as the directory itself).
+  const isOpenBoardViewer =
+    viewer.role === 'SELLER' &&
+    ['SUBMITTED', 'UNDER_REVIEW', 'QUOTED'].includes(rfq.status) &&
+    rfq.lines.some((l) => l.productId === null)
+  if (!isOwner && !isAdmin && !isLineSeller && !isInvolvedSeller && !isOpenBoardViewer) {
     throw new RfqServiceError('Access denied', 403)
   }
 }

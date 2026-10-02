@@ -73,8 +73,14 @@ export function StoreView() {
   const [visible, setVisible] = useState(PAGE_SIZE)
   const [justShared, setJustShared] = useState(false)
 
-  // Cover picked by the seller (client-side, per-browser — schema frozen this phase)
-  const [cover] = useState(() => (sellerId ? getStoreCover(sellerId) : null))
+  // Cover picked by the seller. Primary source is the server-persisted choice
+  // on the seller profile (STAB-8); localStorage is the fallback for stores
+  // whose choice predates server persistence. Read once per seller — the
+  // legacy pick never changes while the view is mounted.
+  const [localCover, setLocalCover] = useState(() => (sellerId ? getStoreCover(sellerId) : null))
+  const cover = store?.storeCoverUrl
+    ? { url: store.storeCoverUrl, label: store.storeCoverLabel ?? 'storefront cover' }
+    : localCover
 
   const storeName = store?.storeName ?? store?.name ?? 'Store'
 
@@ -101,6 +107,7 @@ export function StoreView() {
     setCategory('')
     setSort('popular')
     setVisible(PAGE_SIZE)
+    setLocalCover(sellerId ? getStoreCover(sellerId) : null)
   }
 
   const productsQuery = useMemo(() => {
@@ -148,7 +155,8 @@ export function StoreView() {
         transition={{ duration: 0.35 }}
       >
         <Card className="overflow-hidden gap-0 py-0">
-          {/* Cover — seller's curated image, or the default warm gradient */}
+          {/* Cover — the seller's curated, profile-persisted image (STAB-8),
+              or the default warm gradient */}
           <div className="relative h-32 overflow-hidden bg-gradient-to-br from-primary/85 via-primary/60 to-amber-400/70 sm:h-40">
             {cover ? (
               <>

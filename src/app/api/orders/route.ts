@@ -6,7 +6,7 @@ import { serializeOrder } from '@/lib/serialize'
 import { computePricing } from '@/lib/pricing'
 import { findActiveCoupon, type ActiveCoupon } from '@/server/modules/coupons/service'
 import { needsApproval, createOrderApprovalRequest, notifyOrderApprovalRequested } from '@/server/modules/approvals/service'
-import { ensurePayment, succeedPayment } from '@/server/modules/payments/service'
+import { ensurePayment, succeedPayment, notifyOrderPaid } from '@/server/modules/payments/service'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 
@@ -164,7 +164,7 @@ export async function POST(req: NextRequest) {
         pricing.total
       )
 
-    const order = await db.$transaction(async (tx) => {
+    const { order, paymentCaptured } = await db.$transaction(async (tx) => {
       const created = await tx.order.create({
         data: {
           buyerId: user.id,
@@ -221,6 +221,7 @@ export async function POST(req: NextRequest) {
         })
       }
 
+      let paymentCaptured = false
       if (routeForApproval) {
         await createOrderApprovalRequest(tx, {
           organizationId: orgId!,
@@ -238,13 +239,14 @@ export async function POST(req: NextRequest) {
           orderRef: created.id.slice(-8).toUpperCase(),
         })
         if (method === 'CARD') {
-          await succeedPayment(tx, {
+          const settled = await succeedPayment(tx, {
             paymentId: payment.id,
             reference: `SIM-${Date.now().toString(36).toUpperCase()}`,
           })
+          paymentCaptured = settled.orderBecamePaid
         }
       }
-      return created
+      return { order: created, paymentCaptured }
     })
 
     // Bell event for the org's approvers (after the tx commits — no ghost pings on rollback)
@@ -256,6 +258,13 @@ export async function POST(req: NextRequest) {
         amount: pricing.total,
         itemCount: order.items.length,
       })
+    }
+
+    // PAID fan-out for instantly-settled card checkouts (after the tx
+    // commits — the buyer gets a receipt-style confirmation, participating
+    // sellers learn fulfillment is unlocked)
+    if (paymentCaptured) {
+      await notifyOrderPaid(order.id)
     }
 
     const paymentRow = await db.payment.findUnique({ where: { orderId: order.id } })

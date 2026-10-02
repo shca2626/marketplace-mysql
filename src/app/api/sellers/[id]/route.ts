@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { findStoreCover } from '@/lib/store-covers'
 
 // GET /api/sellers/[id] — public storefront profile for any seller.
 // Read-only aggregation over existing tables (no new transaction surface).
@@ -17,6 +18,7 @@ export async function GET(
         name: true,
         storeName: true,
         storeBio: true,
+        storeCover: true,
         createdAt: true,
       },
     })
@@ -54,12 +56,20 @@ export async function GET(
     }, new Map<string, { id: string; name: string; slug: string; count: number }>())
     const categories = [...categoryMap.values()]
 
+    // STAB-8: resolve the persisted cover id to its url/label server-side
+    // so buyers' clients never need the curated map. A stale/unknown id
+    // resolves to null → the storefront falls back to the default gradient.
+    const cover = findStoreCover(seller.storeCover)
+
     return NextResponse.json({
       seller: {
         id: seller.id,
         name: seller.name,
         storeName: seller.storeName,
         storeBio: seller.storeBio,
+        storeCover: seller.storeCover,
+        storeCoverUrl: cover?.url ?? null,
+        storeCoverLabel: cover?.label ?? null,
         memberSince: seller.createdAt.toISOString(),
         activeListings: products.length,
         totalSold,

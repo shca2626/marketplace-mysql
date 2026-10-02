@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   ArrowRight,
   Check,
@@ -77,30 +77,71 @@ export function SellerView() {
   const [storeForm, setStoreForm] = useState({ storeName: '', storeBio: '' })
   const [upgrading, setUpgrading] = useState(false)
   const [activeTab, setActiveTab] = useState(params.sellerTab ?? 'overview')
-  // Storefront cover — client-side choice (localStorage; schema frozen this phase).
-  // Render-time keyed re-read when the signed-in seller changes (same pattern
-  // as the tab sync above — no effect cascade).
-  const [coverChoice, setCoverChoice] = useState<{ sellerKey: string | null; id: string | null }>({
-    sellerKey: null,
-    id: null,
-  })
+  // Storefront cover — persisted on the seller profile (STAB-8). localStorage
+  // stays as an instant optimistic cache + the migration fallback for choices
+  // made before server persistence existed. Render-time keyed re-read when
+  // the signed-in seller changes (same pattern as the tab sync above — no
+  // effect cascade).
+  // In-flight PATCH's cover id (null = idle) — guards the sync block below
+  // against reverting an optimistic pick mid-request.
+  const coverPending = useRef<string | null>(null)
+
+  const [coverChoice, setCoverChoice] = useState<{
+    sellerKey: string | null
+    serverId: string | null
+    id: string | null
+  }>({ sellerKey: null, serverId: null, id: null })
   const sellerKey = user?.id ?? null
+  const serverCoverId = user?.storeCover ?? null
   if (coverChoice.sellerKey !== sellerKey) {
-    const cover = sellerKey ? getStoreCover(sellerKey) : null
-    setCoverChoice({ sellerKey, id: cover?.id ?? null })
+    // Server value wins; fall back to a legacy localStorage pick.
+    const cover = serverCoverId ?? (sellerKey ? getStoreCover(sellerKey)?.id ?? null : null)
+    setCoverChoice({ sellerKey, serverId: serverCoverId, id: cover })
+  } else if (serverCoverId !== coverChoice.serverId && coverPending.current === null) {
+    // A fresh session restore moved the server value (e.g. the cover was
+    // changed on another device) — follow it while no optimistic pick of ours
+    // is still being persisted.
+    setCoverChoice((c) => ({ ...c, serverId: serverCoverId, id: serverCoverId ?? c.id }))
   }
 
   const selectCover = (id: string | null) => {
     if (!sellerKey) return
+    const prevId = coverChoice.id
+    // Optimistic: local cache + UI update immediately, then persist on the
+    // seller profile so every buyer sees the change (not just this device).
     setStoreCover(sellerKey, id)
     setCoverChoice((c) => ({ ...c, id }))
-    const label = id ? STORE_COVERS.find((c) => c.id === id)?.label : null
-    toast({
-      title: label ? `Cover set — ${label}` : 'Cover reset',
-      description: label
-        ? 'Your storefront hero now shows this image (saved on this device).'
-        : 'Your storefront is back to the default warm gradient.',
-    })
+    coverPending.current = id
+    void (async () => {
+      try {
+        const res = await fetch('/api/seller/profile', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ storeCover: id ?? '' }),
+        })
+        const json = await res.json()
+        if (!res.ok) throw new Error(json?.error ?? `Request failed (${res.status})`)
+        setUser(json.user)
+        const label = id ? STORE_COVERS.find((c) => c.id === id)?.label : null
+        toast({
+          title: label ? `Cover saved — ${label}` : 'Cover reset',
+          description: label
+            ? 'Saved to your seller profile — every buyer now sees this image at the top of your store.'
+            : 'Your storefront is back to the default warm gradient for every buyer.',
+        })
+      } catch (err) {
+        // Persist failed — revert the optimistic update.
+        setStoreCover(sellerKey, prevId)
+        setCoverChoice((c) => ({ ...c, id: prevId }))
+        toast({
+          title: 'Could not save cover',
+          description: err instanceof Error ? err.message : 'Network error — try again in a moment',
+          variant: 'destructive',
+        })
+      } finally {
+        coverPending.current = null
+      }
+    })()
   }
 
   // Sync tab when navigation params change while the view stays mounted
@@ -430,7 +471,7 @@ export function SellerView() {
             </Card>
           )}
 
-          {/* Storefront cover picker (client-side — saved on this device) */}
+          {/* Storefront cover picker (persisted on the seller profile — STAB-8) */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
@@ -479,7 +520,8 @@ export function SellerView() {
               </div>
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                 <p className="text-[11px] text-muted-foreground">
-                  Saved on this device in the demo — a full rollout will store it on your seller profile.
+                  Saved to your seller profile — visible to every buyer on your storefront, on any
+                  device.
                 </p>
                 {coverChoice.id && (
                   <Button
@@ -804,7 +846,7 @@ export function SellerView() {
       )}
 
       {/* ── Seller RFQ inbox section ── */}
-      {activeTab === 'rfqs' && <SellerRfqInboxTab myProducts={myProducts} />}
+      {activeTab === 'rfqs' && <SellerRfqInboxTab myProducts={myProducts} focusRfqId={params.rfqId ?? null} />}
 
       {/* ── Earnings section ── */}
       {activeTab === 'earnings' && <SellerEarningsTab />}

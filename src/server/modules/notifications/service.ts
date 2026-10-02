@@ -3,10 +3,12 @@ import { db } from '@/lib/db'
 /**
  * NOTIFICATIONS — server-side event feed for the bell.
  *
- * Order events remain client-derived (NotificationsBell reads /api/orders);
- * this service covers everything the order list can't see: RFQ lifecycle
- * events (quotes received/accepted/declined/withdrawn/converted, status
- * changes), negotiation messages, and B2B approval queue events.
+ * Order fulfillment events are emitted server-side (ORDER_STATUS — paid /
+ * processing / shipped / delivered / cancelled); the bell additionally derives
+ * a lightweight buyer-side order timeline from /api/orders. This service also
+ * covers everything the order list can't see: RFQ lifecycle events (quotes
+ * received/accepted/declined/withdrawn/converted, status changes), negotiation
+ * messages, and B2B approval queue events.
  *
  * Emission is best-effort: a notification failure must NEVER break the
  * business action that triggered it (create/accept/convert…), so every
@@ -32,6 +34,7 @@ export type NotificationType =
   | 'RECURRING_PUBLISHED' // buyer: a recurring run was published
   | 'RECURRING_PAUSED' // buyer: schedule auto-paused (empty cycles) or skipped
   | 'VENDOR_STATUS' // seller: platform verified / suspended / reactivated your account
+  | 'ORDER_STATUS' // buyer: fulfillment advanced / order cancelled; seller: order paid / cancelled
   | 'PAYMENT_STATUS' // buyer: payment captured, failed or awaiting confirmation
   | 'PAYOUT_STATUS' // seller: a payout was created or marked paid
   // ── financier module (FINANCIER_SCHEMA v5 §6) ──
