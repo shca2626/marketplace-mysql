@@ -33,10 +33,14 @@ yarn-error.log*
 # vercel
 .vercel
 
-# SECURITY (2026-09-28): `.env` MUST stay ignored. The repo is PUBLIC and the
-# sandbox platform auto-commits untracked files — a near-miss saw the real
-# credentials land in a local commit (caught before push). A fresh clone boots
-# fine without it: copy `.env.example` → `.env` (demo SQLite is committed).
+# SECURITY (2026-09-28, re-anchored 2026-10-02): `.env` MUST stay ignored.
+# The repo is PUBLIC and the sandbox platform auto-commits everything —
+# the pattern below is what actually keeps it out (comments alone do nothing
+# for already-tracked files; it is also untracked from the index).
+# A fresh clone boots fine without it: copy `.env.example` → `.env`.
+.env
+.env.*
+!.env.example
 
 # typescript
 *.tsbuildinfo
@@ -83,7 +87,7 @@ db/custom.db-journal
 *.sqlite-shm
 
 # runtime secrets — never commit (repo is public)
-# .env — see the SECURITY note above (gitignored)
+# .env — see the SECURITY note above (real pattern now present)
 
 # ── BRIDGE-1: PHP import bridge + generated dump artifacts (contain DB data/creds) ──
 /import.php
