@@ -59,6 +59,7 @@ export function viewToQuery(view: View, params: ViewParams = {}): string {
   if (view === 'seller' && params.disputeId) sp.set('dispute', params.disputeId)
   if (view === 'financing' && params.requestId) sp.set('request', params.requestId)
   if (view === 'financing' && params.financingSection) sp.set('section', params.financingSection)
+  if (view === 'financing' && params.financingWizard) sp.set('wizard', params.financingWizard)
   if ((view === 'reset-password' || view === 'verify-email') && params.authToken) sp.set('token', params.authToken)
   const qs = sp.toString()
   return qs
@@ -119,6 +120,8 @@ export function parseLocation(href: string = typeof window !== 'undefined' ? win
       if (request) params.requestId = request
       const section = sp.get('section')
       if (section) params.financingSection = section
+      const wizard = sp.get('wizard')
+      if (wizard) params.financingWizard = wizard
     }
     if (view === 'reset-password' || view === 'verify-email') {
       const token = sp.get('token')

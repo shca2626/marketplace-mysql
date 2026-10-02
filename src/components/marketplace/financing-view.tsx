@@ -37,7 +37,11 @@ function FinancingConsole() {
 
   // Deep link: ?view=financing&request=<id> (bell / handoffs) — consumed once via
   // the documented adjust-state-during-render pattern (previous-prop compare).
-  const [prevDeepLink, setPrevDeepLink] = useState<string | null>(params.requestId ?? null)
+  // NOTE (STAB-4): prev starts at null UNCONDITIONALLY — this view is gated on
+  // `user`, so on a cold load the console mounts AFTER applyLocation() has
+  // already applied the URL params. Seeding prev from `params` would swallow
+  // the deep link on every direct URL / reload entry.
+  const [prevDeepLink, setPrevDeepLink] = useState<string | null>(null)
   if ((params.requestId ?? null) !== prevDeepLink) {
     setPrevDeepLink(params.requestId ?? null)
     if (params.requestId) {
@@ -49,14 +53,34 @@ function FinancingConsole() {
 
   // Deep link: ?view=financing&section=<section> (Account → Document Vault
   // sidebar handoff, direct URL). prev starts null so a fresh mount consumes
-  // the param; in-console sidebar clicks keep using setSection directly.
+  // the param (cold loads included — the console mounts after applyLocation);
+  // in-console sidebar clicks keep using setSection directly.
   const [prevSectionLink, setPrevSectionLink] = useState<string | null>(null)
   if ((params.financingSection ?? null) !== prevSectionLink) {
     setPrevSectionLink(params.financingSection ?? null)
     if (params.financingSection && SECTION_KEYS.has(params.financingSection as Section)) {
       setSection(params.financingSection as Section)
-      setWizardServiceId(null)
+      // A wizard param in the same URL wins over the section (e.g. a bookmark
+      // carrying both) — don't kill the wizard from here.
+      if (!params.financingWizard) setWizardServiceId(null)
       setOpenRequestId(null)
+    }
+  }
+
+  // Deep link: ?view=financing&wizard=<serviceId> (FIN-7 / STAB-4) — the
+  // application wizard itself becomes deep-linkable: an accidental reload
+  // or back/forward round-trip reopens it on the same service instead of
+  // silently dumping the applicant back on the overview. prev starts at null
+  // unconditionally — see the request deep-link note above (cold-load mount
+  // order). Consumed via the same adjust-state-during-render pattern.
+  const [prevWizardLink, setPrevWizardLink] = useState<string | null>(null)
+  if ((params.financingWizard ?? null) !== prevWizardLink) {
+    setPrevWizardLink(params.financingWizard ?? null)
+    if (params.financingWizard) {
+      setWizardServiceId(params.financingWizard)
+      setOpenRequestId(null)
+    } else {
+      setWizardServiceId(null)
     }
   }
 
@@ -98,11 +122,17 @@ function FinancingConsole() {
             key={wizardServiceId}
             serviceId={wizardServiceId}
             me={me}
-            onExit={() => setWizardServiceId(null)}
+            onExit={() => {
+              setWizardServiceId(null)
+              // Land back on the services list with the URL synced (the
+              // wizard param disappears from the address bar).
+              navigate('financing', { financingSection: 'services' })
+            }}
             onSubmitted={(requestId) => {
               setWizardServiceId(null)
               setOpenRequestId(requestId)
               setSection('requests')
+              navigate('financing', { requestId })
             }}
           />
         </>
@@ -110,7 +140,14 @@ function FinancingConsole() {
         <>
           <PageHeader icon={headerIcon} title={title} description={description} />
           {section === 'overview' && <OverviewSection onGoto={(s) => setSection(s)} />}
-          {section === 'services' && <ServicesSection onApply={(serviceId) => setWizardServiceId(serviceId)} />}
+          {section === 'services' && (
+            <ServicesSection
+              onApply={(serviceId) => {
+                setWizardServiceId(serviceId)
+                navigate('financing', { financingWizard: serviceId })
+              }}
+            />
+          )}
           {section === 'requests' && (
             <RequestsSection initialRequestId={openRequestId ?? undefined} />
           )}

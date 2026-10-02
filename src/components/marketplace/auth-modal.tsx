@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { AtSign, KeyRound, Loader2, Mail, Store, Tag, User as UserIcon } from 'lucide-react'
+import { AtSign, KeyRound, Loader2, Mail, Store, Tag, Ticket, User as UserIcon } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
 import type { SessionUser } from '@/lib/types'
@@ -32,6 +32,11 @@ export function AuthModal() {
   const [name, setName] = useState('')
   const [role, setRole] = useState<'BUYER' | 'SELLER'>('BUYER')
   const [storeName, setStoreName] = useState('')
+  // RBAC Phase 2: staff invitations — the admin console issues a token per
+  // invited email; pasting it here consumes the invitation and assigns the
+  // scoped role on registration (server-side via consumeInvitation).
+  const [showInvite, setShowInvite] = useState(false)
+  const [inviteToken, setInviteToken] = useState('')
   const [loading, setLoading] = useState(false)
 
   const finish = (user: SessionUser) => {
@@ -72,7 +77,14 @@ export function AuthModal() {
         const res = await fetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email, password, role, storeName: storeName || undefined }),
+          body: JSON.stringify({
+            name,
+            email,
+            password,
+            role,
+            storeName: storeName || undefined,
+            ...(showInvite && inviteToken.trim() ? { inviteToken: inviteToken.trim() } : {}),
+          }),
         })
         const json = await res.json()
         if (!res.ok) {
@@ -165,6 +177,48 @@ export function AuthModal() {
                   </div>
                 </div>
               )}
+              <div className="space-y-1.5">
+                {showInvite ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="auth-invite">Invitation code</Label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowInvite(false)
+                          setInviteToken('')
+                        }}
+                        className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <Ticket className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="auth-invite"
+                        value={inviteToken}
+                        onChange={(e) => setInviteToken(e.target.value)}
+                        placeholder="Paste the code from your invitation"
+                        className="pl-9 font-mono text-xs"
+                        autoComplete="off"
+                      />
+                    </div>
+                    <p className="text-[11px] leading-snug text-muted-foreground">
+                      Invited by the Vendora team or your organization? Paste the code from the
+                      invitation — your scoped staff role is assigned automatically.
+                    </p>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowInvite(true)}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-primary underline-offset-2 hover:underline"
+                  >
+                    <Ticket size={13} /> I have an invitation code
+                  </button>
+                )}
+              </div>
             </>
           )}
 
