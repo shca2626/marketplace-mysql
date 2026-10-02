@@ -160,22 +160,30 @@ export function FinancingWizard({
   // company context + vault
   const [orgId, setOrgId] = useState('')
   const [docsVersion, setDocsVersion] = useState(0)
-  const personalVault = useApi<{ documents: AccountDocumentDTO[] }>('/api/documents')
-  const orgVault = useApi<{ documents: AccountDocumentDTO[] }>(
-    orgId ? `/api/documents?organizationId=${orgId}` : null
-  )
+  // PERF-FIX (STAB-0): useApi returns a fresh object every render — putting
+  // that object in the deps below re-ran the effect on every render → an
+  // infinite /api/documents refetch loop hammering the DB after any upload.
+  // Destructure the STABLE refetch (useCallback) and depend on that instead.
+  const {
+    data: personalVaultData,
+    refetch: refetchPersonalVault,
+  } = useApi<{ documents: AccountDocumentDTO[] }>('/api/documents')
+  const {
+    data: orgVaultData,
+    refetch: refetchOrgVault,
+  } = useApi<{ documents: AccountDocumentDTO[] }>(orgId ? `/api/documents?organizationId=${orgId}` : null)
   useEffect(() => {
     if (docsVersion > 0) {
-      void personalVault.refetch()
-      if (orgId) void orgVault.refetch()
+      void refetchPersonalVault()
+      if (orgId) void refetchOrgVault()
     }
-  }, [docsVersion, personalVault, orgVault, orgId])
+  }, [docsVersion, refetchPersonalVault, refetchOrgVault, orgId])
   const vaultDocs = useMemo(() => {
     const map = new Map<string, AccountDocumentDTO>()
-    for (const d of personalVault.data?.documents ?? []) map.set(d.id, d)
-    for (const d of orgVault.data?.documents ?? []) map.set(d.id, d)
+    for (const d of personalVaultData?.documents ?? []) map.set(d.id, d)
+    for (const d of orgVaultData?.documents ?? []) map.set(d.id, d)
     return [...map.values()].filter((d) => d.isActive)
-  }, [personalVault.data, orgVault.data])
+  }, [personalVaultData, orgVaultData])
 
   const activeOrg = orgs.find((o) => o.id === orgId) ?? null
 
@@ -583,7 +591,12 @@ export function FinancingWizard({
             </label>
           </div>
 
-          <div className="lg:col-span-2 flex justify-end">
+          <div className="lg:col-span-2 flex flex-col items-end gap-2">
+            {!step1Valid && (
+              <p className="text-xs font-medium text-destructive" role="alert">
+                Tick the data-transfer consent above to continue.
+              </p>
+            )}
             <Button className="min-h-11 rounded-xl" disabled={!step1Valid} onClick={() => setStep(2)}>
               Continue <ArrowRight size={15} className="ml-1.5" />
             </Button>
@@ -874,9 +887,21 @@ export function FinancingWizard({
               <Button variant="outline" className="min-h-11 rounded-xl" onClick={() => setStep(1)}>
                 <ArrowLeft size={14} className="mr-1.5" /> Back
               </Button>
-              <Button className="min-h-11 rounded-xl" disabled={!step2Valid} onClick={() => setStep(3)}>
-                Review <ArrowRight size={15} className="ml-1.5" />
-              </Button>
+              <div className="flex flex-col items-end gap-2">
+                {!step2Valid && (
+                  <p className="text-xs font-medium text-destructive" role="alert">
+                    {missingRequiredAnswers.length > 0
+                      ? `${missingRequiredAnswers.length} required checklist item${missingRequiredAnswers.length === 1 ? '' : 's'} still need${missingRequiredAnswers.length === 1 ? 's' : ''} an answer`
+                      : amountRequested && !amountValid
+                        ? 'Fix the requested amount to continue'
+                        : 'Complete the highlighted fields to continue'}
+                    .
+                  </p>
+                )}
+                <Button className="min-h-11 rounded-xl" disabled={!step2Valid} onClick={() => setStep(3)}>
+                  Review <ArrowRight size={15} className="ml-1.5" />
+                </Button>
+              </div>
             </div>
           </div>
         </motion.div>
@@ -990,7 +1015,16 @@ export function FinancingWizard({
         defaultType={uploadFor?.template.documentType ?? undefined}
         lockType
         organizationId={orgId || null}
-        onUploaded={() => setDocsVersion((v) => v + 1)}
+        onUploaded={(doc) => {
+          // Refresh the vault list…
+          setDocsVersion((v) => v + 1)
+          // …and STAB-4: auto-link the fresh document to the checklist row the
+          // upload was started from, so the item is satisfied immediately
+          // (no silent "uploaded but still required" state).
+          if (doc && uploadFor) {
+            setAnswer(uploadFor.conditionTemplateId, { accountDocumentId: doc.id })
+          }
+        }}
       />
     </div>
   )

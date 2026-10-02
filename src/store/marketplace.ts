@@ -83,6 +83,7 @@ export interface ViewParams {
   scheduleId?: string // buyer RFQ view: open a specific recurring schedule
   requestId?: string // financing view: open a specific financing/accreditation request
   financingSection?: string // financing view: boot on a specific section (overview | services | requests | accreditation | documents | agreements)
+  financingWizard?: string // financing view: reopen the application wizard for a service (?view=financing&wizard=<serviceId>) — survives reloads/back
   accountTab?: string // buyer account console: open a specific tab (?view=account&tab=profile — IA-100)
   authToken?: string // AUTHSEC-1: raw token from reset/verify email links
 }
