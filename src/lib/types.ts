@@ -29,6 +29,14 @@ export interface SessionUser {
   permissions?: string[]
   /** True when the user may enter the admin console (legacy ADMIN or platform role holder). */
   isPlatformStaff?: boolean
+  /** Phase 5 — module activation state for this session. Undefined for legacy
+   *  admins (bypass). `personal` = enabled keys at platform scope (storefront
+   *  + buyer surfaces); `orgs` = orgId → enabled keys through the ORG >
+   *  ORG_TYPE > PLATFORM chain (financier console etc.). */
+  modules?: {
+    personal: string[]
+    orgs: Record<string, string[]>
+  }
 }
 
 // ── RBAC DTOs (Roles & Access console) ──────────────────────────────────────
@@ -970,7 +978,21 @@ export interface FinancingRequestSummaryDTO {
   createdAt: string
   submissionStats?: { total: number; verified: number; missing: number }
   offerCount?: number
-  bestOffer?: { id: string; amount: number; status: string } | null
+  /** Phase 5 — the latest SENT offer with full comparison facts (the
+   *  multi-financier side-by-side view renders from this). */
+  bestOffer?: {
+    id: string
+    amount: number
+    status: string
+    rateType?: string | null
+    ratePercent?: number | null
+    feeFlat?: number | null
+    tenorMonths?: number | null
+    validUntil?: string | null
+    notes?: string | null
+    installmentCount?: number
+    installmentTotal?: number
+  } | null
 }
 
 export interface FinancingRequestDetailDTO extends FinancingRequestSummaryDTO {

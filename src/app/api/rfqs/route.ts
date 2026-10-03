@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireUser } from '@/server/guards'
+import { requireModule } from '@/server/guards'
 import { createRfq, listMyRfqs, RfqServiceError } from '@/server/modules/rfq/service'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 
@@ -29,7 +29,7 @@ const createRfqSchema = z.object({
 
 // GET /api/rfqs — my requests for quote (optionally filtered by active org)
 export async function GET(req: NextRequest) {
-  const { user, error } = await requireUser()
+  const { user, error } = await requireModule('rfq')
   if (error) return error
   try {
     const { searchParams } = new URL(req.url)
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
 
-  const { user, error } = await requireUser()
+  const { user, error } = await requireModule('rfq')
   if (error) return error
 
   const rl = enforceRateLimit(req, 'rfq:create', { limit: 20, windowMs: 10 * 60_000 }, user.id)

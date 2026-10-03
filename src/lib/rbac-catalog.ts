@@ -201,6 +201,7 @@ export const PERMISSION_DOMAINS: PermissionDomain[] = [
       { key: 'rbac.roles.update', label: 'Update roles', description: 'Rename and re-permission custom roles — never beyond your own access.' },
       { key: 'rbac.roles.delete', label: 'Delete roles', description: 'Delete custom roles and un-assign their members.' },
       { key: 'rbac.manage', label: 'Manage roles (full)', description: 'Umbrella: create, update and delete roles. Grant the granular keys above to delegate partial control instead.' },
+      { key: 'modules.manage', label: 'Manage module activation', description: 'Switch platform modules on/off per platform, organization-type and organization scope (Phase 5).' },
     ],
   },
 
@@ -460,6 +461,13 @@ export const SYSTEM_ROLES: RoleTemplate[] = [
     description: 'Screens forwarded financing requests in the inbox.',
     scope: 'ORG',
     permissions: ['org.profile.view', 'financier.requests.view'],
+  },
+  {
+    key: 'financier.branch-officer',
+    name: 'Branch Officer',
+    description: 'Front-desk institution staff — screens requests and manages accreditation programs for their branch.',
+    scope: 'ORG',
+    permissions: ['org.profile.view', 'financier.requests.view', 'financier.accreditations.manage'],
   },
 ]
 

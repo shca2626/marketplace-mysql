@@ -24,7 +24,7 @@ import {
 } from 'lucide-react'
 import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
-import type { CategoryDTO, OrganizationDTO } from '@/lib/types'
+import type { CategoryDTO } from '@/lib/types'
 import { initials } from '@/lib/format'
 import { SearchBox } from './search-box'
 import { NotificationsBell } from './notifications-bell'
@@ -65,16 +65,32 @@ export function Header() {
   const categories = catData?.categories ?? []
 
   // Financier console entry (FIN-005): visible for OWNER/ADMIN members of a
-  // BANK/MFI/EWALLET org — same membership the console guard checks.
-  const { data: myOrgsData } = useApi<{ organizations: OrganizationDTO[] }>(
-    user ? '/api/organizations' : null,
-    { skip: !user }
-  )
-  const isFinancierStaff = (myOrgsData?.organizations ?? []).some(
-    (o) =>
-      ['BANK', 'MFI', 'EWALLET'].includes(o.orgType ?? '') &&
-      (o.myRole === 'OWNER' || o.myRole === 'ADMIN')
-  )
+  // BANK/MFI/EWALLET org — plus Phase 5 role-based staff (underwriters,
+  // reviewers, branch officers holding org-scoped financier.* roles). The
+  // context endpoint resolves both membership paths.
+  const { data: finCtxData } = useApi<{
+    context: { organizationId: string } | null
+    organizations: { id: string; name: string; orgType: string }[]
+  }>(user ? '/api/financier/context' : null, { skip: !user })
+  const isFinancierStaff = !!finCtxData?.context
+
+  // Phase 5 — module activation gates for the account menu. Unknown state
+  // (legacy admin / resolution skipped) fails OPEN; a resolved-off module
+  // hides the entry. All personal-scope keys resolve through the user's org
+  // chains (union) when they belong to orgs — org-type flips steer their
+  // menu too; `financier-console` prefers the financier org's own chain.
+  const moduleOn = (key: string) => {
+    if (user?.role === 'ADMIN' || !user?.modules) return true
+    const orgSets = Object.values(user.modules.orgs ?? {})
+    if (orgSets.length === 0) return user.modules.personal.includes(key)
+    return orgSets.some((s) => s.includes(key))
+  }
+  const financierOrgId = finCtxData?.context?.organizationId
+  const financierConsoleOn =
+    user?.role === 'ADMIN' ||
+    !user?.modules ||
+    !financierOrgId ||
+    ((user.modules.orgs[financierOrgId] ?? user.modules.personal)?.includes('financier-console') ?? true)
 
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -252,7 +268,7 @@ export function Header() {
                     <LayoutDashboard size={15} className="mr-2" /> My dashboard
                   </DropdownMenuItem>
                 )}
-                {isFinancierStaff && (
+                {isFinancierStaff && financierConsoleOn && (
                   <DropdownMenuItem onClick={() => navigate('financier')} className="cursor-pointer font-medium">
                     <Landmark size={15} className="mr-2" /> Financier console
                   </DropdownMenuItem>
@@ -261,15 +277,19 @@ export function Header() {
                 <DropdownMenuItem onClick={() => navigate('orders')} className="cursor-pointer">
                   <Package size={15} className="mr-2" /> My Orders
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate('rfqs')} className="cursor-pointer">
-                  <FileText size={15} className="mr-2" /> Request for Quotes
-                </DropdownMenuItem>
+                {moduleOn('rfq') && (
+                  <DropdownMenuItem onClick={() => navigate('rfqs')} className="cursor-pointer">
+                    <FileText size={15} className="mr-2" /> Request for Quotes
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={() => navigate('favorites')} className="cursor-pointer">
                   <Heart size={15} className="mr-2" /> Favorites
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate('business')} className="cursor-pointer">
-                  <Building2 size={15} className="mr-2" /> Business Account
-                </DropdownMenuItem>
+                {moduleOn('b2b-orgs') && (
+                  <DropdownMenuItem onClick={() => navigate('business')} className="cursor-pointer">
+                    <Building2 size={15} className="mr-2" /> Business Account
+                  </DropdownMenuItem>
+                )}
                 {/* IA-100: "Account settings" opens the dedicated Profile &
                     Security tab; "My dashboard" above keeps the overview. */}
                 <DropdownMenuItem

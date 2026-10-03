@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server'
-import { requireUser } from '@/server/guards'
+import { requireModule } from '@/server/guards'
 import { listMyAgreements } from '@/server/modules/financing/agreements'
 import { FinancingError } from '@/server/modules/financing/shared'
 
 // GET /api/financing/agreements — my agreements (requests created by me or
 // my orgs), frozen offer + installments + events + fees by reference.
 export async function GET() {
-  const { user, error } = await requireUser()
+  const { user, error } = await requireModule('financing-hub')
   if (error) return error
   try {
     const agreements = await listMyAgreements(user.id)

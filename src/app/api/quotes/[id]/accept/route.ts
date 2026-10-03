@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/server/guards'
+import { requireModule } from '@/server/guards'
 import { respondToQuote, RfqServiceError } from '@/server/modules/rfq/service'
 import { ApprovalServiceError } from '@/server/modules/approvals/service'
 import { assertSameOrigin } from '@/lib/http'
@@ -12,7 +12,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
 
-  const { user, error } = await requireUser()
+  const { user, error } = await requireModule('rfq')
   if (error) return error
   try {
     const { id } = await ctx.params

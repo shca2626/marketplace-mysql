@@ -42,7 +42,7 @@ import type { OrderDTO, RfqDTO } from '@/lib/types'
 import { DashboardLayout, PageHeader, SignInRequired } from './dashboard-layout'
 import { ProfileSecurityPanel } from './buyer-profile-security'
 import { VerificationSection } from './verification-section'
-import { BUYER_NAV } from './nav-config'
+import { BUYER_NAV, filterNavByModules, userModuleSet } from './nav-config'
 import type { NavItem } from './nav-config'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -58,6 +58,10 @@ export function BuyerDashboard() {
   const params = useMarketplace((s) => s.params)
   const [sendingVerify, setSendingVerify] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
+  // Phase 5 — module-gated sidebar (drops My RFQs / Financing when off).
+  // Org-aware: a company buyer's nav follows their org chain, so an admin
+  // org-type flip removes the entries for those users too.
+  const nav = filterNavByModules(BUYER_NAV, userModuleSet(user?.modules))
 
   // IA-100: ?view=account&tab=profile opens the Profile & Security panel;
   // ?view=account&tab=verification opens the KYC Verification panel; every
@@ -174,7 +178,7 @@ export function BuyerDashboard() {
   // ── Profile & Security tab (BUY-211 / IA-100) ──
   if (tab === 'profile') {
     return (
-      <DashboardLayout role="buyer" nav={BUYER_NAV} activeKey="profile" onNavigate={onNavigate}>
+      <DashboardLayout role="buyer" nav={nav} activeKey="profile" onNavigate={onNavigate}>
         <ProfileSecurityPanel />
       </DashboardLayout>
     )
@@ -183,14 +187,14 @@ export function BuyerDashboard() {
   // ── Verification tab (Phase 3 KYC — the publish gate deep-links here) ──
   if (tab === 'verification') {
     return (
-      <DashboardLayout role="buyer" nav={BUYER_NAV} activeKey="verification" onNavigate={onNavigate}>
+      <DashboardLayout role="buyer" nav={nav} activeKey="verification" onNavigate={onNavigate}>
         <VerificationSection />
       </DashboardLayout>
     )
   }
 
   return (
-    <DashboardLayout role="buyer" nav={BUYER_NAV} activeKey="account" onNavigate={onNavigate}>
+    <DashboardLayout role="buyer" nav={nav} activeKey="account" onNavigate={onNavigate}>
       <PageHeader
         icon={LayoutDashboard}
         title={`Welcome back, ${user.name.split(' ')[0]}`}

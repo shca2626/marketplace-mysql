@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
 import { db } from '@/lib/db'
+import { isModuleEnabled } from '@/server/modules/modules/service'
 
 /**
  * FINANCING — shared primitives for the financier module services.
@@ -107,32 +108,66 @@ export interface FinancierContext {
   financierProfileId: string
   organizationName: string
   organizationType?: string
+  /** Phase 5 — org lifecycle state (PENDING_VERIFICATION | ACTIVE | …). The
+   *  console renders an activation-status screen instead of the full tooling
+   *  while the institution is not yet verified. */
+  organizationStatus?: string
 }
 
 export interface FinancierContextOrg {
   id: string
   name: string
   orgType: string
+  status?: string
 }
 
 /**
- * A user's financier-org memberships (OWNER/ADMIN, BANK/MFI/EWALLET — or any
- * org that already carries a profile —, not suspended), oldest first.
+ * A user's financier-org memberships: OWNER/ADMIN members of BANK/MFI/EWALLET
+ * (or any org that already carries a profile), not suspended — PLUS Phase 5
+ * role-based staff: members holding an org-scoped financier.* role reach the
+ * console with exactly the permissions their role grants. Oldest first.
  */
 async function listFinancierMemberships(userId: string): Promise<FinancierContextOrg[]> {
-  const memberships = await db.organizationMember.findMany({
-    where: {
-      userId,
-      role: { in: ['OWNER', 'ADMIN'] },
-      organization: {
-        status: { not: 'SUSPENDED' },
-        OR: [{ orgType: { in: [...FINANCIER_ORG_TYPES] } }, { financierProfile: { isNot: null } }],
+  // UserRole.organizationId is a loose FK — resolve live orgs in a second pass.
+  const [memberships, roleAssignments] = await Promise.all([
+    db.organizationMember.findMany({
+      where: {
+        userId,
+        role: { in: ['OWNER', 'ADMIN'] },
+        organization: {
+          status: { not: 'SUSPENDED' },
+          OR: [{ orgType: { in: [...FINANCIER_ORG_TYPES] } }, { financierProfile: { isNot: null } }],
+        },
       },
-    },
-    select: { organization: { select: { id: true, name: true, orgType: true } } },
-    orderBy: { createdAt: 'asc' },
-  })
-  return memberships.map((m) => m.organization)
+      select: { organization: { select: { id: true, name: true, orgType: true, status: true } } },
+      orderBy: { createdAt: 'asc' },
+    }),
+    db.userRole.findMany({
+      where: {
+        userId,
+        role: { key: { startsWith: 'financier.' } },
+        organizationId: { not: '' },
+      },
+      select: { organizationId: true, assignedAt: true },
+      orderBy: { assignedAt: 'asc' },
+    }),
+  ])
+  const roleOrgIds = [...new Set(roleAssignments.map((a) => a.organizationId))]
+  const roleOrgs = roleOrgIds.length
+    ? await db.organization.findMany({
+        where: { id: { in: roleOrgIds }, status: { not: 'SUSPENDED' } },
+        select: { id: true, name: true, orgType: true, status: true },
+      })
+    : []
+  const seen = new Set<string>()
+  const orgs: FinancierContextOrg[] = []
+  for (const o of [...memberships.map((m) => m.organization), ...roleOrgs]) {
+    if (!seen.has(o.id)) {
+      seen.add(o.id)
+      orgs.push(o)
+    }
+  }
+  return orgs
 }
 
 /**
@@ -196,13 +231,27 @@ export async function getFinancierContext(userId: string): Promise<FinancierCont
     financierProfileId,
     organizationName: chosen.name,
     organizationType: chosen.orgType,
+    organizationStatus: chosen.status,
   }
 }
 
-/** Resolve + require the caller's financier org (403 when not financier staff). */
+/** Resolve + require the caller's financier org (403 when not financier staff).
+ *  Phase 5 — also enforces the `financier-console` module for the org's
+ *  context (ORG > ORG_TYPE > PLATFORM): a flipped-off console disappears
+ *  from every /api/financier/* route, not just the nav. */
 export async function requireFinancierContext(userId: string): Promise<FinancierContext> {
   const ctx = await getFinancierContext(userId)
   if (!ctx) throw new FinancingError('Financier staff access required', 403)
+  const enabled = await isModuleEnabled('financier-console', {
+    orgId: ctx.organizationId,
+    orgType: ctx.organizationType,
+  })
+  if (!enabled) {
+    throw new FinancingError(
+      'The financier console is currently disabled for your institution. Contact the Vendora team if you believe this is a mistake.',
+      403
+    )
+  }
   return ctx
 }
 

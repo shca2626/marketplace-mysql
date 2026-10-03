@@ -116,7 +116,15 @@ export function toSessionUser(
     createdAt?: Date
     emailVerifiedAt?: Date | null
   },
-  rbac?: { permissions: string[]; isPlatformStaff: boolean }
+  rbac?: {
+    permissions: string[]
+    isPlatformStaff: boolean
+    /** Phase 5 — module activation state (personal + per-org). */
+    modules?: {
+      personal: string[]
+      orgs: Record<string, string[]>
+    }
+  }
 ) {
   return {
     id: user.id,
@@ -142,6 +150,11 @@ export function toSessionUser(
     // for them; buyers without staff roles get empty arrays.
     permissions: rbac?.permissions ?? (user.role === 'ADMIN' ? undefined : []),
     isPlatformStaff: rbac?.isPlatformStaff ?? (user.role === 'ADMIN' ? true : undefined),
+    // Phase 5 — module activation state. Omitted for legacy admins (they
+    // bypass module gates; only market participants resolve through scopes).
+    modules: rbac?.modules
+      ? { personal: rbac.modules.personal, orgs: rbac.modules.orgs }
+      : undefined,
   }
 }
 

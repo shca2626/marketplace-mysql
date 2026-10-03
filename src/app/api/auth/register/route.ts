@@ -106,8 +106,16 @@ export async function POST(req: NextRequest) {
 
     if (invite) {
       await db.userRole.create({
-        data: { userId: user.id, roleId: invite.roleId, organizationId: '' },
+        data: { userId: user.id, roleId: invite.roleId, organizationId: invite.organizationId },
       })
+      // Phase 5 — ORG-scoped invitations (institution staff): the invitee also
+      // becomes a VIEWER member of the organization so the console gate's
+      // membership+role path picks them up.
+      if (invite.organizationId) {
+        await db.organizationMember.create({
+          data: { userId: user.id, organizationId: invite.organizationId, role: 'VIEWER' },
+        })
+      }
       await recordAudit({
         actorId: user.id,
         actorType: 'USER',
@@ -115,7 +123,11 @@ export async function POST(req: NextRequest) {
         entityType: 'User',
         entityId: user.id,
         summary: `Invited staff joined: role "${invite.roleName}" granted to ${email}`,
-        metadata: { roleId: invite.roleId, via: 'invitation' },
+        metadata: {
+          roleId: invite.roleId,
+          via: 'invitation',
+          organizationId: invite.organizationId || undefined,
+        },
       })
     }
 

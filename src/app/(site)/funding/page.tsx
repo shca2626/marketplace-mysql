@@ -22,6 +22,7 @@ import {
   getSiteSteps,
   getStories,
 } from '@/lib/site-content'
+import { isModuleEnabled } from '@/server/modules/modules/service'
 
 /**
  * /funding — the public home of the financing module (bh light-first redesign).
@@ -46,6 +47,23 @@ export const metadata: Metadata = {
 }
 
 export default async function FundingPage() {
+  // Phase 5 — module gate. When the financing hub is switched off (platform
+  // scope), the page degrades to a friendly notice instead of a dead link.
+  const financingOn = await isModuleEnabled('financing-hub').catch(() => true)
+  if (!financingOn) {
+    return (
+      <main className="flex min-h-[70vh] items-center justify-center px-4">
+        <div className="max-w-md rounded-2xl border border-bh-border bg-bh-card p-8 text-center shadow-card">
+          <h1 className="text-xl font-bold text-bh-navy">Financing is paused</h1>
+          <p className="mt-3 text-sm leading-relaxed text-bh-muted">
+            The financing hub is temporarily unavailable while the Vendora team reconfigures the program.
+            The marketplace itself keeps running — check back soon.
+          </p>
+        </div>
+      </main>
+    )
+  }
+
   const [stats, steps, entities, programs, stories, partners, faqs] = await Promise.all([
     getFundingStats(),
     getSiteSteps('FUNDING'),

@@ -9,7 +9,7 @@
 
 import { useMarketplace } from '@/store/marketplace'
 import { DashboardLayout } from './dashboard-layout'
-import { BUYER_NAV } from './nav-config'
+import { BUYER_NAV, filterNavByModules, userModuleSet } from './nav-config'
 import type { NavItem } from './nav-config'
 import { RfqView } from '@/components/marketplace/b2b/rfq-view'
 import { BusinessView } from '@/components/marketplace/b2b/business-view'
@@ -18,9 +18,12 @@ import { FavoritesView } from '@/components/marketplace/favorites-view'
 
 function BuyerPage({ activeKey, children }: { activeKey: string; children: React.ReactNode }) {
   const navigate = useMarketplace((s) => s.navigate)
+  const user = useMarketplace((s) => s.user)
   const onNavigate = (item: NavItem) => navigate(item.view ?? 'account', item.params)
+  // Phase 5 — module-gated nav (My RFQs / Business Account entries).
+  const nav = filterNavByModules(BUYER_NAV, userModuleSet(user?.modules))
   return (
-    <DashboardLayout role="buyer" nav={BUYER_NAV} activeKey={activeKey} onNavigate={onNavigate}>
+    <DashboardLayout role="buyer" nav={nav} activeKey={activeKey} onNavigate={onNavigate}>
       {children}
     </DashboardLayout>
   )

@@ -23,6 +23,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import { useMarketplace, markStoreHydrated } from '@/store/marketplace'
+import { userModuleSet } from '@/components/dashboards/nav-config'
 import { initials } from '@/lib/format'
 import { AuthModal } from '@/components/marketplace/auth-modal'
 import { SolarIcon } from './solar-icon'
@@ -148,12 +149,24 @@ export function SiteHeader() {
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`)
 
+  // Phase 5 — org-aware module gates for the site account links (mirrors the
+  // market header + buyer console): an org-type flip removes the entries for
+  // those users here too. Admins / unresolved sessions fail open.
+  const moduleOn = (key: string) => {
+    if (user?.role === 'ADMIN' || !user?.modules) return true
+    const set = userModuleSet(user.modules)
+    return !set || set.includes(key)
+  }
   const accountLinks = [
     { href: '/market?view=account', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/market?view=orders', label: 'My orders', icon: Package },
     { href: '/market?view=favorites', label: 'Favorites', icon: Heart },
-    { href: '/market?view=financing', label: 'My funding requests', icon: Wallet },
-    { href: '/market?view=rfqs', label: 'RFQ inbox (B2B)', icon: Building2 },
+    ...(moduleOn('financing-hub')
+      ? [{ href: '/market?view=financing', label: 'My funding requests', icon: Wallet }]
+      : []),
+    ...(moduleOn('rfq')
+      ? [{ href: '/market?view=rfqs', label: 'RFQ inbox (B2B)', icon: Building2 }]
+      : []),
     ...(user?.role === 'SELLER'
       ? [{ href: '/market?view=seller', label: 'Seller console', icon: Settings }]
       : []),

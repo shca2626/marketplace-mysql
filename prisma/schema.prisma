@@ -1939,3 +1939,50 @@ model SpecAttribute {
   @@unique([categoryId, key]) // MySQL: NULL categoryId rows not enforced — service layer dedupes global keys
   @@index([isActive, position])
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PHASE 5 — Module activation system (mergedplan.md §6 Phase 5.3)
+//
+// What can be switched on/off per scope — the substrate for subscription
+// tiers (a tier = a bundle of enabled modules + limits). Resolution chain
+// (most specific wins, Phase-2-scope-model style):
+//     ORG activation  >  ORG_TYPE activation  >  PLATFORM activation  >  default
+// `core` modules (retail marketplace itself) cannot be switched off — the
+// API refuses and the admin UI hides the switch.
+// ═══════════════════════════════════════════════════════════════════════════
+
+model ModuleDefinition {
+  id          String   @id @default(cuid())
+  key         String   @unique // "financing-hub" | "rfq" | "financier-console" | …
+  name        String // "Financing Hub"
+  description String?  @db.Text
+  // Where the module surfaces — informational for the admin matrix grouping:
+  // STOREFRONT | BUYER | SELLER | FINANCIER | PLATFORM
+  domain      String   @default("STOREFRONT")
+  core        Boolean  @default(false) // true = cannot be deactivated (marketplace core)
+  defaultOn   Boolean  @default(true) // effective when no activation row exists
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true) // admin can retire a module from the catalog
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  activations ModuleActivation[]
+}
+
+model ModuleActivation {
+  id          String            @id @default(cuid())
+  moduleKey   String
+  // PLATFORM ("") | ORG_TYPE ("BANK" | "MFI" | "EWALLET" | "COMPANY") | ORG (<org id>)
+  scopeType   String
+  scopeId     String            @default("") // "" for PLATFORM; type key or org id otherwise
+  enabled     Boolean           @default(true) // false = explicitly off at this scope
+  note        String?           @db.Text
+  changedById String? // admin user id (loose FK — audit trail in AuditLog too)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  module      ModuleDefinition   @relation(fields: [moduleKey], references: [key], onDelete: Cascade)
+
+  @@unique([moduleKey, scopeType, scopeId])
+  @@index([scopeType, scopeId])
+}

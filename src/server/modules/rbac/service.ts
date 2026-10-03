@@ -123,6 +123,13 @@ function assertCanSeeRole(actor: ActorContext, role: { key: string; isProtected:
 export interface SessionRbac {
   permissions: string[]
   isPlatformStaff: boolean
+  /** Phase 5 — module activation state for this session. */
+  modules?: {
+    /** Enabled module keys at personal/storefront scope (platform resolution). */
+    personal: string[]
+    /** orgId → enabled module keys (ORG > ORG_TYPE > PLATFORM chain). */
+    orgs: Record<string, string[]>
+  }
 }
 
 export async function buildSessionRbac(user: { id: string; role: string }): Promise<SessionRbac> {
@@ -138,7 +145,34 @@ export async function buildSessionRbac(user: { id: string; role: string }): Prom
   for (const a of assignments) {
     for (const p of a.role.permissions) set.add(p.permissionKey)
   }
-  return { permissions: [...set], isPlatformStaff: assignments.length > 0 }
+
+  // Phase 5 — module state. Personal scope resolves PLATFORM; every org the
+  // user belongs to resolves its own chain (so an admin can flip e.g. the
+  // financier console off for BANK orgs and it disappears from those users).
+  let modules: SessionRbac['modules'] | undefined
+  try {
+    const { resolveModuleState } = await import('@/server/modules/modules/service')
+    const memberships = await db.organizationMember.findMany({
+      where: { userId: user.id },
+      select: { organizationId: true, organization: { select: { orgType: true } } },
+      take: 10,
+    })
+    const personal = await resolveModuleState({})
+    const orgs: Record<string, string[]> = {}
+    for (const m of memberships) {
+      const state = await resolveModuleState({ orgId: m.organizationId, orgType: m.organization.orgType })
+      orgs[m.organizationId] = Object.keys(state).filter((k) => state[k])
+    }
+    modules = {
+      personal: Object.keys(personal).filter((k) => personal[k]),
+      orgs,
+    }
+  } catch (err) {
+    // Module resolution must never break sign-in — fail open (all on).
+    console.error('[rbac] module resolution failed for session:', err)
+  }
+
+  return { permissions: [...set], isPlatformStaff: assignments.length > 0, modules }
 }
 
 /** True when the user holds the permission through any platform-scope role. */
@@ -838,26 +872,32 @@ export async function revokeInvitation(actor: RbacActor, id: string): Promise<vo
 }
 
 /**
- * Consume a pending invitation at registration time. Returns the platform
- * role to assign when the token is valid + matches the registering email.
+ * Consume a pending invitation at registration time. Returns the role to
+ * assign when the token is valid + matches the registering email. Phase 5:
+ * ORG-scoped invitations (institution staff) carry the organizationId — the
+ * register route also creates the VIEWER membership for those.
  */
 export async function consumeInvitation(
   email: string,
   token: string
-): Promise<{ roleId: string; roleName: string } | null> {
+): Promise<{ roleId: string; roleName: string; organizationId: string } | null> {
   const invitation = await db.staffInvitation.findUnique({
     where: { token },
     include: { role: { select: { id: true, name: true, scope: true } } },
   })
-  if (
-    !invitation ||
-    invitation.status !== 'PENDING' ||
-    invitation.role.scope !== 'PLATFORM' ||
-    invitation.email !== email.toLowerCase() ||
-    invitation.expiresAt < new Date()
-  ) {
+  const valid =
+    !!invitation &&
+    invitation.status === 'PENDING' &&
+    invitation.email === email.toLowerCase() &&
+    invitation.expiresAt >= new Date() &&
+    (invitation.role.scope === 'PLATFORM' || invitation.role.scope === 'ORG')
+  if (!invitation || !valid) {
     return null
   }
   await db.staffInvitation.update({ where: { id: invitation.id }, data: { status: 'ACCEPTED', acceptedAt: new Date() } })
-  return { roleId: invitation.roleId, roleName: invitation.role.name }
+  return {
+    roleId: invitation.roleId,
+    roleName: invitation.role.name,
+    organizationId: invitation.organizationId,
+  }
 }

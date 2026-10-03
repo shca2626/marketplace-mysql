@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireUser } from '@/server/guards'
+import { requireModule } from '@/server/guards'
 import { getRfq, rfqTransition, RfqServiceError } from '@/server/modules/rfq/service'
 import { assertSameOrigin } from '@/lib/http'
 
@@ -10,7 +10,7 @@ const actionSchema = z.object({
 
 // GET /api/rfqs/[id] — RFQ detail with quotes (requester/admin/involved seller)
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { user, error } = await requireUser()
+  const { user, error } = await requireModule('rfq')
   if (error) return error
   try {
     const { id } = await ctx.params
@@ -30,7 +30,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
 
-  const { user, error } = await requireUser()
+  const { user, error } = await requireModule('rfq')
   if (error) return error
   try {
     const { id } = await ctx.params

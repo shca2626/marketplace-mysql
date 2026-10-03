@@ -70,6 +70,10 @@ export interface NavItem {
   /** RBACSEC-1 — any-of permission list: the section is visible when the
    *  user holds at least one of these (overrides `permission` when set). */
   anyPermissions?: string[]
+  /** Phase 5 — module activation key required for this item to show.
+   *  Undefined = always visible. Resolved against the session's module state
+   *  (personal scope for buyer items; org scope for financier items). */
+  module?: string
 }
 
 export interface NavGroup {
@@ -149,6 +153,7 @@ export const ADMIN_NAV: NavConfig = {
       label: 'Configuration',
       items: [
         { key: 'rbac', label: 'Roles & Access', icon: ShieldCheck, description: 'Permissions, staff & teams', anyPermissions: ['staff.view', 'rbac.roles.view', 'rbac.manage'], badge: 'New' },
+        { key: 'modules', label: 'Modules', icon: Layers, description: 'Platform capability activation matrix', permission: 'modules.manage', badge: 'New' },
         { key: 'whatsapp', label: 'WhatsApp Channels', icon: MessageCircle, description: 'Pair sender numbers & message ledger', permission: 'whatsapp.manage', badge: 'New' },
         { key: 'rfq-settings', label: 'RFQ Settings', icon: SlidersHorizontal, description: '22 scoped behavior panels', permission: 'rfq.settings.manage' },
         { key: 'storefront', label: 'Storefront Designer', icon: Palette, description: 'Branding, theme & hero slides', permission: 'storefront.manage' },
@@ -186,6 +191,7 @@ export const ADMIN_NAV: NavConfig = {
     disputes: { title: 'Disputes', description: 'Resolution queue with escalation paths and outcomes.' },
     'rfq-settings': { title: 'RFQ Settings', description: 'Scoped behavior configuration with change history & rollback.' },
     rbac: { title: 'Roles & Access', description: 'The RBAC control center — permissions, platform staff, organization teams and invitations.' },
+    modules: { title: 'Modules', description: 'The capability activation matrix — switch platform modules on/off per platform, organization type and organization.' },
     whatsapp: { title: 'WhatsApp Channels', description: 'Pair free WhatsApp sender numbers (any country), test the line and audit every outbound message.' },
     storefront: { title: 'Storefront Designer', description: 'Brand the public marketplace: name, logo, theme, hero slides.' },
     audit: { title: 'Audit Log', description: 'Immutable, signed record of critical platform actions.' },
@@ -247,18 +253,18 @@ export const BUYER_NAV: NavConfig = {
     {
       label: 'Procurement',
       items: [
-        { key: 'rfqs', label: 'My RFQs', icon: FileText, description: 'Requests for quote & negotiations', view: 'rfqs' },
-        { key: 'business', label: 'Business Account', icon: Briefcase, description: 'Organization, team & contract pricing', view: 'business' },
+        { key: 'rfqs', label: 'My RFQs', icon: FileText, description: 'Requests for quote & negotiations', view: 'rfqs', module: 'rfq' },
+        { key: 'business', label: 'Business Account', icon: Briefcase, description: 'Organization, team & contract pricing', view: 'business', module: 'b2b-orgs' },
       ],
     },
     {
       label: 'Financing',
       items: [
-        { key: 'overview', label: 'Financing & Accreditation', icon: Wallet, description: 'Services, applications & agreements', view: 'financing' },
-        { key: 'services', label: 'Financing Services', icon: Banknote, description: 'Browse financing & accreditation offerings', view: 'financing' },
-        { key: 'requests', label: 'My Applications', icon: ListChecks, description: 'Requests, gate status, offers & agreements', view: 'financing' },
-        { key: 'accreditation', label: 'Accreditation', icon: BadgeCheck, description: 'Company programs, grants & renewals', view: 'financing' },
-        { key: 'agreements', label: 'Agreements', icon: ScrollText, description: 'Schedules, fees & money events', view: 'financing' },
+        { key: 'overview', label: 'Financing & Accreditation', icon: Wallet, description: 'Services, applications & agreements', view: 'financing', module: 'financing-hub' },
+        { key: 'services', label: 'Financing Services', icon: Banknote, description: 'Browse financing & accreditation offerings', view: 'financing', module: 'financing-hub' },
+        { key: 'requests', label: 'My Applications', icon: ListChecks, description: 'Requests, gate status, offers & agreements', view: 'financing', module: 'financing-hub' },
+        { key: 'accreditation', label: 'Accreditation', icon: BadgeCheck, description: 'Company programs, grants & renewals', view: 'financing', module: 'financing-hub' },
+        { key: 'agreements', label: 'Agreements', icon: ScrollText, description: 'Schedules, fees & money events', view: 'financing', module: 'financing-hub' },
       ],
     },
     {
@@ -331,6 +337,12 @@ export const FINANCIER_NAV: NavConfig = {
         { key: 'profile', label: 'Institution Profile', icon: Building2, description: 'Org facts & financier profile' },
       ],
     },
+    {
+      label: 'Institution',
+      items: [
+        { key: 'team', label: 'Team & Roles', icon: UserCog, description: 'Institution staff, roles & invitations', badge: 'New' },
+      ],
+    },
   ],
   titles: {
     dashboard: { title: 'Financier Dashboard', description: 'Verified applications, offers and accreditation programs at a glance.' },
@@ -341,6 +353,7 @@ export const FINANCIER_NAV: NavConfig = {
     accreditations: { title: 'Accreditations', description: 'Forwarded accreditation requests — grant, reject or revoke.' },
     agreements: { title: 'Agreements', description: 'Accepted offers — report funding progress and money events (track-only).' },
     profile: { title: 'Institution Profile', description: 'Your organization, license and contact facts on Vendora.' },
+    team: { title: 'Team & Roles', description: 'Your institution staff — underwriters, reviewers and branch officers — with scoped roles and email invitations.' },
   },
 }
 
@@ -362,6 +375,39 @@ export const DASHBOARD_VIEWS = new Set<View>([
   'financing',
   'financier',
 ])
+
+/** Phase 5 — filter a console nav by module activation. Items carrying a
+ *  `module` key are dropped when that module is resolved OFF. `enabled`
+ *  being undefined (legacy admin / missing session block) fails OPEN. */
+export function filterNavByModules(
+  nav: NavConfig,
+  enabled: string[] | undefined
+): NavConfig {
+  if (!enabled) return nav
+  const set = new Set(enabled)
+  return {
+    ...nav,
+    groups: nav.groups
+      .map((g) => ({ ...g, items: g.items.filter((i) => !i.module || set.has(i.module)) }))
+      .filter((g) => g.items.length > 0),
+  }
+}
+
+/** Phase 5 — the module set a user's console resolves through: the UNION of
+ *  their org chains when they belong to orgs (each chain already resolves
+ *  org → orgType → platform → default, so platform flips keep working while
+ *  org-type flips steer only that org's people), else the platform chain.
+ *  Mirrors `isModuleEnabledForUser` on the server — nav and APIs must agree. */
+export function userModuleSet(
+  modules?: { personal: string[]; orgs: Record<string, string[]> } | null
+): string[] | undefined {
+  if (!modules) return undefined
+  const orgSets = Object.values(modules.orgs ?? {})
+  if (orgSets.length === 0) return modules.personal
+  const set = new Set<string>()
+  for (const s of orgSets) for (const k of s) set.add(k)
+  return [...set]
+}
 
 /** Topbar "back to storefront" label per role. */
 export const STOREFRONT_LINK: Record<RoleKey, { label: string; icon: LucideIcon }> = {

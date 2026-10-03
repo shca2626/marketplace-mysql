@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireUser } from '@/server/guards'
+import { requireModule } from '@/server/guards'
 import { openRfqDirectory, RfqServiceError } from '@/server/modules/rfq/service'
 
 // GET /api/rfqs/open-directory — SELLER-facing "Open Requests" board (STAB-6):
@@ -7,7 +7,7 @@ import { openRfqDirectory, RfqServiceError } from '@/server/modules/rfq/service'
 // against the seller's ACTIVE catalog. Admins get an empty list (they use the
 // admin monitor, same as the inbox route).
 export async function GET() {
-  const { user, error } = await requireUser()
+  const { user, error } = await requireModule('rfq')
   if (error) return error
   try {
     if (user!.role !== 'SELLER') {

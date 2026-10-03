@@ -14,7 +14,7 @@ import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
 import type { ApplicantProfileDTO } from '@/lib/types'
 import { DashboardLayout, PageHeader, SignInRequired } from '@/components/dashboards/dashboard-layout'
-import { BUYER_NAV } from '@/components/dashboards/nav-config'
+import { BUYER_NAV, filterNavByModules, userModuleSet } from '@/components/dashboards/nav-config'
 import type { NavItem } from '@/components/dashboards/nav-config'
 import { OverviewSection } from '@/components/marketplace/financing/overview-section'
 import { ServicesSection } from '@/components/marketplace/financing/services-section'
@@ -108,9 +108,11 @@ function FinancingConsole() {
   const user = useMarketplace((s) => s.user)
   const { data: meData } = useApi<{ applicant: ApplicantProfileDTO | null }>(user ? '/api/auth/me' : null)
   const me = user ? { user, applicant: meData?.applicant ?? null } : null
+  // Phase 5 — module-gated sidebar (RFQ / business entries drop when off).
+  const nav = filterNavByModules(BUYER_NAV, userModuleSet(user?.modules))
 
   return (
-    <DashboardLayout role="buyer" nav={BUYER_NAV} activeKey={section} onNavigate={onNavigate}>
+    <DashboardLayout role="buyer" nav={nav} activeKey={section} onNavigate={onNavigate}>
       {wizardServiceId && me ? (
         <>
           <PageHeader

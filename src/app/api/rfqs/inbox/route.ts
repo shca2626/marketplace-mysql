@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server'
-import { requireUser } from '@/server/guards'
+import { requireModule } from '@/server/guards'
 import { sellerRfqInbox, RfqServiceError } from '@/server/modules/rfq/service'
 
 // GET /api/rfqs/inbox — SELLER-facing inbox: open RFQs that reference my
 // catalog products, with my-quote state. Admins get an empty list (they use
 // the admin monitor).
 export async function GET() {
-  const { user, error } = await requireUser()
+  const { user, error } = await requireModule('rfq')
   if (error) return error
   try {
     if (user!.role !== 'SELLER') {
