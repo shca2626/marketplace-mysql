@@ -41,6 +41,7 @@ import { formatDate, initials } from '@/lib/format'
 import type { OrderDTO, RfqDTO } from '@/lib/types'
 import { DashboardLayout, PageHeader, SignInRequired } from './dashboard-layout'
 import { ProfileSecurityPanel } from './buyer-profile-security'
+import { VerificationSection } from './verification-section'
 import { BUYER_NAV } from './nav-config'
 import type { NavItem } from './nav-config'
 import { Button } from '@/components/ui/button'
@@ -59,9 +60,15 @@ export function BuyerDashboard() {
   const [signingOut, setSigningOut] = useState(false)
 
   // IA-100: ?view=account&tab=profile opens the Profile & Security panel;
-  // every other value (or none) lands on the overview. (routing only parses
-  // `tab` while the account view is active, so this can't leak across views.)
-  const tab = params.accountTab === 'profile' ? 'profile' : 'overview'
+  // ?view=account&tab=verification opens the KYC Verification panel; every
+  // other value (or none) lands on the overview. (routing only parses `tab`
+  // while the account view is active, so this can't leak across views.)
+  const tab =
+    params.accountTab === 'profile'
+      ? 'profile'
+      : params.accountTab === 'verification'
+        ? 'verification'
+        : 'overview'
 
   const resendVerification = async () => {
     if (sendingVerify) return
@@ -169,6 +176,15 @@ export function BuyerDashboard() {
     return (
       <DashboardLayout role="buyer" nav={BUYER_NAV} activeKey="profile" onNavigate={onNavigate}>
         <ProfileSecurityPanel />
+      </DashboardLayout>
+    )
+  }
+
+  // ── Verification tab (Phase 3 KYC — the publish gate deep-links here) ──
+  if (tab === 'verification') {
+    return (
+      <DashboardLayout role="buyer" nav={BUYER_NAV} activeKey="verification" onNavigate={onNavigate}>
+        <VerificationSection />
       </DashboardLayout>
     )
   }

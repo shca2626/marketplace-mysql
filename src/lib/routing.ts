@@ -16,6 +16,8 @@ import type { View, ViewParams } from '@/store/marketplace'
  *   /market?view=rfqs | business      → B2B: requests for quote / business account
  *   /market?view=account&tab=profile  → buyer account console, Profile & Security tab
  *   /market?view=financing&section=documents → financing console, documents vault
+ *   /market?view=register-company → Merchant/Dealer company wizard (Phase 3)
+ *   /market?view=register-financier → financier application door (Phase 3)
  *
  * Legacy deep links on / (?view=…) are 301'd to /market by src/middleware.ts.
  */
@@ -39,6 +41,8 @@ const VIEWS = new Set<View>([
   'forgot-password',
   'reset-password',
   'verify-email',
+  'register-company',
+  'register-financier',
 ])
 
 /** Serialize a view + params into a query string (no leading "?"). */
@@ -62,6 +66,7 @@ export function viewToQuery(view: View, params: ViewParams = {}): string {
   if (view === 'financing' && params.financingSection) sp.set('section', params.financingSection)
   if (view === 'financing' && params.financingWizard) sp.set('wizard', params.financingWizard)
   if ((view === 'reset-password' || view === 'verify-email') && params.authToken) sp.set('token', params.authToken)
+  if (view === 'reset-password' && params.resetVia) sp.set('via', params.resetVia)
   const qs = sp.toString()
   return qs
 }
@@ -129,6 +134,10 @@ export function parseLocation(href: string = typeof window !== 'undefined' ? win
     if (view === 'reset-password' || view === 'verify-email') {
       const token = sp.get('token')
       if (token) params.authToken = token
+    }
+    if (view === 'reset-password') {
+      const via = sp.get('via')
+      if (via === 'phone' || via === 'email') params.resetVia = via
     }
     return { view, params }
   } catch {

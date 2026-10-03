@@ -46,10 +46,13 @@ export function isValidHttpUrl(value: string | null | undefined): boolean {
   }
 }
 
-/** Image refs are either absolute http(s) URLs or files uploaded via /api/upload. */
+/** Image refs are absolute http(s) URLs or files served by the local media
+ *  pipeline (/uploads/... legacy paths and /api/media/... rendition URLs —
+ *  the uploads endpoint returns the latter, and seeded rows store them). */
 export function isValidImageRef(value: string): boolean {
   if (!value) return false
-  if (value.startsWith('/uploads/') && !value.includes('..')) return true
+  if ((value.startsWith('/uploads/') || value.startsWith('/api/media/')) && !value.includes('..'))
+    return true
   try {
     const u = new URL(value)
     return u.protocol === 'http:' || u.protocol === 'https:'

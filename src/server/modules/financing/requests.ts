@@ -133,7 +133,7 @@ function serializeRequest(r: RequestRaw & Parameters<typeof serializeSummaryInne
 function serializeSummaryInner(
   r: RequestRaw & {
     organization: { name: string } | null
-    createdBy: { id: string; name: string; email: string }
+    createdBy: { id: string; name: string; email: string | null }
     service: {
       id: string
       name: string

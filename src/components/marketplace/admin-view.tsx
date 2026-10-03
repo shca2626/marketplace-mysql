@@ -35,6 +35,9 @@ import { PaymentsTab } from './admin/payments-tab'
 import { PayoutsTab } from './admin/payouts-tab'
 import { FinancingTab } from './admin/financing-tab'
 import { RbacTab } from './admin/rbac-tab'
+import { WhatsAppTab } from './admin/whatsapp-tab'
+import { SpecAttributesTab } from './admin/spec-attributes-tab'
+import { CertificationsTab } from './admin/certifications-tab'
 import { AdminSettings } from './admin-settings'
 import { RfqSettings } from './admin/settings/rfq-settings'
 
@@ -97,6 +100,8 @@ function AdminDashboard({ user }: { user: SessionUser | null }) {
       {activeSection === 'overview' && <OverviewTab />}
       {activeSection === 'vendors' && <VendorsTab />}
       {activeSection === 'products' && <AdminProductsTab />}
+      {activeSection === 'spec-attributes' && <SpecAttributesTab />}
+      {activeSection === 'certifications' && <CertificationsTab />}
       {activeSection === 'orders' && <AdminOrdersTab />}
       {activeSection === 'payments' && <PaymentsTab />}
       {activeSection === 'payouts' && <PayoutsTab />}
@@ -107,6 +112,7 @@ function AdminDashboard({ user }: { user: SessionUser | null }) {
       {activeSection === 'rfqs' && <RfqsTab />}
       {activeSection === 'disputes' && <DisputesTab />}
       {activeSection === 'rbac' && <RbacTab user={user} />}
+      {activeSection === 'whatsapp' && <WhatsAppTab />}
       {activeSection === 'rfq-settings' && <RfqSettings />}
       {activeSection === 'storefront' && <AdminSettings />}
       {activeSection === 'audit' && <AuditTab />}

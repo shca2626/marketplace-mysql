@@ -4,8 +4,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowDown,
   ArrowUp,
+  BadgeCheck,
   Check,
+  ChevronDown,
   Coins,
+  FileBadge,
   FileText,
   Image as ImageIcon,
   ImagePlus,
@@ -14,15 +17,18 @@ import {
   Loader2,
   Plus,
   Search,
+  ShieldAlert,
   Shuffle,
   Trash2,
   Truck,
   UploadCloud,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
-import type { CategoryDTO, ProductDTO } from '@/lib/types'
+import { useMarketplace } from '@/store/marketplace'
+import type { CategoryDTO, ProductCertificationDTO, ProductDTO, SpecAttributeDTO } from '@/lib/types'
 import { SAMPLE_PRODUCT_IMAGES } from '@/lib/constants'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import {
   Dialog,
   DialogContent,
@@ -44,6 +50,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
 
 // ── Form state types ──────────────────────────────────────────────────────────
@@ -188,6 +195,33 @@ const uid = () => Math.random().toString(36).slice(2, 10)
 const TAB_ORDER = ['basics', 'pricing', 'media', 'variants', 'details', 'shipping', 'seo'] as const
 type TabId = (typeof TAB_ORDER)[number]
 
+// ── KYP certifications (seller form) ─────────────────────────────────────────
+
+const CERT_KINDS = ['DATASHEET', 'WARRANTY', 'ORIGIN', 'TEST_REPORT', 'CERTIFICATE', 'OTHER'] as const
+const CERT_KIND_LABELS: Record<string, string> = {
+  DATASHEET: 'Datasheet',
+  WARRANTY: 'Warranty',
+  ORIGIN: 'Certificate of origin',
+  TEST_REPORT: 'Test report',
+  CERTIFICATE: 'Certificate',
+  OTHER: 'Other',
+}
+
+const CERT_STATUS_CHIP: Record<string, string> = {
+  PENDING: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+  VERIFIED: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+  REJECTED: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300',
+}
+
+/** The serialized spec label for a dictionary attribute ("Rated power (W)"). */
+const attrLabel = (a: SpecAttributeDTO) => a.label + (a.unit ? ` (${a.unit})` : '')
+
+/** Does this saved spec row belong to the given dictionary attribute? */
+function rowMatchesAttr(row: { label: string }, attr: SpecAttributeDTO): boolean {
+  const t = row.label.trim()
+  return t === attr.label || t === attrLabel(attr)
+}
+
 export function ProductFormDialog({
   open,
   onOpenChange,
@@ -201,6 +235,8 @@ export function ProductFormDialog({
   editing: ProductDTO | null
   onSaved: () => void
 }) {
+  const navigate = useMarketplace((s) => s.navigate)
+  const user = useMarketplace((s) => s.user)
   const [form, setForm] = useState<ProductFormValues>(emptyForm)
   const [imageUrl, setImageUrl] = useState('')
   const [sampleOffset, setSampleOffset] = useState(0)
@@ -216,6 +252,28 @@ export function ProductFormDialog({
   const [tierRows, setTierRows] = useState<{ key: string; from: string; to: string; price: string }[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Phase 3 KYP — structured specs: dictionary attributes for the selected
+  // category (category rows first, then globals — the API orders them). While
+  // loading or empty, the legacy free-form editor stays in place.
+  const [specAttrs, setSpecAttrs] = useState<SpecAttributeDTO[]>([])
+  const [attrsLoading, setAttrsLoading] = useState(false)
+  const attrsKeyRef = useRef<string>('')
+
+  // Phase 3 KYP — certifications attached to the product being edited.
+  const [certs, setCerts] = useState<ProductCertificationDTO[]>([])
+  const [certsLoading, setCertsLoading] = useState(false)
+  const [certBusy, setCertBusy] = useState<string | null>(null)
+  const [certForm, setCertForm] = useState<{ kind: string; title: string; url: string; issuedBy: string; expiresAt: string }>({
+    kind: 'DATASHEET',
+    title: '',
+    url: '',
+    issuedBy: '',
+    expiresAt: '',
+  })
+
+  // KYC publish-gate: the 403 error text stays on screen until resolved.
+  const [kycBlocked, setKycBlocked] = useState<string | null>(null)
+
   // ── Hydrate on open ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!open) return
@@ -224,6 +282,8 @@ export function ProductFormDialog({
     setHighlightInput('')
     setUploads([])
     setDragOver(false)
+    setKycBlocked(null)
+    setCertForm({ kind: 'DATASHEET', title: '', url: '', issuedBy: '', expiresAt: '' })
     if (editing) {
       setForm({
         title: editing.title,
@@ -295,6 +355,155 @@ export function ProductFormDialog({
       setVariantRows([])
     }
   }, [open, editing])
+
+  // ── Structured specs: load the category's attribute dictionary ────────────
+  // Debounced + deduped: re-fetches only when the dialog is open and the
+  // selected category actually changes (seller switching categories mid-edit).
+  useEffect(() => {
+    if (!open || !form.categoryId) {
+      setSpecAttrs([])
+      setAttrsLoading(false)
+      attrsKeyRef.current = ''
+      return
+    }
+    const categoryId = form.categoryId
+    if (attrsKeyRef.current === categoryId) return // same category already loaded
+    let cancelled = false
+    setAttrsLoading(true)
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/spec-attributes?categoryId=${categoryId}`, { cache: 'no-store' })
+        const json = (await res.json().catch(() => ({}))) as { attributes?: SpecAttributeDTO[] }
+        if (cancelled) return
+        if (!res.ok) {
+          setSpecAttrs([]) // fall back to the free-form editor
+          return
+        }
+        attrsKeyRef.current = categoryId
+        setSpecAttrs(json.attributes ?? [])
+      } catch {
+        if (!cancelled) setSpecAttrs([])
+      } finally {
+        if (!cancelled) setAttrsLoading(false)
+      }
+    }, 250)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [open, form.categoryId])
+
+  // ── Certifications: load rows for the product being edited ────────────────
+  useEffect(() => {
+    if (!open || !editing) {
+      setCerts([])
+      setCertsLoading(false)
+      return
+    }
+    let cancelled = false
+    setCertsLoading(true)
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/products/${editing.id}/certifications`, { cache: 'no-store' })
+        const json = (await res.json().catch(() => ({}))) as { certifications?: ProductCertificationDTO[] }
+        if (cancelled) return
+        setCerts(res.ok ? json.certifications ?? [] : [])
+      } catch {
+        if (!cancelled) setCerts([])
+      } finally {
+        if (!cancelled) setCertsLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [open, editing])
+
+  const structuredSpecs = specAttrs.length > 0 && !attrsLoading
+
+  /** Current value for a dictionary attribute (matched by saved label). */
+  const attrValue = (attr: SpecAttributeDTO) =>
+    specs.find((r) => rowMatchesAttr(r, attr))?.value ?? ''
+
+  /** Write an attribute's value back into the shared specs row list. */
+  const setAttrValue = (attr: SpecAttributeDTO, raw: string) => {
+    const value = raw.trim()
+    setSpecs((rows) => {
+      const kept = rows.filter((r) => !rowMatchesAttr(r, attr))
+      return value ? [...kept, { id: uid(), label: attrLabel(attr), value }] : kept
+    })
+  }
+
+  /** Saved rows that don't belong to any dictionary attribute (custom rows). */
+  const customSpecRows = useMemo(
+    () => (structuredSpecs ? specs.filter((r) => !specAttrs.some((a) => rowMatchesAttr(r, a))) : []),
+    [specs, structuredSpecs, specAttrs]
+  )
+
+  const addCertification = async () => {
+    if (!editing) return
+    const title = certForm.title.trim()
+    if (title.length < 3) {
+      toast({ title: 'Title too short', description: 'Give the certification a descriptive title (3–120 characters)', variant: 'destructive' })
+      return
+    }
+    const url = certForm.url.trim()
+    if (url && !/^https?:\/\//.test(url)) {
+      toast({ title: 'Invalid link', description: 'The artifact link must start with http(s)://', variant: 'destructive' })
+      return
+    }
+    setCertBusy('new')
+    try {
+      const res = await fetch(`/api/products/${editing.id}/certifications`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kind: certForm.kind,
+          title,
+          url: url || null,
+          issuedBy: certForm.issuedBy.trim() || null,
+          expiresAt: certForm.expiresAt || null,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        toast({ title: 'Could not add certification', description: json.error, variant: 'destructive' })
+        return
+      }
+      setCerts((list) => [json.certification as ProductCertificationDTO, ...list])
+      setCertForm({ kind: certForm.kind, title: '', url: '', issuedBy: '', expiresAt: '' })
+      toast({
+        title: 'Certification submitted',
+        description: `${CERT_KIND_LABELS[certForm.kind]} — pending Vendora review.`,
+      })
+    } catch {
+      toast({ title: 'Could not add certification', description: 'Network error', variant: 'destructive' })
+    } finally {
+      setCertBusy(null)
+    }
+  }
+
+  const removeCertification = async (cert: ProductCertificationDTO) => {
+    setCertBusy(cert.id)
+    try {
+      const res = await fetch(`/api/certifications/${cert.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: false }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        toast({ title: 'Could not remove certification', description: json.error, variant: 'destructive' })
+        return
+      }
+      setCerts((list) => list.filter((c) => c.id !== cert.id))
+      toast({ title: 'Certification removed', description: cert.title })
+    } catch {
+      toast({ title: 'Could not remove certification', description: 'Network error', variant: 'destructive' })
+    } finally {
+      setCertBusy(null)
+    }
+  }
 
   const set =
     (key: keyof ProductFormValues) =>
@@ -527,6 +736,16 @@ export function ProductFormDialog({
       return 'Add at least one image before publishing (or save as draft)'
     if (form.videoUrl.trim() && !/^https?:\/\//.test(form.videoUrl.trim()))
       return 'Video URL must start with http(s)://'
+    // Structured specs: required dictionary attributes must be filled
+    if (specAttrs.length > 0) {
+      const missing = specAttrs.filter(
+        (a) => a.required && !specs.some((r) => rowMatchesAttr(r, a) && r.value.trim() !== '')
+      )
+      if (missing.length > 0) {
+        setTab('details')
+        return `“${missing[0].label}” is a required specification for this category`
+      }
+    }
     for (const v of variantRows) {
       const stock = parseInt(v.stock || '0', 10)
       if (Number.isNaN(stock) || stock < 0) return `Invalid stock for "${v.name}"`
@@ -606,9 +825,16 @@ export function ProductFormDialog({
       })
       const json = await res.json()
       if (!res.ok) {
+        // KYC publish gate — keep the reason on screen with a way out.
+        if (res.status === 403 && typeof json.error === 'string' && json.error.toLowerCase().includes('verify your identity')) {
+          setKycBlocked(json.error)
+          toast({ title: 'Verification required', description: 'Finish identity verification (KYC level 2) to publish — details below.', variant: 'destructive' })
+          return
+        }
         toast({ title: 'Save failed', description: json.error, variant: 'destructive' })
         return
       }
+      setKycBlocked(null)
       toast({
         title:
           status === 'DRAFT'
@@ -629,6 +855,9 @@ export function ProductFormDialog({
 
   const slugPreview = (form.slug.trim() || form.title.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'your-product').slice(0, 80)
   const editingDraft = editing?.status === 'DRAFT'
+  const selectedCategoryName = categories.find((c) => c.id === form.categoryId)?.name ?? 'This category’s'
+  // Only the owner manages certifications (admin edits are read-only here).
+  const canManageCerts = !!user && !!editing && user.id === editing.sellerId
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1294,41 +1523,343 @@ export function ProductFormDialog({
             </div>
 
             <div className="space-y-2.5">
-              <Label>Specifications</Label>
-              <p className="text-xs text-muted-foreground">Key–value pairs shown in a specifications table (up to 12).</p>
-              {specs.map((s, i) => (
-                <div key={s.id} className="flex items-center gap-2">
-                  <Input
-                    value={s.label}
-                    onChange={(e) => setSpecs((rows) => rows.map((r, j) => (j === i ? { ...r, label: e.target.value } : r)))}
-                    placeholder="Label (e.g. Dimensions)"
-                    maxLength={60}
-                    className="w-36 shrink-0 sm:w-44"
-                    aria-label="Specification label"
-                  />
-                  <Input
-                    value={s.value}
-                    onChange={(e) => setSpecs((rows) => rows.map((r, j) => (j === i ? { ...r, value: e.target.value } : r)))}
-                    placeholder="Value (e.g. 30 × 20 cm)"
-                    maxLength={200}
-                    aria-label="Specification value"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
-                    onClick={() => setSpecs((rows) => rows.filter((_, j) => j !== i))}
-                    aria-label="Remove specification"
-                  >
-                    <Trash2 size={14} />
-                  </Button>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Label>Specifications</Label>
+                {attrsLoading && (
+                  <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <Loader2 size={11} className="animate-spin" /> Loading the template…
+                  </span>
+                )}
+              </div>
+
+              {structuredSpecs ? (
+                /* Structured editor — the category's dictionary renders typed
+                   fields (text / number+unit / choice / yes-no); values are
+                   serialized into the same specs rows the storefront reads. */
+                <div className="space-y-3.5 rounded-xl border bg-muted/20 p-3.5">
+                  <p className="text-xs text-muted-foreground">
+                    {selectedCategoryName} specification template — buyers see these in the
+                    product&apos;s specifications table.
+                  </p>
+                  <div className="grid gap-3.5 sm:grid-cols-2">
+                    {specAttrs.map((attr) => (
+                      <div key={attr.id} className="space-y-1.5">
+                        <Label htmlFor={`spec-${attr.id}`} className="text-xs">
+                          {attr.label}
+                          {attr.unit ? <span className="text-muted-foreground"> ({attr.unit})</span> : null}
+                          {attr.required && <span className="ml-0.5 text-destructive">*</span>}
+                        </Label>
+                        {attr.dataType === 'NUMBER' ? (
+                          <div className="relative">
+                            <Input
+                              id={`spec-${attr.id}`}
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={attrValue(attr)}
+                              onChange={(e) => setAttrValue(attr, e.target.value)}
+                              placeholder={attr.required ? 'Required' : 'Optional'}
+                              className={cn(attr.unit && 'pr-12')}
+                              aria-required={attr.required || undefined}
+                            />
+                            {attr.unit && (
+                              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                                {attr.unit}
+                              </span>
+                            )}
+                          </div>
+                        ) : attr.dataType === 'SELECT' ? (
+                          <Select value={attrValue(attr)} onValueChange={(v) => setAttrValue(attr, v)}>
+                            <SelectTrigger id={`spec-${attr.id}`} aria-label={attr.label} aria-required={attr.required || undefined}>
+                              <SelectValue placeholder={attr.required ? 'Choose…' : 'Optional — choose…'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {attr.options.map((opt) => (
+                                <SelectItem key={opt} value={opt}>
+                                  {opt}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : attr.dataType === 'BOOLEAN' ? (
+                          <div className="flex h-9 items-center gap-2.5 rounded-lg border px-3">
+                            <Switch
+                              checked={attrValue(attr) === 'Yes'}
+                              onCheckedChange={(c) => setAttrValue(attr, c ? 'Yes' : 'No')}
+                              aria-label={attr.label}
+                            />
+                            <span className="text-xs text-muted-foreground">
+                              {attrValue(attr) === 'Yes' ? 'Yes' : 'No'}
+                            </span>
+                          </div>
+                        ) : (
+                          <Input
+                            id={`spec-${attr.id}`}
+                            value={attrValue(attr)}
+                            onChange={(e) => setAttrValue(attr, e.target.value)}
+                            placeholder={attr.required ? 'Required' : 'Optional'}
+                            maxLength={200}
+                            aria-required={attr.required || undefined}
+                          />
+                        )}
+                        {attr.required && (
+                          <p className="text-[11px] text-muted-foreground">
+                            Required for this category
+                            {attr.dataType === 'NUMBER' && attr.unit ? ` — measured in ${attr.unit}` : ''}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Custom rows: anything the dictionary doesn't cover yet */}
+                  <Collapsible>
+                    <CollapsibleTrigger className="group flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
+                      <ChevronDown size={13} className="transition-transform group-data-[state=open]:rotate-180" />
+                      Add custom spec
+                      {customSpecRows.length > 0 && (
+                        <span className="rounded-full bg-muted px-1.5 py-px text-[10px] font-semibold tabular-nums">
+                          {customSpecRows.length}
+                        </span>
+                      )}
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-2 pt-2.5">
+                      {customSpecRows.map((s) => {
+                        const i = specs.findIndex((r) => r.id === s.id)
+                        return (
+                          <div key={s.id} className="flex items-center gap-2">
+                            <Input
+                              value={s.label}
+                              onChange={(e) => setSpecs((rows) => rows.map((r, j) => (j === i ? { ...r, label: e.target.value } : r)))}
+                              placeholder="Label (e.g. Dimensions)"
+                              maxLength={60}
+                              className="w-36 shrink-0 sm:w-44"
+                              aria-label="Custom specification label"
+                            />
+                            <Input
+                              value={s.value}
+                              onChange={(e) => setSpecs((rows) => rows.map((r, j) => (j === i ? { ...r, value: e.target.value } : r)))}
+                              placeholder="Value (e.g. 30 × 20 cm)"
+                              maxLength={200}
+                              aria-label="Custom specification value"
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+                              onClick={() => setSpecs((rows) => rows.filter((r) => r.id !== s.id))}
+                              aria-label="Remove custom specification"
+                            >
+                              <Trash2 size={14} />
+                            </Button>
+                          </div>
+                        )
+                      })}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSpecs((rows) => [...rows, { id: uid(), label: '', value: '' }])}
+                      >
+                        <Plus size={14} className="mr-1" /> Add custom spec row
+                      </Button>
+                    </CollapsibleContent>
+                  </Collapsible>
                 </div>
-              ))}
-              <Button type="button" variant="outline" size="sm" onClick={() => setSpecs((rows) => [...rows, { id: uid(), label: '', value: '' }])}>
-                <Plus size={14} className="mr-1" /> Add specification
-              </Button>
+              ) : (
+                <>
+                  {!attrsLoading && (
+                    <p className="text-xs text-muted-foreground">
+                      Key–value pairs shown in a specifications table (up to 12).
+                    </p>
+                  )}
+                  {specs.map((s, i) => (
+                    <div key={s.id} className="flex items-center gap-2">
+                      <Input
+                        value={s.label}
+                        onChange={(e) => setSpecs((rows) => rows.map((r, j) => (j === i ? { ...r, label: e.target.value } : r)))}
+                        placeholder="Label (e.g. Dimensions)"
+                        maxLength={60}
+                        className="w-36 shrink-0 sm:w-44"
+                        aria-label="Specification label"
+                      />
+                      <Input
+                        value={s.value}
+                        onChange={(e) => setSpecs((rows) => rows.map((r, j) => (j === i ? { ...r, value: e.target.value } : r)))}
+                        placeholder="Value (e.g. 30 × 20 cm)"
+                        maxLength={200}
+                        aria-label="Specification value"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => setSpecs((rows) => rows.filter((_, j) => j !== i))}
+                        aria-label="Remove specification"
+                      >
+                        <Trash2 size={14} />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button type="button" variant="outline" size="sm" onClick={() => setSpecs((rows) => [...rows, { id: uid(), label: '', value: '' }])}>
+                    <Plus size={14} className="mr-1" /> Add specification
+                  </Button>
+                </>
+              )}
             </div>
+
+            {/* ── Certifications (KYP) — only for saved products ── */}
+            {editing && (
+              <div className="space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Label className="flex items-center gap-1.5">
+                    <FileBadge size={14} className="text-primary" /> Certifications
+                  </Label>
+                  {certsLoading && (
+                    <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                      <Loader2 size={11} className="animate-spin" /> Loading…
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Certifications are reviewed by Vendora before the Verified badge appears.
+                </p>
+
+                {certs.length > 0 && (
+                  <ul className="max-h-44 space-y-1.5 overflow-y-auto scrollbar-thin pr-1">
+                    {certs.map((cert) => (
+                      <li
+                        key={cert.id}
+                        className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2"
+                      >
+                        <Badge className="shrink-0 rounded-full border-0 bg-muted text-[10.5px] font-semibold text-muted-foreground">
+                          {CERT_KIND_LABELS[cert.kind] ?? cert.kind}
+                        </Badge>
+                        <span className="min-w-0 flex-1 truncate text-sm font-medium">{cert.title}</span>
+                        {cert.issuedBy && (
+                          <span className="hidden shrink-0 text-[11px] text-muted-foreground sm:inline">{cert.issuedBy}</span>
+                        )}
+                        {cert.expiresAt && (
+                          <span className="shrink-0 text-[11px] text-muted-foreground">
+                            exp. {cert.expiresAt.slice(0, 10)}
+                          </span>
+                        )}
+                        <Badge className={cn('shrink-0 rounded-full border-0 text-[10.5px] font-semibold', CERT_STATUS_CHIP[cert.status] ?? 'bg-muted text-muted-foreground')}>
+                          {cert.status === 'VERIFIED' ? (
+                            <>
+                              <BadgeCheck size={10} className="mr-0.5" />
+                              Verified
+                            </>
+                          ) : (
+                            cert.status === 'PENDING' ? 'In review' : cert.status
+                          )}
+                        </Badge>
+                        {canManageCerts && (
+                          <button
+                            type="button"
+                            onClick={() => void removeCertification(cert)}
+                            disabled={certBusy === cert.id}
+                            className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-40"
+                            aria-label={`Remove ${cert.title}`}
+                          >
+                            {certBusy === cert.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {!certsLoading && certs.length === 0 && (
+                  <p className="rounded-xl border border-dashed px-3.5 py-3 text-xs text-muted-foreground">
+                    No certifications yet — add a datasheet, warranty or test report link to earn the
+                    Verified specs badge after review.
+                  </p>
+                )}
+
+                {canManageCerts && (
+                  <div className="space-y-2.5 rounded-xl border bg-muted/20 p-3.5">
+                    <div className="grid gap-2.5 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <Label htmlFor="cert-kind" className="text-xs">Kind</Label>
+                        <Select value={certForm.kind} onValueChange={(v) => setCertForm((f) => ({ ...f, kind: v }))}>
+                          <SelectTrigger id="cert-kind" aria-label="Certification kind" className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CERT_KINDS.map((k) => (
+                              <SelectItem key={k} value={k}>
+                                {CERT_KIND_LABELS[k]}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="cert-title" className="text-xs">Title</Label>
+                        <Input
+                          id="cert-title"
+                          value={certForm.title}
+                          onChange={(e) => setCertForm((f) => ({ ...f, title: e.target.value }))}
+                          maxLength={120}
+                          placeholder="e.g. IEC 61215 test report"
+                          className="h-9"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="cert-url" className="text-xs">
+                          Link <span className="text-muted-foreground">(opt.)</span>
+                        </Label>
+                        <Input
+                          id="cert-url"
+                          value={certForm.url}
+                          onChange={(e) => setCertForm((f) => ({ ...f, url: e.target.value }))}
+                          maxLength={512}
+                          placeholder="https://…"
+                          className="h-9"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="cert-issuer" className="text-xs">
+                          Issued by <span className="text-muted-foreground">(opt.)</span>
+                        </Label>
+                        <Input
+                          id="cert-issuer"
+                          value={certForm.issuedBy}
+                          onChange={(e) => setCertForm((f) => ({ ...f, issuedBy: e.target.value }))}
+                          maxLength={120}
+                          placeholder="e.g. TÜV Rheinland"
+                          className="h-9"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="cert-expires" className="text-xs">
+                          Expires <span className="text-muted-foreground">(opt.)</span>
+                        </Label>
+                        <Input
+                          id="cert-expires"
+                          type="date"
+                          value={certForm.expiresAt}
+                          onChange={(e) => setCertForm((f) => ({ ...f, expiresAt: e.target.value }))}
+                          className="h-9"
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="rounded-lg"
+                      disabled={certBusy === 'new'}
+                      onClick={() => void addCertification()}
+                    >
+                      {certBusy === 'new' ? <Loader2 size={13} className="mr-1.5 animate-spin" /> : <Plus size={13} className="mr-1.5" />}
+                      Add certification
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
@@ -1500,6 +2031,29 @@ export function ProductFormDialog({
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* KYC publish gate — persistent inline callout with a way out */}
+        {kycBlocked && (
+          <div
+            role="alert"
+            className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950 dark:text-amber-200"
+          >
+            <ShieldAlert size={18} className="shrink-0" aria-hidden />
+            <p className="min-w-0 flex-1 text-sm font-medium">{kycBlocked}</p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="rounded-lg border-amber-400 bg-transparent text-amber-900 hover:bg-amber-100 hover:text-amber-900 dark:border-amber-700 dark:text-amber-200 dark:hover:bg-amber-900"
+              onClick={() => {
+                onOpenChange(false)
+                navigate('account', { accountTab: 'verification' })
+              }}
+            >
+              Go to verification
+            </Button>
+          </div>
+        )}
 
         <DialogFooter className="gap-2 pt-2">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

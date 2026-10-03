@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { recordAudit } from '@/server/modules/audit/service'
+import { recomputeOrgKycLevel } from '@/server/modules/kyc/service'
 import type { OrganizationDTO, OrganizationMemberDTO, OrgRole } from '@/lib/types'
 
 /**
@@ -530,6 +531,15 @@ export async function adminUpdateOrganization(
     data,
     include: { _count: { select: { members: true } }, groups: { include: { customerGroup: true } } },
   })
+
+  // KYC engine hook (Phase 3 — task 3-d): admin-activating an org runs the
+  // KYB recompute — the org flips to level 3 when it holds a VERIFIED business
+  // doc (COMMERCIAL_REG / BUSINESS_LICENSE), which also re-raises every
+  // OWNER/ADMIN member's own user level. Recompute swallows its own errors,
+  // so the org update result stays safe.
+  if (input.status === 'ACTIVE' && org.status !== 'ACTIVE') {
+    await recomputeOrgKycLevel(orgId)
+  }
 
   if (input.status && input.status !== org.status) {
     await recordAudit({

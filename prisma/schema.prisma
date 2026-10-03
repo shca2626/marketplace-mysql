@@ -33,7 +33,7 @@ datasource db {
 
 model User {
   id             String    @id @default(cuid())
-  email          String    @unique
+  email          String?   @unique // Phase 3: OPTIONAL — sign-in is phone-first; email stays for receipts/recovery (unique when set)
   password       String
   name           String
   image          String?
@@ -78,7 +78,10 @@ model User {
 
   // ── Applicant profile (FINANCIER_SCHEMA v5 §3.1) — additive, ALL nullable;
   //    B2C buyers unaffected until they apply for financing (DP-14) ──
-  phone             String? // contact only — login stays email-based
+  phone             String?   @unique // Phase 3: normalized E.164 (+9677XXXXXXXXX) — REQUIRED + OTP-verified for new registrations; unique when set
+  phoneVerifiedAt   DateTime? // set by OTP verification (L1 evidence)
+  kycLevel          Int       @default(0) // 0=L0 registered · 1=L1 phone verified · 2=L2 identity docs verified · 3=L3 business/org verified (computed once, read everywhere)
+  merchantType      String? // EXCLUSIVE_AGENT | AUTHORIZED_AGENT | DISTRIBUTOR | WHOLESALER | RETAILER — Merchant/Dealer designation (owner taxonomy)
   whatsappNumber    String?
   dateOfBirth       DateTime?
   gender            String? // MALE | FEMALE | OTHER
@@ -112,6 +115,10 @@ model User {
   // ── RBAC role assignments (mergedplan.md Phase 2) ──
   roleAssignments UserRole[]
 
+  // ── Phase 3: KYC/KYP + notification channels ──
+  notificationPref     UserNotificationPref?
+  certificationsVerified ProductCertification[] @relation("CertificationsVerifiedBy")
+
   @@index([role])
 }
 
@@ -121,6 +128,7 @@ model Category {
   slug     String    @unique
   icon     String?
   products Product[]
+  specAttributes SpecAttribute[] // Phase 3 KYP: structured attribute dictionary per category
 }
 
 model Product {
@@ -172,6 +180,7 @@ model Product {
   rfqLines         RfqLine[]
   quoteLines       QuoteLine[]
   variants         ProductVariant[]
+  certifications  ProductCertification[]
 
   @@index([categoryId])
   @@index([sellerId, status])
@@ -291,6 +300,8 @@ model Organization {
   name               String
   slug               String    @unique
   orgType            String    @default("COMPANY") // COMPANY | BANK | MFI | EWALLET — settings scope key
+  kycLevel           Int       @default(0) // Phase 3 KYB: 0=registered · 2=identity · 3=business docs verified
+  merchantType       String? // EXCLUSIVE_AGENT | AUTHORIZED_AGENT | DISTRIBUTOR | WHOLESALER | RETAILER — Merchant/Dealer classification of the entity
   legalName          String?
   taxId              String? // VAT / EIN
   registrationNumber String?
@@ -1679,4 +1690,130 @@ model SolutionFeature {
   body       String? @db.Text // MYSQL: feature explanation
 
   @@index([solutionId]) // MYSQL-FK-INDEX: solutionId relation needs its own leftmost index
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PHASE 3 — Phone-OTP auth · KYC/KYP · WhatsApp notification channel
+// ═══════════════════════════════════════════════════════════════════════════
+
+// One-time passcodes for phone-first auth. Keyed by normalized E.164 phone,
+// purpose-scoped, SHA-256-hashed at rest, single-use, attempt-capped.
+model OtpCode {
+  id         String    @id @default(cuid())
+  phone      String // normalized E.164 (+9677XXXXXXXXX)
+  purpose    String // REGISTER | RESET (LOGIN reserved for future passwordless)
+  codeHash   String // sha256(code)
+  expiresAt  DateTime // 5-minute TTL
+  attempts   Int       @default(0) // max 5 verify tries then burn
+  consumedAt DateTime? // single-use burn
+  ip         String? // issuance IP (abuse forensics)
+  createdAt  DateTime  @default(now())
+
+  @@index([phone, purpose, createdAt])
+  @@index([expiresAt])
+}
+
+// WhatsApp sending numbers ("senders") — the platform OWNER pairs any
+// international SIM (+967…, +966…) from the admin console via a pairing code
+// typed into WhatsApp → Linked devices. Session creds persist here so the
+// mini-service survives restarts; owner can disconnect / replace anytime.
+model WhatsAppSender {
+  id          String    @id @default(cuid())
+  label       String // display name, e.g. "Vendora main line"
+  phoneNumber String    @unique // E.164 — the number users receive messages FROM
+  status      String    @default("PENDING_PAIRING") // PENDING_PAIRING | PAIRED | DISCONNECTED | FAILED
+  credsJson   String?   @db.MediumText // Baileys session credentials (encrypted-at-rest candidate)
+  pairingCode String? // 8-char code the owner types on their phone (pairing flow)
+  qrExpiresAt DateTime?
+  isDefault   Boolean   @default(false) // the active outbound line
+  lastUsedAt  DateTime?
+  lastError   String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  messages WhatsAppMessage[]
+
+  @@index([status])
+}
+
+// Outbound WhatsApp log — every send is auditable + debuggable. Doubles as
+// the delivery ledger when the channel fans out to email/SMS twins later.
+model WhatsAppMessage {
+  id             String         @id @default(cuid())
+  senderId       String?
+  sender         WhatsAppSender? @relation(fields: [senderId], references: [id], onDelete: SetNull)
+  toPhone        String // E.164
+  template       String // OTP | NOTIFICATION | TEST | CUSTOM
+  body           String         @db.Text
+  status         String         @default("QUEUED") // QUEUED | SENT | FAILED
+  error          String?        @db.Text
+  userId         String? // recipient user (null for pre-account OTP)
+  notificationId String? // mirrored in-app Notification when applicable
+  createdAt      DateTime       @default(now())
+  sentAt         DateTime?
+
+  @@index([toPhone, createdAt])
+  @@index([status, createdAt])
+  @@index([userId])
+}
+
+// Per-user channel toggles — the in-app bell is ALWAYS on; WhatsApp / email /
+// SMS are opt-out per channel ("3 channels + system notifications" owner spec).
+model UserNotificationPref {
+  userId   String  @id
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  whatsapp Boolean @default(true)
+  email    Boolean @default(true)
+  sms      Boolean @default(false) // off until an SMS gateway is wired
+
+  updatedAt DateTime @updatedAt
+}
+
+// KYP — Know Your Product. Certification/compliance artifacts attached to the
+// product itself (shared by every future offer on it, per Phase 4 product/offer
+// split). Admin-verified → "Verified specs" badge on the storefront.
+model ProductCertification {
+  id           String    @id @default(cuid())
+  productId    String
+  product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  kind         String // DATASHEET | WARRANTY | ORIGIN | TEST_REPORT | CERTIFICATE | OTHER
+  title        String
+  mediaId      String? // vault-backed MediaAsset when uploaded
+  url          String? // external link when provided
+  issuedBy     String? // certifying body / manufacturer
+  issuedAt     DateTime?
+  expiresAt    DateTime?
+  status       String    @default("PENDING") // PENDING | VERIFIED | REJECTED
+  verifiedById String?
+  verifiedBy   User?     @relation("CertificationsVerifiedBy", fields: [verifiedById], references: [id])
+  verifiedAt   DateTime?
+  note         String?   @db.Text
+  isActive     Boolean   @default(true) // soft-delete
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([productId, kind, status])
+  @@index([verifiedById]) // MYSQL-FK-INDEX: verifiedById relation needs its own leftmost index
+}
+
+// Structured specs — companies never touch JSON. Admin defines the attribute
+// dictionary per category (null categoryId = global); sellers fill a real form;
+// Product.specs JSON stays as the storage format, now generated from this.
+model SpecAttribute {
+  id         String    @id @default(cuid())
+  categoryId String? // null = available to EVERY category
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  key        String // machine key: "wattage"
+  label      String // human label: "Rated power"
+  dataType   String    @default("TEXT") // TEXT | NUMBER | SELECT | BOOLEAN
+  unit       String? // "W", "V", "kg"
+  options    String?   @db.Text // SELECT: JSON array ["Monocrystalline","Polycrystalline"]
+  required   Boolean   @default(false)
+  position   Int       @default(0)
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([categoryId, key]) // MySQL: NULL categoryId rows not enforced — service layer dedupes global keys
+  @@index([isActive, position])
 }

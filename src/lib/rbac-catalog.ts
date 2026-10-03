@@ -169,6 +169,16 @@ export const PERMISSION_DOMAINS: PermissionDomain[] = [
     ],
   },
   {
+    key: 'whatsapp',
+    label: 'WhatsApp Channels',
+    scope: 'PLATFORM',
+    description: 'The free WhatsApp sending lines (Baileys).',
+    permissions: [
+      { key: 'whatsapp.view', label: 'View WhatsApp channels', description: 'See sender numbers, pairing state and the outbound message ledger.' },
+      { key: 'whatsapp.manage', label: 'Manage WhatsApp channels', description: 'Pair new sender numbers, set the default line, disconnect, remove and send test messages.' },
+    ],
+  },
+  {
     key: 'audit',
     label: 'Audit & Compliance',
     scope: 'PLATFORM',

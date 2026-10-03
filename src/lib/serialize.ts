@@ -60,6 +60,27 @@ type ProductRaw = {
   moq?: number | null
   priceTiers?: string | null
   variants?: ProductVariantRaw[]
+  // Phase 3 KYP — present when the caller includes product.certifications
+  certifications?: CertificationRaw[]
+}
+
+/** Minimal certification shape serializeProduct needs (kyc module owns the full DTO). */
+interface CertificationRaw {
+  id: string
+  productId: string
+  kind: string
+  title: string
+  mediaId: string | null
+  url: string | null
+  issuedBy: string | null
+  issuedAt: Date | null
+  expiresAt: Date | null
+  status: string
+  verifiedById: string | null
+  verifiedAt: Date | null
+  note: string | null
+  isActive: boolean
+  createdAt: Date
 }
 
 function parseJsonArray<T>(raw: string | null | undefined, guard: (x: unknown) => x is T): T[] {
@@ -111,6 +132,23 @@ export function serializeProduct(p: ProductRaw, favorited = false): ProductDTO {
   } catch {
     images = []
   }
+  const certifications = (p.certifications ?? []).map((c) => ({
+    id: c.id,
+    productId: c.productId,
+    kind: c.kind,
+    title: c.title,
+    mediaId: c.mediaId,
+    url: c.url,
+    issuedBy: c.issuedBy,
+    issuedAt: c.issuedAt ? c.issuedAt.toISOString() : null,
+    expiresAt: c.expiresAt ? c.expiresAt.toISOString() : null,
+    status: c.status,
+    verifiedById: c.verifiedById,
+    verifiedAt: c.verifiedAt ? c.verifiedAt.toISOString() : null,
+    note: c.note,
+    isActive: c.isActive,
+    createdAt: c.createdAt.toISOString(),
+  }))
   return {
     id: p.id,
     title: p.title,
@@ -151,6 +189,12 @@ export function serializeProduct(p: ProductRaw, favorited = false): ProductDTO {
     moq: (p as { moq?: number | null }).moq ?? null,
     priceTiers: parseJsonArray((p as { priceTiers?: string | null }).priceTiers, isTier),
     variants: (p.variants ?? []).map(serializeVariant),
+    ...(certifications.length > 0
+      ? {
+          certifications,
+          hasVerifiedSpecs: certifications.some((c) => c.status === 'VERIFIED'),
+        }
+      : {}),
   }
 }
 
@@ -189,7 +233,7 @@ export function serializeOrder(
     paymentTerms?: string | null
     poNumber?: string | null
     sourceType?: string | null
-    buyer?: { id: string; name: string; email: string }
+    buyer?: { id: string; name: string; email: string | null }
     payment?: {
       method: string
       status: string

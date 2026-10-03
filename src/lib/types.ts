@@ -3,7 +3,18 @@ export type Role = 'BUYER' | 'SELLER' | 'ADMIN'
 export interface SessionUser {
   id: string
   name: string
-  email: string
+  /** Phase 3: optional — phone-first accounts may have no email. */
+  email: string | null
+  /** Phase 3: normalized E.164 (+967XXXXXXXXX) — the primary identifier. */
+  phone?: string | null
+  /** Phase 3: set by OTP verification (L1 evidence). */
+  phoneVerifiedAt?: string | null
+  /** Phase 3: 0=L0 · 1=L1 phone · 2=L2 identity · 3=L3 business. */
+  kycLevel?: number
+  /** Phase 3: EXCLUSIVE_AGENT | AUTHORIZED_AGENT | DISTRIBUTOR | WHOLESALER | RETAILER. */
+  merchantType?: string | null
+  /** Phase 3: email when present, else the phone — safe for header display. */
+  displayContact: string
   role: Role
   image?: string | null
   storeName?: string | null
@@ -40,7 +51,7 @@ export interface RbacAssignmentDTO {
   id: string
   userId: string
   userName: string
-  userEmail: string
+  userEmail: string | null
   userRole: string
   roleId: string
   roleKey: string
@@ -54,7 +65,7 @@ export interface RbacAssignmentDTO {
 export interface RbacStaffDTO {
   userId: string
   name: string
-  email: string
+  email: string | null
   userRole: string
   isSuperAdmin: boolean
   permissions: string[]
@@ -64,7 +75,7 @@ export interface RbacStaffDTO {
 export interface RbacStaffUserDTO {
   id: string
   name: string
-  email: string
+  email: string | null
   role: string
 }
 
@@ -145,6 +156,56 @@ export interface ProductDTO {
   metaTitle?: string | null
   metaDescription?: string | null
   variants?: ProductVariantDTO[]
+  /** Phase 3 KYP — certifications attached to the listing (detail view). */
+  certifications?: ProductCertificationDTO[]
+  /** True when ≥1 VERIFIED certification — powers the "Verified specs" badge. */
+  hasVerifiedSpecs?: boolean
+}
+
+/** Phase 3 KYP — a certification/compliance artifact on a product. */
+export interface ProductCertificationDTO {
+  id: string
+  productId: string
+  productTitle?: string
+  sellerId?: string
+  sellerName?: string | null
+  kind: string
+  title: string
+  mediaId: string | null
+  url: string | null
+  issuedBy: string | null
+  issuedAt: string | null
+  expiresAt: string | null
+  status: string
+  verifiedById: string | null
+  verifiedAt: string | null
+  note: string | null
+  isActive: boolean
+  createdAt: string
+}
+
+/** Phase 3 — admin spec-attribute dictionary entry. */
+export interface SpecAttributeDTO {
+  id: string
+  categoryId: string | null
+  categoryName?: string | null
+  key: string
+  label: string
+  dataType: string
+  unit: string | null
+  options: string[]
+  required: boolean
+  position: number
+  isActive: boolean
+  createdAt: string
+}
+
+/** Phase 3 — /api/kyc/status payload (account console Verification card). */
+export interface KycStatusDTO {
+  kycLevel: number
+  levelLabel: string
+  missingForNext: string[]
+  verifiedBadges: string[]
 }
 
 export interface ReviewDTO {
@@ -194,7 +255,7 @@ export interface OrderDTO {
   poNumber?: string | null
   sourceType?: string | null
   payment?: OrderPaymentDTO | null
-  buyer?: { id: string; name: string; email: string }
+  buyer?: { id: string; name: string; email: string | null }
   items: OrderItemDTO[]
 }
 
@@ -223,6 +284,8 @@ export interface StoreDTO {
   storeCoverUrl: string | null
   /** Cover label for alt text (resolved alongside storeCoverUrl). */
   storeCoverLabel: string | null
+  /** Phase 3 KYC: 0=L0 · 1=L1 phone · 2=L2 identity · 3=L3 business. */
+  kycLevel?: number
   memberSince: string
   activeListings: number
   totalSold: number
@@ -260,7 +323,7 @@ export interface SellerStats {
     total: number
     status: string
     createdAt: string
-    buyer: { id: string; name: string; email: string }
+    buyer: { id: string; name: string; email: string | null }
     itemCount: number
   }[]
   salesByDay: { date: string; revenue: number; orders: number }[]
@@ -284,7 +347,7 @@ export interface OrganizationMemberDTO {
   id: string
   role: OrgRole
   jobTitle?: string | null
-  user: { id: string; name: string; email: string }
+  user: { id: string; name: string; email: string | null }
   createdAt: string
 }
 
@@ -299,8 +362,8 @@ export interface ApprovalRequestDTO {
   decisionNote?: string | null
   createdAt: string
   decidedAt?: string | null
-  requester?: { id: string; name: string; email: string } | null
-  decidedBy?: { id: string; name: string; email: string } | null
+  requester?: { id: string; name: string; email: string | null } | null
+  decidedBy?: { id: string; name: string; email: string | null } | null
   order?: {
     id: string
     status: string
@@ -459,7 +522,7 @@ export interface RfqDTO {
   description?: string | null
   organizationId?: string | null
   organizationName?: string | null
-  requester: { id: string; name: string; email: string }
+  requester: { id: string; name: string; email: string | null }
   submittedAt?: string | null
   respondedAt?: string | null
   closedAt?: string | null
@@ -833,7 +896,7 @@ export interface FinancingRequestSummaryDTO {
   status: string
   organizationId: string | null
   organizationName: string | null
-  applicant: { id: string; name: string; email: string }
+  applicant: { id: string; name: string; email: string | null }
   serviceId: string
   serviceName: string
   serviceKind: string
@@ -962,7 +1025,7 @@ export interface AccreditationRequestSummaryDTO {
   status: string
   organizationId: string
   organizationName: string
-  submittedBy: { id: string; name: string; email: string }
+  submittedBy: { id: string; name: string; email: string | null }
   serviceId: string
   serviceName: string
   financierOrgId: string

@@ -43,6 +43,8 @@ import { FinancierView } from './financier-view'
 import { CartDrawer } from './cart-drawer'
 import { AuthModal } from './auth-modal'
 import { ForgotPasswordView, ResetPasswordView, VerifyEmailView } from './auth-views'
+import { RegisterCompanyView } from './register/register-company-view'
+import { RegisterFinancierView } from './register/register-financier-view'
 import { BackToTop } from './back-to-top'
 import { StorefrontTheme } from './storefront-theme'
 
@@ -57,6 +59,8 @@ const STOREFRONT_VIEWS: Record<string, () => React.ReactNode> = {
   'forgot-password': () => <ForgotPasswordView />,
   'reset-password': () => <ResetPasswordView />,
   'verify-email': () => <VerifyEmailView />,
+  'register-company': () => <RegisterCompanyView />,
+  'register-financier': () => <RegisterFinancierView />,
 }
 
 /** Internal consoles — every one mounts its own DashboardLayout. */

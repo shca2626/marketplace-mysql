@@ -28,6 +28,9 @@ export const getPublicProduct = cache(async (id: string) => {
       include: {
         ...productInclude,
         variants: { where: { isActive: true }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
+        // Phase 3 KYP — active certifications power the "Verified specs" badge
+        // and the compliance block on the public detail page.
+        certifications: { where: { isActive: true }, orderBy: { createdAt: 'asc' } },
         reviews: {
           orderBy: { createdAt: 'desc' },
           take: 8,

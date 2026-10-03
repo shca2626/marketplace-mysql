@@ -11,7 +11,7 @@ export interface GuardUser {
   id: string
   role: string
   name: string
-  email: string
+  email: string | null // Phase 3: phone-first accounts may have no email
 }
 
 export async function requireUser(): Promise<

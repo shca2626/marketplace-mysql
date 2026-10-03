@@ -487,7 +487,52 @@ export function FaqBand({ faqs }: { faqs: PublicFaq[] }) {
   )
 }
 
-// ── 7 · Final CTA (navy band — dark reserved for CTA) ────────────────────────
+// ── 7 · Join as financier (Phase 3 application door) ────────────────────────
+
+export function JoinFinancierBand() {
+  return (
+    <Section tone="muted" className="py-12 sm:py-14">
+      <SectionContainer>
+        <Reveal>
+          <div className="relative overflow-hidden rounded-2xl border border-bh-border-dark bg-bh-navy px-6 py-8 text-white sm:px-10 sm:py-10">
+            <div aria-hidden className="pointer-events-none absolute inset-0">
+              <div className="absolute -right-16 top-0 h-56 w-56 rounded-full bg-bh-gold/15 blur-[90px]" />
+              <div className="absolute -left-12 bottom-0 h-44 w-44 rounded-full bg-bh-gold/10 blur-[80px]" />
+            </div>
+            <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+              <div className="max-w-xl">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-bh-gold/30 bg-bh-gold/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-bh-gold">
+                  <Landmark className="h-3.5 w-3.5" aria-hidden />
+                  For institutions
+                </span>
+                <h2 className="mt-4 text-balance text-xl font-bold tracking-tight sm:text-2xl">
+                  Represent a bank or microfinance institution?
+                </h2>
+                <p className="mt-2 text-pretty text-sm leading-relaxed text-white/75">
+                  Join Vendora&apos;s financing network — verified, platform-gated applications instead of cold
+                  leads. Applications are reviewed by the Vendora team before your institution goes live.
+                </p>
+              </div>
+              <div className="shrink-0">
+                <Button
+                  asChild
+                  size="lg"
+                  className="min-h-12 bg-bh-gold px-7 text-base font-bold text-bh-navy-deep hover:bg-bh-gold-light"
+                >
+                  <Link href="/market?view=register-financier">
+                    Join as financier <ArrowRight className="ml-1" aria-hidden />
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Reveal>
+      </SectionContainer>
+    </Section>
+  )
+}
+
+// ── 8 · Final CTA (navy band — dark reserved for CTA) ────────────────────────
 
 export function FinalCta() {
   return (

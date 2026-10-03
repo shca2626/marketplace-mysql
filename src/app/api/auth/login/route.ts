@@ -6,9 +6,18 @@ import { assertSameOrigin, clientIp, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS, resetRateLimit } from '@/lib/rate-limit'
 import { recordAudit } from '@/server/modules/audit/service'
 import { buildSessionRbac } from '@/server/modules/rbac/service'
+import { normalizeIdentifier } from '@/lib/phone'
 
+/**
+ * PHASE 3 — sign in with phone OR email (+ password).
+ *   Phone: Yemeni mobile in any format ("777555888", "+967 777 555 888") or a
+ *          generic E.164 number for staff accounts with international lines.
+ *   Email: unchanged legacy path — every existing account keeps working.
+ * The client may send either { identifier } or the legacy { email } field.
+ */
 const loginSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  identifier: z.string().min(3, 'Enter your phone number or email').max(60).optional(),
+  email: z.string().max(60).optional(), // legacy field — treated as the identifier
   password: z.string().min(1, 'Password is required'),
 })
 
@@ -33,10 +42,20 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       )
     }
-    const { email, password } = parsed.data
 
-    const user = await db.user.findUnique({ where: { email: email.toLowerCase() } })
-    if (!user || !verifyPassword(password, user.password)) {
+    const rawIdentifier = (parsed.data.identifier ?? parsed.data.email ?? '').trim()
+    const identified = normalizeIdentifier(rawIdentifier)
+    if (!identified) {
+      return NextResponse.json(
+        { error: 'Enter a valid phone number or email address' },
+        { status: 400 }
+      )
+    }
+
+    const user = await db.user.findUnique({
+      where: identified.kind === 'phone' ? { phone: identified.value } : { email: identified.value },
+    })
+    if (!user || !verifyPassword(parsed.data.password, user.password)) {
       // Auth-event audit (security roadmap §11): failed sign-in attempts are
       // recorded WITHOUT credentials or the attempted identifier — actorless.
       await recordAudit({
@@ -44,9 +63,12 @@ export async function POST(req: NextRequest) {
         action: 'USER_LOGIN_FAILED',
         entityType: 'User',
         summary: 'Failed sign-in attempt (invalid credentials)',
-        metadata: { ip: clientIp(req) },
+        metadata: { ip: clientIp(req), via: identified.kind },
       })
-      return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
+      return NextResponse.json(
+        { error: 'Invalid phone/email or password' },
+        { status: 401 }
+      )
     }
     // Suspended vendors (and any suspended account) cannot sign in — a clear
     // message instead of a silent rejection.
@@ -72,7 +94,7 @@ export async function POST(req: NextRequest) {
       action: 'USER_LOGIN',
       entityType: 'User',
       entityId: user.id,
-      summary: `Signed in: ${user.email}`,
+      summary: `Signed in via ${identified.kind}: ${identified.value}`,
     })
     resetRateLimit(`login:${clientIp(req)}`)
     const rbac = await buildSessionRbac(user)

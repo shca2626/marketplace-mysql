@@ -9,6 +9,8 @@ import {
   Check,
   ChevronRight,
   FileText,
+  FlaskConical,
+  Globe,
   Heart,
   Package,
   PackageSearch,
@@ -466,6 +468,12 @@ export function ProductView() {
     product.freeShipping ||
     product.shippingFee != null ||
     !!product.shippingPolicy
+
+  // Phase 3 KYP — public trust block shows VERIFIED rows plus pending ones
+  // ("In review"); rejected/inactive rows stay hidden.
+  const visibleCertifications = (product.certifications ?? []).filter(
+    (c) => c.status === 'VERIFIED' || c.status === 'PENDING'
+  )
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
@@ -932,7 +940,15 @@ export function ProductView() {
             {(detailRows.length > 0 || (product.specs && product.specs.length > 0)) && (
               <>
                 <Separator className="my-5" />
-                <h3 className="text-sm font-bold text-bh-navy">Specifications</h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-sm font-bold text-bh-navy">Specifications</h3>
+                  {(product.hasVerifiedSpecs ||
+                    (product.certifications ?? []).some((c) => c.status === 'VERIFIED')) && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                      <BadgeCheck size={12} aria-hidden /> Verified specs
+                    </span>
+                  )}
+                </div>
                 <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
                   <div className="flex justify-between rounded-lg bg-bh-soft-blue/60 px-4 py-2.5">
                     <span className="text-bh-muted">Category</span>
@@ -962,6 +978,73 @@ export function ProductView() {
                       <span className="text-right font-medium text-bh-ink">{row.value}</span>
                     </div>
                   ))}
+                </div>
+              </>
+            )}
+
+            {/* Certifications & compliance (Phase 3 KYP) — VERIFIED rows earn the
+                trust block; PENDING shows as “In review”; rejected stays hidden */}
+            {visibleCertifications.length > 0 && (
+              <>
+                <Separator className="my-5" />
+                <h3 className="text-sm font-bold text-bh-navy">Certifications &amp; compliance</h3>
+                <div className="mt-3 space-y-2">
+                  {visibleCertifications.map((cert) => {
+                    const Icon =
+                      cert.kind === 'DATASHEET'
+                        ? FileText
+                        : cert.kind === 'WARRANTY'
+                          ? ShieldCheck
+                          : cert.kind === 'ORIGIN'
+                            ? Globe
+                            : cert.kind === 'TEST_REPORT'
+                              ? FlaskConical
+                              : cert.kind === 'CERTIFICATE'
+                                ? BadgeCheck
+                                : FileText
+                    return (
+                      <div
+                        key={cert.id}
+                        className="flex flex-wrap items-center gap-3 rounded-lg border bg-bh-card px-4 py-3"
+                      >
+                        <Icon size={16} className="shrink-0 text-bh-gold-dark" aria-hidden />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-bh-ink">{cert.title}</p>
+                          <p className="mt-0.5 text-xs text-bh-muted">
+                            {[
+                              cert.issuedBy,
+                              cert.issuedAt ? `Issued ${formatDate(cert.issuedAt)}` : null,
+                              cert.expiresAt ? `Valid until ${formatDate(cert.expiresAt)}` : null,
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </p>
+                        </div>
+                        {cert.url && (
+                          <a
+                            href={cert.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold text-bh-ink transition-colors hover:border-primary/50 hover:text-primary"
+                          >
+                            View <ChevronRight size={12} aria-hidden />
+                          </a>
+                        )}
+                        {cert.status === 'VERIFIED' ? (
+                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                            <BadgeCheck size={11} aria-hidden /> Verified
+                          </span>
+                        ) : (
+                          <span className="inline-flex shrink-0 items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                            In review
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
+                  <p className="text-[11px] text-bh-muted">
+                    Documentation on this listing is reviewed by Vendora.
+                  </p>
                 </div>
               </>
             )}

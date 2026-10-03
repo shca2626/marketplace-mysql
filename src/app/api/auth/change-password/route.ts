@@ -79,10 +79,12 @@ export async function POST(req: NextRequest) {
     const newVersion = await bumpSessionVersion(user.id)
     await setSessionCookie(user.id, newVersion)
 
-    const mail = passwordChangedEmail({ name: user.name })
-    void sendMail({ to: user.email, ...mail }).catch((err) => {
-      console.error(`[auth] password-changed notice failed for user ${user.id}:`, err)
-    })
+    if (user.email) {
+      const mail = passwordChangedEmail({ name: user.name })
+      void sendMail({ to: user.email, ...mail }).catch((err) => {
+        console.error(`[auth] password-changed notice failed for user ${user.id}:`, err)
+      })
+    }
 
     await recordAudit({
       actorId: user.id,

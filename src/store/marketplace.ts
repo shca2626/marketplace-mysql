@@ -69,6 +69,8 @@ export type View =
   | 'forgot-password' // AUTHSEC-1: email → reset link
   | 'reset-password' // AUTHSEC-1: token + new password
   | 'verify-email' // AUTHSEC-1: token consumption landing
+  | 'register-company' // Phase 3: Merchant/Dealer company registration wizard (5 steps)
+  | 'register-financier' // Phase 3: financier application door (admin-approved)
 
 export interface ViewParams {
   productId?: string
@@ -86,6 +88,7 @@ export interface ViewParams {
   financingWizard?: string // financing view: reopen the application wizard for a service (?view=financing&wizard=<serviceId>) — survives reloads/back
   accountTab?: string // buyer account console: open a specific tab (?view=account&tab=profile — IA-100)
   authToken?: string // AUTHSEC-1: raw token from reset/verify email links
+  resetVia?: 'phone' | 'email' // Phase 3: which reset flow the view should boot into
 }
 
 export interface ApplySettingsPayload {

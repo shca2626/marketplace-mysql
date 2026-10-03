@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Ban,
+  BadgeCheck,
   Banknote,
   Bell,
   CalendarCheck,
   CalendarClock,
   CalendarX,
   CheckCheck,
+  ClipboardCheck,
   ClipboardList,
   Coins,
   FileCheck2,
@@ -178,6 +180,11 @@ const NOTIF_META: Record<string, { icon: BellIcon; iconClass: string }> = {
     icon: ShieldCheck,
     iconClass: 'bg-stone-200 text-stone-700 dark:bg-stone-800 dark:text-stone-300',
   },
+  // ── Phase 3 registration doors ──
+  APPLICATION_RECEIVED: {
+    icon: ClipboardCheck,
+    iconClass: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+  },
   // ── financing module (applicant / financier / admin) ──
   PLATFORM_RETURNED_REQUEST: {
     icon: Undo2,
@@ -210,6 +217,19 @@ const NOTIF_META: Record<string, { icon: BellIcon; iconClass: string }> = {
   DOCUMENT_REJECTED: {
     icon: FileX2,
     iconClass: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300',
+  },
+  // ── KYC/KYP (Phase 3 — task 3-d) ──
+  KYC_LEVEL_UP: {
+    icon: ShieldCheck,
+    iconClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+  },
+  DOCUMENT_EXPIRING: {
+    icon: CalendarClock,
+    iconClass: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+  },
+  CERTIFICATION_STATUS: {
+    icon: BadgeCheck,
+    iconClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
   },
   OFFER_RECEIVED: {
     icon: Wallet,
@@ -433,6 +453,10 @@ export function NotificationsBell() {
         case 'financier':
           // Financier console inbox
           navigate('financier')
+          break
+        case 'account':
+          // KYC surfaces — the account console's Verification card
+          navigate('account')
           break
         default:
           navigate('orders')

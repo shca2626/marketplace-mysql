@@ -70,4 +70,8 @@ export const RATE_LIMITS = {
   passwordForgot: { limit: 5, windowMs: 30 * 60_000 }, // per IP — email-send damping (AUTHSEC-1)
   passwordReset: { limit: 10, windowMs: 30 * 60_000 }, // per IP — token consumption attempts (AUTHSEC-1)
   emailVerify: { limit: 5, windowMs: 60 * 60_000 }, // per user — verification send requests (AUTHSEC-1)
+  otpRequest: { limit: 12, windowMs: 10 * 60_000 }, // per IP — OTP issuance (Phase 3; per-phone/per-day caps live in the OTP service)
+  otpVerify: { limit: 30, windowMs: 10 * 60_000 }, // per IP — OTP verification attempts (attempt caps also live in the OTP service)
+  companyRegister: { limit: 5, windowMs: 30 * 60_000 }, // per user — merchant/dealer company registration submit (Phase 3)
+  financierRegister: { limit: 5, windowMs: 30 * 60_000 }, // per IP — financier application submit (Phase 3)
 } as const

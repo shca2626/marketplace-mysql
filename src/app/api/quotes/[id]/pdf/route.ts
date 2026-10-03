@@ -55,7 +55,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const quote = await db.quote.findUnique({
     where: { id },
     include: {
-      rfq: { include: { organization: true, user: { select: { id: true, name: true, email: true } } } },
+      rfq: { include: { organization: true, user: { select: { id: true, name: true, email: true, phone: true } } } },
       createdBy: { select: { id: true, name: true, storeName: true } },
       lines: { include: { product: { select: { title: true } } } },
     },
@@ -120,7 +120,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   text(page, bold, 11, M + colW + 20, y, buyerName.slice(0, 42))
   y -= 13
   text(page, font, 9, M, y, 'Via Vendora B2B Marketplace', MUTED)
-  text(page, font, 9, M + colW + 20, y, quote.rfq.user.email.slice(0, 48), MUTED)
+  text(page, font, 9, M + colW + 20, y, (quote.rfq.user.email ?? quote.rfq.user.phone ?? 'Vendora member').slice(0, 48), MUTED)
   if (quote.rfq.organization?.name) {
     y -= 12
     text(

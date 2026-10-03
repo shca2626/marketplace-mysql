@@ -103,7 +103,11 @@ export function toSessionUser(
   user: {
     id: string
     name: string
-    email: string
+    email: string | null
+    phone?: string | null
+    phoneVerifiedAt?: Date | null
+    kycLevel?: number | null
+    merchantType?: string | null
     role: string
     image?: string | null
     storeName?: string | null
@@ -117,7 +121,14 @@ export function toSessionUser(
   return {
     id: user.id,
     name: user.name,
-    email: user.email,
+    email: user.email ?? null,
+    // Phase 3: phone-first identity — the primary identifier for new accounts.
+    phone: user.phone ?? null,
+    phoneVerifiedAt: user.phoneVerifiedAt ? user.phoneVerifiedAt.toISOString() : null,
+    kycLevel: user.kycLevel ?? 0,
+    merchantType: user.merchantType ?? null,
+    // Safe display handle for headers/account menus — email when present, else phone.
+    displayContact: user.email ?? user.phone ?? '',
     role: user.role === 'SELLER' ? 'SELLER' : user.role === 'ADMIN' ? 'ADMIN' : 'BUYER',
     image: user.image ?? null,
     storeName: user.storeName ?? null,

@@ -363,7 +363,7 @@ export interface HistoryRow {
   newValue: string | null
   rollbackOfId: string | null
   userName: string
-  userEmail: string
+  userEmail: string | null
   createdAt: string
 }
 

@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/auth'
 import { favoriteIdsFor, productInclude, serializeProduct, serializeReview } from '@/lib/serialize'
 import { ensureUniqueSlug, productFormSchema } from '@/server/modules/products/service'
+import { assertSellerCanPublish } from '@/server/modules/kyc/service'
 import { recordAudit } from '@/server/modules/audit/service'
 import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
@@ -20,6 +21,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         where: { id },
         include: {
           ...productInclude,
+          // Phase 3 KYP — certifications ride along on the detail payload
+          // (badge + list); list queries stay untouched.
+          certifications: { where: { isActive: true }, orderBy: { createdAt: 'desc' } },
           seller: { select: { id: true, name: true, storeName: true, storeBio: true, status: true, createdAt: true, products: { where: { status: 'ACTIVE', seller: { status: 'ACTIVE' } }, select: { id: true } } } },
           reviews: {
             orderBy: { createdAt: 'desc' },
@@ -181,6 +185,19 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
         { error: 'Add at least one image before publishing (or save as draft)' },
         { status: 400 }
       )
+    }
+
+    // KYC enforcement gate (Phase 3): moving a listing to ACTIVE (publishing,
+    // including a draft's first publish) requires the seller to be identity
+    // verified (L2). DRAFT saves stay open; admins are exempt.
+    if (status === 'ACTIVE') {
+      try {
+        await assertSellerCanPublish(user)
+      } catch (err) {
+        const gateStatus = (err as { status?: number }).status
+        if (gateStatus) return NextResponse.json({ error: (err as Error).message }, { status: gateStatus })
+        throw err
+      }
     }
 
     // Slug: explicit edit wins; otherwise keep existing; otherwise derive from title

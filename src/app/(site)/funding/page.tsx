@@ -8,6 +8,7 @@ import {
   FaqBand,
   FinalCta,
   HowFundingWorks,
+  JoinFinancierBand,
   PartnersBand,
   ProgramExplorer,
   StoryWall,
@@ -110,7 +111,10 @@ export default async function FundingPage() {
       {/* 7 · FAQ */}
       <FaqBand faqs={faqs} />
 
-      {/* 8 · final CTA (navy band) */}
+      {/* 8 · join as financier (Phase 3 application door) */}
+      <JoinFinancierBand />
+
+      {/* 9 · final CTA (navy band) */}
       <FinalCta />
     </>
   )

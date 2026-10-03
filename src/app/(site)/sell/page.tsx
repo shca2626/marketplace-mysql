@@ -92,6 +92,15 @@ export default async function SellPage() {
         >
           <Link href="/market">See the market</Link>
         </Button>
+        <p className="w-full text-sm leading-relaxed text-white/70">
+          A company — agent, distributor, wholesaler or retailer?{' '}
+          <Link
+            href="/market?view=register-company"
+            className="font-semibold text-bh-gold underline-offset-2 hover:underline"
+          >
+            Register your business →
+          </Link>
+        </p>
       </PageHero>
 
       {/* Why sell — bento */}

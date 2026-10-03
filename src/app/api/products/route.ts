@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/auth'
 import { favoriteIdsFor, productInclude, serializeProduct } from '@/lib/serialize'
 import { ensureUniqueSlug, productFormSchema, slugify, createProduct } from '@/server/modules/products/service'
+import { assertSellerCanPublish } from '@/server/modules/kyc/service'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 
@@ -160,6 +161,19 @@ export async function POST(req: NextRequest) {
 
     const category = await db.category.findUnique({ where: { id: parsed.data.categoryId } })
     if (!category) return NextResponse.json({ error: 'Category not found' }, { status: 400 })
+
+    // KYC enforcement gate (Phase 3): publishing requires identity verification
+    // (L2). Drafts stay open to every seller — the gate only guards visibility.
+    // Admins are exempt (platform moderation).
+    if ((parsed.data.status ?? 'ACTIVE') === 'ACTIVE') {
+      try {
+        await assertSellerCanPublish(user)
+      } catch (err) {
+        const status = (err as { status?: number }).status
+        if (status) return NextResponse.json({ error: (err as Error).message }, { status })
+        throw err
+      }
+    }
 
     try {
       const product = await createProduct(user.id, parsed.data)

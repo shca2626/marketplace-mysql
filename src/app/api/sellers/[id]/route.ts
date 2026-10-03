@@ -20,6 +20,7 @@ export async function GET(
         storeBio: true,
         storeCover: true,
         createdAt: true,
+        kycLevel: true, // Phase 3 KYC — trust badge signal for the storefront
       },
     })
     if (!seller) {

@@ -1,0 +1,11 @@
+{
+  "name": "vendora-whatsapp-service",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "bun --hot index.ts"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^7.0.0-rc14"
+  }
+}

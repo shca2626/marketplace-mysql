@@ -66,7 +66,7 @@ export interface RbacActor {
   id: string
   role: string
   name: string
-  email: string
+  email: string | null // Phase 3: phone-first accounts may have no email
 }
 
 export interface ActorContext {
@@ -428,7 +428,7 @@ export interface AssignmentDTO {
   id: string
   userId: string
   userName: string
-  userEmail: string
+  userEmail: string | null
   userRole: string
   roleId: string
   roleKey: string
@@ -451,7 +451,7 @@ type AssignmentWithRelations = {
   organizationId: string
   assignedAt: Date
   assignedBy: string | null
-  user: { id: string; name: string; email: string; role: string }
+  user: { id: string; name: string; email: string | null; role: string }
   role: { id: string; key: string; name: string; scope: string; isProtected: boolean }
 }
 
@@ -621,7 +621,7 @@ export async function revokeAssignment(actor: RbacActor, id: string): Promise<vo
 export interface StaffDTO {
   userId: string
   name: string
-  email: string
+  email: string | null
   userRole: string
   isSuperAdmin: boolean
   permissions: string[]
@@ -652,7 +652,7 @@ export async function listPlatformStaff(actor: RbacActor): Promise<StaffDTO[]> {
       : []
 
   const byUser = new Map<string, StaffDTO>()
-  const ensure = (id: string, name: string, email: string, userRole: string): StaffDTO => {
+  const ensure = (id: string, name: string, email: string | null, userRole: string): StaffDTO => {
     let entry = byUser.get(id)
     if (!entry) {
       entry = { userId: id, name, email, userRole, isSuperAdmin: false, permissions: [], roles: [] }
@@ -687,7 +687,7 @@ export async function listPlatformStaff(actor: RbacActor): Promise<StaffDTO[]> {
 export interface StaffUserDTO {
   id: string
   name: string
-  email: string
+  email: string | null
   role: string
 }
 

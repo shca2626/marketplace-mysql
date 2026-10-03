@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { recordAudit } from '@/server/modules/audit/service'
 import { emitNotification } from '@/server/modules/notifications/service'
+import { recomputeUserKycLevel, recomputeOrgKycLevel } from '@/server/modules/kyc/service'
 import { resolvePanel } from '@/server/modules/settings/service'
 import { UPLOAD_LIMITS, processImageUpload } from '@/lib/storage/image-pipeline'
 import { serializeMediaAsset } from '@/lib/serialize-media'
@@ -391,6 +392,12 @@ export async function verifyAccountDocument(
     linkView: 'financing',
     linkId: documentId,
   })
+  // KYC engine hook (Phase 3): a verification can raise the owner's level —
+  // identity docs unlock L2, business docs can complete L3 — and org-scoped
+  // business docs can flip the org to KYB 3. Fire-and-forget style: failures
+  // inside the recompute are swallowed there, so the verify result stays safe.
+  await recomputeUserKycLevel(doc.userId)
+  if (doc.organizationId) await recomputeOrgKycLevel(doc.organizationId)
   return serializeDoc(updated as never)
 }
 
@@ -428,6 +435,10 @@ export async function rejectAccountDocument(
     linkView: 'financing',
     linkId: documentId,
   })
+  // KYC engine hook: rejection can also *lower* a previously-derived level
+  // (the doc no longer counts as evidence) — recompute keeps levels truthful.
+  await recomputeUserKycLevel(doc.userId)
+  if (doc.organizationId) await recomputeOrgKycLevel(doc.organizationId)
   return serializeDoc(updated as never)
 }
 
