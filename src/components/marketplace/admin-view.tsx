@@ -38,6 +38,14 @@ import { RbacTab } from './admin/rbac-tab'
 import { WhatsAppTab } from './admin/whatsapp-tab'
 import { SpecAttributesTab } from './admin/spec-attributes-tab'
 import { CertificationsTab } from './admin/certifications-tab'
+import { CatalogReviewQueueTab } from './admin/catalog/review-queue-tab'
+import { CatalogProductsTab } from './admin/catalog/catalog-products-tab'
+import { CatalogBrandsTab } from './admin/catalog/brands-tab'
+import { CatalogCategoriesTab } from './admin/catalog/categories-tab'
+import { CatalogUnitsTab } from './admin/catalog/units-tab'
+import { CatalogOrgTypesTab } from './admin/catalog/org-types-tab'
+import { CatalogDuplicatesTab } from './admin/catalog/duplicates-tab'
+import { CatalogPopularTab } from './admin/catalog/popular-tab'
 import { AdminSettings } from './admin-settings'
 import { RfqSettings } from './admin/settings/rfq-settings'
 
@@ -102,6 +110,14 @@ function AdminDashboard({ user }: { user: SessionUser | null }) {
       {activeSection === 'products' && <AdminProductsTab />}
       {activeSection === 'spec-attributes' && <SpecAttributesTab />}
       {activeSection === 'certifications' && <CertificationsTab />}
+      {activeSection === 'catalog-review' && <CatalogReviewQueueTab />}
+      {activeSection === 'catalog-products' && <CatalogProductsTab />}
+      {activeSection === 'catalog-brands' && <CatalogBrandsTab />}
+      {activeSection === 'catalog-categories' && <CatalogCategoriesTab />}
+      {activeSection === 'catalog-units' && <CatalogUnitsTab />}
+      {activeSection === 'catalog-org-types' && <CatalogOrgTypesTab />}
+      {activeSection === 'catalog-duplicates' && <CatalogDuplicatesTab />}
+      {activeSection === 'catalog-popular' && <CatalogPopularTab />}
       {activeSection === 'orders' && <AdminOrdersTab />}
       {activeSection === 'payments' && <PaymentsTab />}
       {activeSection === 'payouts' && <PayoutsTab />}

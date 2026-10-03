@@ -40,6 +40,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Select,
   SelectContent,
@@ -274,6 +275,22 @@ export function ProductFormDialog({
   // KYC publish-gate: the 403 error text stays on screen until resolved.
   const [kycBlocked, setKycBlocked] = useState<string | null>(null)
 
+  // ── Phase 4 — publication agreement + review status ──
+  // The agreement checkbox is required once per listing before the first
+  // publish. The ProductDTO doesn't carry publicationAgreedAt, so the checkbox
+  // starts unchecked on create / draft edits and pre-checked once a listing has
+  // already been through publish (ACTIVE / PENDING_REVIEW / REJECTED — every
+  // real publish path stamps consent). Sending a re-consent is idempotent; a
+  // server 400 promotes the checkbox back to "required" with an inline error.
+  const [publicationAgreed, setPublicationAgreed] = useState(false)
+  const [agreementError, setAgreementError] = useState<string | null>(null)
+  // Amber banner when the loaded listing sits in the review pipeline.
+  const [reviewBanner, setReviewBanner] = useState<{
+    status: 'PENDING_REVIEW' | 'REJECTED'
+    note: string | null
+  } | null>(null)
+  const [bannerLoading, setBannerLoading] = useState(false)
+
   // ── Hydrate on open ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!open) return
@@ -283,6 +300,10 @@ export function ProductFormDialog({
     setUploads([])
     setDragOver(false)
     setKycBlocked(null)
+    setAgreementError(null)
+    // Create + never-published drafts start unchecked (explicit consent);
+    // listings that already went through publish arrive pre-consented.
+    setPublicationAgreed(!!editing && editing.status !== 'DRAFT')
     setCertForm({ kind: 'DATASHEET', title: '', url: '', issuedBy: '', expiresAt: '' })
     if (editing) {
       setForm({
@@ -392,6 +413,38 @@ export function ProductFormDialog({
       clearTimeout(timer)
     }
   }, [open, form.categoryId])
+
+  // ── Phase 4: review banner for listings in the pipeline ───────────────────
+  // PENDING_REVIEW needs no extra fetch; REJECTED fetches the detail GET to
+  // surface the admin's reject reason (reviewNote is owner-scoped).
+  useEffect(() => {
+    if (!open || !editing || (editing.status !== 'PENDING_REVIEW' && editing.status !== 'REJECTED')) {
+      setReviewBanner(null)
+      setBannerLoading(false)
+      return
+    }
+    if (editing.status === 'PENDING_REVIEW') {
+      setReviewBanner({ status: 'PENDING_REVIEW', note: null })
+      return
+    }
+    let cancelled = false
+    setBannerLoading(true)
+    fetch(`/api/products/${editing.id}`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (cancelled) return
+        setReviewBanner({ status: 'REJECTED', note: json?.product?.reviewNote ?? null })
+      })
+      .catch(() => {
+        if (!cancelled) setReviewBanner({ status: 'REJECTED', note: null })
+      })
+      .finally(() => {
+        if (!cancelled) setBannerLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, editing])
 
   // ── Certifications: load rows for the product being edited ────────────────
   useEffect(() => {
@@ -757,6 +810,18 @@ export function ProductFormDialog({
 
   // ── Submit ─────────────────────────────────────────────────────────────────
   const submit = async (status: 'ACTIVE' | 'DRAFT') => {
+    // Phase 4 — the Publication Agreement must be accepted before publishing.
+    // Blocking is inline (not just a toast): the checkbox shows the error until
+    // it is checked. Draft saves skip the gate entirely.
+    if (status === 'ACTIVE' && !publicationAgreed) {
+      setAgreementError('Accept the Vendora Publication Agreement to publish (required once per listing)')
+      toast({
+        title: 'Publication Agreement required',
+        description: 'Check the agreement box below before publishing this listing.',
+        variant: 'destructive',
+      })
+      return
+    }
     const error = validate(status)
     if (error) {
       toast({ title: 'Cannot save yet', description: error, variant: 'destructive' })
@@ -797,6 +862,9 @@ export function ProductFormDialog({
         freeShipping: form.freeShipping,
         shippingFee: form.freeShipping || !form.shippingFee ? null : parseFloat(form.shippingFee),
         shippingPolicy: form.shippingPolicy.trim() || null,
+        // Phase 4 — consent travels with every publish attempt; the backend
+        // stamps it once per listing (re-consent re-records idempotently).
+        ...(status === 'ACTIVE' ? { publicationAgreed: true } : {}),
         slug: form.slug.trim() || null,
         metaTitle: form.metaTitle.trim() || null,
         metaDescription: form.metaDescription.trim() || null,
@@ -825,6 +893,13 @@ export function ProductFormDialog({
       })
       const json = await res.json()
       if (!res.ok) {
+        // Publication Agreement refused server-side (e.g. an unstamped legacy
+        // listing) — promote the checkbox to required with the inline error.
+        if (res.status === 400 && typeof json.error === 'string' && json.error.includes('Publication Agreement')) {
+          setAgreementError(json.error)
+          toast({ title: 'Publication Agreement required', description: json.error, variant: 'destructive' })
+          return
+        }
         // KYC publish gate — keep the reason on screen with a way out.
         if (res.status === 403 && typeof json.error === 'string' && json.error.toLowerCase().includes('verify your identity')) {
           setKycBlocked(json.error)
@@ -835,15 +910,24 @@ export function ProductFormDialog({
         return
       }
       setKycBlocked(null)
-      toast({
-        title:
-          status === 'DRAFT'
-            ? 'Draft saved'
-            : editing
-              ? 'Product updated'
-              : 'Product published',
-        description: form.title,
-      })
+      // reviewQueued → the amber path (new-seller publish routing): the listing
+      // sits in PENDING_REVIEW until an admin approves — never a generic success.
+      if (json.reviewQueued) {
+        toast({
+          title: 'Submitted for platform review',
+          description: json.message ?? 'Your listing goes live once approved.',
+        })
+      } else {
+        toast({
+          title:
+            status === 'DRAFT'
+              ? 'Draft saved'
+              : editing
+                ? 'Product updated'
+                : 'Product published',
+          description: form.title,
+        })
+      }
       onOpenChange(false)
       onSaved()
     } catch {
@@ -868,6 +952,34 @@ export function ProductFormDialog({
             {editing ? 'Update your listing section by section.' : 'Fill in the details section by section, then publish or save as draft.'}
           </DialogDescription>
         </DialogHeader>
+
+        {/* ── Phase 4: review-status banner for listings in the pipeline ── */}
+        {reviewBanner && (
+          <div
+            role="status"
+            className={cn(
+              'rounded-xl border px-4 py-3 text-sm',
+              reviewBanner.status === 'PENDING_REVIEW'
+                ? 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950 dark:text-amber-200'
+                : 'border-rose-300 bg-rose-50 text-rose-900 dark:border-rose-900/60 dark:bg-rose-950 dark:text-rose-200'
+            )}
+          >
+            <p className="font-semibold">
+              {reviewBanner.status === 'PENDING_REVIEW'
+                ? 'This listing is in platform review'
+                : 'This listing was rejected by platform review'}
+            </p>
+            {bannerLoading ? (
+              <p className="mt-1 animate-pulse">Loading the review reason…</p>
+            ) : (
+              <p className="mt-1 leading-relaxed">
+                {reviewBanner.status === 'PENDING_REVIEW'
+                  ? "It goes live for buyers once approved — you can keep editing it here; publishing again resubmits it."
+                  : `${reviewBanner.note ?? 'No reason was recorded — contact support for details.'} Fix the issue and publish again to resubmit for review.`}
+              </p>
+            )}
+          </div>
+        )}
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as TabId)}>
           <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-xl bg-muted/60 p-1">
@@ -2031,6 +2143,53 @@ export function ProductFormDialog({
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* ── Publication Agreement (Phase 4, v1.0) — required once per listing
+            before the first publish; re-consent is idempotent ── */}
+        <div
+          className={cn(
+            'rounded-xl border px-4 py-3.5',
+            agreementError
+              ? 'border-rose-300 bg-rose-50 dark:border-rose-900/60 dark:bg-rose-950/40'
+              : 'border-border bg-muted/30'
+          )}
+        >
+          <div className="flex items-start gap-3">
+            <Checkbox
+              id="p-publication-agreement"
+              checked={publicationAgreed}
+              onCheckedChange={(checked) => {
+                setPublicationAgreed(checked === true)
+                if (checked) setAgreementError(null)
+              }}
+              className="mt-0.5"
+              aria-invalid={!!agreementError}
+              aria-describedby="p-publication-agreement-error"
+            />
+            <div className="min-w-0 flex-1">
+              <label
+                htmlFor="p-publication-agreement"
+                className="cursor-pointer text-sm font-medium leading-snug"
+              >
+                I accept the Vendora Publication Agreement{' '}
+                <span className="text-xs font-normal text-muted-foreground">(v1.0)</span>
+              </label>
+              {/* The full agreement sentence — always visible, not hidden behind a tooltip */}
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                I confirm I have the right to sell this product and accept takedown for counterfeit
+                or misleading listings.
+              </p>
+              {agreementError && (
+                <p
+                  id="p-publication-agreement-error"
+                  className="mt-1.5 text-xs font-semibold text-destructive"
+                >
+                  {agreementError}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
 
         {/* KYC publish gate — persistent inline callout with a way out */}
         {kycBlocked && (

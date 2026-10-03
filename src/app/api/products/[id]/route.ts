@@ -3,10 +3,13 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/auth'
 import { favoriteIdsFor, productInclude, serializeProduct, serializeReview } from '@/lib/serialize'
-import { ensureUniqueSlug, productFormSchema } from '@/server/modules/products/service'
+import { ensureUniqueSlug, productFormSchema, PUBLICATION_AGREEMENT_VERSION } from '@/server/modules/products/service'
 import { assertSellerCanPublish } from '@/server/modules/kyc/service'
 import { recordAudit } from '@/server/modules/audit/service'
 import { userHasPlatformPermission } from '@/server/modules/rbac/service'
+import { listPublicOffers, serializeOffer } from '@/server/modules/catalog/offers'
+import { getCatalogSettings, sellerNeedsPublishReview } from '@/server/modules/catalog/settings'
+import { recordPublicationConsent } from '@/server/modules/catalog/review'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 
@@ -53,8 +56,29 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     })
     const relatedFavIds = await favoriteIdsFor(session?.id, related.map((r) => r.id))
 
+    // Phase 4 — multi-vendor offers: public ACTIVE offers ride on the detail
+    // payload (the listing owner is NOT synthesized here — the primary offer IS
+    // the product itself). The viewer's own offer (any status) is exposed as
+    // myOffer so the product page can show "Your offer" + "Sell this product".
+    const offerRows = await listPublicOffers(product.id)
+    const viewerOffer = viewer
+      ? await db.productOffer.findUnique({
+          where: { productId_sellerId: { productId: product.id, sellerId: viewer.id } },
+          include: { seller: { select: { id: true, name: true, storeName: true, status: true } } },
+        })
+      : null
+
+    const serialized = serializeProduct(product, favIds.has(product.id))
+
     return NextResponse.json({
-      product: serializeProduct(product, favIds.has(product.id)),
+      product: {
+        ...serialized,
+        ...(isOwner || isAdmin ? { reviewNote: product.reviewNote } : {}),
+        ...(viewer ? { viewerCanOffer: !isOwner && (viewer.role === 'SELLER' || viewer.role === 'ADMIN') && product.status === 'ACTIVE' } : {}),
+      },
+      offers: offerRows.map(serializeOffer),
+      myOffer: viewerOffer && viewerOffer.status !== 'ARCHIVED' ? serializeOffer(viewerOffer) : null,
+      agreement: { version: PUBLICATION_AGREEMENT_VERSION },
       reviews: product.reviews.map((r) => serializeReview(r)),
       seller: seller
         ? {
@@ -190,7 +214,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
     // KYC enforcement gate (Phase 3): moving a listing to ACTIVE (publishing,
     // including a draft's first publish) requires the seller to be identity
     // verified (L2). DRAFT saves stay open; admins are exempt.
-    if (status === 'ACTIVE') {
+    if (status === 'ACTIVE' && !isAdmin) {
       try {
         await assertSellerCanPublish(user)
       } catch (err) {
@@ -198,6 +222,37 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
         if (gateStatus) return NextResponse.json({ error: (err as Error).message }, { status: gateStatus })
         throw err
       }
+    }
+
+    // ── Phase 4 — publish-approval workflow on edits ──
+    let effectiveStatus: 'ACTIVE' | 'DRAFT' | 'PENDING_REVIEW' = status
+    let reviewQueued = false
+    const firstPublish = product.status !== 'ACTIVE' && status === 'ACTIVE'
+    if (firstPublish && !isAdmin) {
+      // Publication Agreement — required once per listing (row-level stamp)
+      if (!product.publicationAgreedAt && !d.publicationAgreed) {
+        return NextResponse.json(
+          { error: 'Accept the Vendora Publication Agreement to publish (required once per listing)' },
+          { status: 400 }
+        )
+      }
+      // New/unestablished sellers go through the admin queue
+      if (await sellerNeedsPublishReview(user.id)) {
+        effectiveStatus = 'PENDING_REVIEW'
+        reviewQueued = true
+      }
+    } else if (product.status === 'ACTIVE' && status === 'ACTIVE' && isOwner && !isAdmin) {
+      // Edited-listing review: an ACTIVE listing edited by its owner drops
+      // back into the queue when the platform setting says so (editReview=ALL)
+      const settings = await getCatalogSettings()
+      if (settings.editReview === 'ALL') {
+        effectiveStatus = 'PENDING_REVIEW'
+        reviewQueued = true
+      }
+    }
+
+    if (d.publicationAgreed && firstPublish && !product.publicationAgreedAt) {
+      await recordPublicationConsent(user.id, id, product.title, PUBLICATION_AGREEMENT_VERSION)
     }
 
     // Slug: explicit edit wins; otherwise keep existing; otherwise derive from title
@@ -220,7 +275,6 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
           images: JSON.stringify(d.images),
           categoryId: d.categoryId,
           stock,
-          status,
           sku: d.sku?.trim() || null,
           barcode: d.barcode?.trim() || null,
           videoUrl: d.videoUrl?.trim() || null,
@@ -241,6 +295,10 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
           metaDescription: d.metaDescription?.trim() || null,
           moq: d.moq ?? null,
           priceTiers: d.priceTiers?.length ? JSON.stringify(d.priceTiers) : null,
+          gtin: d.gtin?.trim() || null,
+          mpn: d.mpn?.trim() || null,
+          status: effectiveStatus,
+          ...(reviewQueued ? { reviewNote: null } : {}),
         },
       })
       // Replace-all strategy keeps the grid in the form as the single source of truth
@@ -263,7 +321,12 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
       return tx.product.findUnique({ where: { id: row.id }, include: productInclude })
     })
 
-    return NextResponse.json({ product: serializeProduct(updated!) })
+    return NextResponse.json({
+      product: serializeProduct(updated!),
+      ...(reviewQueued
+        ? { reviewQueued: true, message: 'Your edited listing was submitted for platform review — it stays live until re-approved.' }
+        : {}),
+    })
   } catch (err) {
     console.error('product PUT error', err)
     return NextResponse.json({ error: 'Failed to update product' }, { status: 500 })

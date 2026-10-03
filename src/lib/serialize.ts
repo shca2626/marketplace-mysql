@@ -6,6 +6,9 @@ export const productInclude: Prisma.ProductInclude = {
   category: true,
   seller: { select: { id: true, name: true, storeName: true } },
   variants: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
+  // Phase 4 — catalog identity + multi-vendor count (cheap: 1 join + 1 grouped count)
+  brand: { select: { id: true, name: true, slug: true, isVerified: true } },
+  _count: { select: { offers: { where: { status: 'ACTIVE', seller: { status: 'ACTIVE' } } } } },
 }
 
 export type ProductVariantRaw = {
@@ -62,6 +65,14 @@ type ProductRaw = {
   variants?: ProductVariantRaw[]
   // Phase 3 KYP — present when the caller includes product.certifications
   certifications?: CertificationRaw[]
+  // ── Phase 4 — unified catalog identity + multi-vendor (all optional; older callers unaffected) ──
+  brand?: { id: string; name: string; slug: string; isVerified: boolean } | null
+  gtin?: string | null
+  mpn?: string | null
+  isCurated?: boolean
+  popularRank?: number | null
+  reviewNote?: string | null
+  _count?: { offers: number }
 }
 
 /** Minimal certification shape serializeProduct needs (kyc module owns the full DTO). */
@@ -189,6 +200,13 @@ export function serializeProduct(p: ProductRaw, favorited = false): ProductDTO {
     moq: (p as { moq?: number | null }).moq ?? null,
     priceTiers: parseJsonArray((p as { priceTiers?: string | null }).priceTiers, isTier),
     variants: (p.variants ?? []).map(serializeVariant),
+    // Phase 4 — catalog identity + multi-vendor counters
+    brand: (p as { brand?: ProductRaw['brand'] }).brand ?? null,
+    gtin: (p as { gtin?: string | null }).gtin ?? null,
+    mpn: (p as { mpn?: string | null }).mpn ?? null,
+    isCurated: (p as { isCurated?: boolean }).isCurated ?? false,
+    popularRank: (p as { popularRank?: number | null }).popularRank ?? null,
+    offerCount: (p as { _count?: { offers?: number } })._count?.offers ?? 0,
     ...(certifications.length > 0
       ? {
           certifications,
@@ -253,6 +271,7 @@ export function serializeOrder(
       quantity: number
       variantId?: string | null
       variantName?: string | null
+      offerId?: string | null
     }[]
   },
   sellerId?: string

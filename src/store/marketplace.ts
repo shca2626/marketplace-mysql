@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import type { CartItem, ProductDTO, ProductVariantDTO, SessionUser } from '@/lib/types'
+import type { CartItem, ProductDTO, ProductOfferDTO, ProductVariantDTO, SessionUser } from '@/lib/types'
 import type { StorefrontSettings, BannerSlideDTO } from '@/lib/settings/schema'
 import { DEFAULT_STOREFRONT_SETTINGS } from '@/lib/settings/schema'
 import { parseLocation, viewToQuery } from '@/lib/routing'
@@ -43,12 +43,18 @@ const gatedStorage = createJSONStorage(() => ({
 }))
 
 /**
- * Cart lines are keyed by product AND variant: the same product in two
- * combinations (e.g. different sizes) is two independent lines.
- * Legacy persisted carts (no variantId) keep the plain productId key.
+ * Cart lines are keyed by product AND variant AND offer: the same product in
+ * two combinations (e.g. different sizes) is two independent lines, and the
+ * same product bought from a DIFFERENT vendor offer is its own line too
+ * (Phase 4 multi-vendor). Legacy persisted carts (no variantId/offerId) keep
+ * the plain productId key.
  */
-export const cartLineKey = (productId: string, variantId?: string | null) =>
-  variantId ? `${productId}::${variantId}` : productId
+export const cartLineKey = (productId: string, variantId?: string | null, offerId?: string | null) =>
+  variantId
+    ? `${productId}::${variantId}`
+    : offerId
+      ? `${productId}::offer::${offerId}`
+      : productId
 
 export type View =
   | 'home'
@@ -123,7 +129,12 @@ interface MarketplaceState {
   setAuthChecked: (v: boolean) => void
   trackView: (productId: string) => void
   clearRecentlyViewed: () => void
-  addToCart: (product: ProductDTO, quantity?: number, variant?: ProductVariantDTO | null) => { ok: boolean; message: string }
+  addToCart: (
+    product: ProductDTO,
+    quantity?: number,
+    variant?: ProductVariantDTO | null,
+    offer?: ProductOfferDTO | null
+  ) => { ok: boolean; message: string }
   updateQuantity: (lineId: string, quantity: number) => void
   removeFromCart: (lineId: string) => void
   saveForLater: (lineId: string) => void
@@ -208,11 +219,15 @@ export const useMarketplace = create<MarketplaceState>()(
 
       clearRecentlyViewed: () => set({ recentlyViewed: [] }),
 
-      addToCart: (product, quantity = 1, variant = null) => {
-        const lineId = cartLineKey(product.id, variant?.id)
-        const stock = variant?.stock ?? product.stock
-        const price = variant?.price ?? product.price
-        const existing = get().cart.find((i) => cartLineKey(i.productId, i.variantId) === lineId)
+      // Phase 4 — an offer line buys from the OFFERING vendor, not the listing
+      // owner: the offer's price/stock/seller are authoritative for the line.
+      addToCart: (product, quantity = 1, variant = null, offer = null) => {
+        const lineId = cartLineKey(product.id, variant?.id, offer?.id)
+        const stock = offer?.stock ?? variant?.stock ?? product.stock
+        const price = offer?.price ?? variant?.price ?? product.price
+        const existing = get().cart.find(
+          (i) => cartLineKey(i.productId, i.variantId, i.offerId) === lineId
+        )
         const currentQty = existing?.quantity ?? 0
         const nextQty = currentQty + quantity
         if (nextQty > stock) {
@@ -221,7 +236,9 @@ export const useMarketplace = create<MarketplaceState>()(
         if (existing) {
           set({
             cart: get().cart.map((i) =>
-              cartLineKey(i.productId, i.variantId) === lineId ? { ...i, quantity: nextQty, stock } : i
+              cartLineKey(i.productId, i.variantId, i.offerId) === lineId
+                ? { ...i, quantity: nextQty, stock }
+                : i
             ),
           })
         } else {
@@ -232,57 +249,74 @@ export const useMarketplace = create<MarketplaceState>()(
             image: product.images[0] ?? null,
             stock,
             quantity: nextQty,
-            sellerId: product.sellerId,
-            sellerName: product.seller?.storeName ?? product.seller?.name ?? null,
-            variantId: variant?.id ?? null,
-            variantLabel: variant?.name ?? null,
-            sku: variant?.sku ?? product.sku ?? null,
+            sellerId: offer?.sellerId ?? product.sellerId,
+            sellerName:
+              offer?.seller?.storeName ?? offer?.seller?.name ?? product.seller?.storeName ?? product.seller?.name ?? null,
+            variantId: offer ? null : (variant?.id ?? null),
+            variantLabel: offer ? null : (variant?.name ?? null),
+            sku: offer?.sku ?? variant?.sku ?? product.sku ?? null,
+            offerId: offer?.id ?? null,
+            offerPrice: offer?.price ?? null,
+            offerSellerName: offer?.seller?.storeName ?? offer?.seller?.name ?? null,
           }
           set({ cart: [...get().cart, item] })
         }
-        return { ok: true, message: 'Added to cart' }
+        return { ok: true, message: offer ? `Added from ${offer.seller?.storeName ?? 'seller'}'s offer` : 'Added to cart' }
       },
 
       updateQuantity: (lineId, quantity) =>
         set({
           cart: get()
-            .cart.map((i) => (cartLineKey(i.productId, i.variantId) === lineId ? { ...i, quantity } : i))
+            .cart.map((i) =>
+              cartLineKey(i.productId, i.variantId, i.offerId) === lineId ? { ...i, quantity } : i
+            )
             .filter((i) => i.quantity > 0),
         }),
 
       removeFromCart: (lineId) =>
-        set({ cart: get().cart.filter((i) => cartLineKey(i.productId, i.variantId) !== lineId) }),
+        set({ cart: get().cart.filter((i) => cartLineKey(i.productId, i.variantId, i.offerId) !== lineId) }),
 
       // ── Save for later: park an item outside the active cart (still persisted).
       // Shipping progress + checkout only ever see the active cart.
       saveForLater: (lineId) => {
-        const item = get().cart.find((i) => cartLineKey(i.productId, i.variantId) === lineId)
+        const item = get().cart.find((i) => cartLineKey(i.productId, i.variantId, i.offerId) === lineId)
         if (!item) return
         set({
-          cart: get().cart.filter((i) => cartLineKey(i.productId, i.variantId) !== lineId),
-          savedForLater: [item, ...get().savedForLater.filter((i) => cartLineKey(i.productId, i.variantId) !== lineId)],
+          cart: get().cart.filter((i) => cartLineKey(i.productId, i.variantId, i.offerId) !== lineId),
+          savedForLater: [
+            item,
+            ...get().savedForLater.filter((i) => cartLineKey(i.productId, i.variantId, i.offerId) !== lineId),
+          ],
         })
       },
 
       moveToCart: (lineId) => {
-        const item = get().savedForLater.find((i) => cartLineKey(i.productId, i.variantId) === lineId)
+        const item = get().savedForLater.find((i) => cartLineKey(i.productId, i.variantId, i.offerId) === lineId)
         if (!item) return { ok: false, message: 'Item not found' }
-        const existing = get().cart.find((i) => cartLineKey(i.productId, i.variantId) === lineId)
+        const existing = get().cart.find((i) => cartLineKey(i.productId, i.variantId, i.offerId) === lineId)
         const nextQty = (existing?.quantity ?? 0) + item.quantity
         if (nextQty > item.stock) {
           return { ok: false, message: `Only ${item.stock} in stock` }
         }
         set({
-          savedForLater: get().savedForLater.filter((i) => cartLineKey(i.productId, i.variantId) !== lineId),
+          savedForLater: get().savedForLater.filter(
+            (i) => cartLineKey(i.productId, i.variantId, i.offerId) !== lineId
+          ),
           cart: existing
-            ? get().cart.map((i) => (cartLineKey(i.productId, i.variantId) === lineId ? { ...i, quantity: nextQty } : i))
+            ? get().cart.map((i) =>
+                cartLineKey(i.productId, i.variantId, i.offerId) === lineId ? { ...i, quantity: nextQty } : i
+              )
             : [...get().cart, item],
         })
         return { ok: true, message: 'Moved to cart' }
       },
 
       removeFromSaved: (lineId) =>
-        set({ savedForLater: get().savedForLater.filter((i) => cartLineKey(i.productId, i.variantId) !== lineId) }),
+        set({
+          savedForLater: get().savedForLater.filter(
+            (i) => cartLineKey(i.productId, i.variantId, i.offerId) !== lineId
+          ),
+        }),
 
       clearCart: () => set({ cart: [] }),
 

@@ -119,6 +119,10 @@ model User {
   notificationPref     UserNotificationPref?
   certificationsVerified ProductCertification[] @relation("CertificationsVerifiedBy")
 
+  // ── Phase 4: unified catalog + multi-vendor + approvals ──
+  offers           ProductOffer[] // this seller's offers on any catalog product
+  productsReviewed Product[]      @relation("ProductsReviewedBy") // admin publish-review decisions
+
   @@index([role])
 }
 
@@ -127,8 +131,62 @@ model Category {
   name     String
   slug     String    @unique
   icon     String?
+  description String? @db.Text // Phase 4: admin-managed category blurb (directory / SEO)
+  sortOrder   Int     @default(0) // Phase 4: admin-controlled ordering on nav + directories
   products Product[]
   specAttributes SpecAttribute[] // Phase 3 KYP: structured attribute dictionary per category
+}
+
+// ── Phase 4: brand directory (aggregator layer — owner Q7) ────────────────────
+model Brand {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  slug          String   @unique
+  logoUrl       String?
+  description   String?  @db.Text
+  websiteUrl    String?
+  originCountry String? // e.g. "China", "Germany" — provenance signal
+  isVerified    Boolean  @default(false) // platform-verified brand (trust tier)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  products Product[]
+
+  @@index([isVerified])
+}
+
+// ── Phase 4: unit-of-measure dictionary for spec attributes (owner Q7) ──────
+model UnitOfMeasure {
+  id        String   @id @default(cuid())
+  code      String   @unique // "W", "V", "kg", "cm", "mo"
+  label     String   // "Watt", "Volt", "Kilogram"
+  dimension String   // POWER | VOLTAGE | CURRENT | WEIGHT | LENGTH | AREA | VOLUME | COUNT | TIME | OTHER
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([dimension])
+}
+
+// ── Phase 4: organization-type metadata dictionary (owner Q1) ────────────────
+// Operational layer OVER the Organization.orgType enum: keys mirror the enum
+// (COMPANY | BANK | MFI | EWALLET) so behavior switches stay code-defined,
+// while labels / descriptions / ordering / registration visibility are
+// owner-managed. merchantType taxonomy (5 Merchant/Dealer types) is presented
+// alongside COMPANY. Custom keys are allowed for display-only groupings.
+model OrganizationType {
+  id          String  @id @default(cuid())
+  key         String  @unique
+  name        String
+  description String? @db.Text
+  icon        String?
+  isActive   Boolean @default(true) // hidden from registration pickers when false
+  sortOrder   Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive])
 }
 
 model Product {
@@ -169,7 +227,23 @@ model Product {
   metaDescription String?  @db.Text // MYSQL: SEO description, can run long
   moq             Int? // minimum order quantity enforced by RFQ commercial rules (null = none)
   priceTiers      String?  @db.Text // MYSQL: JSON [{from,to,price}] quantity-break ladder applied in quotes
-  status          String   @default("ACTIVE") // ACTIVE | DRAFT | ARCHIVED
+  status          String   @default("ACTIVE") // ACTIVE | DRAFT | ARCHIVED | PENDING_REVIEW (Phase 4 publish-approval) | REJECTED
+  // ── Phase 4: unified catalog identity (the "what it is" layer) ──
+  brandId      String? // FK Brand — platform-managed brand linkage
+  brand        Brand?  @relation(fields: [brandId], references: [id])
+  gtin         String? // normalized EAN/UPC/GTIN — dedup + merge matching key
+  mpn          String? // manufacturer part number — dedup key
+  isCurated    Boolean @default(false) // platform-curated catalog listing (admin-created/adopted)
+  popularRank  Int? // homepage popular-products ordering (curated); null = not ranked
+
+  // ── Phase 4: publish-approval workflow ──
+  reviewNote     String?   @db.Text // admin reject reason shown to the seller
+  reviewedAt     DateTime?
+  reviewedById   String?
+  reviewedBy     User?     @relation("ProductsReviewedBy", fields: [reviewedById], references: [id])
+  publicationAgreedAt        DateTime? // seller accepted the Publication Agreement (audit-logged too)
+  publicationAgreementVersion String? // which agreement text version was accepted
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -181,11 +255,51 @@ model Product {
   quoteLines       QuoteLine[]
   variants         ProductVariant[]
   certifications  ProductCertification[]
+  offers           ProductOffer[] // Phase 4: multi-vendor offers on this listing
 
   @@index([categoryId])
   @@index([sellerId, status])
   @@index([status, soldCount])
   @@index([featured])
+  @@index([brandId]) // MYSQL-FK-INDEX: brandId relation needs its own leftmost index
+  @@index([gtin]) // Phase 4: dedup/merge matching lookups
+  @@index([isCurated])
+  @@index([popularRank]) // homepage popular rail ordering
+}
+
+// ── Phase 4: multi-vendor offer — the "who sells it" layer (owner Q5) ────────
+// Product keeps its single-seller listing semantics (price/stock/sellerId =
+// the primary/owning offer, so every existing cart/order/RFQ/quote flow keeps
+// working); ProductOffer rows are ADDITIONAL seller offers displayed
+// side-by-side on the product page. @@unique([productId, sellerId]) = one
+// offer per seller per product; the seller who OWNS the listing edits the
+// Product fields instead (guard enforced in the API).
+model ProductOffer {
+  id             String   @id @default(cuid())
+  productId      String
+  product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sellerId       String
+  seller         User     @relation(fields: [sellerId], references: [id])
+  price          Float // offer unit price (offer currency = product currency)
+  compareAtPrice Float?
+  stock          Int      @default(0)
+  moq            Int?
+  sku            String?
+  priceTiers    String?  @db.Text // JSON [{from,to,price}] quantity-break ladder
+  freeShipping   Boolean  @default(false)
+  shippingFee    Float?
+  processingDays Int? // handling time before dispatch
+  leadTimeNote   String? // e.g. "Ships from Sana'a central warehouse"
+  status         String   @default("ACTIVE") // PENDING_REVIEW | ACTIVE | PAUSED | REJECTED | ARCHIVED
+  soldCount      Int      @default(0) // units sold through this offer
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  rfqLines RfqLine[] // RFQ lines may target a specific offer
+
+  @@unique([productId, sellerId])
+  @@index([productId, status])
+  @@index([sellerId, status]) // seller console "My offers" listing
 }
 
 model Order {
@@ -233,6 +347,7 @@ model OrderItem {
   image       String? // snapshot of first product image
   variantId   String? // purchased ProductVariant (null = base product)
   variantName String? // snapshot of variant label at purchase time
+  offerId     String? // Phase 4: purchased ProductOffer (null = primary listing offer) — loose snapshot ref; offers archive but never hard-delete
   payoutId    String? // set when this item's revenue was settled into a seller payout
   payout      Payout? @relation(fields: [payoutId], references: [id])
 
@@ -240,6 +355,7 @@ model OrderItem {
   @@index([productId])
   @@index([sellerId])
   @@index([sellerId, payoutId])
+  @@index([offerId]) // Phase 4: offer-level sales analytics
   @@index([payoutId]) // MYSQL-FK-INDEX: payoutId relation needs its own leftmost index
 }
 
@@ -476,6 +592,8 @@ model RfqLine {
   sku         String?
   variantId   String? // referenced catalog variant (optional)
   variantName String? // snapshot "Color: Black / Bundle: Duo"
+  offerId     String? // Phase 4: target a SPECIFIC vendor offer (null = the product generally / primary listing)
+  offer       ProductOffer? @relation(fields: [offerId], references: [id], onDelete: SetNull) // offer archived → line keeps product context
   quantity    Int
   targetPrice Float? // buyer's target unit price (optional)
   notes       String? @db.Text // MYSQL: free-form line notes
@@ -1098,6 +1216,10 @@ model FinancierService {
   guaranteeTypes            String? @db.Text // MYSQL: rich detail — comma-separated guarantee kinds
   financingPeriods         String? @db.Text // MYSQL: rich detail — comma-separated periods
   viewCount                Int              @default(0)
+  // ── Phase 4: publish-approval workflow (same mechanism as products) ──
+  reviewNote   String?   @db.Text // admin reject reason shown to the financier
+  reviewedAt   DateTime?
+  reviewedById String?
   createdAt                DateTime         @default(now())
   updatedAt                DateTime         @updatedAt
 

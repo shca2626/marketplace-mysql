@@ -17,6 +17,7 @@ const checkoutSchema = z.object({
         productId: z.string(),
         quantity: z.number().int().min(1).max(99),
         variantId: z.string().optional().nullable(), // purchased ProductVariant, if any
+        offerId: z.string().optional().nullable(), // Phase 4: buy a SPECIFIC vendor offer (multi-vendor)
       })
     )
     .min(1, 'Your cart is empty'),
@@ -79,6 +80,15 @@ export async function POST(req: NextRequest) {
       : []
     const variantMap = new Map(variantRows.map((v) => [v.id, v]))
 
+    // Phase 4 — multi-vendor offers: resolve selected offer rows. An offer line
+    // prices from the OFFER (not the listing), ships from the offer's seller,
+    // and decrements offer stock (the listing's own stock belongs to its owner).
+    const offerIds = [...new Set(items.map((i) => i.offerId).filter((v): v is string => !!v))]
+    const offerRows = offerIds.length
+      ? await db.productOffer.findMany({ where: { id: { in: offerIds } } })
+      : []
+    const offerMap = new Map(offerRows.map((o) => [o.id, o]))
+
     // Resolve the authoritative unit price per cart line (variant price overrides retail)
     const linePrice = (item: (typeof items)[number]): number | null => {
       if (!item.variantId) return null
@@ -91,7 +101,26 @@ export async function POST(req: NextRequest) {
       if (!p) return NextResponse.json({ error: 'A product in your cart no longer exists' }, { status: 400 })
       if (p.status !== 'ACTIVE')
         return NextResponse.json({ error: `"${p.title}" is no longer available` }, { status: 400 })
-      if (item.variantId) {
+      if (item.offerId) {
+        // Offer line — validate the offer itself (product, status, seller, stock)
+        const o = offerMap.get(item.offerId)
+        if (!o || o.productId !== item.productId || o.status !== 'ACTIVE')
+          return NextResponse.json(
+            { error: `The selected offer for "${p.title}" is no longer available` },
+            { status: 400 }
+          )
+        const offerSeller = await db.user.findUnique({ where: { id: o.sellerId }, select: { status: true } })
+        if (offerSeller?.status === 'SUSPENDED')
+          return NextResponse.json(
+            { error: `The seller of an offer in your cart is currently unavailable` },
+            { status: 400 }
+          )
+        if (o.stock < item.quantity)
+          return NextResponse.json(
+            { error: `Only ${o.stock} left in stock for "${p.title}" (selected offer)` },
+            { status: 400 }
+          )
+      } else if (item.variantId) {
         const v = variantMap.get(item.variantId)
         if (!v || v.productId !== item.productId || !v.isActive)
           return NextResponse.json(
@@ -113,7 +142,7 @@ export async function POST(req: NextRequest) {
 
     const subtotal = items.reduce((sum, i) => {
       const p = productMap.get(i.productId)!
-      const unit = linePrice(i) ?? p.price
+      const unit = i.offerId ? (offerMap.get(i.offerId)?.price ?? p.price) : (linePrice(i) ?? p.price)
       return sum + unit * i.quantity
     }, 0)
 
@@ -187,15 +216,17 @@ export async function POST(req: NextRequest) {
                 image = null
               }
               const variant = i.variantId ? variantMap.get(i.variantId) : undefined
+              const offer = i.offerId ? offerMap.get(i.offerId) : undefined
               return {
                 productId: p.id,
-                sellerId: p.sellerId,
+                sellerId: offer ? offer.sellerId : p.sellerId,
                 quantity: i.quantity,
-                price: linePrice(i) ?? p.price,
+                price: offer ? offer.price : (linePrice(i) ?? p.price),
                 title: p.title,
                 image,
-                variantId: variant?.id ?? null,
-                variantName: variant?.name ?? null,
+                variantId: offer ? null : (variant?.id ?? null),
+                variantName: offer ? null : (variant?.name ?? null),
+                offerId: offer?.id ?? null,
               }
             }),
           },
@@ -205,6 +236,18 @@ export async function POST(req: NextRequest) {
 
       for (const i of items) {
         const p = productMap.get(i.productId)!
+        if (i.offerId) {
+          // Offer purchase: offer stock is authoritative; soldCount tracks the product
+          await tx.productOffer.update({
+            where: { id: i.offerId },
+            data: { stock: { decrement: i.quantity }, soldCount: { increment: i.quantity } },
+          })
+          await tx.product.update({
+            where: { id: p.id },
+            data: { soldCount: { increment: i.quantity } },
+          })
+          continue
+        }
         // Variant stock is authoritative per combination; product.stock tracks the total
         if (i.variantId && variantMap.has(i.variantId)) {
           await tx.productVariant.update({

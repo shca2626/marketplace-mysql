@@ -35,9 +35,16 @@ export function middleware(req: NextRequest) {
   }
 
   // ── Phase 2: /market?view=product|store&id=… → real server-rendered URLs ──
+  // (Phase 4: ?spa=1 bypasses the redirect — the SEO product page's "Compare
+  // on Vendora" CTA boots the interactive SPA directly at that product, where
+  // the multi-vendor offers panel + offer-aware cart live.)
   if (pathname === '/market') {
     const view = searchParams.get('view')
-    if ((view === 'product' || view === 'store') && searchParams.has('id')) {
+    if (
+      (view === 'product' || view === 'store') &&
+      searchParams.has('id') &&
+      searchParams.get('spa') !== '1'
+    ) {
       const id = searchParams.get('id')
       if (id) {
         const url = req.nextUrl.clone()

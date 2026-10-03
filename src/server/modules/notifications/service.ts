@@ -68,6 +68,10 @@ export type NotificationType =
   | 'KYC_LEVEL_UP' // user: verification level increased (L2/L3 unlocked)
   | 'DOCUMENT_EXPIRING' // owner: a verified vault document nears/passes expiry
   | 'CERTIFICATION_STATUS' // seller: a product certification was verified/rejected
+  // ── Phase 4: unified catalog + multi-vendor + approvals ──
+  | 'PRODUCT_REVIEW_STATUS' // seller: listing passed/failed platform publish review
+  | 'OFFER_REVIEW_STATUS' // seller: offer on a catalog product passed/failed review
+  | 'SERVICE_REVIEW_STATUS' // financier: service passed/failed platform review
 
 export interface EmitInput {
   userId: string

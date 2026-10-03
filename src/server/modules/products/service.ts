@@ -130,7 +130,18 @@ export const productFormSchema = z.object({
     .max(20, 'Too many price tiers (max 20)')
     .optional(),
   variants: z.array(variantSchema).max(100, 'Too many variants (max 100)').optional(),
+
+  // ── Phase 4: unified catalog identity (sellers may supply GTIN/MPN as dedup
+  // keys; brand linkage is set by admins in the Catalog console) ──
+  gtin: z.string().trim().max(20).regex(/^[0-9Xx]*$/, 'GTIN must be digits (EAN/UPC)').optional().nullable(),
+  mpn: z.string().trim().max(64).optional().nullable(),
+
+  // ── Phase 4: publish-approval workflow ──
+  publicationAgreed: z.boolean().optional(), // seller accepted the Publication Agreement (this publish)
 })
+
+/** Current Publication Agreement version — bump when the text changes. */
+export const PUBLICATION_AGREEMENT_VERSION = '1.0'
 
 import type { Prisma } from '@prisma/client'
 import { productInclude } from '@/lib/serialize'
@@ -138,11 +149,12 @@ import { productInclude } from '@/lib/serialize'
 /**
  * Shared product creation (POST /api/products + bulk import).
  * Validates nothing itself — callers parse with productFormSchema first.
+ * Phase 4: callers may pass status PENDING_REVIEW (publish-review routing).
  * Returns the created row with the standard list include.
  */
 export async function createProduct(
   sellerId: string,
-  d: z.infer<typeof productFormSchema>
+  d: Omit<z.infer<typeof productFormSchema>, 'status'> & { status?: 'ACTIVE' | 'DRAFT' | 'PENDING_REVIEW' }
 ) {
   const status = d.status ?? 'ACTIVE'
   if (status === 'ACTIVE' && d.images.length === 0) {
@@ -186,6 +198,11 @@ export async function createProduct(
         metaDescription: d.metaDescription?.trim() || null,
         moq: d.moq ?? null,
         priceTiers: d.priceTiers?.length ? JSON.stringify(d.priceTiers) : null,
+        gtin: d.gtin?.trim() || null,
+        mpn: d.mpn?.trim() || null,
+        ...(d.publicationAgreed
+          ? { publicationAgreedAt: new Date(), publicationAgreementVersion: PUBLICATION_AGREEMENT_VERSION }
+          : {}),
       },
     })
     if (variants.length > 0) {

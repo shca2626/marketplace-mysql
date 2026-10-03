@@ -3,8 +3,10 @@ import type { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/auth'
 import { favoriteIdsFor, productInclude, serializeProduct } from '@/lib/serialize'
-import { ensureUniqueSlug, productFormSchema, slugify, createProduct } from '@/server/modules/products/service'
+import { ensureUniqueSlug, productFormSchema, slugify, createProduct, PUBLICATION_AGREEMENT_VERSION } from '@/server/modules/products/service'
 import { assertSellerCanPublish } from '@/server/modules/kyc/service'
+import { sellerNeedsPublishReview } from '@/server/modules/catalog/settings'
+import { recordPublicationConsent } from '@/server/modules/catalog/review'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 
@@ -50,7 +52,8 @@ export async function GET(req: NextRequest) {
       where.sellerId = sessionUserId
     } else if (allScope) {
       // Admin catalog browser — every row, any seller status, optional status filter
-      if (statusFilter && ['ACTIVE', 'DRAFT', 'ARCHIVED'].includes(statusFilter)) where.status = statusFilter
+      if (statusFilter && ['ACTIVE', 'DRAFT', 'ARCHIVED', 'PENDING_REVIEW', 'REJECTED'].includes(statusFilter))
+        where.status = statusFilter
     } else {
       // Public storefront: only live products from vendors in good standing
       where.status = 'ACTIVE'
@@ -165,7 +168,9 @@ export async function POST(req: NextRequest) {
     // KYC enforcement gate (Phase 3): publishing requires identity verification
     // (L2). Drafts stay open to every seller — the gate only guards visibility.
     // Admins are exempt (platform moderation).
-    if ((parsed.data.status ?? 'ACTIVE') === 'ACTIVE') {
+    const wantsPublish = (parsed.data.status ?? 'ACTIVE') === 'ACTIVE'
+    const isAdmin = user.role === 'ADMIN'
+    if (wantsPublish && !isAdmin) {
       try {
         await assertSellerCanPublish(user)
       } catch (err) {
@@ -175,9 +180,40 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Phase 4 — Publication Agreement (owner Q6): first publish of a listing
+    // requires explicit seller consent, stamped on the row + audit-logged.
+    if (wantsPublish && !isAdmin && !parsed.data.publicationAgreed) {
+      return NextResponse.json(
+        { error: 'Accept the Vendora Publication Agreement to publish (required once per listing)' },
+        { status: 400 }
+      )
+    }
+
+    // Phase 4 — publish-review routing: new/unestablished sellers land in the
+    // admin queue (status PENDING_REVIEW) instead of the public catalog.
+    let effectiveStatus: 'ACTIVE' | 'DRAFT' | 'PENDING_REVIEW' = parsed.data.status ?? 'ACTIVE'
+    let reviewQueued = false
+    if (wantsPublish && !isAdmin) {
+      if (await sellerNeedsPublishReview(user.id)) {
+        effectiveStatus = 'PENDING_REVIEW'
+        reviewQueued = true
+      }
+    }
+
     try {
-      const product = await createProduct(user.id, parsed.data)
-      return NextResponse.json({ product: serializeProduct(product!) }, { status: 201 })
+      const product = await createProduct(user.id, { ...parsed.data, status: effectiveStatus })
+      if (parsed.data.publicationAgreed && wantsPublish) {
+        await recordPublicationConsent(user.id, product!.id, product!.title, PUBLICATION_AGREEMENT_VERSION)
+      }
+      return NextResponse.json(
+        {
+          product: serializeProduct(product!),
+          ...(reviewQueued
+            ? { reviewQueued: true, message: 'Your listing was submitted for platform review — it goes live once approved. You can track the status in My Products.' }
+            : {}),
+        },
+        { status: 201 }
+      )
     } catch (err) {
       const status = (err as { status?: number }).status
       if (status) return NextResponse.json({ error: (err as Error).message }, { status })

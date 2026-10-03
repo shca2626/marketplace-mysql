@@ -142,6 +142,8 @@ export interface RfqPrefill {
   productId: string
   title: string
   price: number
+  /** Phase 4 — target a specific vendor offer on that product (null = primary listing). */
+  offerId?: string | null
 }
 
 export function readRfqPrefill(): RfqPrefill | null {

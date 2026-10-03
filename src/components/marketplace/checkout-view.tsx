@@ -108,6 +108,9 @@ export function CheckoutView() {
   })
   const [placing, setPlacing] = useState(false)
   const [placedOrder, setPlacedOrder] = useState<OrderDTO | null>(null)
+  // Phase 4 — offer seller names by offerId (order items carry offerId; the
+  // success screen uses this to render "via <store>" after the cart clears).
+  const [placedOfferSellers, setPlacedOfferSellers] = useState<Map<string, string>>(new Map())
   const [placedPendingApproval, setPlacedPendingApproval] = useState(false)
   const [placedPendingPayment, setPlacedPendingPayment] = useState(false)
   const [placedPayment, setPlacedPayment] = useState<{
@@ -281,15 +284,25 @@ export function CheckoutView() {
         : null
     )
     setPlacing(true)
+    // Snapshot the offer vendor names before the cart clears — the order
+    // response identifies offer lines by offerId but carries no store names.
+    const offerSellers = new Map<string, string>()
+    for (const line of cart) {
+      if (line.offerId) offerSellers.set(line.offerId, line.offerSellerName ?? line.sellerName ?? 'another seller')
+    }
+    setPlacedOfferSellers(offerSellers)
     try {
       const res = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          // Phase 4 — an offer line buys from that vendor's offer (offerId);
+          // the API rejects lines carrying both, so variantId is dropped there.
           items: cart.map((i) => ({
             productId: i.productId,
             quantity: i.quantity,
-            variantId: i.variantId ?? null,
+            variantId: i.offerId ? null : (i.variantId ?? null),
+            offerId: i.offerId ?? null,
           })),
           ...form,
           phone: form.phone || null,
@@ -430,6 +443,9 @@ export function CheckoutView() {
                       <p className="text-xs text-muted-foreground">
                         Qty {item.quantity}
                         {item.variantName ? ` · ${item.variantName}` : ''}
+                        {item.offerId
+                          ? ` · via ${placedOfferSellers.get(item.offerId) ?? 'another seller'}`
+                          : ''}
                       </p>
                     </div>
                     <span className="text-sm font-semibold">{formatUSD(item.price * item.quantity)}</span>
@@ -818,7 +834,7 @@ export function CheckoutView() {
               <ScrollArea className="max-h-64 pr-3">
                 <ul className="space-y-3">
                   {cart.map((item) => (
-                    <li key={item.productId} className="flex gap-3">
+                    <li key={`${item.productId}::${item.variantId ?? 'x'}::${item.offerId ?? 'x'}`} className="flex gap-3">
                       <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border bg-muted">
                         {item.image && <img src={item.image} alt="" className="h-full w-full object-cover" />}
                         <Badge
@@ -833,6 +849,11 @@ export function CheckoutView() {
                         {item.variantLabel && (
                           <span className="mt-0.5 inline-block rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                             {item.variantLabel}
+                          </span>
+                        )}
+                        {item.offerId && (
+                          <span className="mt-0.5 inline-block rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                            via {item.offerSellerName ?? item.sellerName}
                           </span>
                         )}
                       </div>

@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { recordAudit } from '@/server/modules/audit/service'
 import { emitNotification } from '@/server/modules/notifications/service'
 import { adminCreateOrganization } from '@/server/modules/organizations/service'
+import { financierNeedsServiceReview } from '@/server/modules/catalog/settings'
 import {
   FinancingError,
   requireFinancierContext,
@@ -251,6 +252,15 @@ export async function getOwnService(userId: string, serviceId: string): Promise<
 export async function createService(userId: string, input: ServiceInput): Promise<FinancierServiceDTO> {
   const ctx = await requireFinancierContext(userId)
   validateServiceInput(input, true)
+
+  // Phase 4 — publish-approval workflow (same mechanism as products): an
+  // institution's first service goes through platform review instead of
+  // publishing instantly. Established institutions (≥1 live service) skip it.
+  let effectiveStatus = input.status ?? 'DRAFT'
+  if (effectiveStatus === 'ACTIVE' && (await financierNeedsServiceReview(ctx.financierProfileId))) {
+    effectiveStatus = 'PENDING_REVIEW'
+  }
+
   const created = await db.financierService.create({
     data: {
       financierProfileId: ctx.financierProfileId,
@@ -260,7 +270,7 @@ export async function createService(userId: string, input: ServiceInput): Promis
       summary: input.summary?.trim() || null,
       description: input.description?.trim() || null,
       targetSegment: input.targetSegment ?? null,
-      status: input.status ?? 'DRAFT',
+      status: effectiveStatus,
       currency: input.currency?.trim().toUpperCase() || 'YER',
       amountMin: input.amountMin ?? null,
       amountMax: input.amountMax ?? null,
@@ -301,6 +311,18 @@ export async function updateService(
   if (existing.status === 'ARCHIVED' && patch.status !== 'ACTIVE' && Object.keys(patch).some((k) => k !== 'status')) {
     throw new FinancingError('This service is archived — reactivate it before editing', 409)
   }
+
+  // Phase 4 — a publish (→ACTIVE) of a service that never went through review
+  // routes into the platform queue for unestablished institutions.
+  let effectiveStatus = patch.status
+  if (
+    effectiveStatus === 'ACTIVE' &&
+    existing.status !== 'ACTIVE' &&
+    (await financierNeedsServiceReview(existing.financierProfileId))
+  ) {
+    effectiveStatus = 'PENDING_REVIEW'
+  }
+
   const updated = await db.financierService.update({
     where: { id: serviceId },
     data: {
@@ -308,7 +330,7 @@ export async function updateService(
       ...(patch.summary !== undefined ? { summary: patch.summary?.trim() || null } : {}),
       ...(patch.description !== undefined ? { description: patch.description?.trim() || null } : {}),
       ...(patch.targetSegment !== undefined ? { targetSegment: patch.targetSegment ?? null } : {}),
-      ...(patch.status !== undefined ? { status: patch.status } : {}),
+      ...(effectiveStatus !== undefined ? { status: effectiveStatus } : {}),
       ...(patch.currency !== undefined ? { currency: patch.currency.trim().toUpperCase() } : {}),
       ...(patch.amountMin !== undefined ? { amountMin: patch.amountMin ?? null } : {}),
       ...(patch.amountMax !== undefined ? { amountMax: patch.amountMax ?? null } : {}),

@@ -4,9 +4,11 @@ import { useRef, useState } from 'react'
 import {
   ArrowRight,
   Check,
+  Clock,
   DollarSign,
   Hourglass,
   Image as ImageIcon,
+  Info,
   Loader2,
   Package,
   PackageSearch,
@@ -31,6 +33,7 @@ import { ProductFormDialog } from './product-form-dialog'
 import { SellerRfqInboxTab } from './seller/rfq-inbox-tab'
 import { SellerDisputesTab } from './seller/disputes-tab'
 import { SellerEarningsTab } from './seller/earnings-tab'
+import { SellerOffersTab, type MyOfferRow } from './seller/offers-tab'
 import { StarRating } from './star-rating'
 import { DashboardLayout, PageHeader } from '@/components/dashboards/dashboard-layout'
 import { SELLER_NAV } from '@/components/dashboards/nav-config'
@@ -52,6 +55,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import {
   Area,
   AreaChart,
@@ -178,6 +189,18 @@ export function SellerView() {
     loading: ordersLoading,
     refetch: refetchOrders,
   } = useApi<{ orders: OrderDTO[] }>(isSeller ? '/api/seller/orders' : null, { skip: !isSeller })
+  // Phase 4 — the seller's offers on other sellers' catalog products.
+  // Lives here (not inside the tab) so the nav badge and the table share one
+  // source of truth and mutations in the tab update both.
+  const {
+    data: offersData,
+    loading: offersLoading,
+    error: offersError,
+    refetch: refetchOffers,
+  } = useApi<{ offers: MyOfferRow[] }>(isSeller ? '/api/offers/mine' : null, { skip: !isSeller })
+  const myOffers = offersData?.offers ?? []
+  // "Needs attention" badge on the nav item: everything not yet live.
+  const offersPendingCount = myOffers.filter((o) => o.status !== 'ACTIVE').length
 
   const stats = statsData?.stats
   const myProducts = productsData?.items ?? []
@@ -185,7 +208,8 @@ export function SellerView() {
 
   // SEL-004: catalog management needs search + status filtering, not a 48-row dump.
   const [productQuery, setProductQuery] = useState('')
-  const [productStatus, setProductStatus] = useState<'ALL' | 'ACTIVE' | 'DRAFT' | 'ARCHIVED'>('ALL')
+  const [productStatus, setProductStatus] =
+    useState<'ALL' | 'ACTIVE' | 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'ARCHIVED'>('ALL')
   const visibleProducts = myProducts.filter((p) => {
     if (productStatus !== 'ALL' && p.status !== productStatus) return false
     const q = productQuery.trim().toLowerCase()
@@ -200,6 +224,7 @@ export function SellerView() {
     void refetchStats()
     void refetchProducts()
     void refetchOrders()
+    void refetchOffers()
   }
 
   const openCreate = () => {
@@ -210,6 +235,26 @@ export function SellerView() {
   const openEdit = (product: ProductDTO) => {
     setEditing(product)
     setFormOpen(true)
+  }
+
+  // ── Phase 4 review status — REJECTED rows expose the admin's reason ──
+  // The list ProductDTO doesn't carry reviewNote, so the dialog fetches the
+  // detail GET (owner-scoped) to show it with a "fix and resubmit" path.
+  const [noteFor, setNoteFor] = useState<ProductDTO | null>(null)
+  const [noteDetail, setNoteDetail] = useState<{ reviewNote: string | null } | null>(null)
+  const [noteLoading, setNoteLoading] = useState(false)
+
+  const openReviewNote = (product: ProductDTO) => {
+    setNoteFor(product)
+    setNoteDetail(null)
+    setNoteLoading(true)
+    fetch(`/api/products/${product.id}`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        setNoteDetail({ reviewNote: json?.product?.reviewNote ?? null })
+      })
+      .catch(() => setNoteDetail({ reviewNote: null }))
+      .finally(() => setNoteLoading(false))
   }
 
   const handleDelete = async (product: ProductDTO) => {
@@ -356,10 +401,25 @@ export function SellerView() {
     label: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
   }))
 
+  // Nav with a live "needs attention" count on My Offers (in review / paused /
+  // rejected offers). Zero → the static config renders untouched. This sits
+  // below the auth early-returns, so it's a plain computation (no hook).
+  const sellerNav = offersPendingCount
+    ? {
+        ...SELLER_NAV,
+        groups: SELLER_NAV.groups.map((g) => ({
+          ...g,
+          items: g.items.map((item) =>
+            item.key === 'offers' ? { ...item, badge: String(offersPendingCount) } : item
+          ),
+        })),
+      }
+    : SELLER_NAV
+
   return (
     <DashboardLayout
       role="seller"
-      nav={SELLER_NAV}
+      nav={sellerNav}
       activeKey={activeTab}
       onNavigate={(item: NavItem) =>
         navigate('seller', { sellerTab: item.key === 'overview' ? undefined : item.key })
@@ -681,7 +741,7 @@ export function SellerView() {
                 />
               </div>
               <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by status">
-                {(['ALL', 'ACTIVE', 'DRAFT', 'ARCHIVED'] as const).map((s) => (
+                {(['ALL', 'ACTIVE', 'DRAFT', 'PENDING_REVIEW', 'REJECTED', 'ARCHIVED'] as const).map((s) => (
                   <button
                     key={s}
                     type="button"
@@ -693,7 +753,14 @@ export function SellerView() {
                         : 'border-border text-muted-foreground hover:text-foreground'
                     )}
                   >
-                    {s === 'ALL' ? 'All' : s === 'ACTIVE' ? 'Active' : s === 'DRAFT' ? 'Drafts' : 'Archived'}
+                    {{
+                      ALL: 'All',
+                      ACTIVE: 'Active',
+                      DRAFT: 'Drafts',
+                      PENDING_REVIEW: 'In review',
+                      REJECTED: 'Rejected',
+                      ARCHIVED: 'Archived',
+                    }[s]}
                     <span className="ml-1 tabular-nums opacity-70">
                       {s === 'ALL'
                         ? myProducts.length
@@ -785,16 +852,43 @@ export function SellerView() {
                             </div>
                           </td>
                           <td className="px-3 py-3 text-center">
-                            <Badge
-                              variant="secondary"
-                              className={cn(
-                                'rounded-full text-[11px]',
-                                p.status === 'ACTIVE' && 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
-                                p.status === 'ARCHIVED' && 'bg-muted text-muted-foreground'
-                              )}
-                            >
-                              {p.status}
-                            </Badge>
+                            {p.status === 'PENDING_REVIEW' ? (
+                              <Badge
+                                variant="secondary"
+                                className="rounded-full text-[11px] bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                              >
+                                <Clock size={11} className="mr-1" aria-hidden /> In review
+                              </Badge>
+                            ) : p.status === 'REJECTED' ? (
+                              <span className="inline-flex items-center gap-1.5">
+                                <Badge
+                                  variant="secondary"
+                                  className="rounded-full text-[11px] bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
+                                >
+                                  Rejected
+                                </Badge>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                                  aria-label={`Why ${p.title} was rejected`}
+                                  onClick={() => openReviewNote(p)}
+                                >
+                                  <Info size={13} />
+                                </Button>
+                              </span>
+                            ) : (
+                              <Badge
+                                variant="secondary"
+                                className={cn(
+                                  'rounded-full text-[11px]',
+                                  p.status === 'ACTIVE' && 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+                                  p.status === 'ARCHIVED' && 'bg-muted text-muted-foreground'
+                                )}
+                              >
+                                {p.status}
+                              </Badge>
+                            )}
                           </td>
                           <td className="px-5 py-3">
                             <div className="flex justify-end gap-1">
@@ -843,6 +937,16 @@ export function SellerView() {
             </CardContent>
           </Card>
       </div>
+      )}
+
+      {/* ── My Offers (Phase 4 multi-vendor) ── */}
+      {activeTab === 'offers' && (
+        <SellerOffersTab
+          offers={myOffers}
+          loading={offersLoading && !offersData}
+          error={offersError}
+          refetch={() => void refetchOffers({ silent: true })}
+        />
       )}
 
       {/* ── Seller RFQ inbox section ── */}
@@ -947,6 +1051,54 @@ export function SellerView() {
           )}
       </div>
       )}
+
+      {/* ── Rejected-listing reason dialog (Phase 4 review status) ── */}
+      <Dialog open={!!noteFor} onOpenChange={(open) => !open && setNoteFor(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Why this listing was rejected</DialogTitle>
+            <DialogDescription>
+              {noteFor ? noteFor.title : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {noteLoading || !noteDetail ? (
+            <div className="space-y-2.5">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-4/5" />
+              <Skeleton className="h-4 w-3/5" />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-900/60 dark:bg-rose-950 dark:text-rose-300">
+                <p className="font-semibold">Rejected by platform review</p>
+                <p className="mt-1 leading-relaxed">
+                  {noteDetail.reviewNote ||
+                    'No reason was recorded — contact support for details.'}
+                </p>
+              </div>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Fix the issue, then publish again — the updated listing goes through the
+                Publication Agreement and platform review once more.
+              </p>
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:justify-start">
+            <Button
+              type="button"
+              disabled={noteLoading || !noteDetail}
+              onClick={() => {
+                if (noteFor) openEdit(noteFor)
+                setNoteFor(null)
+              }}
+            >
+              <Pencil size={14} className="mr-1.5" /> Fix and resubmit
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setNoteFor(null)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ProductFormDialog
         open={formOpen}

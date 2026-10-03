@@ -160,6 +160,46 @@ export interface ProductDTO {
   certifications?: ProductCertificationDTO[]
   /** True when ≥1 VERIFIED certification — powers the "Verified specs" badge. */
   hasVerifiedSpecs?: boolean
+
+  // ── Phase 4 — unified catalog + multi-vendor ──
+  /** Platform-managed brand linkage ("what it is" layer). */
+  brand?: { id: string; name: string; slug: string; isVerified: boolean } | null
+  /** Normalized EAN/UPC/GTIN — dedup/merge key. */
+  gtin?: string | null
+  /** Manufacturer part number — dedup key. */
+  mpn?: string | null
+  /** Platform-curated listing (admin-created/adopted). */
+  isCurated?: boolean
+  /** Homepage popular-products ordering; null = unranked. */
+  popularRank?: number | null
+  /** ACTIVE offers from additional sellers (excludes the listing owner). */
+  offerCount?: number
+  /** Phase 4 review — admin's reject reason (owner/admin, detail GET only). */
+  reviewNote?: string | null
+  /** Phase 4 — can the current viewer attach an offer to this listing? */
+  viewerCanOffer?: boolean
+}
+
+/** Phase 4 — a vendor offer on a catalog product (the "who sells it" layer). */
+export interface ProductOfferDTO {
+  id: string
+  productId: string
+  sellerId: string
+  seller: { id: string; name: string; storeName: string | null }
+  price: number
+  compareAtPrice: number | null
+  stock: number
+  moq: number | null
+  sku: string | null
+  priceTiers?: { from: number; to: number | null; price: number }[] | null
+  freeShipping: boolean
+  shippingFee: number | null
+  processingDays: number | null
+  leadTimeNote: string | null
+  status: string
+  soldCount: number
+  createdAt: string
+  product?: { id: string; title: string; status: string; slug: string | null; category: string; image: string | null }
 }
 
 /** Phase 3 KYP — a certification/compliance artifact on a product. */
@@ -229,6 +269,8 @@ export interface OrderItemDTO {
   mine?: boolean
   variantId?: string | null
   variantName?: string | null
+  /** Phase 4: set when this item purchased a vendor ProductOffer (variant is null). */
+  offerId?: string | null
 }
 
 export interface OrderPaymentDTO {
@@ -271,6 +313,13 @@ export interface CartItem {
   variantId?: string | null
   variantLabel?: string | null
   sku?: string | null
+  // ── Phase 4 multi-vendor: set when this line buys a SPECIFIC vendor offer
+  // (not the listing owner). price above already equals the offer price.
+  offerId?: string | null
+  /** Offer price at add-to-cart time (display snapshot; price mirrors it). */
+  offerPrice?: number | null
+  /** The offering vendor's store name for "via <store>" sub-labels. */
+  offerSellerName?: string | null
 }
 
 export interface StoreDTO {

@@ -436,6 +436,7 @@ export interface RfqLineInput {
   productName?: string | null
   sku?: string | null
   variantId?: string | null
+  offerId?: string | null
   quantity: number
   targetPrice?: number | null
   notes?: string | null
@@ -564,6 +565,7 @@ export async function createRfq(
             sku: l.sku ?? null,
             variantId: l.variantId ?? null,
             variantName,
+            offerId: l.offerId ?? null,
             quantity: l.quantity,
             targetPrice: l.targetPrice ?? null,
             notes: l.notes ?? null,

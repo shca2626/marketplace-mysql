@@ -17,8 +17,22 @@ import type { ProductDTO } from '@/lib/types'
 
 // ── Products ─────────────────────────────────────────────────────────────────
 
-/** Raw row shape used by the product detail query (productInclude + reviews). */
-type ProductWithRelations = Awaited<ReturnType<typeof db.product.findFirst>> & { reviews?: unknown[] }
+/** Raw row shape used by the product detail query (productInclude + reviews + offers). */
+type ProductWithRelations = Awaited<ReturnType<typeof db.product.findFirst>> & {
+  reviews?: unknown[]
+  /** Phase 4 — ACTIVE multi-vendor offers (Other sellers block). */
+  offers?: PublicOfferRow[]
+}
+
+/** Server-rendered vendor offer row for the public "Other sellers" block. */
+export interface PublicOfferRow {
+  id: string
+  sellerId: string
+  price: number
+  stock: number
+  moq: number | null
+  seller: { id: string; name: string; storeName: string | null }
+}
 
 /** Public product detail by id (with category, seller, active variants + latest reviews). */
 export const getPublicProduct = cache(async (id: string) => {
@@ -31,6 +45,20 @@ export const getPublicProduct = cache(async (id: string) => {
         // Phase 3 KYP — active certifications power the "Verified specs" badge
         // and the compliance block on the public detail page.
         certifications: { where: { isActive: true }, orderBy: { createdAt: 'asc' } },
+        // Phase 4 — multi-vendor offers ("Other sellers" block): ACTIVE
+        // offers from ACTIVE sellers, cheapest first.
+        offers: {
+          where: { status: 'ACTIVE', seller: { status: 'ACTIVE' } },
+          select: {
+            id: true,
+            sellerId: true,
+            price: true,
+            stock: true,
+            moq: true,
+            seller: { select: { id: true, name: true, storeName: true } },
+          },
+          orderBy: [{ price: 'asc' }, { createdAt: 'asc' }],
+        },
         reviews: {
           orderBy: { createdAt: 'desc' },
           take: 8,

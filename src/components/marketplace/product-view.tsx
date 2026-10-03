@@ -20,7 +20,9 @@ import {
   ShieldCheck,
   ShoppingCart,
   Star,
+  Store,
   Truck,
+  Users,
   X,
   Zap,
   ZoomIn,
@@ -28,11 +30,12 @@ import {
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
-import type { OrganizationDTO, ProductDTO, ResolvedPriceDTO, ReviewDTO } from '@/lib/types'
+import type { OrganizationDTO, ProductDTO, ProductOfferDTO, ResolvedPriceDTO, ReviewDTO } from '@/lib/types'
 import { discountPercent, formatDate, formatNumber, formatUSD, initials, timeAgo } from '@/lib/format'
 import { StarPicker } from './star-rating'
 import { QuantityInput } from './quantity-input'
 import { ProductCard } from './product-card'
+import { SellOfferPanel } from './sell-offer-dialog'
 import { viewToHref } from '@/lib/routing'
 import { absoluteUrl, shareLink } from '@/lib/share'
 import { defaultActiveOrg, rememberActiveOrg, RFQ_PREFILL_KEY } from './b2b/b2b-shared'
@@ -59,6 +62,32 @@ interface ProductDetailResponse {
     activeListings: number
   } | null
   related: ProductDTO[]
+  /** Phase 4 — ACTIVE offers from additional sellers (listing owner excluded). */
+  offers: ProductOfferDTO[]
+  /** Phase 4 — the viewer's own offer on this product (any non-archived status). */
+  myOffer?: ProductOfferDTO | null
+  /** Phase 4 — publication agreement version in force. */
+  agreement?: { version: string }
+}
+
+/** One row of the "Compare offers" panel: the primary listing + each vendor offer. */
+interface CompareRow {
+  key: string
+  isPrimary: boolean
+  sellerId: string
+  /** Store (business) name — falls back to the member name. */
+  storeName: string
+  price: number
+  compareAt: number | null
+  stock: number
+  moq: number | null
+  freeShipping: boolean
+  shippingFee: number | null
+  processingDays: number | null
+  leadTimeNote: string | null
+  soldCount: number
+  /** The backing vendor offer — null for the primary listing row. */
+  offer: ProductOfferDTO | null
 }
 
 /** Convert a product video URL into an embeddable player (YouTube / Vimeo / direct file). */
@@ -269,6 +298,79 @@ export function ProductView() {
     [product, effectivePrice, effectiveCompareAt]
   )
 
+  // ── Phase 4 multi-vendor offers (hooks live above the early returns) ──
+  // The listing's own seller IS the primary offer (product.price/stock); the
+  // offers[] payload carries every additional vendor. Primary row first,
+  // then cheapest — mirroring the API ordering defensively.
+  const vendorOffers = useMemo(
+    () =>
+      [...(data?.offers ?? [])]
+        .filter((o) => o.status === 'ACTIVE')
+        .sort((a, b) => a.price - b.price || a.createdAt.localeCompare(b.createdAt)),
+    [data?.offers]
+  )
+  const offerSellerCount = useMemo(() => new Set(vendorOffers.map((o) => o.sellerId)).size, [vendorOffers])
+
+  const compareRows: CompareRow[] = useMemo(() => {
+    const p = data?.product
+    const s = data?.seller
+    if (!p || !s) return []
+    const rows: CompareRow[] = [
+      {
+        key: `primary-${s.id}`,
+        isPrimary: true,
+        sellerId: s.id,
+        storeName: s.storeName ?? s.name,
+        price: p.price,
+        compareAt: p.compareAtPrice ?? null,
+        stock: p.stock,
+        moq: p.moq ?? null,
+        freeShipping: p.freeShipping ?? false,
+        shippingFee: p.shippingFee ?? null,
+        processingDays: p.processingDays ?? null,
+        leadTimeNote: p.shippingPolicy ?? null,
+        soldCount: p.soldCount,
+        offer: null,
+      },
+    ]
+    for (const o of vendorOffers) {
+      rows.push({
+        key: `offer-${o.id}`,
+        isPrimary: false,
+        sellerId: o.sellerId,
+        storeName: o.seller.storeName ?? o.seller.name,
+        price: o.price,
+        compareAt: o.compareAtPrice ?? null,
+        stock: o.stock,
+        moq: o.moq ?? null,
+        freeShipping: o.freeShipping,
+        shippingFee: o.shippingFee ?? null,
+        processingDays: o.processingDays ?? null,
+        leadTimeNote: o.leadTimeNote ?? null,
+        soldCount: o.soldCount,
+        offer: o,
+      })
+    }
+    return rows
+  }, [data, vendorOffers])
+
+  const bestPrice = compareRows.length > 1 ? Math.min(...compareRows.map((r) => r.price)) : null
+
+  /** Add an offer row to the cart — MOQ-aware starting quantity. */
+  const addOfferRowToCart = (row: CompareRow) => {
+    if (!product || !row.offer) return
+    const qty = Math.max(1, Math.min(row.moq ?? 1, row.stock))
+    const res = addToCart(product, qty, null, row.offer)
+    if (res.ok) {
+      toast({
+        title: 'Added to cart',
+        description: `${qty} × ${product.title} — via ${row.storeName}`,
+      })
+    } else {
+      toast({ title: 'Cannot add to cart', description: res.message, variant: 'destructive' })
+    }
+  }
+
   const handleAddToCart = (openDrawer = false) => {
     if (!product) return
     const res = addToCart(product, quantity, selectedVariant)
@@ -292,12 +394,18 @@ export function ProductView() {
 
   // B2B handoff: prefill a new RFQ line and jump to the RFQ workspace.
   // sessionStorage (not the store) carries the payload — see b2b/rfq-view.
-  const handleRequestQuote = () => {
+  // Phase 4: an optional offer targets that specific vendor's offer.
+  const handleRequestQuote = (offer?: ProductOfferDTO | null) => {
     if (!product) return
     try {
       window.sessionStorage.setItem(
         RFQ_PREFILL_KEY,
-        JSON.stringify({ productId: product.id, title: product.title, price: product.price })
+        JSON.stringify({
+          productId: product.id,
+          title: product.title,
+          price: offer?.price ?? product.price,
+          offerId: offer?.id ?? null,
+        })
       )
     } catch {
       /* storage unavailable — still navigate */
@@ -352,6 +460,18 @@ export function ProductView() {
       toast({ title: 'Link copied to clipboard', description: 'Share it anywhere you like' })
     } else if (outcome === 'failed') {
       toast({ title: 'Could not share', description: 'Copy failed — try again in a moment', variant: 'destructive' })
+    }
+  }
+
+  /** Refresh the detail payload in place — used by the seller-side offer panel
+   *  (myOffer / viewerCanOffer live on the same GET) after any offer mutation. */
+  const refreshDetail = async () => {
+    if (!productId) return
+    try {
+      const res = await fetch(`/api/products/${productId}`, { cache: 'no-store' })
+      if (res.ok) setData(await res.json())
+    } catch {
+      /* keep the current payload on transient failures */
     }
   }
 
@@ -641,6 +761,22 @@ export function ProductView() {
             </div>
           )}
 
+          {/* Phase 4 — multi-vendor teaser chip (only when other sellers sell this too) */}
+          {vendorOffers.length > 0 && (
+            <button
+              type="button"
+              onClick={() =>
+                document.getElementById('offers-section')?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+              }
+              className="mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-500/20 dark:text-emerald-300"
+            >
+              <Users size={13} aria-hidden />
+              {vendorOffers.length} {vendorOffers.length === 1 ? 'offer' : 'offers'} from {offerSellerCount}{' '}
+              {offerSellerCount === 1 ? 'other seller' : 'other sellers'}
+              <ChevronRight size={12} aria-hidden className="transition-transform group-hover:translate-x-0.5" />
+            </button>
+          )}
+
           <p className="mt-4 leading-relaxed text-bh-subtle">{product.description}</p>
 
           {/* ── Variant selector (seller-defined options) ── */}
@@ -737,7 +873,7 @@ export function ProductView() {
               size="lg"
               variant="outline"
               className="h-12 flex-1 rounded-xl border-bh-border-dark text-base sm:flex-none sm:px-8"
-              onClick={handleRequestQuote}
+              onClick={() => handleRequestQuote(null)}
             >
               <FileText size={16} className="mr-2" /> Request a quote
             </Button>
@@ -771,7 +907,7 @@ export function ProductView() {
           <p className="mt-3 text-xs text-bh-muted">
             Buying in bulk?{' '}
             <button
-              onClick={handleRequestQuote}
+              onClick={() => handleRequestQuote(null)}
               className="font-semibold text-bh-action underline-offset-2 hover:text-bh-navy hover:underline"
             >
               Request a quote
@@ -837,6 +973,189 @@ export function ProductView() {
           )}
         </motion.div>
       </div>
+
+      {/* ─────────────────────────────────────────────────────────────────────
+         Phase 4 — "Compare offers" (multi-vendor).
+         ── 4-c INTEGRATION POINT ──
+         The seller-side "Sell this product" panel (product.viewerCanOffer /
+         myOffer) should mount in this file right AFTER this offers section —
+         buyer surface first, seller surface below it. Keep buyer logic in
+         this block untouched; see agent-ctx notes in worklog 4-d.
+         ───────────────────────────────────────────────────────────────────── */}
+      {compareRows.length > 1 && (
+        <section id="offers-section" className="mt-14 scroll-mt-24" aria-labelledby="offers-heading">
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-bh-gold/25 bg-bh-bg-gold px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-bh-gold-dark">
+                <Users size={12} aria-hidden /> Multi-vendor
+              </span>
+              <h2
+                id="offers-heading"
+                className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xl font-bold tracking-tight text-bh-navy"
+              >
+                Compare offers
+                <span className="text-sm font-semibold text-bh-muted">
+                  {compareRows.length} sellers on this listing
+                </span>
+              </h2>
+            </div>
+            <p className="max-w-xs text-xs leading-relaxed text-bh-muted">
+              Same product, sold and fulfilled by each vendor — price, stock, minimums and lead times can differ.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            {compareRows.map((row) => {
+              const out = row.stock === 0
+              const isBest = bestPrice !== null && row.price === bestPrice
+              return (
+                <Card
+                  key={row.key}
+                  className={cn(
+                    'border-bh-border bg-bh-card p-4 shadow-card sm:p-5',
+                    out && 'opacity-70'
+                  )}
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+                    {/* Vendor */}
+                    <div className="min-w-0 lg:w-64">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-10 w-10 border">
+                          <AvatarFallback className="bg-bh-bg-gold text-xs font-bold text-bh-gold-dark">
+                            {initials(row.storeName)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <button
+                              type="button"
+                              className="truncate font-semibold text-bh-navy transition-colors hover:text-bh-action"
+                              onClick={() => navigate('store', { sellerId: row.sellerId })}
+                              aria-label={`Visit ${row.storeName} store`}
+                            >
+                              {row.storeName}
+                            </button>
+                            {row.isPrimary && (
+                              <Badge
+                                variant="secondary"
+                                className="h-5 rounded-full px-1.5 text-[10px] font-semibold text-bh-navy"
+                              >
+                                <Store size={10} className="mr-1" /> Primary listing
+                              </Badge>
+                            )}
+                            {isBest && (
+                              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                <Zap size={10} aria-hidden /> Best price
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-bh-muted">
+                            <span>Sold by {row.storeName}</span>
+                            <span className="text-bh-faded">·</span>
+                            <span>{formatNumber(row.soldCount)} sold</span>
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Price + terms */}
+                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-6 gap-y-2">
+                      <div className="flex items-end gap-2">
+                        <span className="text-2xl font-extrabold tracking-tight text-bh-navy">
+                          {formatUSD(row.price)}
+                        </span>
+                        {row.compareAt && (
+                          <span className="pb-0.5 text-xs text-bh-muted line-through">
+                            {formatUSD(row.compareAt)}
+                          </span>
+                        )}
+                      </div>
+                      <dl className="grid flex-1 grid-cols-2 gap-x-5 gap-y-1 text-[11px] sm:grid-cols-3 lg:max-w-md">
+                        <div className="flex items-center gap-1">
+                          <dt className="text-bh-muted">Stock:</dt>
+                          <dd
+                            className={cn(
+                              'font-semibold',
+                              out ? 'text-destructive' : row.stock <= 5 ? 'text-bh-gold-dark' : 'text-bh-ink'
+                            )}
+                          >
+                            {out ? 'Out of stock' : `${formatNumber(row.stock)} units`}
+                          </dd>
+                        </div>
+                        {row.moq != null && row.moq > 1 && (
+                          <div className="flex items-center gap-1">
+                            <dt className="text-bh-muted">MOQ:</dt>
+                            <dd className="font-semibold text-bh-ink">{formatNumber(row.moq)}</dd>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1">
+                          <dt className="text-bh-muted">Shipping:</dt>
+                          <dd className="font-semibold text-bh-ink">
+                            {row.freeShipping
+                              ? 'Free'
+                              : row.shippingFee != null
+                                ? `${formatUSD(row.shippingFee)} fee`
+                                : 'At checkout'}
+                          </dd>
+                        </div>
+                        <div className="col-span-2 flex items-center gap-1 sm:col-span-1">
+                          <dt className="text-bh-muted">Lead time:</dt>
+                          <dd className="font-semibold text-bh-ink">
+                            {row.processingDays != null
+                              ? `${row.processingDays} ${row.processingDays === 1 ? 'day' : 'days'}`
+                              : 'Standard'}
+                          </dd>
+                        </div>
+                      </dl>
+                    </div>
+
+                    {/* CTAs */}
+                    <div className="flex shrink-0 flex-wrap items-center gap-2">
+                      {row.leadTimeNote && (
+                        <p className="w-full text-[11px] leading-snug text-bh-muted lg:hidden">{row.leadTimeNote}</p>
+                      )}
+                      <Button
+                        size="lg"
+                        className="h-11 flex-1 rounded-xl bg-bh-gold font-bold text-bh-navy-deep shadow-card hover:bg-bh-gold-light sm:flex-none"
+                        disabled={out}
+                        onClick={() =>
+                          row.offer ? addOfferRowToCart(row) : handleAddToCart(false)
+                        }
+                      >
+                        <ShoppingCart size={16} className="mr-1.5" /> Add to cart
+                      </Button>
+                      <Button
+                        size="lg"
+                        variant="outline"
+                        className="h-11 flex-1 rounded-xl border-bh-border-dark sm:flex-none"
+                        disabled={out}
+                        onClick={() => handleRequestQuote(row.offer)}
+                      >
+                        <FileText size={15} className="mr-1.5" /> Request quote
+                      </Button>
+                    </div>
+                  </div>
+                  {row.leadTimeNote && (
+                    <p className="mt-2 hidden items-center gap-1 text-[11px] text-bh-muted lg:flex">
+                      <Truck size={12} className="shrink-0" aria-hidden /> {row.leadTimeNote}
+                    </p>
+                  )}
+                </Card>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* ── Phase 4 — seller-side “Sell this product” / “Your offer” panel.
+          4-c integration: everything seller-facing lives in sell-offer-dialog.tsx
+          (renders null for buyers / listing owners with no offer). ── */}
+      <SellOfferPanel
+        product={product}
+        myOffer={data.myOffer ?? null}
+        viewerCanOffer={product.viewerCanOffer ?? false}
+        onChanged={() => void refreshDetail()}
+      />
 
       {/* ── Image lightbox ── */}
       <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>

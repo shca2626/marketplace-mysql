@@ -23,9 +23,9 @@ import { ProductGallery } from '@/components/market/pages/product-gallery'
 import { ProductBuyPanel } from '@/components/market/pages/product-buy-panel'
 import { ProductCard } from '@/components/marketplace/product-card'
 import { StarRating } from '@/components/marketplace/star-rating'
-import { getPublicProduct, getRelatedProducts, toProductDTO } from '@/app/market/(public)/queries'
+import { getPublicProduct, getRelatedProducts, toProductDTO, type PublicOfferRow } from '@/app/market/(public)/queries'
 import { siteBaseUrl, toAbsoluteUrl } from '@/lib/site-url'
-import { formatDate, formatNumber, initials } from '@/lib/format'
+import { formatDate, formatNumber, formatUSD, initials } from '@/lib/format'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 
@@ -76,6 +76,9 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const product = toProductDTO(row)
   const variants = (product.variants ?? []).filter((v) => v.isActive)
   const reviews = row.reviews
+  // Phase 4 — additional vendors selling this exact listing (server-rendered;
+  // the buyer transacts on the marketplace SPA).
+  const otherSellers: PublicOfferRow[] = row.offers ?? []
   // Phase 3 KYP — public trust surface: VERIFIED rows earn the compliance
   // block (PENDING shows as "In review"); rejected/inactive rows stay hidden.
   const visibleCertifications = (product.certifications ?? []).filter(
@@ -339,6 +342,51 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                     </>
                   )}
                 </dl>
+              </section>
+            )}
+
+            {/* Other sellers (Phase 4 multi-vendor) — additional vendors on
+                this listing; server-rendered and static — comparing and buying
+                happens in the marketplace SPA at /market?view=product&id=. */}
+            {otherSellers.length > 0 && (
+              <section
+                className="rounded-2xl border border-bh-border bg-bh-card p-6 shadow-card"
+                aria-labelledby="offers-heading"
+              >
+                <h2 id="offers-heading" className="h2-practical mb-1 text-bh-navy">
+                  Other sellers
+                </h2>
+                <p className="mb-4 text-xs text-bh-muted">
+                  {otherSellers.length} more vendor {otherSellers.length === 1 ? 'offer' : 'offers'} on this listing —
+                  compare every seller in the marketplace.
+                </p>
+                <ul className="space-y-2">
+                  {otherSellers.map((offer) => (
+                    <li
+                      key={offer.id}
+                      className="flex flex-wrap items-center gap-3 rounded-lg border border-bh-border bg-bh-soft-blue/40 px-4 py-3"
+                    >
+                      <Store size={16} className="shrink-0 text-bh-gold-dark" aria-hidden />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-bh-ink">
+                          {offer.seller.storeName || offer.seller.name}
+                        </p>
+                        <p className="mt-0.5 text-xs text-bh-muted">
+                          {formatUSD(offer.price)}
+                          <span aria-hidden> · </span>
+                          {offer.stock > 0 ? `${formatNumber(offer.stock)} in stock` : 'Out of stock'}
+                          {offer.moq != null && offer.moq > 1 ? ` · min. ${formatNumber(offer.moq)} units` : ''}
+                        </p>
+                      </div>
+                      <a
+                        href={`/market?view=product&id=${product.id}&spa=1`}
+                        className="inline-flex shrink-0 items-center gap-1 rounded-full border border-bh-border px-3 py-1 text-xs font-semibold text-bh-ink transition-colors hover:border-bh-action hover:text-bh-action"
+                      >
+                        Compare on Vendora <ChevronRight size={12} aria-hidden />
+                      </a>
+                    </li>
+                  ))}
+                </ul>
               </section>
             )}
 
