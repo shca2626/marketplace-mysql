@@ -10,6 +10,8 @@
 //   3. a bare `requireAdmin()` call without a permission key
 //   4. a permission key not present in the catalog (rbac-catalog.ts)
 //   5. drift between the classification file and the scanned route set
+//   6. audit-atomicity drift (6.11): a SENSITIVE action written through the
+//      non-transactional recordAudit() path instead of recordAuditTx()
 //
 // `--init` regenerates the classification scaffold from the scan — the output
 // is then REVIEWED by a human and committed as
@@ -116,6 +118,34 @@ function routeFiles(): string[] {
   return out
 }
 
+// ── audit-atomicity drift (6.11) ─────────────────────────────────────────────
+/** Parse the authoritative SENSITIVE_AUDIT_ACTIONS set from the audit service —
+ *  the source of truth stays in ONE place; this lint can never go stale. */
+function sensitiveAuditActions(): Set<string> {
+  const src = readFileSync(join(ROOT, 'src/server/modules/audit/service.ts'), 'utf8')
+  const block = src.match(/SENSITIVE_AUDIT_ACTIONS[^=]*=\s*new Set\(\[([\s\S]*?)\]\)/)
+  if (!block) throw new Error('check-guards: cannot parse SENSITIVE_AUDIT_ACTIONS from audit/service.ts')
+  const set = new Set<string>()
+  for (const m of block[1].matchAll(/'([^']+)'/g)) set.add(m[1])
+  if (set.size === 0) throw new Error('check-guards: SENSITIVE_AUDIT_ACTIONS parsed empty — refusing to pass a vacuous check')
+  return set
+}
+
+/** Every TS/TSX file under src/ (route + non-route alike: services, jobs). */
+function allSourceFiles(): string[] {
+  const out: string[] = []
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir)) {
+      const full = join(dir, entry)
+      const st = statSync(full)
+      if (st.isDirectory()) walk(full)
+      else if (/\.(ts|tsx)$/.test(entry)) out.push(relative(ROOT, full))
+    }
+  }
+  walk(join(ROOT, 'src'))
+  return out
+}
+
 function main() {
   const init = process.argv.includes('--init')
   const files = routeFiles()
@@ -124,6 +154,21 @@ function main() {
 
   // Global checks across every scanned file
   const catalog = catalogKeys()
+
+  // 6. audit-atomicity drift (6.11) — scans EVERY source file, not just routes
+  const sensitive = sensitiveAuditActions()
+  for (const f of allSourceFiles()) {
+    const src = readFileSync(join(ROOT, f), 'utf8')
+    // `recordAuditTx(` does NOT match this regex (no paren right after).
+    for (const m of src.matchAll(/recordAudit\(\s*(?:await\s+)?\{[\s\S]{0,800}?action:\s*'([^']+)'/g)) {
+      if (sensitive.has(m[1])) {
+        problems.push(
+          `AUDIT ATOMICITY DRIFT: ${f} writes sensitive action "${m[1]}" via recordAudit() — ` +
+            `sensitive actions MUST use recordAuditTx() inside the business transaction (6.11)`
+        )
+      }
+    }
+  }
 
   for (const f of files) {
     const rc = scanRoute(f)
@@ -191,12 +236,13 @@ function main() {
 
   console.log(`Guard-lint: ${scanned.size} routes scanned`)
   console.log('  Buckets:', JSON.stringify(byBucket))
+  console.log(`  Audit-atomicity: ${sensitive.size} sensitive actions, ${allSourceFiles().length} source files scanned`)
   if (problems.length > 0) {
     console.error(`\n✗ ${problems.length} problem(s):`)
     for (const p of problems) console.error('  - ' + p)
     process.exit(1)
   }
-  console.log('✓ zero unclassified, zero shadows, zero bare guards, zero unknown keys, zero drift')
+  console.log('✓ zero unclassified, zero shadows, zero bare guards, zero unknown keys, zero drift, zero audit-atomicity drift')
 }
 
 main()

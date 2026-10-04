@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { decryptSecret, encryptSecret } from '@/lib/secret-box'
 import { buildOtpauthUri, generateTotpSecret, verifyTotp } from '@/lib/totp'
 import { hashPassword, verifyPassword } from '@/lib/auth'
-import { recordAudit } from '@/server/modules/audit/service'
+import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MFA SERVICE — TOTP enrollment, backup codes, requirement derivation,
@@ -76,19 +76,22 @@ export async function setMfaPlatformPolicy(
   actor: { id: string; name: string },
   policy: MfaPlatformPolicy
 ): Promise<MfaPlatformPolicy> {
-  await db.platformSetting.upsert({
-    where: { key: POLICY_KEY },
-    update: { value: JSON.stringify(policy) },
-    create: { key: POLICY_KEY, value: JSON.stringify(policy) },
-  })
-  await recordAudit({
-    actorId: actor.id,
-    actorType: 'ADMIN',
-    action: 'MFA_PLATFORM_POLICY_CHANGED',
-    entityType: 'PlatformSetting',
-    entityId: POLICY_KEY,
-    summary: `MFA platform policy set to requireForStaff=${policy.requireForStaff}`,
-    metadata: { ...policy },
+  // 6.11: policy change + audit row commit atomically.
+  await db.$transaction(async (tx) => {
+    await tx.platformSetting.upsert({
+      where: { key: POLICY_KEY },
+      update: { value: JSON.stringify(policy) },
+      create: { key: POLICY_KEY, value: JSON.stringify(policy) },
+    })
+    await recordAuditTx(tx, {
+      actorId: actor.id,
+      actorType: 'ADMIN',
+      action: 'MFA_PLATFORM_POLICY_CHANGED',
+      entityType: 'PlatformSetting',
+      entityId: POLICY_KEY,
+      summary: `MFA platform policy set to requireForStaff=${policy.requireForStaff}`,
+      metadata: { ...policy },
+    })
   })
   return policy
 }
@@ -142,17 +145,18 @@ export async function confirmEnrollment(
     await tx.mfaBackupCode.createMany({
       data: codes.map((code2) => ({ enrollmentId: enrollment.id, codeHash: hashPassword(code2) })),
     })
+    // 6.11: enrollment + audit row commit atomically.
+    await recordAuditTx(tx, {
+      actorId: userId,
+      actorType: 'USER',
+      action: 'MFA_ENROLLED',
+      entityType: 'MfaEnrollment',
+      entityId: enrollment.id,
+      summary: 'MFA enrolled (TOTP confirmed, backup codes issued)',
+    })
     return codes
   })
 
-  await recordAudit({
-    actorId: userId,
-    actorType: 'USER',
-    action: 'MFA_ENROLLED',
-    entityType: 'MfaEnrollment',
-    entityId: enrollment.id,
-    summary: 'MFA enrolled (TOTP confirmed, backup codes issued)',
-  })
   return { backupCodes }
 }
 
@@ -170,14 +174,17 @@ export async function disableMfa(userId: string, password: string): Promise<void
       'MFA_REQUIRED_BY_POLICY'
     )
   }
-  await db.mfaEnrollment.delete({ where: { userId } })
-  await recordAudit({
-    actorId: userId,
-    actorType: 'USER',
-    action: 'MFA_DISABLED',
-    entityType: 'MfaEnrollment',
-    entityId: enrollment.id,
-    summary: 'MFA disabled (not required by policy — password re-verified)',
+  // 6.11: removal + audit row commit atomically.
+  await db.$transaction(async (tx) => {
+    await tx.mfaEnrollment.delete({ where: { userId } })
+    await recordAuditTx(tx, {
+      actorId: userId,
+      actorType: 'USER',
+      action: 'MFA_DISABLED',
+      entityType: 'MfaEnrollment',
+      entityId: enrollment.id,
+      summary: 'MFA disabled (not required by policy — password re-verified)',
+    })
   })
 }
 
@@ -198,15 +205,16 @@ export async function regenerateBackupCodes(
     await tx.mfaBackupCode.createMany({
       data: codes.map((code2) => ({ enrollmentId: enrollment.id, codeHash: hashPassword(code2) })),
     })
+    // 6.11: invalidation + audit row commit atomically.
+    await recordAuditTx(tx, {
+      actorId: userId,
+      actorType: 'USER',
+      action: 'MFA_BACKUP_CODES_REGENERATED',
+      entityType: 'MfaEnrollment',
+      entityId: enrollment.id,
+      summary: 'MFA backup codes regenerated (previous set invalidated)',
+    })
     return codes
-  })
-  await recordAudit({
-    actorId: userId,
-    actorType: 'USER',
-    action: 'MFA_BACKUP_CODES_REGENERATED',
-    entityType: 'MfaEnrollment',
-    entityId: enrollment.id,
-    summary: 'MFA backup codes regenerated (previous set invalidated)',
   })
   return { backupCodes }
 }
@@ -250,19 +258,26 @@ export async function verifyMfaCode(userId: string, code: string): Promise<Verif
   })
   for (const candidate of candidates) {
     if (verifyPassword(normalized.toUpperCase(), candidate.codeHash)) {
-      const flipped = await db.mfaBackupCode.updateMany({
-        where: { id: candidate.id, usedAt: null },
-        data: { usedAt: new Date() },
+      // 6.11: consume + audit row commit atomically. Replay races are handled
+      // by the conditional updateMany itself (count 0, no error).
+      const flipped = await db.$transaction(async (tx) => {
+        const res = await tx.mfaBackupCode.updateMany({
+          where: { id: candidate.id, usedAt: null },
+          data: { usedAt: new Date() },
+        })
+        if (res.count === 1) {
+          await recordAuditTx(tx, {
+            actorId: userId,
+            actorType: 'USER',
+            action: 'MFA_BACKUP_CODE_USED',
+            entityType: 'MfaEnrollment',
+            entityId: enrollment.id,
+            summary: 'MFA passed with a backup code (single-use)',
+          })
+        }
+        return res
       })
       if (flipped.count === 1) {
-        await recordAudit({
-          actorId: userId,
-          actorType: 'USER',
-          action: 'MFA_BACKUP_CODE_USED',
-          entityType: 'MfaEnrollment',
-          entityId: enrollment.id,
-          summary: 'MFA passed with a backup code (single-use)',
-        })
         return { ok: true, via: 'BACKUP_CODE' }
       }
       // count === 0 → concurrent replay attempt; keep rejecting.

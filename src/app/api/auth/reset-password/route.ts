@@ -4,8 +4,8 @@ import { db } from '@/lib/db'
 import { hashPassword } from '@/lib/auth'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
-import { recordAudit } from '@/server/modules/audit/service'
-import { bumpSessionVersion, consumePasswordResetToken } from '@/lib/auth-tokens'
+import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
+import { consumePasswordResetToken } from '@/lib/auth-tokens'
 import { passwordChangedEmail } from '@/lib/emails/auth-emails'
 import { sendMail } from '@/lib/mailer'
 import { normalizeYemeniPhone } from '@/lib/phone'
@@ -77,13 +77,24 @@ export async function POST(req: NextRequest) {
       userId = account.id
     }
 
-    const user = await db.user.update({
-      where: { id: userId },
-      data: { password: hashPassword(password) },
+    // 6.11: reset + session-epoch bump + token cleanup + audit row commit atomically.
+    const user = await db.$transaction(async (tx) => {
+      const u = await tx.user.update({
+        where: { id: userId },
+        data: { password: hashPassword(password), sessionVersion: { increment: 1 } },
+      })
+      await tx.passwordResetToken.deleteMany({ where: { userId } })
+      await tx.otpCode.deleteMany({ where: { phone: u.phone ?? '__none__', purpose: 'RESET' } })
+      await recordAuditTx(tx, {
+        actorId: userId,
+        actorType: 'USER',
+        action: 'USER_PASSWORD_RESET',
+        entityType: 'User',
+        entityId: userId,
+        summary: `Password reset completed${u.phone ? ` via phone ${u.phone}` : ''}`,
+      })
+      return u
     })
-    await bumpSessionVersion(userId)
-    await db.passwordResetToken.deleteMany({ where: { userId } })
-    await db.otpCode.deleteMany({ where: { phone: user.phone ?? '__none__', purpose: 'RESET' } })
 
     if (user.email) {
       const mail = passwordChangedEmail({ name: user.name })
@@ -91,15 +102,6 @@ export async function POST(req: NextRequest) {
         console.error(`[auth] password-changed notice failed for user ${userId}:`, err)
       })
     }
-
-    await recordAudit({
-      actorId: userId,
-      actorType: 'USER',
-      action: 'USER_PASSWORD_RESET',
-      entityType: 'User',
-      entityId: userId,
-      summary: `Password reset completed${user.phone ? ` via phone ${user.phone}` : ''}`,
-    })
 
     return NextResponse.json({
       ok: true,

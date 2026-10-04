@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { recordAudit } from '@/server/modules/audit/service'
+import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
 import { emitNotification } from '@/server/modules/notifications/service'
 import {
   FinancingError,
@@ -501,24 +501,28 @@ export async function verifySubmission(
   if (sub.status !== 'SUBMITTED') {
     throw new FinancingError(`Item is ${sub.status.toLowerCase()} — only submitted answers can be verified`, 409)
   }
-  const updated = await db.requirementSubmission.update({
-    where: { id: submissionId },
-    data: {
-      status: 'VERIFIED',
-      verifiedAt: new Date(),
-      verifiedById: adminId,
-      decisionNote: note?.trim() || null,
-    },
-    include: submissionInclude,
-  })
-  await recordAudit({
-    actorId: adminId,
-    actorType: 'ADMIN',
-    action: 'REQUIREMENT_VERIFIED',
-    entityType: 'RequirementSubmission',
-    entityId: submissionId,
-    summary: `“${sub.serviceRequirement.conditionTemplate.title}” verified`,
-    metadata: { note: note ?? null },
+  // 6.11: verdict + audit row commit atomically.
+  const updated = await db.$transaction(async (tx) => {
+    const row = await tx.requirementSubmission.update({
+      where: { id: submissionId },
+      data: {
+        status: 'VERIFIED',
+        verifiedAt: new Date(),
+        verifiedById: adminId,
+        decisionNote: note?.trim() || null,
+      },
+      include: submissionInclude,
+    })
+    await recordAuditTx(tx, {
+      actorId: adminId,
+      actorType: 'ADMIN',
+      action: 'REQUIREMENT_VERIFIED',
+      entityType: 'RequirementSubmission',
+      entityId: submissionId,
+      summary: `“${sub.serviceRequirement.conditionTemplate.title}” verified`,
+      metadata: { note: note ?? null },
+    })
+    return row
   })
   await notifyApplicant(
     (sub.financingRequest ?? sub.accreditationRequest!) as never,
@@ -540,24 +544,28 @@ export async function rejectSubmission(
   if (sub.status !== 'SUBMITTED') {
     throw new FinancingError(`Item is ${sub.status.toLowerCase()} — only submitted answers can be rejected`, 409)
   }
-  const updated = await db.requirementSubmission.update({
-    where: { id: submissionId },
-    data: {
-      status: 'REJECTED',
-      verifiedAt: new Date(),
-      verifiedById: adminId,
-      decisionNote: clean,
-    },
-    include: submissionInclude,
-  })
-  await recordAudit({
-    actorId: adminId,
-    actorType: 'ADMIN',
-    action: 'REQUIREMENT_REJECTED',
-    entityType: 'RequirementSubmission',
-    entityId: submissionId,
-    summary: `“${sub.serviceRequirement.conditionTemplate.title}” rejected`,
-    metadata: { note: clean },
+  // 6.11: verdict + audit row commit atomically.
+  const updated = await db.$transaction(async (tx) => {
+    const row = await tx.requirementSubmission.update({
+      where: { id: submissionId },
+      data: {
+        status: 'REJECTED',
+        verifiedAt: new Date(),
+        verifiedById: adminId,
+        decisionNote: clean,
+      },
+      include: submissionInclude,
+    })
+    await recordAuditTx(tx, {
+      actorId: adminId,
+      actorType: 'ADMIN',
+      action: 'REQUIREMENT_REJECTED',
+      entityType: 'RequirementSubmission',
+      entityId: submissionId,
+      summary: `“${sub.serviceRequirement.conditionTemplate.title}” rejected`,
+      metadata: { note: clean },
+    })
+    return row
   })
   await notifyApplicant(
     (sub.financingRequest ?? sub.accreditationRequest!) as never,
@@ -579,24 +587,28 @@ export async function waiveSubmission(
   if (sub.status === 'VERIFIED' || sub.status === 'WAIVED') {
     throw new FinancingError(`Item is already ${sub.status.toLowerCase()}`, 409)
   }
-  const updated = await db.requirementSubmission.update({
-    where: { id: submissionId },
-    data: {
-      status: 'WAIVED',
-      verifiedAt: new Date(),
-      verifiedById: adminId,
-      decisionNote: clean,
-    },
-    include: submissionInclude,
-  })
-  await recordAudit({
-    actorId: adminId,
-    actorType: 'ADMIN',
-    action: 'REQUIREMENT_WAIVED',
-    entityType: 'RequirementSubmission',
-    entityId: submissionId,
-    summary: `“${sub.serviceRequirement.conditionTemplate.title}” waived`,
-    metadata: { note: clean },
+  // 6.11: waiver + audit row commit atomically.
+  const updated = await db.$transaction(async (tx) => {
+    const row = await tx.requirementSubmission.update({
+      where: { id: submissionId },
+      data: {
+        status: 'WAIVED',
+        verifiedAt: new Date(),
+        verifiedById: adminId,
+        decisionNote: clean,
+      },
+      include: submissionInclude,
+    })
+    await recordAuditTx(tx, {
+      actorId: adminId,
+      actorType: 'ADMIN',
+      action: 'REQUIREMENT_WAIVED',
+      entityType: 'RequirementSubmission',
+      entityId: submissionId,
+      summary: `“${sub.serviceRequirement.conditionTemplate.title}” waived`,
+      metadata: { note: clean },
+    })
+    return row
   })
   return serializeSubmission(updated as never)
 }

@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { hashPassword, setSessionCookie, toSessionUser } from '@/lib/auth'
 import { assertSameOrigin, clientIp, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
-import { recordAudit } from '@/server/modules/audit/service'
+import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
 import { buildSessionRbac, consumeInvitation } from '@/server/modules/rbac/service'
 import { appBaseUrl, issueEmailVerificationToken } from '@/lib/auth-tokens'
 import { emailVerificationEmail } from '@/lib/emails/auth-emails'
@@ -90,55 +90,59 @@ export async function POST(req: NextRequest) {
     // Invitations are email-bound — a token without an email cannot match.
     const invite = inviteToken && email ? await consumeInvitation(email, inviteToken) : null
 
-    const user = await db.user.create({
-      data: {
-        name,
-        email,
-        phone, // unique — verified by the OTP proof above
-        phoneVerifiedAt: new Date(), // L1 evidence
-        kycLevel: 1, // L1: phone-verified account
-        password: hashPassword(password),
-        role,
-        merchantType: merchantType ?? null,
-        storeName: role === 'SELLER' ? storeName || `${name}'s Store` : null,
-      },
-    })
-
-    if (invite) {
-      await db.userRole.create({
-        data: { userId: user.id, roleId: invite.roleId, organizationId: invite.organizationId },
-      })
-      // Phase 5 — ORG-scoped invitations (institution staff): the invitee also
-      // becomes a VIEWER member of the organization so the console gate's
-      // membership+role path picks them up.
-      if (invite.organizationId) {
-        await db.organizationMember.create({
-          data: { userId: user.id, organizationId: invite.organizationId, role: 'VIEWER' },
-        })
-      }
-      await recordAudit({
-        actorId: user.id,
-        actorType: 'USER',
-        action: 'ROLE_ASSIGNED',
-        entityType: 'User',
-        entityId: user.id,
-        summary: `Invited staff joined: role "${invite.roleName}" granted to ${email}`,
-        metadata: {
-          roleId: invite.roleId,
-          via: 'invitation',
-          organizationId: invite.organizationId || undefined,
+    // 6.11: account + invited-role grant + audit rows commit atomically.
+    const user = await db.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          name,
+          email,
+          phone, // unique — verified by the OTP proof above
+          phoneVerifiedAt: new Date(), // L1 evidence
+          kycLevel: 1, // L1: phone-verified account
+          password: hashPassword(password),
+          role,
+          merchantType: merchantType ?? null,
+          storeName: role === 'SELLER' ? storeName || `${name}'s Store` : null,
         },
       })
-    }
 
-    await recordAudit({
-      actorId: user.id,
-      actorType: 'USER',
-      action: 'USER_REGISTERED',
-      entityType: 'User',
-      entityId: user.id,
-      summary: `New ${role.toLowerCase()} registered: ${phone}${email ? ` (${email})` : ' (no email)'}`,
-      metadata: { phone, kycLevel: 1 },
+      if (invite) {
+        await tx.userRole.create({
+          data: { userId: created.id, roleId: invite.roleId, organizationId: invite.organizationId },
+        })
+        // Phase 5 — ORG-scoped invitations (institution staff): the invitee also
+        // becomes a VIEWER member of the organization so the console gate's
+        // membership+role path picks them up.
+        if (invite.organizationId) {
+          await tx.organizationMember.create({
+            data: { userId: created.id, organizationId: invite.organizationId, role: 'VIEWER' },
+          })
+        }
+        await recordAuditTx(tx, {
+          actorId: created.id,
+          actorType: 'USER',
+          action: 'ROLE_ASSIGNED',
+          entityType: 'User',
+          entityId: created.id,
+          summary: `Invited staff joined: role "${invite.roleName}" granted to ${email}`,
+          metadata: {
+            roleId: invite.roleId,
+            via: 'invitation',
+            organizationId: invite.organizationId || undefined,
+          },
+        })
+      }
+
+      await recordAuditTx(tx, {
+        actorId: created.id,
+        actorType: 'USER',
+        action: 'USER_REGISTERED',
+        entityType: 'User',
+        entityId: created.id,
+        summary: `New ${role.toLowerCase()} registered: ${phone}${email ? ` (${email})` : ' (no email)'}`,
+        metadata: { phone, kycLevel: 1 },
+      })
+      return created
     })
 
     // Email verification — only enrolled when an email was provided.

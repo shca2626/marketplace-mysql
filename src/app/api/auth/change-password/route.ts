@@ -3,8 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getSessionUser, hashPassword, setSessionCookie, verifyPassword } from '@/lib/auth'
 import { assertSameOrigin, enforceRateLimit, clientIp } from '@/lib/http'
-import { recordAudit } from '@/server/modules/audit/service'
-import { bumpSessionVersion } from '@/lib/auth-tokens'
+import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
 import { passwordChangedEmail } from '@/lib/emails/auth-emails'
 import { sendMail } from '@/lib/mailer'
 
@@ -69,14 +68,26 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    await db.user.update({
-      where: { id: user.id },
-      data: { password: hashPassword(newPassword) },
+    // 6.11: password change + session-epoch bump + audit row commit atomically.
+    const newVersion = await db.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { id: user.id },
+        data: { password: hashPassword(newPassword), sessionVersion: { increment: 1 } },
+        select: { sessionVersion: true },
+      })
+      await recordAuditTx(tx, {
+        actorId: user.id,
+        actorType: 'USER',
+        action: 'USER_PASSWORD_CHANGED',
+        entityType: 'User',
+        entityId: user.id,
+        summary: `Password changed while signed in: ${user.email}`,
+      })
+      return updated.sessionVersion
     })
 
     // Sign-out-everywhere semantics for OTHER sessions; this one stays valid by
     // re-issuing its cookie against the new sessionVersion epoch.
-    const newVersion = await bumpSessionVersion(user.id)
     await setSessionCookie(user.id, newVersion, {
       userAgent: req.headers.get('user-agent'),
       ip: clientIp(req),
@@ -88,15 +99,6 @@ export async function POST(req: NextRequest) {
         console.error(`[auth] password-changed notice failed for user ${user.id}:`, err)
       })
     }
-
-    await recordAudit({
-      actorId: user.id,
-      actorType: 'USER',
-      action: 'USER_PASSWORD_CHANGED',
-      entityType: 'User',
-      entityId: user.id,
-      summary: `Password changed while signed in: ${user.email}`,
-    })
 
     return NextResponse.json({
       ok: true,

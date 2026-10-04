@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireAdmin, requireStepUpMfa } from '@/server/guards'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
-import { recordAudit } from '@/server/modules/audit/service'
+import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
 import {
   MfaServiceError,
   getMfaPlatformPolicy,
@@ -129,15 +129,18 @@ export async function POST(req: NextRequest) {
     })
     if (!target) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
-    await db.user.update({ where: { id: target.id }, data: { mfaRequired: parsed.data.required } })
-    await recordAudit({
-      actorId: user!.id,
-      actorType: 'ADMIN',
-      action: 'MFA_ACCOUNT_REQUIREMENT_CHANGED',
-      entityType: 'User',
-      entityId: target.id,
-      summary: `MFA requirement for ${target.email ?? target.name} set to ${parsed.data.required}`,
-      metadata: { required: parsed.data.required },
+    // 6.11: requirement flip + audit row commit atomically.
+    await db.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: target.id }, data: { mfaRequired: parsed.data.required } })
+      await recordAuditTx(tx, {
+        actorId: user!.id,
+        actorType: 'ADMIN',
+        action: 'MFA_ACCOUNT_REQUIREMENT_CHANGED',
+        entityType: 'User',
+        entityId: target.id,
+        summary: `MFA requirement for ${target.email ?? target.name} set to ${parsed.data.required}`,
+        metadata: { required: parsed.data.required },
+      })
     })
     return NextResponse.json({ ok: true })
   } catch (err) {

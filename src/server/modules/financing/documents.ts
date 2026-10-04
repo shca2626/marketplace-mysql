@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { recordAudit } from '@/server/modules/audit/service'
+import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
 import { emitNotification } from '@/server/modules/notifications/service'
 import { recomputeUserKycLevel, recomputeOrgKycLevel } from '@/server/modules/kyc/service'
 import { resolvePanel } from '@/server/modules/settings/service'
@@ -358,15 +358,18 @@ export async function softDeleteAccountDocument(
   if (doc.userId !== userId && actorRole !== 'ADMIN') {
     throw new FinancingError('Only the uploader can remove this document', 403)
   }
-  await db.accountDocument.update({ where: { id: documentId }, data: { isActive: false } })
-  await recordAudit({
-    actorId: userId,
-    actorType: actorRole === 'ADMIN' ? 'ADMIN' : 'USER',
-    action: 'ACCOUNT_DOCUMENT_DELETED',
-    entityType: 'AccountDocument',
-    entityId: documentId,
-    summary: `${doc.documentType} removed from the vault (soft delete)`,
-    metadata: { documentType: doc.documentType },
+  // 6.11: soft delete + audit row commit atomically.
+  await db.$transaction(async (tx) => {
+    await tx.accountDocument.update({ where: { id: documentId }, data: { isActive: false } })
+    await recordAuditTx(tx, {
+      actorId: userId,
+      actorType: actorRole === 'ADMIN' ? 'ADMIN' : 'USER',
+      action: 'ACCOUNT_DOCUMENT_DELETED',
+      entityType: 'AccountDocument',
+      entityId: documentId,
+      summary: `${doc.documentType} removed from the vault (soft delete)`,
+      metadata: { documentType: doc.documentType },
+    })
   })
   return { ok: true }
 }
@@ -383,19 +386,23 @@ export async function verifyAccountDocument(
   if (doc.status !== 'PENDING') {
     throw new FinancingError(`Document is already ${doc.status.toLowerCase()} — it is verified once and reused`, 409)
   }
-  const updated = await db.accountDocument.update({
-    where: { id: documentId },
-    data: { status: 'VERIFIED', reviewedById: adminId, reviewedAt: new Date(), note: note?.trim() || null },
-    include: docInclude,
-  })
-  await recordAudit({
-    actorId: adminId,
-    actorType: 'ADMIN',
-    action: 'DOCUMENT_VERIFIED',
-    entityType: 'AccountDocument',
-    entityId: documentId,
-    summary: `${doc.documentType}${doc.title ? ` “${doc.title}”` : ''} verified`,
-    metadata: { note: note ?? null },
+  // 6.11: verification + audit row commit atomically.
+  const updated = await db.$transaction(async (tx) => {
+    const row = await tx.accountDocument.update({
+      where: { id: documentId },
+      data: { status: 'VERIFIED', reviewedById: adminId, reviewedAt: new Date(), note: note?.trim() || null },
+      include: docInclude,
+    })
+    await recordAuditTx(tx, {
+      actorId: adminId,
+      actorType: 'ADMIN',
+      action: 'DOCUMENT_VERIFIED',
+      entityType: 'AccountDocument',
+      entityId: documentId,
+      summary: `${doc.documentType}${doc.title ? ` “${doc.title}”` : ''} verified`,
+      metadata: { note: note ?? null },
+    })
+    return row
   })
   await emitNotification({
     userId: doc.userId,
@@ -426,19 +433,23 @@ export async function rejectAccountDocument(
   if (doc.status !== 'PENDING') {
     throw new FinancingError(`Document is already ${doc.status.toLowerCase()}`, 409)
   }
-  const updated = await db.accountDocument.update({
-    where: { id: documentId },
-    data: { status: 'REJECTED', reviewedById: adminId, reviewedAt: new Date(), note: clean },
-    include: docInclude,
-  })
-  await recordAudit({
-    actorId: adminId,
-    actorType: 'ADMIN',
-    action: 'DOCUMENT_REJECTED',
-    entityType: 'AccountDocument',
-    entityId: documentId,
-    summary: `${doc.documentType}${doc.title ? ` “${doc.title}”` : ''} rejected`,
-    metadata: { note: clean },
+  // 6.11: rejection + audit row commit atomically.
+  const updated = await db.$transaction(async (tx) => {
+    const row = await tx.accountDocument.update({
+      where: { id: documentId },
+      data: { status: 'REJECTED', reviewedById: adminId, reviewedAt: new Date(), note: clean },
+      include: docInclude,
+    })
+    await recordAuditTx(tx, {
+      actorId: adminId,
+      actorType: 'ADMIN',
+      action: 'DOCUMENT_REJECTED',
+      entityType: 'AccountDocument',
+      entityId: documentId,
+      summary: `${doc.documentType}${doc.title ? ` “${doc.title}”` : ''} rejected`,
+      metadata: { note: clean },
+    })
+    return row
   })
   await emitNotification({
     userId: doc.userId,

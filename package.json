@@ -20,7 +20,8 @@
     "secret:sweep": "bun scripts/secret-sweep.ts",
     "sessions:bump-all": "bun scripts/bump-all-sessions.ts",
     "sanitize:restore": "bun scripts/sanitize-restore.ts",
-    "authz:negative": "bun scripts/negative-authz-suite.ts"
+    "authz:negative": "bun scripts/negative-authz-suite.ts",
+    "audit:atomicity": "bun scripts/audit-atomicity.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",

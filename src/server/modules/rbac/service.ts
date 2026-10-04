@@ -7,7 +7,7 @@ import {
   type PermissionDomain,
   PERMISSION_DOMAINS,
 } from '@/lib/rbac-catalog'
-import { recordAudit } from '@/server/modules/audit/service'
+import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RBAC SERVICE — roles, permissions, assignments & staff invitations.
@@ -286,27 +286,31 @@ export async function createRole(
     key = `${base}-${++n}`
   }
 
-  const role = await db.role.create({
-    data: {
-      key,
-      name,
-      description: input.description?.trim() || null,
-      scope: input.scope,
-      isSystem: false,
-      permissions: { create: keys.map((permissionKey) => ({ permissionKey })) },
-    },
-    include: roleInclude,
+  // 6.11: role + audit row commit atomically.
+  const role = await db.$transaction(async (tx) => {
+    const created = await tx.role.create({
+      data: {
+        key,
+        name,
+        description: input.description?.trim() || null,
+        scope: input.scope,
+        isSystem: false,
+        permissions: { create: keys.map((permissionKey) => ({ permissionKey })) },
+      },
+      include: roleInclude,
+    })
+    await recordAuditTx(tx, {
+      actorId: actor.id,
+      actorType: 'ADMIN',
+      action: 'ROLE_CREATED',
+      entityType: 'Role',
+      entityId: created.id,
+      summary: `Role "${created.name}" created (${keys.length} permissions, ${input.scope} scope)`,
+      metadata: { key: created.key, scope: input.scope, permissions: keys },
+    })
+    return created
   })
 
-  await recordAudit({
-    actorId: actor.id,
-    actorType: 'ADMIN',
-    action: 'ROLE_CREATED',
-    entityType: 'Role',
-    entityId: role.id,
-    summary: `Role "${role.name}" created (${keys.length} permissions, ${input.scope} scope)`,
-    metadata: { key: role.key, scope: input.scope, permissions: keys },
-  })
   return toRoleDTO(role)
 }
 
@@ -369,18 +373,20 @@ export async function updateRole(
         await tx.rolePermission.createMany({ data: toAdd.map((permissionKey) => ({ roleId: id, permissionKey })) })
       }
     }
-    return tx.role.update({ where: { id }, data, include: roleInclude })
+    const role = await tx.role.update({ where: { id }, data, include: roleInclude })
+    // 6.11: the audit row commits with the permission change — or neither does.
+    await recordAuditTx(tx, {
+      actorId: actor.id,
+      actorType: 'ADMIN',
+      action: 'ROLE_UPDATED',
+      entityType: 'Role',
+      entityId: id,
+      summary: `Role "${role.name}" updated`,
+      metadata: { name: data.name, permissionChanges },
+    })
+    return role
   })
 
-  await recordAudit({
-    actorId: actor.id,
-    actorType: 'ADMIN',
-    action: 'ROLE_UPDATED',
-    entityType: 'Role',
-    entityId: id,
-    summary: `Role "${updated.name}" updated`,
-    metadata: { name: data.name, permissionChanges },
-  })
   return toRoleDTO(updated)
 }
 
@@ -438,21 +444,22 @@ export async function deleteRole(actor: RbacActor, id: string, force = false): P
     // Drop invitation rows referencing this role (FK constraint; audit keeps history).
     await tx.staffInvitation.deleteMany({ where: { roleId: id } })
     await tx.role.delete({ where: { id } })
+    // 6.11: the audit row commits with the deletion — or neither does.
+    await recordAuditTx(tx, {
+      actorId: actor.id,
+      actorType: 'ADMIN',
+      action: 'ROLE_DELETED',
+      entityType: 'Role',
+      entityId: id,
+      summary:
+        n > 0
+          ? `Role "${role.name}" force-deleted — ${n} member assignment(s) revoked`
+          : `Role "${role.name}" deleted`,
+      metadata: { key: role.key, scope: role.scope, force: n > 0, revoked: n },
+    })
     return n
   })
 
-  await recordAudit({
-    actorId: actor.id,
-    actorType: 'ADMIN',
-    action: 'ROLE_DELETED',
-    entityType: 'Role',
-    entityId: id,
-    summary:
-      revoked > 0
-        ? `Role "${role.name}" force-deleted — ${revoked} member assignment(s) revoked`
-        : `Role "${role.name}" deleted`,
-    metadata: { key: role.key, scope: role.scope, force: revoked > 0, revoked },
-  })
   return { revoked }
 }
 
@@ -599,22 +606,26 @@ export async function assignRole(
     )
   }
 
-  const assignment = await db.userRole.create({
-    data: { userId: user.id, roleId: role.id, organizationId, assignedBy: actor.id },
-    include: assignmentInclude,
+  // 6.11: assignment + session invalidation + audit row commit atomically.
+  const assignment = await db.$transaction(async (tx) => {
+    const created = await tx.userRole.create({
+      data: { userId: user.id, roleId: role.id, organizationId, assignedBy: actor.id },
+      include: assignmentInclude,
+    })
+    // The user may have gained console access — invalidate their session payload.
+    await tx.user.update({ where: { id: user.id }, data: { sessionVersion: { increment: 1 } } })
+    await recordAuditTx(tx, {
+      actorId: actor.id,
+      actorType: 'ADMIN',
+      action: 'ROLE_ASSIGNED',
+      entityType: 'User',
+      entityId: user.id,
+      summary: `Role "${role.name}" assigned to ${user.email}${organizationName ? ` at ${organizationName}` : ''}`,
+      metadata: { roleId: role.id, roleKey: role.key, scope: role.scope, organizationId },
+    })
+    return created
   })
-  // The user may have gained console access — invalidate their session payload.
-  await db.user.update({ where: { id: user.id }, data: { sessionVersion: { increment: 1 } } })
 
-  await recordAudit({
-    actorId: actor.id,
-    actorType: 'ADMIN',
-    action: 'ROLE_ASSIGNED',
-    entityType: 'User',
-    entityId: user.id,
-    summary: `Role "${role.name}" assigned to ${user.email}${organizationName ? ` at ${organizationName}` : ''}`,
-    metadata: { roleId: role.id, roleKey: role.key, scope: role.scope, organizationId },
-  })
   return toAssignmentDTO(assignment, organizationName)
 }
 
@@ -655,18 +666,20 @@ export async function revokeAssignment(actor: RbacActor, id: string): Promise<vo
     )
   }
 
-  await db.userRole.delete({ where: { id } })
-  // Refresh the affected user's session payload (permissions may have shrunk).
-  await db.user.update({ where: { id: assignment.userId }, data: { sessionVersion: { increment: 1 } } })
-
-  await recordAudit({
-    actorId: actor.id,
-    actorType: 'ADMIN',
-    action: 'ROLE_REVOKED',
-    entityType: 'User',
-    entityId: assignment.userId,
-    summary: `Role "${assignment.role.name}" revoked from ${assignment.user.email}`,
-    metadata: { roleId: assignment.roleId, roleKey: assignment.role.key, organizationId: assignment.organizationId },
+  // 6.11: revocation + session refresh + audit row commit atomically.
+  await db.$transaction(async (tx) => {
+    await tx.userRole.delete({ where: { id } })
+    // Refresh the affected user's session payload (permissions may have shrunk).
+    await tx.user.update({ where: { id: assignment.userId }, data: { sessionVersion: { increment: 1 } } })
+    await recordAuditTx(tx, {
+      actorId: actor.id,
+      actorType: 'ADMIN',
+      action: 'ROLE_REVOKED',
+      entityType: 'User',
+      entityId: assignment.userId,
+      summary: `Role "${assignment.role.name}" revoked from ${assignment.user.email}`,
+      metadata: { roleId: assignment.roleId, roleKey: assignment.role.key, organizationId: assignment.organizationId },
+    })
   })
 }
 
@@ -849,30 +862,34 @@ export async function createInvitation(
   if (openInvite) throw new RbacServiceError('An open invitation for this email already exists', 409)
 
   const rawToken = randomBytes(24).toString('hex')
-  const invitation = await db.staffInvitation.create({
-    data: {
-      email,
-      name: input.name?.trim() || null,
-      roleId: role.id,
-      organizationId: '',
-      tokenHash: sha256Hex(rawToken), // Phase 6 (6.5): hash at rest — raw shown once below
-      status: 'PENDING',
-      invitedBy: actor.id,
-      invitedByName: actor.name,
-      expiresAt: new Date(Date.now() + INVITE_TTL_MS),
-    },
-    include: { role: { select: { id: true, key: true, name: true, isProtected: true } } },
+  // 6.11: invitation + audit row commit atomically.
+  const invitation = await db.$transaction(async (tx) => {
+    const created = await tx.staffInvitation.create({
+      data: {
+        email,
+        name: input.name?.trim() || null,
+        roleId: role.id,
+        organizationId: '',
+        tokenHash: sha256Hex(rawToken), // Phase 6 (6.5): hash at rest — raw shown once below
+        status: 'PENDING',
+        invitedBy: actor.id,
+        invitedByName: actor.name,
+        expiresAt: new Date(Date.now() + INVITE_TTL_MS),
+      },
+      include: { role: { select: { id: true, key: true, name: true, isProtected: true } } },
+    })
+    await recordAuditTx(tx, {
+      actorId: actor.id,
+      actorType: 'ADMIN',
+      action: 'STAFF_INVITED',
+      entityType: 'StaffInvitation',
+      entityId: created.id,
+      summary: `Staff invitation sent to ${email} for role "${role.name}"`,
+      metadata: { email, roleKey: role.key, expiresAt: created.expiresAt.toISOString() },
+    })
+    return created
   })
 
-  await recordAudit({
-    actorId: actor.id,
-    actorType: 'ADMIN',
-    action: 'STAFF_INVITED',
-    entityType: 'StaffInvitation',
-    entityId: invitation.id,
-    summary: `Staff invitation sent to ${email} for role "${role.name}"`,
-    metadata: { email, roleKey: role.key, expiresAt: invitation.expiresAt.toISOString() },
-  })
   return { ...toInvitationDTO(invitation), token: rawToken }
 }
 
@@ -883,15 +900,18 @@ export async function revokeInvitation(actor: RbacActor, id: string): Promise<vo
   })
   if (!invitation) throw new RbacServiceError('Invitation not found', 404)
   if (invitation.status !== 'PENDING') throw new RbacServiceError('Only pending invitations can be revoked', 409)
-  await db.staffInvitation.update({ where: { id }, data: { status: 'REVOKED' } })
-  await recordAudit({
-    actorId: actor.id,
-    actorType: 'ADMIN',
-    action: 'STAFF_INVITATION_REVOKED',
-    entityType: 'StaffInvitation',
-    entityId: id,
-    summary: `Staff invitation to ${invitation.email} revoked`,
-    metadata: { email: invitation.email },
+  // 6.11: revocation + audit row commit atomically.
+  await db.$transaction(async (tx) => {
+    await tx.staffInvitation.update({ where: { id }, data: { status: 'REVOKED' } })
+    await recordAuditTx(tx, {
+      actorId: actor.id,
+      actorType: 'ADMIN',
+      action: 'STAFF_INVITATION_REVOKED',
+      entityType: 'StaffInvitation',
+      entityId: id,
+      summary: `Staff invitation to ${invitation.email} revoked`,
+      metadata: { email: invitation.email },
+    })
   })
 }
 

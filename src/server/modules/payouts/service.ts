@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { recordAudit } from '@/server/modules/audit/service'
+import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
 import { emitNotification } from '@/server/modules/notifications/service'
 import { nextNumber } from '@/server/modules/sequences/service'
 
@@ -155,17 +155,17 @@ export async function generatePayout(adminId: string, sellerId: string) {
       where: { id: { in: items.map((i) => i.id) } },
       data: { payoutId: created.id },
     })
+    // 6.11: settlement + audit row commit atomically.
+    await recordAuditTx(tx, {
+      actorId: adminId,
+      actorType: 'ADMIN',
+      action: 'PAYOUT_GENERATED',
+      entityType: 'Payout',
+      entityId: created.id,
+      summary: `Payout ${number} generated for ${seller.storeName ?? seller.name}: $${net.toFixed(2)} net of $${commission.toFixed(2)} commission`,
+      metadata: { sellerId, itemCount: items.length, gross },
+    })
     return created
-  })
-
-  await recordAudit({
-    actorId: adminId,
-    actorType: 'ADMIN',
-    action: 'PAYOUT_GENERATED',
-    entityType: 'Payout',
-    entityId: payout.id,
-    summary: `Payout ${payout.number} generated for ${seller.storeName ?? seller.name}: $${Number(payout.netAmount).toFixed(2)} net of $${Number(payout.commission).toFixed(2)} commission`,
-    metadata: { sellerId, itemCount: payout.itemCount, gross: Number(payout.grossAmount) },
   })
 
   await emitNotification({
@@ -184,19 +184,22 @@ export async function markPayoutPaid(adminId: string, payoutId: string, note?: s
   if (!payout) throw new PayoutServiceError('Payout not found', 404)
   if (payout.status !== 'PENDING') throw new PayoutServiceError(`Payout is already ${payout.status}`, 409)
 
-  const updated = await db.payout.update({
-    where: { id: payoutId },
-    data: { status: 'PAID', paidAt: new Date(), note: note?.slice(0, 500) ?? payout.note },
-  })
-
-  await recordAudit({
-    actorId: adminId,
-    actorType: 'ADMIN',
-    action: 'PAYOUT_PAID',
-    entityType: 'Payout',
-    entityId: payoutId,
-    summary: `Payout ${payout.number} marked paid — $${Number(updated.netAmount).toFixed(2)} to ${payout.seller.storeName ?? payout.seller.name}`,
-    metadata: { sellerId: payout.sellerId },
+  // 6.11: status flip + audit row commit atomically.
+  const updated = await db.$transaction(async (tx) => {
+    const row = await tx.payout.update({
+      where: { id: payoutId },
+      data: { status: 'PAID', paidAt: new Date(), note: note?.slice(0, 500) ?? payout.note },
+    })
+    await recordAuditTx(tx, {
+      actorId: adminId,
+      actorType: 'ADMIN',
+      action: 'PAYOUT_PAID',
+      entityType: 'Payout',
+      entityId: payoutId,
+      summary: `Payout ${payout.number} marked paid — $${Number(row.netAmount).toFixed(2)} to ${payout.seller.storeName ?? payout.seller.name}`,
+      metadata: { sellerId: payout.sellerId },
+    })
+    return row
   })
 
   await emitNotification({
@@ -218,19 +221,20 @@ export async function cancelPayout(adminId: string, payoutId: string, reason?: s
   const updated = await db.$transaction(async (tx) => {
     // release the items back to unsettled so a corrected payout can pick them up
     await tx.orderItem.updateMany({ where: { payoutId }, data: { payoutId: null } })
-    return tx.payout.update({
+    const row = await tx.payout.update({
       where: { id: payoutId },
       data: { status: 'CANCELLED', note: reason?.slice(0, 500) ?? null },
     })
-  })
-
-  await recordAudit({
-    actorId: adminId,
-    actorType: 'ADMIN',
-    action: 'PAYOUT_CANCELLED',
-    entityType: 'Payout',
-    entityId: payoutId,
-    summary: `Payout ${payout.number} cancelled — ${reason ?? 'no reason given'}`,
+    // 6.11: release + cancellation + audit row commit atomically.
+    await recordAuditTx(tx, {
+      actorId: adminId,
+      actorType: 'ADMIN',
+      action: 'PAYOUT_CANCELLED',
+      entityType: 'Payout',
+      entityId: payoutId,
+      summary: `Payout ${payout.number} cancelled — ${reason ?? 'no reason given'}`,
+    })
+    return row
   })
 
   return updated

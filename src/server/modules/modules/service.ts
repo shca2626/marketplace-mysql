@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { recordAudit } from '@/server/modules/audit/service'
+import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MODULE ACTIVATION SERVICE — Phase 5.3 (mergedplan.md §6)
@@ -269,41 +269,45 @@ export async function setModuleActivation(
     throw new ModuleServiceError(`"${definition.name}" is a core module and cannot be deactivated.`, 409)
   }
 
-  if (input.remove) {
-    await db.moduleActivation.deleteMany({
-      where: { moduleKey: input.moduleKey, scopeType: input.scopeType, scopeId: input.scopeId },
-    })
-  } else {
-    await db.moduleActivation.upsert({
-      where: {
-        moduleKey_scopeType_scopeId: {
+  // 6.11: activation change + audit row commit atomically.
+  const action = input.remove ? 'MODULE_ACTIVATION_REMOVED' : input.enabled ? 'MODULE_ENABLED' : 'MODULE_DISABLED'
+  await db.$transaction(async (tx) => {
+    if (input.remove) {
+      await tx.moduleActivation.deleteMany({
+        where: { moduleKey: input.moduleKey, scopeType: input.scopeType, scopeId: input.scopeId },
+      })
+    } else {
+      await tx.moduleActivation.upsert({
+        where: {
+          moduleKey_scopeType_scopeId: {
+            moduleKey: input.moduleKey,
+            scopeType: input.scopeType,
+            scopeId: input.scopeId,
+          },
+        },
+        create: {
           moduleKey: input.moduleKey,
           scopeType: input.scopeType,
           scopeId: input.scopeId,
+          enabled: input.enabled,
+          note: input.note,
+          changedById: actorId,
         },
-      },
-      create: {
-        moduleKey: input.moduleKey,
-        scopeType: input.scopeType,
-        scopeId: input.scopeId,
-        enabled: input.enabled,
-        note: input.note,
-        changedById: actorId,
-      },
-      update: { enabled: input.enabled, note: input.note, changedById: actorId },
+        update: { enabled: input.enabled, note: input.note, changedById: actorId },
+      })
+    }
+    await recordAuditTx(tx, {
+      actorId,
+      actorType: 'ADMIN',
+      action,
+      entityType: 'ModuleDefinition',
+      entityId: input.moduleKey,
+      summary: `${definition.name} ${input.remove ? 'override removed' : input.enabled ? 'enabled' : 'disabled'} at ${input.scopeType}${input.scopeId ? `:${input.scopeId}` : ''}`,
+      metadata: { ...input },
     })
-  }
+  })
 
   invalidateModuleCache()
-  await recordAudit({
-    actorId,
-    actorType: 'ADMIN',
-    action: input.remove ? 'MODULE_ACTIVATION_REMOVED' : input.enabled ? 'MODULE_ENABLED' : 'MODULE_DISABLED',
-    entityType: 'ModuleDefinition',
-    entityId: input.moduleKey,
-    summary: `${definition.name} ${input.remove ? 'override removed' : input.enabled ? 'enabled' : 'disabled'} at ${input.scopeType}${input.scopeId ? `:${input.scopeId}` : ''}`,
-    metadata: { ...input },
-  })
 
   const view = (await listModulesForAdmin()).find((m) => m.key === input.moduleKey)
   if (!view) throw new ModuleServiceError('Module vanished after write.', 500)

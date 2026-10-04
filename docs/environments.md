@@ -41,6 +41,14 @@ production DB with the staging credential must be rejected by the server
 (evidence per the standing standard). This requires Aiven console action by
 the owner — the procedure is documented here, the test is not yet executable.
 
+### AuditLog append-only (6.11.3)
+
+`UPDATE`/`DELETE` on `AuditLog` are blocked **at the database level** by the
+`scripts/sql/audit-append-only.sql` triggers (SQLSTATE 45000, every user
+including avnadmin; per-connection maintenance escape hatch documented in
+`docs/audit-integrity.md`). Re-apply the SQL after any `db push` that
+recreates the table — `bun run audit:atomicity` (ATAM-06) verifies presence.
+
 ## Script inventory (tracked by this document)
 
 | Script | Env | Guarded |
@@ -51,7 +59,9 @@ the owner — the procedure is documented here, the test is not yet executable.
 | `scripts/qa-seed-digest.ts`, `scripts/fin2-smoke.ts`, `scripts/fin3-smoke.ts` | dev/staging | ✅ assert-not-prod |
 | `scripts/bump-all-sessions.ts` | dev/staging | ✅ assert-not-prod |
 | `scripts/negative-authz-suite.ts` | dev/staging (BASE_URL) | ✅ assert-not-prod (http) |
+| `scripts/audit-atomicity.ts` | dev/staging | ✅ assert-not-prod — 6.11 failure-injection (non-polluting: every tx rolls back) |
 | `scripts/check-guards.ts`, `scripts/gen-route-matrix.ts`, `scripts/secret-sweep.ts` | repo-only (no DB writes / reads tracked files only) | n/a (read-only) |
+| `scripts/seed-demo.ts` | dev/staging | ✅ assert-not-prod — resets AuditLog via the 6.11.3 maintenance-var pattern (per-connection `SET @vendora_audit_maintenance=1` inside a transaction) |
 | `scripts/sanitize-restore.ts` | staging restores | ✅ assert-not-prod |
 | `scripts/db-status.ts`, `scripts/mysql-check.ts` | read-only status | n/a |
 | `scripts/dev-watchdog.sh`, `scripts/whatsapp-watchdog.sh`, `scripts/warm-dev.sh` | dev process supervision | n/a (dev-only convenience) |
