@@ -1,418 +1,410 @@
-# Vendora — lastplan.md · The Final Production Plan (Phase 6 → Launch)
+# Vendora — lastplan.md · v2 · The Final Production Plan (Phase 6 → Launch)
 
-> **What this is:** the replan of every remaining task from Phase 6 to production launch.
-> It supersedes the Phase 6–8 sketches in `mergedplan.md` (Phases 0–5 there are **complete and shipped**).
+> **What this is:** the complete replan of every remaining task from Phase 6 to production launch.
+> It supersedes `mergedplan.md` §6 (Phases 6–8 there) and **lastplan.md v1** (which the reviewer approved in direction but not as final).
 >
-> **Inputs (three, merged):**
-> 1. *Assessment of `answer4audit.md`* (external expert follow-up — verdict: "partially addressed; not audit-closed", with a P0/P1/P2 RBAC priority list and financial-integrity requirements).
-> 2. The owner's eight decisions on the open questions (§2 below — binding).
-> 3. The actual codebase state, re-verified for this plan (file-level evidence cited throughout).
+> **Inputs (four, merged):**
+> 1. *Review of `lastplan.md`* (the reviewer's verdict: **"approve the direction, not this plan as final"** — 13 required corrections, all incorporated here and traced in §"Revision history").
+> 2. *Assessment of `answer4audit.md`* (external expert — "partially addressed; not audit-closed"; P0/P1/P2 RBAC priorities; staged financial-migration protocol).
+> 3. The owner's eight binding decisions on the open questions (§2).
+> 4. The actual codebase, re-verified for this plan (schema line numbers cited where they matter).
 >
-> **Verified starting point:** Phases 0–5 complete and **pushed** — HEAD `8db9d42` on `origin/main` (correction to the working assumption: Phase 5 *is* pushed; `git status` clean, `main == origin/main`). Regression baseline per `mergedplan.md` §2 holds: retail loop, B2B RFQ loop, financing layer, 15+ admin panels, financier console, module activation matrix, RBAC substrate — all E2E-verified in earlier sessions.
+> **Verified starting point:** Phases 0–5 complete and pushed; HEAD `b1681f1` on `origin/main` (includes the WhatsApp pairing fix — see §6.0a).
 >
-> **Prime directive (owner):** complete the **main and core RBAC first, 100%** — then the rest in dependency order until the platform is **100% production-ready**.
+> **Prime directive (owner):** complete the **main and core RBAC first, 100%** — then the rest in dependency order until production-ready.
 >
-> **Discipline (standing rules):**
-> - Every phase ends with an E2E gate run in the browser (agent-browser), evidence captured.
-> - After every successful gate: **commit + push to GitHub immediately** (standing owner rule).
-> - A phase gate that fails blocks the next phase — no exceptions.
-> - No destructive `db push --accept-data-loss` on financial data (see Phase 7's staged migration protocol).
+> **Standing discipline (unchanged):**
+> - Every phase ends with a gate verified in the browser (agent-browser), evidence captured.
+> - After every green gate: **commit + push immediately** (standing owner rule).
+> - A failed gate blocks the next phase — no exceptions.
+> - **Adversarial tests, concurrency tests, and file-access tests run against staging only, never production** (reviewer §1).
+> - No destructive schema work on financial data; all migrations follow the staged protocol (§7.1).
+> - The final gate permits **explicitly approved residual risks** — it never forces the label "100% ready" while material risk remains (reviewer §13).
 
 ---
 
-## 1. What the expert's assessment actually demands (condensed into commitments)
+## 0. Reviewer's verdict → what changed in v2 (summary)
 
-The assessment's verdict — *"partially addressed; not audit-closed"* — is **accepted as the working truth**. Concretely, we adopt these as binding commitments:
+The reviewer approved: RBAC-first sequencing, credential hygiene before features, explicit permission checks + negative tests, per-organization module resolution, privileged MFA pulled forward, private KYC document delivery, staged money migration, atomic stock/payout concurrency, accreditation retention as an explicit decision, audit re-run on evidence. Those all remain, mostly unchanged.
 
-| # | Assessment requirement | Where it lands in this plan |
+The 13 corrections (each traced to its landing place below):
+
+| # | Correction (reviewer) | Resolution in v2 |
 |---|---|---|
-| A1 | No normal `User.role = ADMIN` blanket bypass; break-glass = separate, MFA-protected, monitored account | **Phase 6.2** |
-| A2 | No bare/shadowed `requireAdmin()`; explicit permission on every privileged route + route authorization matrix artifact | **Phase 6.1, 6.9** |
-| A3 | Tenant & resource authorization on **reads as well as writes**, per-request org context (no multi-org union leakage) | **Phase 6.3, 6.10** |
-| A4 | KYC/identity documents never served from public media URLs; authorization-checked delivery | **Phase 6.6** |
-| A5 | MFA for privileged users **before** real customer data — a launch gate, not post-launch polish | **Phase 6.7** |
-| A6 | Module authorization fails **closed** for unknown keys; org-scoped APIs resolve against the specific org in context | **Phase 6.3** |
-| A7 | Negative authorization tests as a first-class regression suite (cross-tenant, revoked roles, disabled modules, self-approval, private docs) | **Phase 6.10** |
-| A8 | ORG-scope role assignment requires active membership (invitation flow = atomic membership+role) | **Phase 6.4** |
-| A9 | Hash staff invitation tokens (store hash, return raw once) | **Phase 6.5** |
-| A10 | Audit writes atomic with the sensitive action they record; coverage verified | **Phase 6.11** |
-| A11 | Least-privilege document access inside an org (role × document-sensitivity matrix, not "any member") | **Phase 6.8** |
-| A12 | Money migration = **staged, reviewed financial migration** (backup → rules → per-row currency → shadow columns → backfill+reconcile → switch → constraints). Never a casual schema push | **Phase 7.1–7.2** |
-| A13 | Atomic stock decrements, conditional payout claim with `payoutId: null` + row-count verification + immutable settlement lines | **Phase 7.3–7.4** |
-| A14 | Full `ProductOffer → RfqLine → QuoteLine → OrderItem → Payout` attribution trace, tested with offer-seller ≠ product-seller | **Phase 7.6** |
-| A15 | Recurring RFQ: durable run records with idempotency key; claim + creation atomic; crash recovery tested | **Phase 7.5** |
-| A16 | `Product.stock` default → 0; `Order.status` default → not-PAID; state-transition validation | **Phase 7.7** |
-| A17 | Accreditation renewal: explicit retention decision, atomic supersede | **Phase 7.8** |
-| A18 | Treat every password that ever appeared in plan documents as **compromised** — rotate, revoke sessions, scrub docs | **Phase 6.0** |
-| A19 | Re-run the audit against the resulting commit and close findings only with code + migration + test evidence | **Phase 7 gate + Phase 14** |
-
-Everything the expert listed under "What I would accept from the response" (Decimal money, atomic stock, conditional payouts, private documents, token hashing, credential encryption, seller-level fulfillment, payment attempts/refunds when a real PSP arrives, cross-tenant negative tests) is scheduled below — nothing is dropped.
+| C1 | Isolated staging + **tested restore** before Phase 6/7, not Phase 14; document which environment every test touches | **New Phase 6.0** — staging isolation & verified-recovery pre-gate, before any authorization/concurrency testing |
+| C2 | `@@unique([serviceId, organizationId])` makes "retain + create new" impossible — explicit schema change + status taxonomy + test | **Phase 7.8** — constraint replaced with an active-marker unique; `supersedesId` relation; ARCHIVED/EXPIRED/REJECTED/REVOKED defined; renewal-with-history test |
+| C3 | 3P catalog vs "Vendora Catalog system seller" contradiction — ownership model specified before the form | **Phase 9.1** — data-model change first: `sellerId` nullable for curated listings, curator separated from seller, purchasability only via real vendor offers, negative test |
+| C4 | Murabaha checkout depends on financier ops that only arrive in Phase 10; needs legal/Sharia review; installment payment model unspecified | **Moved to Phase 10.9** (after lender ops) + legal/Sharia review as a hard precondition + installment receive/allocate/reverse/reconcile model in Phase 10 |
+| C5 | Document privacy vs content-hash dedup conflict; public media path must not serve sensitive docs; unknown types default sensitive; financier scope per application; short-lived uncacheable signed URLs; issuance ≠ retrieval logging | **Phase 6.6 redesigned** — separate private-vault storage namespace with dedup isolation; launch blocker |
+| C6 | Stateless sessions vs promised per-session admin UI mismatch | **Phase 6.7** — persistent session registry added (id, device, created/last-used, revocation, mfaSatisfied); Phase 14 UI built on it |
+| C7 | Route coverage must be a reviewed classification of **every** route into six buckets; CI fails on unclassified/unknown; include server actions, jobs, and other entry points | **Phase 6.2 + 6.10** — classification-first guard-lint and matrix; scope widened beyond `route.ts` |
+| C8 | ADMIN removal is lockout-sensitive — tested rollout procedure; sweep `User.role === 'ADMIN'` outside route guards | **Phase 6.3** — six-step rollout + full-codebase sweep |
+| C9 | Money migration: field-by-field inventory (only monetary floats); defined rounding rule before diff; transaction/display/settlement/accounting currencies; FX snapshots; historical currency from data; per-field decimals | **Phase 7.1** rewritten to this precision |
+| C10 | Single authoritative stock source (base+variant); reservation expiry policy; payout one-item-one-line; corrections without rewriting history; claim-mismatch handling; snapshot/reconcile | **Phase 7.3 / 7.4** |
+| C11 | Subscription scope must be an entitlement **ceiling**, not another overridable default; unpaid/downgrade tests | **Phase 11.2** — ceiling semantics + tests |
+| C12 | Unverified-seller policy = explicit risk acceptance with mitigations; suspended/inactive block tested at every publishing path | **Phase 8.5** — risk register entry + mitigations + exhaustive path tests |
+| C13 | Timeline is an assumption, not a commitment; final gate needs dependency/secret scanning, security testing, load testing, recovery verification, monitoring, legal review, deploy rehearsal, approved residual risks | **Phase 14 rewritten** |
 
 ---
 
-## 2. The Owner's Eight Decisions (binding answers to the open questions)
+## 1. Expert-assessment commitments (A1–A19) — carried from v1, unchanged
 
-| Q | Decision (owner's words → engineering commitment) | Lands in |
+All nineteen commitments extracted from the *Assessment of `answer4audit.md`* remain in force and land as mapped in v1: A1→6.3, A2→6.2/6.10, A3→6.4, A4→6.6, A5→6.7, A6→6.4, A7→6.11, A8→6.5, A9→6.6, A10→6.12, A11→6.8, A12→7.1, A13→7.3/7.4, A14→7.6, A15→7.5, A16→7.7, A17→7.8, A18→6.0, A19→7-gate/14. (Full table retained from v1; this v2 adds the C1–C13 layer on top.)
+
+---
+
+## 2. The Owner's Eight Decisions (binding)
+
+| Q | Decision | Lands in |
 |---|---|---|
-| 1 | **Unverified-seller publishing:** admin-controlled, per-seller AND bulk; **default = "no" (do NOT block)**; sellers who are "not active" (suspended/inactive) are **always blocked** | Phase 8.5 |
-| 2 | **Currency:** full **multi-currency** (not just dual display) — currency-aware money model, admin-managed FX rates, per-surface display + conversion | Phase 7.2 (+ buyer switcher UI in Phase 13) |
-| 3 | **Multi-vendor:** Product/Offer split already shipped (Phase 4); now **finish it 100%** — offer attribution through quote→order→payout, per-seller fulfillment suborders | Phase 7.6 + 8.1 |
-| 4 | **Financier console:** implement **ALL of it 100%** — full program CRUD, offers, inbox, agreements, accreditations, team, analytics, risk, Sharia artifacts, disbursement ops | Phase 10 |
-| 5 | **Arabic/RTL:** **the LAST step** before final hardening | Phase 13 |
-| 6 | **Monetization:** **a mix** — seller subscriptions + transaction commissions + financier fees, fully managed & customizable from admin (by actor, transaction type, category, seller, campaign…) | Phase 11 |
-| 7 | **Platform-managed products:** strictly **3P marketplace — Vendora sells nothing (no 1P)**; the platform *manages* the entire catalog (agreements, CRUD…). The admin "add product" gap the owner has flagged repeatedly is closed with a **full** product form | Phase 9 |
-| 8 | **KYC depth:** **both** — manual platform review (today's flow) **and** a verification-provider integration path, customizable from the admin platform (per document type: manual / provider / provider-then-manual) | Phase 12.4 |
+| 1 | Unverified-seller publishing: admin-controlled per-seller AND bulk; **default = ALLOW**; "not active" sellers **always blocked** | 8.5 (+ risk acceptance §C12) |
+| 2 | Full multi-currency | 7.1–7.2 (+ buyer switcher 13.4) |
+| 3 | Finish Product/Offer attribution 100% | 7.6 + 8.1 |
+| 4 | Financier console: ALL 100% | Phase 10 |
+| 5 | Arabic/RTL: the LAST step | Phase 13 |
+| 6 | Monetization: mix, actor/transaction-dependent, admin-customizable | Phase 11 |
+| 7 | Strictly 3P; platform manages the whole catalog; **full admin product form** | Phase 9 |
+| 8 | KYC: manual + provider integration, admin-customizable | 12.4 |
 
 ---
 
-## 3. Sequencing rationale (why this order)
+## 3. Sequencing contract (the reviewer's three buckets, as hard order)
 
 ```
-Phase 6  RBAC & Security Core 100%      ← owner directive; every later phase rides on guards
-Phase 7  Financial Integrity & Money   ← risky migration early; commerce/monetization build on Decimal
-Phase 8  Commerce Depth                ← suborders + checkout financing + buyer/seller depth + Q1 policy
-Phase 9  Admin Catalog & Products 100% ← owner's #1 operational pain ("told you 10 times")
-Phase 10 Financier Console 100%        ← completes Q4; uses commerce + money substrate
-Phase 11 Monetization Mix              ← fee engine + subscriptions (needs 7+8+10 substrate)
-Phase 12 Directory, Discovery, Trust + KYC provider  ← growth surface; KYC provider per Q8
-Phase 13 Arabic / RTL / i18n           ← LAST feature phase per owner Q5
-Phase 14 Production Hardening & Launch ← final gates, drill, go-live
+BUCKET 1 — BEFORE ANY PRODUCTION-SENSITIVE USE
+  Phase 6  (6.0 credential rotation → 6.0b staging isolation → 6.1…6.12 RBAC/security core 100%)
+     • rotate exposed credentials, kill sessions, scrub docs
+     • isolated staging + verified recovery path
+     • close legacy-admin, bare-guard, cross-tenant gaps
+     • secure KYC/document storage & access
+     • negative authorization tests (on staging)
+
+BUCKET 2 — BEFORE FURTHER FINANCIAL OR COMMERCE EXPANSION
+  Phase 7  Financial integrity & multi-currency (reviewed migration + tested restore path)
+  Phase 8  Commerce depth (suborders, buyer/seller depth, publish policy)
+  Phase 9  3P catalog ownership model + admin catalog 100%
+  Phase 10 Financier operations 100% (incl. installment payments) → then Murabaha checkout (10.9)
+
+BUCKET 3 — BEFORE CLAIMING PRODUCTION READINESS
+  Phase 11 Monetization mix (subscriptions as entitlement ceilings)
+  Phase 12 Directory, discovery, trust + KYC provider
+  Phase 13 Arabic / RTL (last feature phase)
+  Phase 14 Hardening & launch (expanded final gate)
 ```
 
-Dependency logic: RBAC gates everything (a permissioned admin console is the substrate for every later admin feature). The money migration must land before commerce depth, monetization, and multi-currency UI so no Float-based feature is built twice. Admin catalog (Phase 9) precedes financier completion (Phase 10) only because it is the owner's most-repeated operational demand and is independent of financier work. Arabic last per explicit owner instruction; hardening closes.
-
-Estimated calendar: **~14–18 weeks** of focused work end-to-end (phases overlap where safe: 9 can start when 8's suborder design freezes).
+Planning estimate: **~14–18 weeks** — an initial planning assumption only; a defensible delivery commitment requires decomposition and staffing estimates per phase (reviewer C13). Each phase below is scoped so it can be decomposed into a staffing estimate on demand.
 
 ---
 
 # PART I — THE PLAN
 
-## Phase 6 — RBAC & Security Core, 100% · ~2 weeks
-**Owner directive: this is the most important phase. Do it 100%.**
+## Phase 6 — RBAC & Security Core, 100% · ~2–3 weeks (staging pre-gate included)
 
-Current verified state: `requireAdmin(permission?)` dual-mode guard (`src/server/guards.ts`), 903-line RBAC service, 497-line permission catalog (`src/lib/rbac-catalog.ts`), admin Roles & Access console, privilege bracketing, session-version invalidation, module gates (`requireModule`). The expert's assessment confirms the architecture is keepable — the *closure items* below make it 100%.
-
-### 6.0 Credential hygiene (assessment A18 — first action, before any code)
-1. Rotate **every** account password that has appeared in any plan document, seed script, or chat (admin, QA buyer/seller/financier accounts). New secrets generated and stored only in the secret store, never in repo/docs.
+### 6.0 Credential hygiene (first action — A18 / C1 bucket 1)
+1. Rotate **every** password that has appeared in any plan document, seed script, or chat; store new secrets only in the secret store.
 2. Bump `sessionVersion` for all users → all existing sessions die.
-3. Scrub credentials from `mergedplan.md` §8 and any other tracked docs (replace with "rotated — see secret store"); note in commit message that history contains them, so rotation (not deletion) is the control.
-4. Repo-wide sweep for hardcoded secrets/keys (WhatsApp session keys, API keys) → move to env; rotate what can't be moved.
+3. Scrub credentials from tracked documents (rotation is the control since history retains them).
+4. Repo-wide secret sweep (keys, tokens, WhatsApp session artifacts) → move to env/secret store; rotate what cannot be moved.
 
-### 6.1 Guard repairs — zero shadowed/bare privileged routes (A2)
-1. Delete the **local `requireAdmin()` shadows** in `src/app/api/admin/slides/route.ts`, `src/app/api/admin/slides/[id]/route.ts`, `src/app/api/admin/settings/route.ts` — import the guard from `@/server/guards` with explicit keys (`storefront.manage`).
-2. `src/app/api/quotes/[id]/review/route.ts` — the one remaining bare legacy call — gets its explicit permission key (RFQ quote-review domain).
-3. **Guard-lint script** (`scripts/check-guards.ts`, wired into CI + regression): fails if any `route.ts` defines a local `requireAdmin`, calls `requireAdmin()` with no permission argument, or calls `requireModule` with a string literal not present in the module registry. This makes the defect class impossible to reintroduce.
+### 6.0b Staging isolation & verified recovery (NEW — reviewer C1; supersedes the Phase-14 item)
+**Nothing in 6.11/6.12 (adversarial, negative, or concurrency tests) or Phase 7 (financial migration) may touch production data.** Before those begin:
+1. **Staging environment:** separate database (fresh schema + anonymized/seeded data — never a copy of real customer rows unless anonymized), separate storage root, separate app credentials, separate messaging credentials (WhatsApp test line distinct from any production line).
+2. **Verified recovery:** take a real backup of the production DB and **restore it into staging**; row counts + spot-check queries must match. A backup that has never been restored is not a recovery plan. This drill is repeated before Phase 7 begins (the migration's rollback rehearsal).
+3. **Environment-touch documentation** (`docs/environments.md`): every browser test, seed script, QA asset, and cron job listed with the environment it may touch; scripts get an environment guard (refuse to run against production URLs/DB unless `--allow-prod` is passed explicitly).
+4. CI conventions: authz/concurrency suites parameterized by `STAGING_BASE_URL`; production is never a target.
+- **Gate 6.0b:** staging serves the app end-to-end with seed data; a production backup has been restored to staging and verified; the environment map exists; no test asset is documented as production-touching.
 
-### 6.2 End the `User.role = ADMIN` blanket bypass (A1)
-1. Migrate the legacy super-admin account to the protected `platform.super-admin` RBAC role (assignment verified, audit-logged).
-2. Flip `requireAdmin`/`requireAdminAny`/`requireModule` to **stop honoring `user.role === 'ADMIN'`** — `User.role` becomes a classification label only, never an authorization fact.
-3. `requireAdmin()` with no permission key becomes a **throw** (programmer error), not a 403 — impossible to ship a permissionless privileged route.
-4. **Break-glass path (deliberate, minimal):** a single dedicated `break-glass` account with the protected super-admin role, MFA-enforced (6.7), login alerted (notification + `BREAKGLASS_LOGIN` audit), every action it takes already audit-logged by the existing trail. No other bypass exists anywhere.
+### 6.0a WhatsApp channel — incident closed, hardening remaining (user-reported, fixed `b1681f1`)
+The pairing failure ("WhatsApp service unreachable (fetch failed)") was the Baileys mini-service being down with `node_modules` never installed after a fresh checkout. Fixed: deps installed, service started on `:3031`, **self-healing watchdog** added (`scripts/whatsapp-watchdog.sh` — health check + install guard + restart), and pairing **verified end-to-end in the browser** (real pairing code issued for a test number; test row removed; evidence `db/qa/e2e/whatsapp-pairing-fixed.png`). The user can now add their number from the admin panel.
+Remaining hardening lands in this plan: credential encryption (6.6 item 4), staging/production line separation (6.0b), service health monitoring + alerting (14.4), rate-limited pairing endpoints (14.3).
 
-### 6.3 Module gating: fail closed + per-org resolution (A6, A3)
-1. `src/server/modules/modules/service.ts` — replace both `?? true // unknown module keys fail open` branches: **API authorization fails closed** (unknown key → 403 `MODULE_UNKNOWN` + server-side config-error log). Storefront *availability* (nav rendering) resolves through the `ModuleDefinition` registry only — a key with no definition simply renders nothing; the two concerns are now separate, as the assessment required.
-2. Org-scoped APIs must resolve module activation **against the specific organization in the request context** — audit every `requireModule` call site; org-scoped financier-console calls already pass `ctx.orgId` (keep), personal-scope user-union stays for *navigation features only*, and any route that authorizes **data access** by user-union is refactored to resolve per-target-org.
-3. Tests: (a) misspelled module key on an API → denied, never granted; (b) multi-org user with module ON in org A and OFF in org B → org-B-scoped resource access denied, org-A allowed.
+### 6.1 Guard repairs + classification-first guard-lint (A2, C7)
+1. Delete the three local `requireAdmin()` shadows (`api/admin/slides/route.ts`, `api/admin/slides/[id]/route.ts`, `api/admin/settings/route.ts`); import from `@/server/guards` with explicit keys.
+2. `api/quotes/[id]/review/route.ts` — add its explicit permission key.
+3. **Guard-lint v2 (`scripts/check-guards.ts`, CI-wired):** a reviewed classification of **every** route — not just `route.ts` files — as exactly one of:
+   `PUBLIC` · `AUTHENTICATED_USER` · `ORG_SCOPED` · `SELLER_SCOPED` · `FINANCIER_SCOPED` · `PLATFORM_PRIVILEGED`.
+   CI fails on: an unclassified route, a missing authorization declaration, a permission key not present in the catalog, an ORG_SCOPED route whose target organization is not explicit and validated, or a local guard shadow. The classification file is reviewed by a human (reviewer's "reviewed classification", not generator-trust) — the generator can only *propose*; approval is a reviewed artifact.
+4. **Scope of "entry points" widened:** server actions, background/scheduled jobs (recurring RFQ sweep, expiry scans, digest jobs), mini-service HTTP endpoints, and any non-route module that performs privileged writes are all classified and linted the same way.
+- **Test:** introducing an unclassified route, a bogus permission key, or a shadow guard into a scratch branch makes CI fail.
 
-### 6.4 Role assignment integrity (A8)
-1. `assignRole` (ORG scope) requires an **active `OrganizationMember` row** for (user, org) — verified before the write, tested.
-2. The one sanctioned exception: the invitation flow creates membership + role assignment **atomically** (single `$transaction`) — already the financier-team path; extended as the only pattern for org-role onboarding.
-3. Org member removal (existing org team API) revokes that member's org-scoped `UserRole` rows **in the same transaction** — no orphaned assignments. Backfill sweep: report + revoke any existing orphans.
+### 6.2 End the `User.role = ADMIN` bypass — lockout-sensitive migration (A1, C8)
+1. Precondition (order matters, all on staging first):
+   a. Create and verify the replacement super-admin RBAC assignment (protected `platform.super-admin` role).
+   b. Verify MFA enrollment **and recovery** (backup codes + admin-reset path) for that account.
+   c. Test privileged access in staging with the RBAC-only guard active.
+2. Deploy the guard change: `requireAdmin`/`requireAdminAny`/`requireModule` stop honoring `role === 'ADMIN'`; `requireAdmin()` without a key **throws** (programmer error).
+3. Verify the break-glass path: dedicated break-glass account (protected role, MFA-enforced, login-alerted, audited) — verify login + alert fire.
+4. **Documented, time-limited rollback** = re-apply the previous commit; it must not silently restore a broad ADMIN bypass (the rollback doc states exactly what it restores and its expiry).
+5. **Full-codebase sweep** of `User.role === 'ADMIN'` / `role: 'ADMIN'` **outside route guards**: services, server actions, scheduled jobs, admin UI conditionals, seeds — every hit either removed (authorization is RBAC-only) or explicitly allow-listed with a written reason. The route linter alone cannot establish this; the sweep output is a reviewed artifact.
+- **Gate:** staging E2E proves super-admin works via RBAC alone; break-glass alert fires; zero remaining authorization-fact uses of `User.role`.
+
+### 6.3 Module gating: fail closed + per-organization resolution (A6, A3)
+1. Unknown module keys at **API authorization** → 403 `MODULE_UNKNOWN` + config-error log (fail closed). Storefront availability renders only from the registry — separate concerns.
+2. Every org-scoped API resolves activation against **the specific organization in the request context** (explicit `ctx.orgId`), never the user's org union. User-union resolution remains only for personal navigation.
+3. Tests: misspelled key never grants; multi-org user (module ON in org A, OFF in org B) is denied org-B-scoped access, allowed for org A.
+
+### 6.4 Role-assignment integrity (A8)
+ORG-scope assignment requires an active `OrganizationMember` row (validated, tested); the invitation flow creates membership + assignment atomically; member removal revokes org-scoped roles in the same transaction; orphan sweep + backfill.
 
 ### 6.5 Invitation tokens hashed (A9)
-`StaffInvitation.token` → `tokenHash` (SHA-256, same pattern as `PasswordResetToken`/`OtpCode`): raw token returned exactly once at creation; consumption by hash lookup. Pending plaintext invitations at migration time are invalidated (owners re-invite — cheap and safe).
+`StaffInvitation.token` → `tokenHash` (SHA-256, same pattern as reset/OTP tokens); raw token shown once; pending plaintext invitations invalidated.
 
-### 6.6 Private document delivery (A4)
-1. New authorization-checked file route: `GET /api/documents/[id]/file` — policy: document owner; org members per the sensitivity matrix (6.8); platform staff with the relevant permission; financiers for documents shared into their review scope. Session-authenticated, rate-limited, audit-logged (`DOCUMENT_DOWNLOADED`).
-2. Upload-side flagging: identity/KYC/financial uploads are marked **private** at ingest (`Upload.visibility` / document-type-driven); private keys are **excluded from the public `/api/media/[...key]` route** (404 for them there).
-3. Admin console document viewers switch to short-lived **signed URLs** (HMAC + expiry + document-id binding) — no long-lived public links for sensitive material.
-4. WhatsApp credentials encryption (accepted remediation): `WhatsAppSender.credsJson` AES-GCM encrypted at rest, decrypted only in the service process.
+### 6.6 Private document delivery — redesigned per reviewer C5 (A4; **launch blocker**)
+1. **Two storage namespaces:** `public-media` and `private-vault` (separate key roots). **Content-hash dedup never crosses namespaces** — the same bytes may exist twice (once per namespace) with different keys and different access semantics; dedup operates within a namespace only. A key in the private vault has **no public retrieval path at all** (404 at `/api/media/*` regardless of flags).
+2. **Ingest classification:** document type drives namespace; **unknown/unspecced types default to the private vault** (fail-safe).
+3. **Access policy (least privilege, C5/A11):** document owner; org members per the sensitivity matrix (6.9) — a plain member/VIEWER does not get identity/financial docs; platform staff per permission; **financier access is tied to a specific application or review scope** (the request/agreement they are reviewing — not mere financier membership).
+4. **Signed URLs:** short-lived (minutes), uncacheable (`Cache-Control: no-store`), HMAC-bound to document + session/user, issued **only after authorization**.
+5. **Audit fidelity:** `DOCUMENT_URL_ISSUED` and `DOCUMENT_FILE_RETRIEVED` are **distinct logged events** — issuance and actual retrieval are never conflated.
+6. Migration: existing sensitive uploads moved to the vault namespace (keys rewritten); public/media URLs that ever exposed them are treated as compromised exposure windows in the risk register (they are content-hash keyed; the fix is namespace + route change, not key secrecy).
+7. WhatsApp credential encryption (queued remediation): `WhatsAppSender.credsJson` AES-GCM at rest, decrypted only in the service process.
 
-### 6.7 MFA for privileged users (A5 — launch gate, moved up from old Phase 8)
-1. TOTP (RFC 6238) + generated backup codes; schema: `mfaSecret` (encrypted), `mfaEnabledAt`, `mfaRequired` (policy bit).
-2. **Enforced** for: every account holding any platform-scope role, and org-scope roles covering role management, payouts, payment capture, KYC/document verification, dispute resolution, module management. (Buyers/sellers at large: optional, later — per assessment, privileged MFA is the gate.)
-3. Login flow: password → (phone OTP where applicable) → TOTP challenge when enrolled/required. Sessions carry `mfaSatisfiedAt`; privileged guards check it.
-4. Admin console: per-staff "Require MFA" toggle + platform policy setting; enrollment wizard with QR; recovery via admin reset (audit-logged).
+### 6.7 MFA + persistent session registry (A5, C6)
+1. TOTP (RFC 6238) + backup codes; **enforced** for every account with any platform-scope role or org-scope roles covering role management, payouts, payment capture, KYC/document verification, dispute resolution, module management.
+2. **Session registry (new model):** `Session` — id, userId, device/UA summary, ipLastSeen, createdAt, lastUsedAt, revokedAt, mfaSatisfiedAt. Every issued session token gets a row; `lastUsedAt` updated (throttled); revocation supports **both** a single session and all-sessions (`sessionVersion` bump remains the all-kill). This makes the Phase 14 session-management UI honest about what the architecture provides (C6).
+3. Login flow: password → (phone OTP where applicable) → TOTP challenge; privileged guards check `mfaSatisfiedAt` on the session.
+4. Admin console: per-staff "Require MFA" toggle + platform policy; enrollment wizard (QR); admin reset (audited).
 
-### 6.8 Least-privilege document access inside orgs (A11)
-1. Document sensitivity classes: `PUBLIC` / `ORG_INTERNAL` / `SENSITIVE_IDENTITY` / `SENSITIVE_FINANCIAL` — derived from document type (KYC IDs, licenses → identity; statements, payout details → financial).
-2. Access matrix role × sensitivity within an org: OWNER/ADMIN full; approver/underwriter/reviewer per financing flow needs; **VIEWER/BUYER member → PUBLIC + ORG_INTERNAL only**. Matrix lives in one resolver with tests.
-3. Negative tests: VIEWER denied a SENSITIVE_IDENTITY doc; org-B member denied org-A's ORG_INTERNAL doc.
+### 6.8 Least-privilege document matrix inside orgs (A11)
+Sensitivity classes (PUBLIC / ORG_INTERNAL / SENSITIVE_IDENTITY / SENSITIVE_FINANCIAL) × role — one tested resolver; negative tests per class.
 
-### 6.9 Route authorization matrix — the artifact (A2)
-`scripts/gen-route-matrix.ts` generates `audit/route-matrix.md`: every API route with method, required permission key, scope (PLATFORM/ORG/SELLER/BUYER/FINANCIER/OWNER), org-context resolution (explicit-ctx vs user-union), and the negative test IDs covering it. Regenerated in CI; drift = failure. This is the assessment's "permission-coverage inventory" — a **route-by-route result, not a count**.
+### 6.9 Route authorization matrix — the reviewed artifact (A2, C7)
+`scripts/gen-route-matrix.ts` emits `audit/route-matrix.md`: every route (and every classified non-route entry point per 6.1.4) with method, classification bucket, permission key, org-context resolution, and covering negative-test IDs. Generation is CI-checked against the reviewed classification file; drift fails.
 
-### 6.10 Negative authorization test suite (A7 — first-class regression)
-A scripted suite (`scripts/auth-negative-tests.ts`, run in CI + at every phase gate) executing the assessment's checklist end-to-end against the live server:
-
-1. Org A cannot retrieve Org B's order / RFQ / application / approval / document (GET + PATCH + approve + download).
-2. Buyer cannot perform approver action; vendor cannot reach platform staff routes.
-3. Revoked role / suspended user → **immediate** access loss (sessionVersion + per-request DB-state verification both tested).
-4. ORG role assignment to a non-member → 400 (except atomic invitation flow).
-5. Disabled module → 403 at API (not just hidden nav).
-6. Unknown/misspelled module key → denied.
-7. Self-approval of one's own request → 403.
-8. Private document via public media URL → 404; via signed URL after expiry → 403.
-9. Break-glass account login → alert fired + audit row exists.
-10. Privileged route without MFA-satisfied session → 403.
+### 6.10 Negative authorization test suite (A7, C1)
+The ten-case suite from v1 (cross-tenant reads/writes/approvals/downloads; buyer-vs-approver; immediate revocation; non-member assignment; disabled module at API; unknown key; self-approval; private-doc via public URL + expired signed URL; break-glass alert; privileged-without-MFA) — **executed against staging only**, wired into CI and every phase gate.
 
 ### 6.11 Audit atomicity & coverage (A10)
-1. Sensitive state changes (role grants/revokes, payout mark-paid, financing gate decisions, module flips, document verify/reject) write their `AuditLog` row **inside the same `$transaction`** as the change. Sweep + refactor the outliers.
-2. Failure-injection test: force an audit-write failure → the action rolls back (no silent skip).
-3. Tamper-resistance statement: append-only via app code paths (verified: no update/delete calls), plus DB-level mitigation documented (restricted DB role for the app user blocking `UPDATE/DELETE` on `AuditLog` — applied where the managed MySQL plan allows; otherwise the operational control is documented and scheduled with DBA).
+Sensitive changes write their `AuditLog` row **inside the same transaction**; failure-injection test proves rollback (no silent skip); DB-level tamper mitigation documented (restricted DB role blocking UPDATE/DELETE on `AuditLog` where the managed plan allows; else documented operational control).
 
-### Phase 6 acceptance gate (all must pass, in browser + scripted)
-- [ ] Guard-lint script: zero local shadows, zero bare `requireAdmin`, zero unknown module literals — green.
-- [ ] Route matrix generated; **100% of privileged routes carry an explicit permission key**; matrix committed.
-- [ ] Negative suite: **10/10 green** with screenshots/log evidence.
-- [ ] Legacy ADMIN bypass removed; super-admin operates purely via RBAC role; break-glass login triggers alert.
-- [ ] MFA enrollment + enforced privileged login E2E (TOTP challenge → console access).
-- [ ] Private KYC document: denied publicly, delivered via auth-checked route + signed URL, cross-org denial.
-- [ ] All credentials rotated; docs scrubbed; old sessions dead.
-- [ ] Full regression baseline (mergedplan §7) still green.
-- [ ] **Commit + push.**
+### Phase 6 acceptance gate (browser + scripted, on staging where adversarial)
+- [ ] 6.0b gate passed: staging live, backup restored + verified, environment map committed.
+- [ ] Guard-lint: zero unclassified routes, zero shadows, zero bare guards, zero unknown permission keys — **including non-route entry points**.
+- [ ] Route matrix generated from the reviewed classification; 100% coverage.
+- [ ] Negative suite 10/10 green on staging (screenshots/log evidence).
+- [ ] ADMIN bypass removed via the six-step rollout; sweep artifact committed; break-glass verified with alert.
+- [ ] MFA enrollment + enforced privileged login E2E; session registry records logins; single-session revoke works.
+- [ ] Private doc: no public path (404), signed URL issuance + retrieval audited separately, cross-org denial, member-vs-identity-doc denial.
+- [ ] Credentials rotated; docs scrubbed; all sessions invalidated once.
+- [ ] Full business regression still green. **Commit + push.**
 
 ---
 
-## Phase 7 — Financial Integrity & Multi-Currency · ~2 weeks
-**The money phase. Everything here follows the assessment's staged-migration guidance (A12) — no casual schema pushes.**
+## Phase 7 — Financial Integrity & Multi-Currency · ~2–3 weeks
 
-### 7.1 Staged Float → Decimal migration (60 Float fields today)
-Exactly the assessment's seven steps, as hard protocol:
-1. **Backup + baselines:** full DB backup; row counts + financial reconciliation baselines (orders, payments, payouts, commissions, financing fees) captured as a signed report.
-2. **Precision & currency rules:** `DECIMAL(15,2)` for settled amounts (totals, payout, fees); `DECIMAL(18,6)` for unit prices, rates, FX, intermediate math; currency-specific minor units defined (§7.2). Documented per-column mapping table reviewed before any DDL.
-3. **Per-row currency determination:** from reliable per-table history (retail = USD; financing entities = YER); no blanket default where ambiguous — ambiguous rows are listed and resolved explicitly before backfill.
-4. **Shadow columns + backfill:** Decimal columns added alongside Float (reviewed migration, **no `--accept-data-loss`**); backfill script writes old→new; automated diff report must be **zero-mismatch**.
-5. **Writers/readers switch** to Decimal; reconcile orders, payments, payouts, commissions, financing fees against baselines — signed reconciliation report.
-6. **Flip** production reads/writes only after reconciliation passes; documented rollback (Float columns retained until 7.1 step 7).
-7. **Constraints & defaults after validation** (`CHECK (amount >= 0)` where semantically right, defaults fixed per 7.7); Float columns dropped in a separate, later reviewed migration.
+### 7.1 Staged Float → Decimal migration (A12, C9 — precision tightened)
+**Field-by-field inventory first:** all 60 `Float` columns classified as MONEY / RATE / MEASUREMENT / RATING / GEO — **only monetary fields migrate** (`rating`, `lengthCm/widthCm/heightCm`, `latitude/longitude`, spec `validationMin/Max`, routing `minTicket/maxTicket` hints etc. stay Float or move to their own typed columns deliberately). The inventory is a reviewed artifact before any DDL.
+1. Backup; reconciliation baselines (orders, payments, payouts, commissions, financing fees) — signed report.
+2. **Type rules per field, not blanket:** settled totals/fees `DECIMAL(15,2)`; unit prices, commission rates, FX rates, intermediate math `DECIMAL(18,6)`; percentages reviewed for their natural scale. **Currency concepts kept distinct:** transaction currency (what the buyer paid in) · display currency (rendering) · settlement currency (what the seller was paid) · accounting/base currency (internal ledger) — each money row stores what applies.
+3. **Per-row historical currency from actual data:** "retail = USD, financing = YER" are hypotheses — reconcile against stored records (order/payment/payout context, financing entity records); ambiguous rows are explicitly listed and resolved before backfill; no blanket default.
+4. Shadow Decimal columns (reviewed migration, no destructive push) → backfill → **diff under a pre-declared rounding rule:** float→decimal intentionally rounds to the field's currency scale; the diff report must contain *only* differences exactly equal to the declared rounding function — any other mismatch blocks the migration. Rounding is never silently accepted.
+5. **FX snapshot preserved on every converted/derived amount:** rate, rate timestamp, source, rounding policy stored with the record (order, payout, fee) — settlement evidence survives later rate changes.
+6. Writers/readers switch; reconcile against baselines; signed report.
+7. Flip; documented rollback; then constraints/defaults; then (later, separately) drop Float columns.
 
 ### 7.2 Multi-currency substrate (Q2)
-1. `Currency` (code, symbol, minorUnits, active) + `ExchangeRate` (pair, rate, validFrom, source, admin-managed history) — seeded USD, YER, SAR.
-2. Money fields carry explicit `currency` codes (per 7.1 mapping); a configurable platform **base currency** for internal accounting.
-3. Admin console: currency + FX management (manual entry now; auto-fetch provider hook later — Phase 12 pattern).
-4. Display: per-surface default + conversion component ("YER 152,400 ≈ $122") driven by current rates; financing surfaces YER-native, retail USD-native, all amounts currency-explicit. Buyer-facing **switcher UI** arrives with i18n (Phase 13) — the data model is ready here.
-5. `FinancingFee`, payouts, commissions, price lists all become currency-aware (Phase 11 fee engine builds on this).
+`Currency` + `ExchangeRate` (pair, rate, validFrom, source, admin-managed history) seeded USD/YER/SAR; money rows carry explicit currency codes (per 7.1); configurable accounting base; admin FX console; conversion display component; financing YER-native, retail USD-native; buyer switcher UI in 13.4.
 
-### 7.3 Atomic inventory decrements (A13)
-Replace read-check-write with conditional writes + affected-row verification on every path: `updateMany({ where: { id, stock: { gte: qty } }, data: { stock: { decrement: qty } } })` → `count === 1` or rollback. Paths: product base, variant (with parent total sync), offer (checkout), RFQ conversion, approval reservation, restock-on-cancel. **Concurrency test:** two parallel checkouts for the last unit → exactly one order, one 409.
+### 7.3 Inventory integrity (A13, C10)
+1. Conditional atomic decrements everywhere (`updateMany where stock >= qty`, count-verified, rollback on mismatch); concurrency test: two parallel last-unit checkouts → exactly one order.
+2. **Single authoritative stock source for base+variant:** variant products take `ProductVariant.stock` as the only authority; the parent `Product.stock` for variant products becomes a **derived read-model** maintained by the same transaction (with a reconciliation check job) — or is nulled for variant products outright; the inventory decision is documented either way. No path decrements both as independent authorities.
+3. **Approval-pending reservations get an expiry policy:** reserved stock for orders awaiting approval is released after a configurable TTL (default 48h) or on rejection — job + test.
+4. Restock-on-cancel/approval-reject mirrors decrements conditionally and atomically.
 
-### 7.4 Payout settlement hardening (A13)
-1. Conditional claim: `updateMany({ where: { id IN (…), payoutId: null, order status OK }, data: { payoutId } })`; verify affected count === expected; mismatch → transaction abort + recompute.
-2. **Immutable `PayoutLine`** snapshot rows (orderId, orderItemId, offerId, sellerId, amount, currency, commissionRate, commission, net, capturedAt): payouts stay auditable after cancellation/correction even when item links are released or re-stamped.
-3. Mark-paid re-guarded (paid only from PENDING; idempotent).
-4. **Concurrency test:** two simultaneous payout generations for one seller → one payout or a clean rejection — never duplicated settlement.
+### 7.4 Payout settlement hardening (A13, C10)
+1. Conditional claim `updateMany` with `payoutId: null` in the WHERE; affected-count verified; **mismatch → abort the transaction, recompute the eligible set, and alert** (never silently continue).
+2. **Immutable `PayoutLine`:** one order item appears in **at most one settlement line** (unique constraint). Lines snapshot amount, commission, currency, FX rate/timestamp/source, capturedAt.
+3. **Corrections never rewrite history:** a cancelled or corrected payout is represented by new reversing entries (accounting style) referencing the original lines — the payout remains fully explainable after order-item links are released or operational statuses change.
+4. Mark-paid re-guarded (PENDING → PAID only, idempotent). Concurrency test: two simultaneous generations for one seller → one payout or clean rejection, never duplicate settlement.
 
 ### 7.5 Recurring RFQ durability (A15)
-1. `RecurringRfqRun` model: scheduleId, dueAt, status (CLAIMED/CREATED/FAILED), idempotency key (`scheduleId:dueAt` unique), rfqId.
-2. Sweep claims by inserting the run row (unique key = the CAS) **and creating the RFQ in the same transaction**; failures leave a FAILED run that the next sweep retries (bounded retries + alert).
-3. **Crash test:** kill between claim and creation → next sweep recovers, no duplicate RFQ, no lost run.
+`RecurringRfqRun` with unique idempotency key (`scheduleId:dueAt`); claim + RFQ creation in one transaction; FAILED runs retried (bounded) + alerted; crash-injection test between claim and creation → recovery without loss or duplication.
 
-### 7.6 Offer attribution through quote → order → payout (A14, closes Q3)
-1. `QuoteLine.offerId` added (snapshot semantics, like `OrderItem.offerId`); quote creation copies it from the `RfqLine` and validates the offer belongs to the quoted product.
-2. Quote conversion: `OrderItem.sellerId = line.offerId ? offer.sellerId : product.sellerId` — **server-authoritative at conversion**, price/currency snapshotted from the accepted quote line.
-3. **The trace test** (the assessment's exact demand): seller B's offer on a product primarily listed by seller A → RFQ targets B's offer → B quotes → buyer accepts → convert → assert at every hop the authoritative seller, offer, price, currency, quantity — through to B's payout. Green = Q3 closed.
+### 7.6 Offer attribution end-to-end (A14, Q3)
+`QuoteLine.offerId` (snapshot ref); conversion sets `OrderItem.sellerId` from the **offer's** seller when a line targeted one; the full-chain test (`ProductOffer → RfqLine → QuoteLine → OrderItem → Payout`) with **offer-seller ≠ product-primary-seller** asserting authoritative seller/offer/price/currency/quantity at every hop. Green = Q3 closed.
 
 ### 7.7 Dangerous defaults + transitions (A16)
-`Product.stock @default(0)` (+ data review of existing default-10 rows); `Order.status @default("PENDING_PAYMENT")` + a server-side transition map (PAID only via payment-success events; cancellations/failures only via legal transitions). Illegal transition attempts → 400 + audit.
+`Product.stock @default(0)` (+ existing-data review); `Order.status @default("PENDING_PAYMENT")` + server-side transition map (PAID only from payment-success events); illegal transitions → 400 + audit.
 
-### 7.8 Accreditation renewal retention (A17)
-Decision per assessment: **retain history**. Renewal = new request row with `supersedesId`; prior request → `ARCHIVED` (never deleted) with its `RequirementSubmission` evidence intact; `ACCREDITATION_RENEWED` audit links the chain; archive + create + audit atomic in one transaction. (If the owner later opts for deletion on compliance grounds, it becomes a config flip — default is retain.)
+### 7.8 Accreditation renewal — history retained, constraint fixed (A17, C2)
+The current schema has `@@unique([serviceId, organizationId])` (schema line 1636) — **retaining prior requests while creating renewals is impossible under it.** Explicit schema change:
+1. Replace the blanket unique with an **active-marker composite**: `@@unique([serviceId, organizationId, activeMarker])` where `activeMarker` is non-null only on the single live request (MySQL unique indexes allow multiple NULLs → unlimited history, at most one active per program/org — same pattern we already use for scope sentinels).
+2. Add `supersedesId` self-relation (with audit chain `ACCREDITATION_RENEWED` linking old → new).
+3. **Status taxonomy defined:** `ARCHIVED` (superseded by a renewal — evidence frozen, read-only) · `EXPIRED` (lapsed without renewal) · `REJECTED` (declined by financier) · `REVOKED` (withdrawn by platform) — each with its own re-entry rule (ARCHIVED/EXPIRED may renew; REJECTED/REVOKED follow their own policies).
+4. Archive + create + audit **atomically**; supersede-renewal flow rewritten on this model.
+5. **Test:** renewal can be created while the prior request **and its checklist evidence remain queryable**; the active-marker unique blocks a second concurrent live request (race test).
+- Do not mark renewal complete until the constraint change + tests land.
 
 ### Phase 7 acceptance gate
-- [ ] Reconciliation reports: zero-diff backfill, zero-diff switch, signed and committed.
-- [ ] Concurrency tests (stock, payout) green; crash-recovery test green; attribution trace green.
-- [ ] Multi-currency admin CRUD + conversion display E2E; financing figures YER-native.
-- [ ] Defaults + transition guard tests green.
-- [ ] Renewal flow archives (not deletes) — verified in data + audit.
-- [ ] **Audit re-run (A19):** produce `answer4audit-v2.md` addendum with code + migration + test outputs for every finding this phase closed — sent for expert re-review.
+- [ ] Field inventory reviewed; only monetary fields migrated; rounding rule pre-declared; diffs = declared-rounding-only, else blocked.
+- [ ] Staging restore drill re-run (migration rollback rehearsal) — signed.
+- [ ] Concurrency tests (stock, payout) + crash recovery + attribution trace green — **on staging**.
+- [ ] Multi-currency admin CRUD + conversion display E2E; FX snapshots on derived amounts verified.
+- [ ] Accreditation: renewal-with-history test green (constraint replaced).
+- [ ] `answer4audit-v2.md` evidence addendum for every finding this phase closes → expert re-review (A19).
 - [ ] Full regression + **commit + push.**
 
 ---
 
-## Phase 8 — Commerce Depth · ~2–3 weeks (old mergedplan Phase 6, expanded)
+## Phase 8 — Commerce Depth · ~2–3 weeks (Murabaha checkout moved out — C4)
 
 ### 8.1 Per-seller fulfillment suborders
-1. `OrderFulfillment` (orderId, sellerId, status: AWAITING→PACKED→SHIPPED→DELIVERED, carrier, tracking, per-item links, timestamps, events) — one per distinct seller in an order; `Order.status` becomes a **derived roll-up**.
-2. Seller console ships per suborder (carrier + tracking + label preview); buyer order tracking renders per-seller groups + overall progress; partial cancellation per seller group (feeding payout/refund implications via Phase 7 lines).
-3. RFQ-converted orders: suborders derive from per-item `sellerId` (7.6 makes this trustworthy).
+`OrderFulfillment` per distinct seller (status, carrier, tracking, per-item links, events); `Order.status` becomes a derived roll-up; seller ships per suborder; buyer tracking grouped per seller; partial cancellation per seller group (feeding 7.4 lines); RFQ conversions derive suborders from per-item `sellerId` (trustworthy after 7.6).
 
-### 8.2 Islamic finance at checkout (the Murabaha method)
-1. Checkout payment method "Finance it (Murabaha)": pre-qualification via the financing engine (eligible financiers/programs by amount, tenor, buyer KYC level — L2+ gate per Phase 3 levels).
-2. Financed order state machine: `PENDING_FINANCING → (offer picked + agreement signed) → FINANCED_CONFIRMED → PAID` on financier disbursement confirmation; agreement + installment schedule surface in the buyer's order view; financier console gets the disbursement queue.
-3. Failed/expired pre-qualification falls back cleanly to standard payment (order stays payable, nothing half-committed).
+### 8.2 Buyer depth
+Spec-matrix compare, saved addresses, reorder, guest checkout (email/phone + post-hoc account claim), product Q&A with moderation.
 
-### 8.3 Buyer depth
-Spec-matrix compare (normalized attributes side-by-side), saved addresses CRUD (+ default + per-order selection), one-click reorder from past orders, guest checkout (email/phone, claim-account path afterward), product Q&A (buyer asks → seller answers → admin moderation; answers feed SEO).
+### 8.3 Seller depth
+Onboarding checklist, store settings (logo/banner/policies/payout account), draft autosave/recovery, CSV import polish, low-stock alerts, seller coupons, shipping zones, analytics depth.
 
-### 8.4 Seller depth
-Onboarding checklist (profile → logo → first listing → payout details, with progress state), store settings page (logo/banner/policies/payout account — completing the last Phase-1 leftovers), product-form draft autosave/recovery, CSV import polish, low-stock alerts (per-product threshold + notification), seller-scoped coupons, shipping zones (zone + rate + free-shipping threshold), analytics depth (views, conversion, funnel from existing event/audit data).
+### 8.4 Checkout financing (Murabaha) — **moved to Phase 10.9** (C4: depends on financier disbursement operations that only complete in Phase 10; see the legal/Sharia precondition there).
 
-### 8.5 Unverified-seller publishing policy — owner decision Q1
-1. Platform setting `marketplace.publishPolicyForUnverified`: **default `ALLOW`** (owner chose "no" to blocking).
-2. Per-seller override in the admin vendor console: `ALLOW | REVIEW | BLOCK` + **bulk action** across vendors.
-3. `REVIEW` routes publishes into the Phase 4 admin review queue (substrate exists); `BLOCK` rejects at API with a clear message.
-4. **Hard rule independent of settings:** suspended/inactive sellers ("not active") are **always blocked** from publishing products AND offers — enforced at the write path, tested.
-5. KYC-level hooks (Phase 3) remain composable on top (e.g. require L2 to publish even when policy = ALLOW, if configured).
+### 8.5 Unverified-seller publishing policy (Q1, C12)
+1. Platform setting `publishPolicyForUnverified`, **default `ALLOW`** (owner decision).
+2. Per-seller override (`ALLOW | REVIEW | BLOCK`) + **bulk action**.
+3. **Explicit risk acceptance recorded** (risk register): allowing unverified sellers to publish is a product choice, not a security control — documented fraud/trust risk with mitigations: visible verification status on storefronts/products, seller limits (listing caps for unverified), payout holds/thresholds for unverified sellers, enhanced review for higher-risk categories, and the admin's ability to flip the policy at any time.
+4. **Hard rule:** suspended/inactive sellers are always blocked from publishing — enforced and tested at **every publishing path**: product create, product edit/republish, **offer create/update**, CSV bulk import, and any bulk action. The negative suite gains these cases.
+- **Gate:** policy default verified; per-seller + bulk flips work; suspended-seller block proven at every path (API-level evidence).
 
 ### Phase 8 acceptance gate
-- [ ] Mixed-seller order: both sellers ship independently; buyer sees grouped tracking; roll-up status correct.
-- [ ] Financed checkout E2E: prequal → offer → agreement → disbursement → PAID + installments visible.
-- [ ] Guest checkout completes; reorder works; Q&A round-trip works.
-- [ ] Seller checklist/store settings/coupon/shipping/low-stock E2E.
-- [ ] Publish policy: default ALLOW verified; per-seller + bulk flips verified; suspended seller blocked (API-level evidence).
+- [ ] Mixed-seller order ships per suborder; grouped tracking; roll-up correct.
+- [ ] Guest checkout, reorder, Q&A round-trip; seller checklist/settings/coupons/shipping/alerts E2E.
+- [ ] Publish policy + risk acceptance artifact; suspended-block tests at all publishing paths green.
 - [ ] Regression + **commit + push.**
 
 ---
 
-## Phase 9 — Admin Catalog & Product Management 100% · ~1.5 weeks (Q7 — "told you 10 times")
+## Phase 9 — 3P Catalog Ownership Model + Admin Product Management 100% · ~2 weeks (Q7, C3)
 
-Verified today: the admin Catalog→Listings tab has a **simplified** curated-listing dialog (URL-pasted images, no media library, no variants, no structured specs) + CSV + clone. The owner's requirement is a **full** product management console. Vendora remains strictly 3P (no 1P selling) — the platform *curates and manages* the catalog.
+### 9.1 Data model first — resolve the system-seller contradiction (C3)
+Today curated listings are owned by a "Vendora Catalog" **user** in `Product.sellerId` (required, primary-seller semantics, schema line 201) — a system account in that field risks vendor attribution, checkout, and payout eligibility. Change before the form:
+1. `Product.sellerId` becomes **nullable**: `null` = platform-curated catalog record (no primary seller, not purchasable as such); existing curated rows migrate `sellerId → null` with ownership moved to `curatedById` (admin actor) for provenance.
+2. **Purchasability rule:** a curated product is buyable **only through a real vendor's ACTIVE `ProductOffer`** — checkout requires an offer when `sellerId` is null. A curated product with no vendor offer is display-only (directory/aggregator semantics).
+3. The Vendora Catalog system account is retired from `sellerId` semantics entirely; it can never receive vendor attribution, orders, or payout eligibility. Guards: payout/settlement queries exclude `sellerId: null` items without offers by construction (they can't exist as order items).
+4. **Negative test:** a curated product with no real vendor offer cannot be purchased as a Vendora-sold product (API-level 400 + UI messaging).
+5. Storefront rendering: `sellerId: null` renders the offers list / "available from these vendors" instead of a primary seller.
 
-1. **Full admin product form:** re-scope the seller 7-tab product form (media library uploads, structured specs, variant editor with attributes, shipping, SEO, GTIN/MPN/brand, category) for admin use — "Add Product" prominent in Catalog + Products panels. Ownership = Vendora Catalog system account (existing pattern), `isCurated` flagged.
-2. **Full CRUD:** edit every field of curated listings; archive/restore; guarded delete (offers attached → archive-only with reason); bulk actions; change-log per edit (audit diff).
-3. **Admin edit of seller listings (moderation with teeth):** extend today's rename-only path to the full form with mandatory change-reason, seller notification, and audit diff.
-4. **Publication agreement management:** versioned agreement templates, per-org-type defaults, per-product requirement toggle, consent records searchable + exportable (audit evidence).
-5. **Catalog quality tooling:** spec-template-driven validation for curated products; popular curation drag-ranking; duplicate-merge UX polish (Phase 4 substrate).
+### 9.2 Full admin product form (the owner's repeated ask)
+Re-scope the seller 7-tab form for admin use (media library uploads — not URL paste, structured specs, variant editor, shipping, SEO, GTIN/MPN/brand, category); "Add Product" prominent in Catalog + Products panels; creates curated (`sellerId: null`) records.
+
+### 9.3 Full CRUD + moderation with teeth
+Edit every field; archive/restore; guarded delete (offers attached → archive-only with reason); bulk actions; per-edit audit diff; admin edit of seller listings via full form with mandatory reason + seller notification + audit diff.
+
+### 9.4 Publication agreement management
+Versioned templates; per-org-type defaults; per-product requirement toggle; consent records searchable/exportable.
 
 ### Phase 9 acceptance gate
-- [ ] Admin creates a product with media uploads + specs + variants → publishes → buyer sees/selects variants.
-- [ ] Admin edits a seller listing → seller notified, audit diff recorded.
-- [ ] Agreement template v2 applied → next seller publish re-captures consent.
-- [ ] Guarded delete refuses when offers exist; archive path works.
+- [ ] C3 negative test green (curated w/o offer unpurchasable; no Vendora-sold attribution anywhere).
+- [ ] Admin creates product with media uploads + specs + variants → publishes → buyer buys via a vendor offer.
+- [ ] Admin edits seller listing → notification + audit diff; guarded delete; agreement v2 re-captures consent.
 - [ ] Regression + **commit + push.**
 
 ---
 
-## Phase 10 — Financier Console 100% · ~1.5–2 weeks (Q4 — "implement all 100%")
+## Phase 10 — Financier Operations 100% · ~2 weeks (Q4, C4)
 
-Verified today (Phase 5): dashboard, services CRUD + Sharia terms, requirements composer, gated inbox, offers, accreditations + supersede-renewal, agreements, team & roles (underwriter/reviewer/branch officer), institution profile, activation journey. Completing it:
+### 10.1–10.7 (carried from v1)
+Portfolio analytics (approval rate, disbursed volume, aging/NPL 30/60/90, per-branch/program, CSV export); risk scoring (configurable, decision-support, auto-decision only if explicitly enabled); Sharia artifact management (scholar certifications with expiry/reminders, versioned contract templates, e-signature with content hash + audit); disbursement operations (queue → confirm with payment rail reference + FX snapshot → installment tracking); collections & statements; branch operations (branch-scoped inboxes, underwriting limit matrix); public institution polish.
 
-1. **Portfolio analytics:** approval rate, disbursed volume, average ticket, aging/NPL buckets (30/60/90+ arrears), per-branch/per-program breakdowns, charts + CSV export.
-2. **Risk scoring:** per-financier configurable scoring model (KYC level, org tenure, order history, sector weights) → score computed per request as **decision support** (auto-decision only if the financier explicitly enables it).
-3. **Sharia artifact management:** scholar certification records per program (upload/expiry/reminders — reusing the Phase 3 expiry engine), versioned contract templates with variable substitution, e-signature capture on agreements (signature image + content hash + audit trail).
-4. **Disbursement operations:** queue → confirm (payment rail reference + FX snapshot via Phase 7 currency model) → installment tracking (due/collected/late) → configurable late-fee application (rate + cap per program).
-5. **Collections & statements:** buyer statement of account per agreement (installments, payments, late fees), reminders through existing email/WhatsApp channels.
-6. **Branch operations:** branch assignment on team members; branch-scoped inbox for branch officers; per-role underwriting limits (admin-configurable matrix).
-7. **Public institution polish:** rich program pages (seeded rich content), branch locator, apply CTAs.
+### 10.8 Installment payment model — explicit (C4: schema is track-only today)
+`InstallmentPayment` records how payments are **received** (channel, reference, receivedAt, amount, currency), **allocated** (which installments, in what order — with partial-allocation and over/under-payment rules), **reversed** (reversal entries referencing originals — never rewrites), and **reconciled** (daily batch vs. rail exports where available; discrepancy queue). Aging/NPL and late fees are computed from allocated state, not from track-only rows.
+
+### 10.9 Islamic finance at checkout (Murabaha) — AFTER 10.1–10.8, gated (C4)
+**Hard preconditions before implementation:**
+1. Minimum lender workflow complete and E2E-verified: request → review → offer → agreement execution → disbursement confirmation → installment collection.
+2. **Qualified legal + Sharia review of the actual transaction sequence** — who purchases the goods, when ownership and risk transfer, how the resale to the buyer occurs, what evidence is retained, and how cancellation or default is handled — documented and signed off. The implementation follows the reviewed sequence; it does not invent one.
+3. **Late-fee policy specifically reviewed** (a configurable cap is not evidence of permissibility) — policy text, cap, and calculation reviewed with the same sign-off.
+Then: checkout "Finance it (Murabaha)" method → pre-qualification (KYC L2+ gate) → offer pick → agreement sign → financed order state machine → financier disbursement confirmation → PAID + installment schedule to the buyer; clean fallback to standard payment on pre-qualification failure/expiry.
 
 ### Phase 10 acceptance gate
-- [ ] Full lender lifecycle E2E: application → gate → forward → offer → agreement → e-sign → disburse → installment collection → statement.
-- [ ] A late installment appears in NPL bucket; late fee applies per config with cap.
-- [ ] Branch officer sees only their branch queue; underwriter limit enforced.
-- [ ] Risk score surfaces on request with model breakdown.
+- [ ] Full lender lifecycle E2E incl. installment receive/allocate/reverse/reconcile; statement correctness.
+- [ ] Late installment → NPL bucket + reviewed late-fee application.
+- [ ] Branch scoping + underwriter limits enforced.
+- [ ] **Murabaha preconditions documented** (legal/Sharia sign-off artifacts) before any checkout code; then the financed-checkout E2E green.
 - [ ] Regression + **commit + push.**
 
 ---
 
-## Phase 11 — Monetization Mix · ~2 weeks (Q6 — mix, admin-customizable)
+## Phase 11 — Monetization Mix · ~2 weeks (Q6, C11)
 
-Substrate today: flat 10% commission snapshot at payout; `FinancingFee` model (SUCCESS/ORIGINATION/ACCREDITATION, ACCRUED→INVOICED→PAID/WAIVED); price lists; ModuleActivation (PLATFORM/ORG_TYPE/ORG — **no SUBSCRIPTION scope yet**).
+### 11.1 Fee engine
+`FeeRule` (event × actor type × scope × dimension, precedence, effective dating) + simulator + audit on every applied fee; current 10% commission migrates to a platform rule (zero behavior change day one).
 
-1. **Fee engine — `FeeRule`:** event (ORDER_PAID, FINANCING_DISBURSED, RFQ_CONVERTED, SUBSCRIPTION_RENEWAL…), actor type (SELLER/FINANCIER/BUYER), scope (platform / category / seller / org / program), dimension (percent / flat / tiered-by-amount), precedence + effective dating; admin matrix UI + **simulator** ("what fee applies to this order?") + audit on every applied fee. The current 10% commission migrates to a platform rule — zero behavior change on day one.
-2. **Seller subscriptions:** `SubscriptionPlan` (module bundle + limits: max products, CSV rows, RFQ bids) + `SellerSubscription` (status, renewAt); billing through the fee engine (invoice + manual payment capture now, PSP later); upgrade/downgrade proration rules; **new `SUBSCRIPTION` scope in the module resolution chain** (ORG > ORG_TYPE > SUBSCRIPTION-plan > PLATFORM > default).
-3. **Financier monetization:** optional program listing fees, institution subscription tiers (analytics/risk scoring as paid modules), success fee on disbursement — all FeeRule-driven with caps.
-4. **Commission customization:** per-seller overrides (existing `commissionRate` migrates into rules), per-category rates, promotional windows (e.g. 0% campaign periods).
-5. **Revenue console:** MRR, commission earned, financing fees, per-actor breakdowns; **payout impact preview** before applying any rule change.
+### 11.2 Seller subscriptions — **entitlement ceiling semantics (C11)**
+1. `SubscriptionPlan` (module bundle + limits) + `SellerSubscription` (status, renewAt, grace, downgrade state).
+2. **Security rule made explicit:** a subscription is an **entitlement ceiling** — organization-level or org-type module activations can only enable what the seller's subscription entitles; they can never exceed it. Resolution order for paid modules: entitlement = `subscriptionAllows AND (ORG override OR ORG_TYPE default OR PLATFORM default)`. An ORG flip can turn a paid module **off** for a seller; it cannot turn it **on** beyond the subscription.
+3. **Renewal-failure behavior specified:** grace period (configurable, default 7 days, read-only warnings) → downgrade (paid modules off, limits re-clamped; data preserved read-only where applicable).
+4. **Tests (the reviewer's exact demand):** an unpaid or downgraded subscription cannot retain paid entitlements through an organization override; grace/downgrade transitions verified.
+5. New `SUBSCRIPTION` scope participates in the chain **as a ceiling layer**, not as another default in the specificity contest.
+
+### 11.3 Financier monetization + commission customization + revenue console (carried from v1, on the same rules).
 
 ### Phase 11 acceptance gate
-- [ ] Fee simulator's answer matches the fee actually applied on real order/financing/subscription flows.
-- [ ] Seller on plan A vs B: correct modules + limits enforced (module chain includes SUBSCRIPTION scope).
-- [ ] Commission invoice per payout; revenue dashboard reconciles with the fee ledger to the cent (Decimal).
-- [ ] Promotional window applies and expires correctly.
+- [ ] Simulator matches fees actually applied across order/financing/subscription flows.
+- [ ] Ceiling semantics proven by tests (unpaid/downgraded + org override attempt).
+- [ ] Revenue dashboard reconciles with the fee ledger to the cent (Decimal).
 - [ ] Regression + **commit + push.**
 
 ---
 
-## Phase 12 — Directory, Discovery, Trust + KYC Provider · ~1.5–2 weeks
-
-1. **Brands directory:** brand pages (logo, verified badge, product/offer counts, popular listings); trending/bestsellers pages; services directory beyond financing.
-2. **Advanced discovery:** spec-attribute-driven facets (wattage, voltage, capacity…), typo-tolerant search, normalized cross-product comparison.
-3. **Trust signals:** verified-store counters, transaction counts, storefront badges.
-4. **KYC provider abstraction (Q8):** `KycProvider` interface (submit document set → status/claims), default `MANUAL` (today's review flow), admin-configurable provider settings per document type (`MANUAL | PROVIDER | PROVIDER_THEN_MANUAL`), no vendor lock-in; both paths fully audited; provider failure falls back to manual (tested with a mock provider).
-5. PWA shell + newsletter capture as stretch items.
-
-### Phase 12 acceptance gate
-- [ ] Brand page E2E; facets narrow results correctly; search tolerates a typo.
-- [ ] With mock provider enabled: doc routes through provider then falls back to manual on simulated failure — audit shows both.
-- [ ] Regression + **commit + push.**
+## Phase 12 — Directory, Discovery, Trust + KYC Provider · ~1.5–2 weeks (Q8)
+Carried from v1 unchanged: brands directory, trending/bestsellers, services directory; spec-attribute facets, typo-tolerant search, normalized comparison; trust counters; `KycProvider` abstraction (MANUAL | PROVIDER | PROVIDER_THEN_MANUAL per document type, admin-customizable, mock-provider fallback test); PWA/newsletter stretch.
 
 ---
 
 ## Phase 13 — Arabic / RTL / i18n — THE LAST FEATURE PHASE · ~2 weeks (Q5)
-
-1. Dictionary-based i18n with locale routing (`/ar/…`), persisted AR/EN toggle, direction-aware rendering.
-2. RTL mirroring across marketplace + dashboards (logical CSS properties audit, component-level fixes, Arabic typography).
-3. Arabic content: financier profiles, program copy, marketplace chrome, transactional emails (bilingual).
-4. **Buyer-facing currency switcher UI** (riding Phase 7's currency/FX substrate — YER primary per blueprint, USD/SAR display).
-5. Admin console: display-level AR where feasible (read-only), full AR staff UI not in scope.
-
-### Phase 13 acceptance gate
-- [ ] Complete buyer journey in AR RTL at 390px: browse → cart → checkout → order tracking, no overflow, no broken layout.
-- [ ] AR email arrives; toggle persists across sessions.
-- [ ] Currency switcher converts display correctly per surface.
-- [ ] Regression + **commit + push.**
+Carried from v1 unchanged: locale routing + persisted toggle, RTL mirroring, Arabic content (profiles, program copy, chrome, bilingual emails), buyer currency switcher on the 7.2 substrate, AR buyer journey at 390px acceptance.
 
 ---
 
-## Phase 14 — Production Hardening & Launch · ~1 week + ongoing
+## Phase 14 — Production Hardening & Launch · expanded final gate (C13, A19)
 
-1. **Email-verification enforcement** (grace policy for buyers; strict for staff/sellers — staff already behind MFA from Phase 6).
-2. **Session management UI:** admin sees + revokes active sessions per user; personal "sign-out everywhere" already exists — surfaced in settings.
-3. **Rate limiting expansion** (auth, RFQ, quotes, document downloads) + password policy (length/composition/breach-list check) + **rotation policy for privileged accounts**.
-4. **Ops:** automated Aiven backups with a **verified restore drill**; uptime monitoring; staging/production split; CI gates (lint + type + guard-lint + route-matrix sync + auth-negative suite + business regression).
-5. **Performance:** pagination on all admin tables; image lazy-load/CDN polish; seed-data cleanup (example.com links, placeholder contacts, 2026 dates).
-6. **Launch checklist:** secrets audit (nothing rotated in 6.0 leaked back), privacy/ToS pages live, support inbox wired, DSR path documented, three consecutive green full-regression runs, backup-restore drill signed.
-7. **Final audit closure (A19):** `answer4audit-v2.md` updated with final evidence; any finding still open is explicitly risk-accepted in writing by the owner or closed.
+### 14.1–14.3 (carried, amended)
+Email-verification enforcement (strict for staff/sellers; grace for buyers); rate limiting expansion + password policy + privileged-account rotation; ops (automated backups **with the recurring restore drill already proven in 6.0b** re-verified on schedule; uptime monitoring incl. the WhatsApp mini-service health; staging/production split CI gates: lint + type + guard-lint + classification-sync + auth-negative suite + business regression).
 
-### Phase 14 acceptance gate = LAUNCH GATE
-- [ ] Full regression suite ×3 consecutive green (business + authorization-negative + financial-integrity).
-- [ ] Backup restore drill passed and recorded.
-- [ ] 60-minute stability soak: zero 502s, zero lost forms, zero console errors.
-- [ ] Launch checklist signed by owner.
-- [ ] Final **commit + push** + tag.
+### 14.4 Monitoring & incident ownership (expanded)
+Alerting with named owners: downtime, OOM/restart events, migration jobs, pairing-service outages, reconciliation discrepancies, failed audit writes. On-call/ownership documented even if informal.
+
+### 14.5 Launch gate — the full checklist (C13)
+1. **Dependency & secret scanning** (SBOM + secret sweep, zero known-vulnerable pins unaccepted).
+2. **Security testing of authorization and file access** — the negative suite plus a targeted private-document penetration pass (staging).
+3. **Load & concurrency testing** for checkout, settlement, and the hot APIs (rates defined per endpoint; results recorded).
+4. **Restore & recovery verification** — re-run of the 6.0b drill on the then-current production backup.
+5. **Monitoring, alerting, incident ownership** live.
+6. **Legal/privacy review** for KYC processing, agreements, communications, and financing flows (the 10.9 Sharia sign-off plus privacy: data subject requests, retention schedule, cross-border notes as applicable).
+7. **Production deployment + rollback rehearsal** — a full deploy executed and rolled back on staging with the documented procedure.
+8. **Three consecutive green full-regression runs** (business + authorization-negative + financial-integrity).
+9. **Residual-risk review:** every open item is either closed with evidence or **explicitly accepted in writing by the owner** (registered risk, mitigation, review date). The gate does not force the label "100% ready" while material unaccepted risk remains.
+10. Final **commit + push + tag**; `answer4audit-v2.md` updated with final evidence for expert re-run (A19).
 
 ---
 
 # PART II — CROSS-CUTTING RULES
 
-## Regression checklist (updated — runs after EVERY phase)
+## Regression checklist (after EVERY phase)
+**Business:** the mergedplan §7 baseline (register → coupon order → tracking; RFQ full loop; financing wizard → gate → offer → agreement; admin panels with count consistency; team invite/remove/role-change; 60-min soak).
+**Authorization-negative (staging):** the ten cases of 6.10, plus the 8.5 publishing-path blocks.
+**Financial-integrity (staging):** last-unit concurrency; payout concurrency; recurring crash recovery; offer-attribution trace; migration diffs = declared-rounding-only.
+**WhatsApp channel health:** pairing start returns a code; watchdog keeps the service alive across a kill.
 
-**Business flows (existing baseline):** register → coupon order → tracking; RFQ create→quote→negotiate→accept→convert→fulfill; financing wizard → gate → offer → agreement; admin panel walk with count consistency; team invite/remove/role-change; 60-min soak.
+## Deferrals (unchanged in substance; reviewer-concordant)
+ABAC/resource-level permissions; unifying org-member roles with RBAC; real PSP integration (substrate designed, lands with the commercial project); DB-level scope-sentinel redesign; role soft-lifecycle columns; full AR staff console.
 
-**Authorization cases (new — from the assessment, permanent):**
-- Org A ✗ Org B's order / RFQ / application / approval / document (read + write + approve + download).
-- Buyer ✗ approver action; vendor ✗ staff routes; staff ✗ tenant data.
-- Revoked/suspended user loses access **immediately**.
-- ORG role ✗ assignment to non-member (except atomic invitation).
-- Disabled module ✗ at API; unknown module key ✗ never grants.
-- Self-approval ✗. Private doc ✗ via public media URL; expired signed URL ✗.
-- Privileged session without MFA ✗.
-
-**Financial-integrity cases (new):** concurrent last-unit checkout (one winner); concurrent payout generation (no duplicates); recurring crash-recovery (no lost/duplicate runs); offer-seller ≠ product-seller attribution trace end-to-end; reconciliation diff = 0 after any money migration.
-
-## Explicit non-goals / deferrals (with rationale — agreed positions)
-- **ABAC / resource-level conditional permissions** beyond the document matrix — no current requirement; revisit when "manage only this vendor's catalog" is a real ask. (Assessment concurs.)
-- **Unifying OrganizationMember roles with RBAC** into one model — dual-model is documented and consistently enforced; revisit only on demonstrated inconsistency. (Assessment concurs.)
-- **Real PSP integration** — checkout financing uses internal disbursement; the attempts/refunds schema substrate was designed in `answer4audit.md` and lands with the PSP commercial project, not this plan.
-- **DB-level scope redesign** (empty-string sentinel) — stays while app validation + the Phase 6 test suite hold. (Assessment P2 concurs.)
-- **Role-assignment soft-lifecycle columns** (revokedAt etc.) — delete-plus-audit remains; columns are a post-launch P2.
-- **Full AR staff console** — buyer/seller/public AR only in Phase 13.
-
-## Risk register (live)
+## Risk register (live — updated in v2)
 | Risk | Status / mitigation |
 |---|---|
-| RESEND_API_KEY lost | Digest emails degrade (FAILED + retry UI). Owner must supply key before launch (Phase 14 checklist). |
-| Money migration (Phase 7) | Staged protocol with backups, shadow columns, zero-diff gates, rollback — the plan's highest-risk item gets the strictest gates. |
-| OOM under parallel compiles (4GB box) | Restart procedure known; staging/production split (Phase 14.4) is the durable fix. |
-| Sandbox `DATABASE_URL` injection | Patched at `db.ts` layer; real deploys unaffected; documented. |
-| Expert audit re-open | `answer4audit-v2.md` evidence cycle at Phase 7 gate + Phase 14 closure — findings close only with code+migration+test output. |
+| WhatsApp mini-service availability | **Fixed** (`b1681f1`) — watchdog supervisor; monitoring/alerting lands 14.4. |
+| Sensitive docs previously served from public media | Namespace + route fix in 6.6; exposure window noted; credential rotation in 6.0 covers linked risks. |
+| Money migration | Staged protocol; pre-declared rounding; staging restore drill; rollback docs. |
+| Unverified sellers trading (owner's ALLOW default) | Explicit risk acceptance + mitigations in 8.5 (register entry). |
+| Murabaha implementation before legal/Sharia review | Blocked by 10.9 preconditions (sign-off artifacts required). |
+| Subscription entitlement escalation via org override | Ceiling semantics + tests in 11.2. |
+| RESEND_API_KEY lost | Owner action before launch (14.5 checklist). |
+| OOM under parallel compiles | Restart procedure; staging/prod split in 14.1 is the durable fix. |
 
-## Where each open item from the assessment & mergedplan lands (traceability)
-- mergedplan Phase 6 (commerce) → **Phase 8**; Phase 7 (directory/AR) → **Phases 12 + 13**; Phase 8 (hardening) → **Phase 6 (MFA/security pulled up per assessment) + Phase 14**.
-- Assessment P0 table (7 items) → Phase 6.0–6.10. P1 (6 items) → 6.4–6.11. P2 (4 items) → 6.11/14.2 + deferrals above.
-- Owner Q1→8.5 · Q2→7.2/13.4 · Q3→7.6/8.1 · Q4→Phase 10 · Q5→Phase 13 · Q6→Phase 11 · Q7→Phase 9 · Q8→12.4.
+## Revision history
+- **v2 (this document):** reviewer's 13 corrections incorporated — staging-first (6.0b), accreditation constraint fix (7.8), 3P ownership model (9.1), Murabaha resequenced with legal/Sharia preconditions + installment payment model (10.8–10.9), private-vault storage redesign (6.6), session registry (6.7), classification-first coverage (6.1/6.9), lockout-sensitive ADMIN rollout + full sweep (6.2), money-migration precision (7.1), stock/payout criteria (7.3/7.4), subscription ceiling (11.2), publish-policy risk acceptance (8.5), expanded launch gate + honest timeline (14). WhatsApp pairing incident fixed and documented (6.0a).
+- **v1:** initial replan from the expert assessment + owner decisions (superseded).
 
 ---
 
-*This is the complete and final replan. On approval ("audit agree"), execution begins at Phase 6.0 — credential rotation — followed by the RBAC closure items in order, each verified in-browser, each committed and pushed on its green gate.*
+*On approval, execution begins at Phase 6.0 (credential rotation) → 6.0b (staging isolation & verified restore) → the RBAC closure items in order — every gate browser-verified, every green gate committed and pushed.*
