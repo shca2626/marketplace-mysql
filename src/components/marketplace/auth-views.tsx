@@ -11,6 +11,8 @@ import { motion } from 'framer-motion'
 import {
   ArrowLeft,
   CheckCircle2,
+  Copy,
+  FlaskConical,
   KeyRound,
   Loader2,
   Lock,
@@ -186,6 +188,7 @@ export function ResetPasswordView() {
   const [otpSent, setOtpSent] = useState(false)
   const [otpToken, setOtpToken] = useState<string | null>(null)
   const [sendingOtp, setSendingOtp] = useState(false)
+  const [devCode, setDevCode] = useState<string | null>(null)
   const [resendIn, setResendIn] = useState(0)
   const resendTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -225,6 +228,7 @@ export function ResetPasswordView() {
       setOtpSent(true)
       setOtp('')
       setOtpToken(null)
+      setDevCode(typeof json.devCode === 'string' ? json.devCode : null)
       setResendIn(json.resendAfterSec ?? 60)
       toast({ title: 'Code sent', description: 'Enter the 6-digit code from WhatsApp.' })
     } catch {
@@ -366,6 +370,7 @@ export function ResetPasswordView() {
                       setPhone(digits)
                       setOtpToken(null)
                       setOtpSent(false)
+                      setDevCode(null)
                     }}
                     placeholder="77X XXX XXX"
                     className="h-11 flex-1 rounded-xl tracking-wide"
@@ -389,7 +394,15 @@ export function ResetPasswordView() {
                     </button>
                   </div>
                   <div className="flex justify-center py-1">
-                    <InputOTP maxLength={6} value={otp} onChange={verifyOtp} autoFocus>
+                    <InputOTP
+                      maxLength={6}
+                      value={otp}
+                      onChange={(value) => {
+                        setOtp(value)
+                        void verifyOtp(value)
+                      }}
+                      autoFocus
+                    >
                       <InputOTPGroup>
                         <InputOTPSlot index={0} />
                         <InputOTPSlot index={1} />
@@ -400,6 +413,22 @@ export function ResetPasswordView() {
                       </InputOTPGroup>
                     </InputOTP>
                   </div>
+                  {devCode && (
+                    <div className="flex justify-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void navigator.clipboard?.writeText(devCode).catch(() => undefined)
+                          toast({ title: 'Code copied' })
+                        }}
+                        className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800 transition-colors hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                        title="Sandbox delivery — no WhatsApp line is paired yet"
+                      >
+                        <FlaskConical size={11} /> {devCode}
+                        <Copy size={10} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 

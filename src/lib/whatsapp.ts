@@ -31,6 +31,13 @@ export interface WhatsAppSendResult {
   ok: boolean
   delivered: 'whatsapp' | 'dev'
   error?: string
+  /**
+   * DEV delivery only: when the sandbox console fallback carries an OTP
+   * message, the 6-digit code is surfaced here so the UI can show a
+   * "sandbox code" chip — without it the code is only in dev.log and the
+   * OTP flow is untestable for a human. Never set on real WhatsApp delivery.
+   */
+  devCode?: string
 }
 
 /**
@@ -78,7 +85,9 @@ export async function sendWhatsAppText(input: WhatsAppSendInput): Promise<WhatsA
   // 3. DEV fallback — the code/message lands in dev.log; flows keep working.
   console.log(`[whatsapp:DEV] to=${input.toPhone} template=${template} :: ${input.body}`)
   await logMessage(input, template, senderId, 'SENT', null, true)
-  return { ok: true, delivered: 'dev' }
+  // Extract the OTP for the UI sandbox chip (dev delivery only).
+  const devCode = process.env.NODE_ENV === 'production' ? undefined : input.body.match(/\b(\d{6})\b/)?.[1]
+  return { ok: true, delivered: 'dev', devCode }
 }
 
 async function logMessage(

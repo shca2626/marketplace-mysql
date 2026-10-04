@@ -34,7 +34,6 @@ import {
   Building2,
   CheckCircle2,
   Crown,
-  ExternalLink,
   FileCheck2,
   Landmark,
   Loader2,
@@ -69,13 +68,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import {
-  GovernorateSelect,
-  PhoneOtpField,
-  RadioCard,
-  RegisterDoorShell,
-  savedAgo,
-} from './shared'
+import { GovernorateSelect, PasswordInput, PhoneOtpField, RadioCard, RegisterDoorShell, TermsCheckbox, savedAgo } from './shared'
 
 // ── Draft (localStorage) ─────────────────────────────────────────────────────
 
@@ -139,24 +132,9 @@ const MERCHANT_TYPE_DESCRIPTIONS: Record<MerchantType, string> = {
 type KybDocType = 'COMMERCIAL_REG' | 'TAX_CARD' | 'BUSINESS_LICENSE'
 
 const KYB_DOC_SLOTS: { type: KybDocType; label: string; description: string; required: boolean }[] = [
-  {
-    type: 'COMMERCIAL_REG',
-    label: 'Commercial registration',
-    description: 'The company’s commercial registration certificate.',
-    required: true,
-  },
-  {
-    type: 'TAX_CARD',
-    label: 'Tax card',
-    description: 'The company’s tax card issued by the tax authority.',
-    required: false,
-  },
-  {
-    type: 'BUSINESS_LICENSE',
-    label: 'Business license',
-    description: 'Sector or municipal business license, when you hold one.',
-    required: false,
-  },
+  { type: 'COMMERCIAL_REG', label: 'Commercial registration', description: 'Required for verification.', required: true },
+  { type: 'TAX_CARD', label: 'Tax card', description: 'If you hold one.', required: false },
+  { type: 'BUSINESS_LICENSE', label: 'Business license', description: 'If you hold one.', required: false },
 ]
 
 function DocUploadSlot({
@@ -297,8 +275,16 @@ export function RegisterCompanyView() {
 
   // step 5 — review + submit
   const [consent, setConsent] = useState(false)
+  const [consentError, setConsentError] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState<{ name: string } | null>(null)
+
+  // step 1 — dynamic validation (touched-first, short messages)
+  const [step1Touched, setStep1Touched] = useState<{ name?: boolean; password?: boolean; terms?: boolean }>({})
+  const [agree, setAgree] = useState(false)
+  const nameError = step1Touched.name === true && account.name.trim().length < 2
+  const passwordError = step1Touched.password === true && password.length < 6
+  const agreeError = step1Touched.terms === true && !agree
 
   // categories for the store-intent picker
   const [categories, setCategories] = useState<CategoryOption[] | null>(null)
@@ -453,16 +439,21 @@ export function RegisterCompanyView() {
   // ── step 1 → create the owner account (customer fast path, role BUYER) ──
   const createAccount = async () => {
     if (creatingAccount) return
+    setStep1Touched({ name: true, password: true, terms: true })
     if (account.name.trim().length < 2) {
-      setStepErrors(['Owner full name must be at least 2 characters.'])
+      setStepErrors(['Enter the owner’s full name.'])
       return
     }
     if (!otpToken) {
-      setStepErrors(['Verify the owner phone first — request a WhatsApp code and enter the 6 digits.'])
+      setStepErrors(['Verify the phone first — request a code and enter the 6 digits.'])
       return
     }
     if (password.length < 6) {
       setStepErrors(['Password must be at least 6 characters.'])
+      return
+    }
+    if (!agree) {
+      setStepErrors(['Accept the Terms of Service and Privacy Policy to continue.'])
       return
     }
     setStepErrors([])
@@ -509,7 +500,7 @@ export function RegisterCompanyView() {
       return []
     }
     if (target === 5) {
-      if (!consent) return ['Confirm the business information is accurate before submitting.']
+      if (!consent) return ['Accept the Terms and confirm your business information is accurate.']
       return []
     }
     return []
@@ -540,6 +531,7 @@ export function RegisterCompanyView() {
     const errors = validateStep(5)
     if (errors.length > 0) {
       setStepErrors(errors)
+      setConsentError(!consent)
       return
     }
     setSubmitting(true)
@@ -675,11 +667,11 @@ export function RegisterCompanyView() {
       icon={<Building2 size={24} />}
       eyebrow="Merchant / Dealer"
       title="Register your company"
-      description="For companies holding products — exclusive and authorized agents, distributors, wholesalers and retailers. Your account is created first (step 1), then the company itself (steps 2-5). Everything is saved as you go."
+      description="5 steps · saved as you go · about 5 minutes"
       wide
     >
       {/* progress indicator */}
-      <nav aria-label="Wizard progress" className="mb-6">
+      <nav aria-label="Wizard progress" className="mb-4">
         <ol className="flex flex-wrap items-center gap-1.5">
           {STEP_TITLES.map((s) => (
             <li key={s.n}>
@@ -702,7 +694,7 @@ export function RegisterCompanyView() {
             </li>
           ))}
         </ol>
-        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={step} aria-valuemin={1} aria-valuemax={5} aria-label={`Step ${step} of 5`}>
+        <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={step} aria-valuemin={1} aria-valuemax={5} aria-label={`Step ${step} of 5`}>
           <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${(step / 5) * 100}%` }} />
         </div>
       </nav>
@@ -722,17 +714,13 @@ export function RegisterCompanyView() {
 
       {/* ── STEP 1 — owner account ── */}
       {step === 1 && (
-        <motion.div key="s1" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+        <motion.div key="s1" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-3.5">
           <h2 className="flex items-center gap-2 text-sm font-bold">
             <UserIcon size={15} className="text-primary" /> Owner account
           </h2>
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            The person responsible for the company on Vendora. Completing this step creates your sign-in — steps
-            2-5 continue inside it, so you can safely leave and come back.
-          </p>
           {user ? (
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900 dark:bg-emerald-950/40">
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-3.5 dark:border-emerald-900 dark:bg-emerald-950/40">
                 <div className="min-w-0">
                   <p className="flex items-center gap-1.5 text-sm font-semibold text-emerald-800 dark:text-emerald-300">
                     <CheckCircle2 size={15} /> Signed in as {user.name}
@@ -747,24 +735,27 @@ export function RegisterCompanyView() {
                   <LogOut size={12} /> Not you? Sign out
                 </button>
               </div>
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                {user.role === 'SELLER'
-                  ? 'This account already sells — registering the company links your business identity to it.'
-                  : 'This account will become the company owner.'}
-              </p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3.5">
               <div className="space-y-1.5">
                 <Label htmlFor="rc-name">Owner full name</Label>
                 <Input
                   id="rc-name"
                   value={account.name}
                   onChange={(e) => setAccount((a) => ({ ...a, name: e.target.value }))}
+                  onBlur={() => setStep1Touched((t) => ({ ...t, name: true }))}
                   placeholder="e.g. Mohammed Al-Sabri"
                   minLength={2}
                   required
+                  autoFocus
+                  aria-invalid={nameError || undefined}
                 />
+                {nameError && (
+                  <p role="alert" className="text-xs font-medium text-destructive">
+                    Enter the owner’s full name (at least 2 characters).
+                  </p>
+                )}
               </div>
               <PhoneOtpField
                 idPrefix="rc"
@@ -775,19 +766,30 @@ export function RegisterCompanyView() {
               />
               <div className="space-y-1.5">
                 <Label htmlFor="rc-password">Password</Label>
-                <Input
+                <PasswordInput
                   id="rc-password"
-                  type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  minLength={6}
-                  required
-                  autoComplete="new-password"
+                  onChange={setPassword}
                 />
+                {passwordError && (
+                  <p role="alert" className="text-xs font-medium text-destructive">
+                    At least 6 characters.
+                  </p>
+                )}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="rc-email">Email (optional)</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="rc-email">Email (optional)</Label>
+                  {account.email && (
+                    <button
+                      type="button"
+                      onClick={() => setAccount((a) => ({ ...a, email: '' }))}
+                      className="text-[11px] text-muted-foreground underline-offset-2 hover:underline"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
                 <Input
                   id="rc-email"
                   type="email"
@@ -795,10 +797,16 @@ export function RegisterCompanyView() {
                   onChange={(e) => setAccount((a) => ({ ...a, email: e.target.value }))}
                   placeholder="company@example.com"
                 />
-                <p className="text-[11px] leading-snug text-muted-foreground">
-                  For application updates — your phone stays the way you sign in.
-                </p>
               </div>
+              <TermsCheckbox
+                id="rc-terms"
+                checked={agree}
+                onChange={(v) => {
+                  setAgree(v)
+                  setStep1Touched((t) => ({ ...t, terms: true }))
+                }}
+                error={agreeError}
+              />
               <p className="text-xs text-muted-foreground">
                 Already have an account?{' '}
                 <button
@@ -816,22 +824,22 @@ export function RegisterCompanyView() {
 
       {/* ── STEP 2 — business profile ── */}
       {step === 2 && (
-        <motion.div key="s2" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+        <motion.div key="s2" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-3.5">
           <h2 className="flex items-center gap-2 text-sm font-bold">
             <Building2 size={15} className="text-primary" /> Business profile
           </h2>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-3.5 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="rc-legal">Legal name</Label>
               <Input
                 id="rc-legal"
                 value={profile.legalName}
                 onChange={(e) => setProfile((p) => ({ ...p, legalName: e.target.value }))}
-                placeholder="e.g. Al-Sabri Trading Company Ltd."
+                placeholder="As on the commercial registration"
                 minLength={2}
                 required
+                autoFocus
               />
-              <p className="text-[11px] text-muted-foreground">As written on the commercial registration.</p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="rc-trade">Trade name</Label>
@@ -839,11 +847,10 @@ export function RegisterCompanyView() {
                 id="rc-trade"
                 value={profile.tradeName}
                 onChange={(e) => setProfile((p) => ({ ...p, tradeName: e.target.value }))}
-                placeholder="How the business is known — e.g. Sabri Solar"
+                placeholder="The name customers see"
                 minLength={2}
                 required
               />
-              <p className="text-[11px] text-muted-foreground">The name customers see on Vendora.</p>
             </div>
           </div>
 
@@ -865,23 +872,23 @@ export function RegisterCompanyView() {
             </div>
           </fieldset>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-3.5 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="rc-reg">Commercial registration number</Label>
+              <Label htmlFor="rc-reg">Commercial registration no.</Label>
               <Input
                 id="rc-reg"
                 value={profile.registrationNumber}
                 onChange={(e) => setProfile((p) => ({ ...p, registrationNumber: e.target.value }))}
-                placeholder="From the registration certificate"
+                placeholder="Optional"
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="rc-tax">Tax card number</Label>
+              <Label htmlFor="rc-tax">Tax card no.</Label>
               <Input
                 id="rc-tax"
                 value={profile.taxId}
                 onChange={(e) => setProfile((p) => ({ ...p, taxId: e.target.value }))}
-                placeholder="From the tax card"
+                placeholder="Optional"
               />
             </div>
             <div className="space-y-1.5">
@@ -914,14 +921,11 @@ export function RegisterCompanyView() {
 
       {/* ── STEP 3 — KYB documents ── */}
       {step === 3 && (
-        <motion.div key="s3" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+        <motion.div key="s3" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-3.5">
           <h2 className="flex items-center gap-2 text-sm font-bold">
-            <FileCheck2 size={15} className="text-primary" /> Company documents (KYB)
+            <FileCheck2 size={15} className="text-primary" /> Company documents
           </h2>
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            Stored once in your document vault and reused by every application — the platform verifies each
-            document a single time. PDF or image, up to 10 MB.
-          </p>
+          <p className="text-xs text-muted-foreground">PDF or image, up to 10 MB — verified once, reused everywhere.</p>
           <div className="space-y-3">
             {KYB_DOC_SLOTS.map((slot) => (
               <DocUploadSlot
@@ -1070,13 +1074,37 @@ export function RegisterCompanyView() {
             ]}
           />
 
-          <label className="flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition-colors hover:bg-muted/40">
-            <Checkbox checked={consent} onCheckedChange={(v) => setConsent(v === true)} id="rc-consent" />
+          <label
+            className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition-colors hover:bg-muted/40 ${
+              consentError ? 'border-destructive/50 bg-destructive/5' : consent ? 'border-primary/40 bg-primary/5' : ''
+            }`}
+          >
+            <Checkbox
+              checked={consent}
+              onCheckedChange={(v) => {
+                setConsent(v === true)
+                setConsentError(false)
+              }}
+              id="rc-consent"
+              aria-required="true"
+            />
             <span className="text-sm leading-relaxed">
-              I confirm the business information is accurate and I am authorized to register this company on
-              Vendora.
+              I agree to the{' '}
+              <a href="/legal/terms" target="_blank" rel="noreferrer" className="font-semibold text-primary underline-offset-2 hover:underline">
+                Terms of Service
+              </a>{' '}
+              and{' '}
+              <a href="/legal/privacy" target="_blank" rel="noreferrer" className="font-semibold text-primary underline-offset-2 hover:underline">
+                Privacy Policy
+              </a>, and confirm the business information above is accurate and I am authorized to register this
+              company on Vendora.
             </span>
           </label>
+          {consentError && (
+            <p role="alert" className="text-xs font-medium text-destructive">
+              Please accept the Terms to submit the application.
+            </p>
+          )}
         </motion.div>
       )}
 
@@ -1092,14 +1120,14 @@ export function RegisterCompanyView() {
       )}
 
       {/* nav */}
-      <div className="mt-6 flex items-center justify-between gap-3">
+      <div className="mt-4 flex items-center justify-between gap-3">
         <Button type="button" variant="ghost" className="rounded-xl" onClick={goBack} disabled={step === 1}>
           <ArrowLeft size={15} className="mr-1.5" /> Back
         </Button>
         {step < 5 ? (
           <Button type="button" className="min-h-11 rounded-xl px-6" onClick={step === 1 && !user ? createAccount : goNext} disabled={creatingAccount}>
             {creatingAccount && <Loader2 size={15} className="mr-1.5 animate-spin" />}
-            {step === 1 && !user ? (creatingAccount ? 'Creating your account…' : 'Create account & continue') : `Continue to ${STEP_TITLES[step]?.label}`}
+            {step === 1 && !user ? (creatingAccount ? 'Creating your account…' : 'Create account & continue') : `Continue`}
             {step !== 1 && <ArrowRight size={15} className="ml-1.5" />}
           </Button>
         ) : (
@@ -1110,19 +1138,8 @@ export function RegisterCompanyView() {
         )}
       </div>
 
-      <p className="mt-4 flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground">
-        <Landmark size={12} /> Applications are reviewed by the Vendora team before the company goes active.
-      </p>
-      <p className="flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground">
-        Registering a financial institution instead?{' '}
-        <button
-          type="button"
-          onClick={() => navigate('register-financier')}
-          className="font-semibold text-primary underline-offset-2 hover:underline"
-        >
-          Financier application
-        </button>
-        <ExternalLink size={10} className="opacity-50" />
+      <p className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground">
+        <Landmark size={12} /> Reviewed by the Vendora team before the company goes active.
       </p>
     </RegisterDoorShell>
   )

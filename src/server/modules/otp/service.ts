@@ -70,7 +70,7 @@ export function verifyOtpProof(token: string, phone: string, purpose: OtpPurpose
 // ── Issuance ────────────────────────────────────────────────────────────────
 
 export type IssueResult =
-  | { ok: true; expiresAt: Date; resendAfterSec: number }
+  | { ok: true; expiresAt: Date; resendAfterSec: number; devCode?: string }
   | { ok: false; status: number; error: string; retryAfterSec?: number }
 
 export async function issueOtp(args: {
@@ -126,7 +126,7 @@ export async function issueOtp(args: {
   })
 
   // Deliver — WhatsApp first, dev-console fallback keeps flows testable.
-  await sendWhatsAppText({
+  const delivery = await sendWhatsAppText({
     toPhone: phone,
     template: 'OTP',
     userId: args.userId ?? null,
@@ -136,7 +136,16 @@ export async function issueOtp(args: {
         : `Vendora — your password reset code is ${code}. Valid for 5 minutes. If you did not request it, ignore this message.`,
   })
 
-  return { ok: true, expiresAt, resendAfterSec: Math.ceil(OTP_RESEND_COOLDOWN_MS / 1000) }
+  // Sandbox/dev delivery — surface the code to the requesting UI so a human
+  // can complete the flow (the real line is not paired yet). Never in prod.
+  const devCode = delivery.delivered === 'dev' ? delivery.devCode ?? code : undefined
+
+  return {
+    ok: true,
+    expiresAt,
+    resendAfterSec: Math.ceil(OTP_RESEND_COOLDOWN_MS / 1000),
+    ...(devCode && process.env.NODE_ENV !== 'production' ? { devCode } : {}),
+  }
 }
 
 // ── Verification ────────────────────────────────────────────────────────────

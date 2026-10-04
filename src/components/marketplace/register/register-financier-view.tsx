@@ -33,14 +33,13 @@ import { useMarketplace } from '@/store/marketplace'
 import type { SessionUser } from '@/lib/types'
 import { apiRequest } from '@/components/marketplace/financing/financing-shared'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
-import { GovernorateSelect, PhoneOtpField, RadioCard, RegisterDoorShell } from './shared'
+import { GovernorateSelect, PasswordInput, PhoneOtpField, RadioCard, RegisterDoorShell, TermsCheckbox } from './shared'
 
 const SERVICE_PRESETS = [
   'Working capital',
@@ -92,6 +91,7 @@ export function RegisterFinancierView() {
   const [description, setDescription] = useState('')
 
   const [consent, setConsent] = useState(false)
+  const [authorized, setAuthorized] = useState(false)
   const [errors, setErrors] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState<{ name: string } | null>(null)
@@ -139,7 +139,8 @@ export function RegisterFinancierView() {
     }
     if (website.trim() && !/^https?:\/\/.+\..+/.test(website.trim()) && !/^[a-z0-9-]+(\.[a-z0-9-]+)+/i.test(website.trim()))
       errs.push('Website must be a valid URL (e.g. https://bank.example.com).')
-    if (!consent) errs.push('Confirm you are authorized to apply on behalf of the institution.')
+    if (!consent) errs.push('Accept the Terms of Service and Privacy Policy to continue.')
+    if (!authorized) errs.push('Confirm you are authorized to apply on behalf of the institution.')
     return errs
   }
 
@@ -258,11 +259,11 @@ export function RegisterFinancierView() {
       icon={<Landmark size={24} />}
       eyebrow="For institutions"
       title="Join Vendora's financing network"
-      description="Reach Yemeni households, farms and businesses funding solar projects — with verified, platform-gated applications instead of cold leads. Applications are reviewed by the Vendora team; you'll be contacted on WhatsApp/email once your institution is activated."
+      description="Reach verified, platform-gated solar financing demand. Reviewed by the Vendora team."
     >
       <form onSubmit={submit} className="space-y-5">
         {/* ── institution identity ── */}
-        <section className="space-y-4">
+        <section className="space-y-3.5">
           <h2 className="flex items-center gap-2 text-sm font-bold">
             <Landmark size={15} className="text-primary" /> Institution
           </h2>
@@ -304,7 +305,7 @@ export function RegisterFinancierView() {
               ))}
             </div>
           </fieldset>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-3.5 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="rf-license">License number</Label>
               <Input
@@ -347,7 +348,7 @@ export function RegisterFinancierView() {
         </section>
 
         {/* ── contact person + account ── */}
-        <section className="space-y-4">
+        <section className="space-y-3.5">
           <h2 className="flex items-center gap-2 text-sm font-bold">
             <Building2 size={15} className="text-primary" /> Contact person
           </h2>
@@ -393,11 +394,7 @@ export function RegisterFinancierView() {
               </div>
             </div>
           ) : (
-            <div className="space-y-4">
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                Your contact account is created with the application — phone verified via WhatsApp code, password
-                for signing in later.
-              </p>
+            <div className="space-y-3.5">
               <div className="space-y-1.5">
                 <Label htmlFor="rf-contact">Contact person name</Label>
                 <Input
@@ -416,20 +413,10 @@ export function RegisterFinancierView() {
                 otpToken={otpToken}
                 onOtpTokenChange={setOtpToken}
                 label="Contact phone"
-                hint="A Yemeni mobile number (70, 71, 73, 77 or 78) we can reach you on — verified with a WhatsApp code."
               />
               <div className="space-y-1.5">
                 <Label htmlFor="rf-password">Password</Label>
-                <Input
-                  id="rf-password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  minLength={6}
-                  required
-                  autoComplete="new-password"
-                />
+                <PasswordInput id="rf-password" value={password} onChange={setPassword} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="rf-email">Contact email (optional)</Label>
@@ -450,10 +437,6 @@ export function RegisterFinancierView() {
           <h2 className="flex items-center gap-2 text-sm font-bold">
             <Wallet size={15} className="text-primary" /> Intended services
           </h2>
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            What your institution plans to offer on Vendora — pick any, add your own. (For the application only;
-            actual services are configured after activation.)
-          </p>
           <div className="flex flex-wrap gap-2" role="group" aria-label="Intended services">
             {SERVICE_PRESETS.map((preset) => {
               const active = services.includes(preset)
@@ -522,11 +505,15 @@ export function RegisterFinancierView() {
         </section>
 
         {/* ── consent + submit ── */}
-        <label className="flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition-colors hover:bg-muted/40">
-          <Checkbox checked={consent} onCheckedChange={(v) => setConsent(v === true)} id="rf-consent" />
-          <span className="text-sm leading-relaxed">
-            I confirm I am authorized to apply on behalf of this institution, and the license information above is
-            accurate.
+        <TermsCheckbox
+          id="rf-consent"
+          checked={consent}
+          onChange={setConsent}
+        />
+        <label className="flex cursor-pointer items-start gap-3 rounded-2xl border p-3.5 text-xs leading-relaxed transition-colors hover:bg-muted/40">
+          <Checkbox checked={authorized} onCheckedChange={(v) => setAuthorized(v === true)} id="rf-authorized" className="mt-0.5" />
+          <span className="text-muted-foreground">
+            I am authorized to apply on behalf of this institution and the license information above is accurate.
           </span>
         </label>
 
@@ -544,16 +531,6 @@ export function RegisterFinancierView() {
           {submitting ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Send size={16} className="mr-2" />}
           {submitting ? 'Submitting application…' : 'Submit application'}
         </Button>
-
-        <Card>
-          <CardContent className="flex items-start gap-3 p-4">
-            <Clock size={16} className="mt-0.5 shrink-0 text-primary" />
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              Applications are reviewed by the Vendora team. You&apos;ll be contacted on WhatsApp/email once your
-              institution is activated — no financier console capabilities are granted before that.
-            </p>
-          </CardContent>
-        </Card>
 
         <p className="text-center text-[11px] text-muted-foreground">
           Registering a company that sells products instead?{' '}

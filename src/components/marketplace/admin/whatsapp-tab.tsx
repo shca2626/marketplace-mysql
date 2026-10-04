@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   AlertTriangle,
   CheckCircle2,
+  Copy,
   Loader2,
   MessageCircle,
   RefreshCw,
@@ -469,6 +470,28 @@ function SenderCard({ sender, onChanged }: { sender: SenderDTO; onChanged: () =>
   const [testOpen, setTestOpen] = useState(false)
   const [testPhone, setTestPhone] = useState('')
   const [testBusy, setTestBusy] = useState(false)
+  const [pairing, setPairing] = useState<{ sender: SenderDTO; pairingCode: string | null; warning?: string } | null>(null)
+
+  // Restart pairing for a saved-but-unpaired number — the retry path that was
+  // missing when the first attempt failed (user-reported 2026-10-05).
+  const retryPairing = async () => {
+    if (busy) return
+    setBusy('pair')
+    const res = await apiRequest<{ sender: SenderDTO; pairingCode: string | null; warning?: string }>(
+      `/api/admin/whatsapp/senders/${sender.id}/retry-pairing`,
+      { method: 'POST' }
+    )
+    setBusy(null)
+    if (!res.ok || !res.data) {
+      toastApiError(res.error, 'Could not start pairing')
+      onChanged()
+      return
+    }
+    setPairing(res.data)
+    // NOTE: no immediate onChanged() here — refetch flips `loading` on and
+    // unmounts the sender cards, destroying this dialog's state. The 15s poll
+    // refreshes the row; onClose() refreshes again.
+  }
 
   async function action(name: string, url: string, successTitle: string) {
     if (busy) return
@@ -548,9 +571,50 @@ function SenderCard({ sender, onChanged }: { sender: SenderDTO; onChanged: () =>
                 </TooltipContent>
               </Tooltip>
             )}
+
+            {/* Live pairing code from the polled row — survives page reloads
+                (the code persists on the sender), so the admin never loses it. */}
+            {sender.status === 'PENDING_PAIRING' && sender.pairingCode && (
+              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/40">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300">
+                    Pairing code
+                  </p>
+                  <p className="font-mono text-xl font-bold tracking-[0.2em] text-amber-900 dark:text-amber-200">
+                    {sender.pairingCode}
+                  </p>
+                  <p className="mt-0.5 text-[11px] leading-snug text-amber-800/80 dark:text-amber-300/80">
+                    WhatsApp → Settings → Linked devices → Link with phone number
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="ml-auto h-8 shrink-0 rounded-lg"
+                  onClick={() => {
+                    void navigator.clipboard?.writeText(sender.pairingCode ?? '').catch(() => undefined)
+                    toast({ title: 'Pairing code copied' })
+                  }}
+                >
+                  <Copy size={13} className="mr-1" /> Copy
+                </Button>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {sender.status !== 'PAIRED' && (
+              <Button
+                variant="default"
+                size="sm"
+                className="h-9 rounded-xl"
+                disabled={busy === 'pair'}
+                onClick={() => void retryPairing()}
+              >
+                {busy === 'pair' ? <Loader2 size={13} className="mr-1.5 animate-spin" /> : <Smartphone size={13} className="mr-1.5" />}
+                {busy === 'pair' ? 'Getting code…' : 'Pair now'}
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -644,6 +708,16 @@ function SenderCard({ sender, onChanged }: { sender: SenderDTO; onChanged: () =>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {pairing && (
+        <PairingDialog
+          result={pairing}
+          onClose={() => {
+            setPairing(null)
+            onChanged()
+          }}
+        />
+      )}
     </Card>
   )
 }

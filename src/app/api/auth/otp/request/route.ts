@@ -70,6 +70,9 @@ export async function POST(req: NextRequest) {
       ok: true,
       expiresAt: result.expiresAt.toISOString(),
       resendAfterSec: result.resendAfterSec,
+      // Sandbox-only (issueOtp guards production): the WhatsApp code when the
+      // dev-console fallback carried it, so the UI can show a sandbox chip.
+      ...(result.devCode ? { devCode: result.devCode } : {}),
     })
   } catch (err) {
     console.error('otp request error', err)

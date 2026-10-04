@@ -1115,6 +1115,17 @@
       "moduleKeys": []
     },
     {
+      "route": "/api/admin/whatsapp/senders/[id]/retry-pairing",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "whatsapp.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
       "route": "/api/approvals",
       "bucket": "AUTHENTICATED_USER",
       "methods": [
