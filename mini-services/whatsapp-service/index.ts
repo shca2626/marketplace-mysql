@@ -190,13 +190,24 @@ function snapshotReplacer(_key: string, value: unknown): unknown {
 }
 
 function snapshotReviver(_key: string, value: unknown): unknown {
-  if (
-    value &&
-    typeof value === 'object' &&
-    !Array.isArray(value) &&
-    typeof (value as { __u8?: unknown }).__u8 === 'string'
-  ) {
-    return new Uint8Array(Buffer.from((value as { __u8: string }).__u8, 'base64'))
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const v = value as { __u8?: unknown; type?: unknown; data?: unknown }
+    // Buffer.from → Buffer (a Uint8Array subclass): satisfies Baileys' curve
+    // checks that require instanceof Buffer for private-key ops
+    // ("Invalid private key type: Uint8Array" with a plain Uint8Array).
+    if (typeof v.__u8 === 'string') {
+      return Buffer.from(v.__u8, 'base64')
+    }
+    // Legacy shape: JSON.stringify(Buffer) in Node produces {type:'Buffer',
+    // data:[...]} — snapshots written by the pre-6.6.8 plain-JSON persist path
+    // carry key material in this form. Without converting it back, Baileys
+    // receives plain objects where it expects Uint8Arrays and every crypto
+    // op silently becomes NaN ("The value of size is out of range") — the
+    // +966 sender registered successfully but could never be restored
+    // (user-reported 2026-10-05).
+    if (v.type === 'Buffer' && Array.isArray(v.data)) {
+      return Buffer.from(v.data)
+    }
   }
   return value
 }
@@ -761,8 +772,39 @@ async function restoreAllFromDb(): Promise<{ restored: number; failed: number }>
         })
       }
     } catch (err) {
-      failed += 1
-      console.error(`[wa-service] restore connect failed (${row.phoneNumber}):`, err)
+      // Corrupt/burned snapshot (e.g. NaN noise-key from a legacy plaintext
+      // row) — for UNREGISTERED senders fall back to a brand-new identity
+      // and issue a fresh pairing code. Registered senders must NOT be reset
+      // (that would unpair a working line) — they just stay DISCONNECTED until
+      // the admin re-pairs.
+      if (!s.creds.registered && !s.dead) {
+        console.warn(
+          `[wa-service] snapshot unusable for ${row.phoneNumber} (${err instanceof Error ? err.message : String(err)}) — resetting identity and issuing a fresh pairing code`
+        )
+        s.creds = initAuthCreds()
+        s.store = new MemoryKeyStore()
+        s.store.onChange = () => schedulePersist(s)
+        s.sock = null
+        s.connected = false
+        s.reconnectAttempts = 0
+        try {
+          await connectAndRequestCode(s, { firstWindow: true })
+          restored += 1
+          console.log(`[wa-service] fresh pairing code issued for ${row.phoneNumber}: ${s.pairingCode}`)
+        } catch (err2) {
+          failed += 1
+          console.error(`[wa-service] fresh-code fallback failed (${row.phoneNumber}):`, err2)
+          destroySession(s, false)
+          await dbUpdate(s, {
+            status: 'PENDING_PAIRING',
+            lastError: 'Stored session was unusable — press “Pair now” to restart pairing.',
+          })
+        }
+      } else {
+        failed += 1
+        console.error(`[wa-service] restore connect failed (${row.phoneNumber}):`, err)
+        await dbUpdate(s, { lastError: 'Stored session could not be restored — re-pair this number.' })
+      }
     }
   }
   return { restored, failed }

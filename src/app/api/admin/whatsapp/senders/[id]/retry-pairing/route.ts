@@ -49,7 +49,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (res.ok && res.data.pairingCode) {
       const updated = await db.whatsAppSender.update({
         where: { id: row.id },
-        data: { pairingCode: res.data.pairingCode, status: 'PENDING_PAIRING', lastError: null },
+        data: {
+          pairingCode: res.data.pairingCode,
+          codeIssuedAt: new Date(),
+          status: 'PENDING_PAIRING',
+          lastError: null,
+        },
         select: SENDER_SELECT,
       })
       await recordAudit({

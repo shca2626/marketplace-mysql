@@ -7,10 +7,12 @@ import {
   Copy,
   Loader2,
   MessageCircle,
+  QrCode,
   RefreshCw,
   Send,
   Smartphone,
   Star,
+  Timer,
   Trash2,
   Unplug,
 } from 'lucide-react'
@@ -52,6 +54,7 @@ interface SenderDTO {
   status: string
   isDefault: boolean
   pairingCode: string | null
+  codeIssuedAt: string | null
   lastUsedAt: string | null
   lastError: string | null
   createdAt: string
@@ -121,12 +124,16 @@ function formatSenderPhone(e164: string): string {
 }
 
 export function WhatsAppTab() {
+  // 6s poll: while a pairing window is live the service auto-refreshes codes
+  // into the DB, and the card list should surface them quickly.
   const {
     data,
     loading,
     error,
     refetch,
-  } = useApi<{ senders: SenderDTO[] }>('/api/admin/whatsapp/senders', { pollMs: 15_000 })
+  } = useApi<{ senders: SenderDTO[] }>('/api/admin/whatsapp/senders', {
+    pollMs: 6_000,
+  })
   const { data: ledgerData, refetch: refetchLedger } = useApi<{ messages: MessageDTO[] }>(
     '/api/admin/whatsapp/messages?take=50'
   )
@@ -324,7 +331,22 @@ function AddSenderForm({ onAdded }: { onAdded: () => void }) {
   )
 }
 
-// ── Pairing dialog (code + instructions + live poll) ────────────────────────
+// ── Pairing dialog (QR + code + live poll) ───────────────────────────────────
+// Codes expire in ~2-3 min (WhatsApp drops the unregistered socket). The
+// service auto-issues a fresh code when that happens, and this dialog polls
+// /check so the refreshed code (and the QR) appear without any click. The QR
+// comes from the same socket as the code — scanning it links instantly,
+// exactly like WhatsApp Web in a browser.
+interface PairingLiveState {
+  pairingCode: string | null
+  codeIssuedAt: string | null
+  codeFresh: boolean
+  refreshing: boolean
+  qrDataUrl: string | null
+  windowExpiresAt: string | null
+}
+
+const CODE_TTL_MS = 3 * 60_000
 
 function PairingDialog({
   result,
@@ -334,34 +356,72 @@ function PairingDialog({
   onClose: (paired: boolean) => void
 }) {
   const [paired, setPaired] = useState(false)
-  const [deadlineReached, setDeadlineReached] = useState(false)
+  const [live, setLive] = useState<PairingLiveState>({
+    pairingCode: result.pairingCode,
+    codeIssuedAt: null,
+    codeFresh: !!result.pairingCode,
+    refreshing: false,
+    qrDataUrl: null,
+    windowExpiresAt: null,
+  })
+  const [now, setNow] = useState(() => Date.now())
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const deadlineRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [windowExpired, setWindowExpired] = useState(false)
 
   useEffect(() => {
-    // Poll the pairing status every 3s for up to 2 minutes.
+    // Poll live pairing state every 2.5s — picks up PAIRED, auto-refreshed
+    // codes, fresh QRs and window expiry without any user action.
     timerRef.current = setInterval(async () => {
       try {
         const res = await fetch(`/api/admin/whatsapp/senders/${result.sender.id}/check`, {
           method: 'POST',
         })
         if (!res.ok) return
-        const json = (await res.json()) as { sender?: { status?: string } }
+        const json = (await res.json()) as {
+          sender?: { status?: string }
+          pairingCode?: string | null
+          codeIssuedAt?: string | null
+          codeFresh?: boolean
+          refreshing?: boolean
+          qrDataUrl?: string | null
+          windowExpiresAt?: string | null
+        }
         if (json.sender?.status === 'PAIRED') {
           setPaired(true)
+          return
         }
+        setLive({
+          pairingCode: json.pairingCode ?? null,
+          codeIssuedAt: json.codeIssuedAt ?? null,
+          codeFresh: !!json.codeFresh,
+          refreshing: !!json.refreshing,
+          qrDataUrl: json.qrDataUrl ?? null,
+          windowExpiresAt: json.windowExpiresAt ?? null,
+        })
       } catch {
         /* transient network error — next tick retries */
       }
-    }, 3_000)
-    deadlineRef.current = setTimeout(() => setDeadlineReached(true), 120_000)
+    }, 2_500)
+    // 1s local clock for the countdown
+    tickRef.current = setInterval(() => setNow(Date.now()), 1_000)
+    deadlineRef.current = setTimeout(() => setWindowExpired(true), 15 * 60_000)
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
+      if (tickRef.current) clearInterval(tickRef.current)
       if (deadlineRef.current) clearTimeout(deadlineRef.current)
     }
   }, [result.sender.id])
 
-  const code = result.pairingCode
+  const code = live.pairingCode ?? result.pairingCode
+  const issued = live.codeIssuedAt ? new Date(live.codeIssuedAt).getTime() : null
+  const ttlLeft = issued ? Math.max(0, CODE_TTL_MS - (now - issued)) : null
+  const ttlSecs = ttlLeft !== null ? Math.ceil(ttlLeft / 1000) : null
+  const codeExpired = !!code && ttlLeft !== null && ttlLeft <= 0
+  const windowLeft = live.windowExpiresAt
+    ? Math.max(0, Math.ceil((new Date(live.windowExpiresAt).getTime() - now) / 1000))
+    : null
 
   return (
     <Dialog open onOpenChange={() => onClose(paired)}>
@@ -398,23 +458,88 @@ function PairingDialog({
               </DialogTitle>
               <DialogDescription>
                 Pairing <span className="font-semibold">{formatSenderPhone(result.sender.phoneNumber)}</span>{' '}
-                — type this code on the phone that owns the SIM.
+                — scan the QR, or type the code on the phone that owns the SIM.
               </DialogDescription>
             </DialogHeader>
 
             {code ? (
               <>
-                <div className="flex flex-col items-center rounded-2xl border-2 border-dashed py-6">
+                {/* QR — the fastest path: WhatsApp → Linked devices → Link a device → scan */}
+                <div className="flex flex-col items-center rounded-2xl border-2 border-dashed p-4">
+                  {live.qrDataUrl && !codeExpired ? (
+                    <>
+                      <img
+                        src={live.qrDataUrl}
+                        alt="WhatsApp pairing QR code"
+                        width={224}
+                        height={224}
+                        className="rounded-xl bg-white p-1"
+                      />
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        WhatsApp → Settings → Linked devices → <span className="font-medium text-foreground">Link a device</span> → scan
+                      </p>
+                    </>
+                  ) : (
+                    <div className="flex h-[224px] w-[224px] items-center justify-center rounded-xl border">
+                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                        {live.refreshing || codeExpired ? (
+                          <>
+                            <Loader2 size={26} className="animate-spin" />
+                            <p className="max-w-[180px] text-center text-xs">
+                              Connection refreshed — new QR & code on the way…
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <QrCode size={26} />
+                            <p className="max-w-[180px] text-center text-xs">
+                              Preparing QR code…
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Pairing code — typing path ("Link with phone number instead") */}
+                <div className="flex flex-col items-center rounded-2xl border-2 border-dashed py-4">
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     Pairing code
                   </p>
                   <p className="mt-1 select-all font-mono text-4xl font-bold tracking-[0.35em] sm:text-5xl">
                     {code}
                   </p>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Valid for a few minutes — keep this dialog open
+                  <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                    {codeExpired ? (
+                      live.refreshing ? (
+                        <>
+                          <Loader2 size={13} className="animate-spin" /> Code expired — a fresh one is being issued automatically…
+                        </>
+                      ) : (
+                        'Code expired — close and press “Pair now” for a new one.'
+                      )
+                    ) : ttlSecs !== null ? (
+                      <>
+                        <Timer size={13} className="text-emerald-600 dark:text-emerald-400" />
+                        {ttlSecs > 0 ? (
+                          <span>
+                            Valid for{' '}
+                            <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                              {Math.floor(ttlSecs / 60)}:{String(ttlSecs % 60).padStart(2, '0')}
+                            </span>{' '}
+                            — a new code is issued automatically if it expires
+                          </span>
+                        ) : (
+                          'Expiring — wait for the fresh code…'
+                        )}
+                      </>
+                    ) : (
+                      'Valid for a few minutes — a new code is issued automatically if it expires'
+                    )}
                   </p>
                 </div>
+
                 <ol className="list-decimal space-y-1.5 pl-5 text-sm text-muted-foreground">
                   <li>
                     Open <span className="font-medium text-foreground">WhatsApp</span> on the phone
@@ -424,10 +549,8 @@ function PairingDialog({
                     <span className="font-medium text-foreground">Settings → Linked devices</span>
                   </li>
                   <li>
-                    <span className="font-medium text-foreground">Link a device</span>
-                  </li>
-                  <li>
-                    Tap{' '}
+                    <span className="font-medium text-foreground">Link a device</span> — scan the QR,
+                    or tap{' '}
                     <span className="font-medium text-foreground">
                       “Link with phone number instead”
                     </span>{' '}
@@ -436,9 +559,11 @@ function PairingDialog({
                 </ol>
                 <p className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                   <Loader2 size={13} className="animate-spin" />
-                  {deadlineReached
-                    ? 'Still waiting — check the phone and re-enter the code if it expired.'
-                    : 'Waiting for you to enter the code on the phone…'}
+                  {windowExpired
+                    ? 'Still waiting — check the phone and try “Pair now” for a fresh code.'
+                    : windowLeft !== null
+                      ? `Waiting for the phone… (window: ${Math.floor(windowLeft / 60)}:${String(windowLeft % 60).padStart(2, '0')})`
+                      : 'Waiting for you to link the phone…'}
                 </p>
               </>
             ) : (
@@ -464,6 +589,87 @@ function PairingDialog({
 }
 
 // ── Sender card ──────────────────────────────────────────────────────────────
+
+/** Persistent pairing-code chip on the sender card. Shows a live TTL countdown
+ *  while the code is fresh and a clear "expired" state afterwards — the
+ *  mini-service replaces expired codes automatically while the 15-min pairing
+ *  window is open, and the 6s list poll picks the fresh code up. */
+function PairingCodeChip({ code, issuedAt }: { code: string; issuedAt: string | null }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1_000)
+    return () => clearInterval(t)
+  }, [])
+
+  const issued = issuedAt ? new Date(issuedAt).getTime() : null
+  const left = issued ? Math.max(0, CODE_TTL_MS - (now - issued)) : null
+  const expired = left !== null && left <= 0
+  const secs = left !== null ? Math.ceil(left / 1000) : null
+
+  return (
+    <div
+      className={cn(
+        'mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border p-3',
+        expired
+          ? 'border-stone-300 bg-stone-100 dark:border-stone-700 dark:bg-stone-900/60'
+          : 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40'
+      )}
+    >
+      <div className="min-w-0">
+        <p
+          className={cn(
+            'text-[11px] font-semibold uppercase tracking-wide',
+            expired
+              ? 'text-stone-600 dark:text-stone-400'
+              : 'text-amber-800 dark:text-amber-300'
+          )}
+        >
+          Pairing code {expired && '· expired'}
+        </p>
+        <p
+          className={cn(
+            'font-mono text-xl font-bold tracking-[0.2em]',
+            expired
+              ? 'text-stone-500 line-through dark:text-stone-500'
+              : 'text-amber-900 dark:text-amber-200'
+          )}
+        >
+          {code}
+        </p>
+        <p
+          className={cn(
+            'mt-0.5 flex items-center gap-1 text-[11px] leading-snug',
+            expired
+              ? 'text-stone-600 dark:text-stone-400'
+              : 'text-amber-800/80 dark:text-amber-300/80'
+          )}
+        >
+          {expired ? (
+            'A fresh code is issued automatically — or press “Pair now”.'
+          ) : secs !== null ? (
+            <>
+              <Timer size={11} /> Valid {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, '0')} ·
+              WhatsApp → Linked devices → Link with phone number
+            </>
+          ) : (
+            'WhatsApp → Settings → Linked devices → Link with phone number'
+          )}
+        </p>
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        className="ml-auto h-8 shrink-0 rounded-lg"
+        onClick={() => {
+          void navigator.clipboard?.writeText(code).catch(() => undefined)
+          toast({ title: 'Pairing code copied' })
+        }}
+      >
+        <Copy size={13} className="mr-1" /> Copy
+      </Button>
+    </div>
+  )
+}
 
 function SenderCard({ sender, onChanged }: { sender: SenderDTO; onChanged: () => void }) {
   const [busy, setBusy] = useState<string | null>(null)
@@ -573,32 +779,11 @@ function SenderCard({ sender, onChanged }: { sender: SenderDTO; onChanged: () =>
             )}
 
             {/* Live pairing code from the polled row — survives page reloads
-                (the code persists on the sender), so the admin never loses it. */}
+                (the code persists on the sender), so the admin never loses it.
+                Codes expire in ~2-3 min; the service auto-issues a fresh one
+                while the 15-min window is open (reflected here on next poll). */}
             {sender.status === 'PENDING_PAIRING' && sender.pairingCode && (
-              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/40">
-                <div className="min-w-0">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300">
-                    Pairing code
-                  </p>
-                  <p className="font-mono text-xl font-bold tracking-[0.2em] text-amber-900 dark:text-amber-200">
-                    {sender.pairingCode}
-                  </p>
-                  <p className="mt-0.5 text-[11px] leading-snug text-amber-800/80 dark:text-amber-300/80">
-                    WhatsApp → Settings → Linked devices → Link with phone number
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="ml-auto h-8 shrink-0 rounded-lg"
-                  onClick={() => {
-                    void navigator.clipboard?.writeText(sender.pairingCode ?? '').catch(() => undefined)
-                    toast({ title: 'Pairing code copied' })
-                  }}
-                >
-                  <Copy size={13} className="mr-1" /> Copy
-                </Button>
-              </div>
+              <PairingCodeChip code={sender.pairingCode} issuedAt={sender.codeIssuedAt} />
             )}
           </div>
 

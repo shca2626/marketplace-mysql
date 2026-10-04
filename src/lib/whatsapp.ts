@@ -25,6 +25,12 @@ export interface WhatsAppSendInput {
   template?: 'OTP' | 'NOTIFICATION' | 'TEST' | 'CUSTOM'
   userId?: string | null // recipient user when known
   notificationId?: string | null // mirrored in-app notification when applicable
+  /**
+   * Preferred outbound line (admin "Send test" on a specific sender card).
+   * Only used when that sender is actually PAIRED — otherwise falls back to
+   * the default line so a test never dead-ends on an unpaired row.
+   */
+  senderId?: string
 }
 
 export interface WhatsAppSendResult {
@@ -49,14 +55,23 @@ export interface WhatsAppSendResult {
 export async function sendWhatsAppText(input: WhatsAppSendInput): Promise<WhatsAppSendResult> {
   const template = input.template ?? 'CUSTOM'
 
-  // 1. Is there an active outbound line?
+  // 1. Is there an active outbound line? (explicit senderId wins when paired)
   let senderId: string | null = null
   try {
-    const sender = await db.whatsAppSender.findFirst({
-      where: { status: 'PAIRED', isDefault: true },
-      select: { id: true },
-    })
-    senderId = sender?.id ?? null
+    if (input.senderId) {
+      const requested = await db.whatsAppSender.findFirst({
+        where: { id: input.senderId, status: 'PAIRED' },
+        select: { id: true },
+      })
+      senderId = requested?.id ?? null
+    }
+    if (!senderId) {
+      const sender = await db.whatsAppSender.findFirst({
+        where: { status: 'PAIRED', isDefault: true },
+        select: { id: true },
+      })
+      senderId = sender?.id ?? null
+    }
   } catch {
     // DB hiccup — still attempt the service (it may pair its own session)
   }
