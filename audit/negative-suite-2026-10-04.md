@@ -1,4 +1,4 @@
-# Negative authorization suite — 2026-10-04T02:18:06.487Z
+# Negative authorization suite — 2026-10-04T04:16:15.552Z
 
 Target: `http://localhost:3000` (dev; STAGING_BASE_URL parameterizes; production markers abort the run).
 
@@ -16,8 +16,15 @@ Target: `http://localhost:3000` (dev; STAGING_BASE_URL parameterizes; production
 | NEG-10 | privileged action without MFA (payouts.generate) | 403 MFA_* | **PASS** | got 403 MFA_ENROLLMENT_REQUIRED This action requires multi-factor authentication. Enroll a |
 | NEG-11 | last-active-owner invariant (revoke final org.owner seat) | 409 last-active-owner | **PASS** | got 409 This is the last active owner of the organization. Assign another active owner FIR |
 | NEG-12 | break-glass login is alerted + audited | BREAK_GLASS_LOGIN audit row | **PASS** | BREAK-GLASS account sign-in from ::1 |
-| DEFERRED | private-document negative cases (public URL, expiry, cross-tenant download) | 403/404 after 6.6 | **SKIP** | Vault proxy (6.6) not yet implemented — tracked in the plan. |
+| NEG-13 | vault key via public media route | 404 (structural, pre-storage) | **PASS** | got 404 |
+| NEG-14 | vault proxy without a session | 401 | **PASS** | got 401 |
+| NEG-15 | member fetches owner-issued one-time URL | 403 NOT_GRANTED_TO_USER | **PASS** | got 403 |
+| NEG-16 | one-time nonce (owner fetch 200 png + replay 410) | 200 image/* then 410 | **PASS** | first=200 (image/png), replay=410 |
+| NEG-17 | expired one-time URL | 410 EXPIRED | **PASS** | got 410 {"error":"This document link has expired |
+| NEG-18 | org member requests identity-class document | 403 (6.8 matrix) | **PASS** | got 403 |
+| NEG-19 | org B owner requests org A identity document | 403 (cross-tenant) | **PASS** | got 403 |
+| NEG-20 | org member retrieves ORG_INTERNAL document (positive control) | issue 201 + fetch 200 | **PASS** | issue=201, fetch=200 |
 
-**12/12 passed** — all green
+**20/20 passed** — all green
 
 Run book: `bun scripts/negative-authz-suite.ts` (fixtures are created in the DB and removed; the immutable audit trail keeps the run's evidence rows).

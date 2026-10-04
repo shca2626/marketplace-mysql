@@ -37,6 +37,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
+import { VaultDocumentThumb, VaultPreviewImage, vaultOpenAction } from '@/components/documents/vault-media'
 import { FilterChips, StatusBadge, apiRequest, toastApiError } from '../shared'
 import {
   DOC_STATUS_MAP,
@@ -180,17 +181,12 @@ export function DocumentsQueueSection() {
                   <CardContent className="flex h-full flex-col gap-3 p-4">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-2.5">
-                        {doc.media?.url ? (
-                          <img
-                            src={doc.media.url}
-                            alt={`${DOCUMENT_TYPE_LABELS[doc.documentType] ?? doc.documentType} preview`}
-                            className="h-12 w-12 shrink-0 rounded-lg border object-cover"
-                          />
-                        ) : (
-                          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border bg-muted">
-                            <FolderLock size={18} className="text-muted-foreground" />
-                          </span>
-                        )}
+                        <VaultDocumentThumb
+                          documentId={doc.id}
+                          alt={`${DOCUMENT_TYPE_LABELS[doc.documentType] ?? doc.documentType} preview`}
+                          className="h-12 w-12 rounded-lg"
+                          fallback={<FolderLock size={18} className="text-muted-foreground" />}
+                        />
                         <div className="min-w-0">
                           <p className="truncate text-sm font-bold">
                             {DOCUMENT_TYPE_LABELS[doc.documentType] ?? doc.documentType}
@@ -258,16 +254,15 @@ export function DocumentsQueueSection() {
                           {doc.status === 'VERIFIED' ? 'Verified once — reused everywhere' : 'Rejected — awaiting replacement'}
                         </span>
                       )}
-                      {doc.media?.url && (
-                        <a
-                          href={doc.media.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="ml-auto inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
-                        >
-                          <ExternalLink size={11} /> View
-                        </a>
-                      )}
+                      <button
+                        type="button"
+                        onClick={vaultOpenAction(doc.id, () =>
+                          toast({ title: 'Could not open this document', variant: 'destructive' })
+                        )}
+                        className="ml-auto inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        <ExternalLink size={11} /> View
+                      </button>
                     </div>
                   </CardContent>
                 </Card>
@@ -329,12 +324,8 @@ export function DocumentsQueueSection() {
                 : 'The uploader can replace the file — the note is shown on their vault card.'}
             </DialogDescription>
           </DialogHeader>
-          {verdict?.doc.media?.url && (
-            <img
-              src={verdict.doc.media.url}
-              alt={`${DOCUMENT_TYPE_LABELS[verdict.doc.documentType] ?? verdict.doc.documentType} preview`}
-              className="max-h-44 w-full rounded-xl border object-contain"
-            />
+          {verdict && (
+            <VaultPreviewImage documentId={verdict.doc.id} documentType={verdict.doc.documentType} />
           )}
           <div className="space-y-1.5">
             <Label htmlFor="doc-note" className="text-xs">

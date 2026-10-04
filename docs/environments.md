@@ -76,3 +76,11 @@ and gitignored — re-pairing regenerates them locally.
 - Rotation procedure for `MFA_ENCRYPTION_KEY`: set the new key, keep the old as
   `MFA_ENCRYPTION_KEY_OLD` during a re-encrypt sweep, then remove the old key.
 - `.env.example` contains placeholders only (secret-sweep clean).
+
+## VAULT_SIGNING_KEY (6.6.4)
+
+HMAC-SHA256 key binding one-time private-vault retrieval URLs to
+{documentId, userId, nonce, expiry} (`/api/vault/<id>`). Missing/short key is
+FATAL in production (same discipline as MFA_ENCRYPTION_KEY). Dev falls back to
+a fixed development key. Rotation: set the new key and restart — issued URLs
+simply stop validating (one-time URLs are minutes-TTL, so no migration needed).

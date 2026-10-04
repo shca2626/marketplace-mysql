@@ -648,6 +648,10 @@ export interface MediaAssetDTO {
   height?: number | null
   url: string
   urls: { thumb: string; medium: string; large: string; full: string }
+  /** 6.6 — 'public-media' assets carry ready public URLs; 'private-vault'
+   *  assets have EMPTY url fields (no public path exists) and are fetched
+   *  through the authenticated proxy via POST /api/documents/:id/access. */
+  namespace?: 'public-media' | 'private-vault'
   createdAt: string
 }
 
@@ -1156,6 +1160,8 @@ export interface AccountDocumentDTO {
   reviewedAt: string | null
   note: string | null
   isActive: boolean
+  /** 6.8 sensitivity class — derived server-side from documentType by the ONE matrix. */
+  sensitivity?: 'PUBLIC' | 'ORG_INTERNAL' | 'SENSITIVE_IDENTITY' | 'SENSITIVE_FINANCIAL'
   media: MediaAssetDTO | null
   createdAt: string
 }

@@ -52,6 +52,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
+import { VaultDocumentThumb, vaultOpenAction } from '@/components/documents/vault-media'
 import { apiRequest, toastApiError } from '../shared'
 import {
   ACC_STATUS_MAP,
@@ -768,17 +769,12 @@ function AnswerPreview({ submission: s, doc }: { submission: RequirementSubmissi
     }
     return (
       <div className="flex flex-wrap items-center gap-2.5">
-        {doc.media?.url ? (
-          <img
-            src={doc.media.url}
-            alt={`${DOCUMENT_TYPE_LABELS[doc.documentType] ?? doc.documentType} preview`}
-            className="h-10 w-10 shrink-0 rounded-md border object-cover"
-          />
-        ) : (
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-muted">
-            <FolderLock size={15} className="text-muted-foreground" />
-          </span>
-        )}
+        <VaultDocumentThumb
+          documentId={doc.id}
+          alt={`${DOCUMENT_TYPE_LABELS[doc.documentType] ?? doc.documentType} preview`}
+          className="h-10 w-10 rounded-md"
+          fallback={<FolderLock size={15} className="text-muted-foreground" />}
+        />
         <div className="min-w-0">
           <p className="truncate text-xs font-semibold">
             {doc.title ?? doc.media?.originalName ?? DOCUMENT_TYPE_LABELS[doc.documentType] ?? doc.documentType}
@@ -789,16 +785,15 @@ function AnswerPreview({ submission: s, doc }: { submission: RequirementSubmissi
             {doc.expiresAt && <span>· expires {formatDate(doc.expiresAt)}</span>}
           </p>
         </div>
-        {doc.media?.url && (
-          <a
-            href={doc.media.url}
-            target="_blank"
-            rel="noreferrer"
-            className="ml-auto inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ExternalLink size={11} /> View
-          </a>
-        )}
+        <button
+          type="button"
+          onClick={vaultOpenAction(doc.id, () =>
+            toast({ title: 'Could not open this document', variant: 'destructive' })
+          )}
+          className="ml-auto inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ExternalLink size={11} /> View
+        </button>
       </div>
     )
   }

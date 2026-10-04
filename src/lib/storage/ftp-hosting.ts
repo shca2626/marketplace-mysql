@@ -37,7 +37,8 @@
 import { randomBytes } from 'node:crypto'
 import { Readable, Writable } from 'node:stream'
 import { LocalDiskStorage } from './local-disk'
-import { StorageError, type StorageAdapter, type StoredFile } from './types'
+import { StorageError, type StorageAdapter, type StoredFile, type PutOptions } from './types'
+import { isVaultKey } from './namespace'
 import { envVar, resolveStorageDriverName } from './env'
 
 // ── Extension policy ────────────────────────────────────────────────────────
@@ -334,11 +335,16 @@ export class FtpHostingStorage implements StorageAdapter {
   /** Local-disk fallback + read path for files that never made it to the host. */
   private readonly local = new LocalDiskStorage()
 
-  async put(key: string, data: Buffer): Promise<StoredFile> {
+  async put(key: string, data: Buffer, opts?: PutOptions): Promise<StoredFile> {
     validateStorageKey(key)
     if (data.byteLength === 0) throw invalidUpload('Empty file')
     const ext = assertUploadExtensionAllowed(key)
     assertImageMagicBytesMatch(ext, data) // never let a fake image reach the host
+
+    // 6.6.1 — private-vault bytes NEVER reach the public hosting: local only.
+    if (opts?.private || isVaultKey(key)) {
+      return this.local.put(key, data)
+    }
 
     try {
       await this.writeToFtp(key, data)
@@ -369,6 +375,10 @@ export class FtpHostingStorage implements StorageAdapter {
 
   async getOrNull(key: string): Promise<Buffer | null> {
     validateStorageKey(key)
+    // 6.6.1 — vault keys never exist on the public host; local read ONLY
+    // (never dial FTP for them, belt-and-braces even if someone manually
+    // uploaded bytes there).
+    if (isVaultKey(key)) return this.local.getOrNull(key)
     // Local fallback first — a file written while FTP was down lives here.
     const localData = await this.local.getOrNull(key)
     if (localData) return localData
@@ -413,12 +423,15 @@ export class FtpHostingStorage implements StorageAdapter {
       return false
     }
     let deleted = false
-    try {
-      const cfg = resolveFtpStorageConfig()
-      await withFtp((client) => client.remove(remotePathOf(cfg, key)))
-      deleted = true
-    } catch (err) {
-      console.warn(`[storage] ftp-hosting: FTP delete of "${key}" failed (${(err as Error).message}) — the file may linger on the hosting`)
+    // 6.6.1 — vault keys only ever exist locally; never dial the public host.
+    if (!isVaultKey(key)) {
+      try {
+        const cfg = resolveFtpStorageConfig()
+        await withFtp((client) => client.remove(remotePathOf(cfg, key)))
+        deleted = true
+      } catch (err) {
+        console.warn(`[storage] ftp-hosting: FTP delete of "${key}" failed (${(err as Error).message}) — the file may linger on the hosting`)
+      }
     }
     try {
       deleted = (await this.local.delete(key)) || deleted
@@ -438,6 +451,8 @@ export class FtpHostingStorage implements StorageAdapter {
    * proxying bytes through the app.
    */
   publicUrl(key: string): string | null {
+    // 6.6.1 — vault keys are NEVER publicly served: no public URL exists.
+    if (isVaultKey(key)) return null
     try {
       const clean = validateStorageKey(key)
       return `${resolveFtpStorageConfig().publicBase}/${clean}`

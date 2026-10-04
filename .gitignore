@@ -104,3 +104,6 @@ db/custom.db-journal
 /db/product-images/
 /db/product-images-gen.log
 .qa-tmp/
+
+# 6.6 — private-vault bytes NEVER enter the repository
+uploads/vault/

@@ -46,6 +46,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
+import { VaultDocumentThumb, vaultOpenAction } from '@/components/documents/vault-media'
+import { SENSITIVITY_HINTS, documentSensitivity } from '@/server/modules/documents/sensitivity'
 import {
   apiRequest,
   DOC_STATUS_MAP,
@@ -263,24 +265,25 @@ export function VaultDocCard({
   onDelete?: () => void
   compact?: boolean
 }) {
+  const label = DOCUMENT_TYPE_LABELS[doc.documentType] ?? doc.documentType
+  const sensitivity = doc.sensitivity ?? documentSensitivity(doc.documentType)
+  const openDoc = vaultOpenAction(doc.id, () =>
+    toast({ title: 'Could not open this document', description: 'The link may have expired — try again.', variant: 'destructive' })
+  )
+
   return (
     <Card className="overflow-hidden">
       <CardContent className={cn('flex flex-col gap-3 p-4', compact && 'p-3')}>
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2.5">
-            {doc.media?.url ? (
-              <img
-                src={doc.media.url}
-                alt={`${DOCUMENT_TYPE_LABELS[doc.documentType] ?? doc.documentType} preview`}
-                className="h-11 w-11 shrink-0 rounded-lg border object-cover"
-              />
-            ) : (
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border bg-muted">
-                <FolderLock size={17} className="text-muted-foreground" />
-              </span>
-            )}
+            <VaultDocumentThumb
+              documentId={doc.id}
+              alt={`${label} preview`}
+              className="h-11 w-11 rounded-lg"
+              fallback={<FolderLock size={17} className="text-muted-foreground" />}
+            />
             <div className="min-w-0">
-              <p className="truncate text-sm font-bold">{DOCUMENT_TYPE_LABELS[doc.documentType] ?? doc.documentType}</p>
+              <p className="truncate text-sm font-bold">{label}</p>
               <p className="truncate text-xs text-muted-foreground">{doc.title ?? doc.media?.originalName ?? '—'}</p>
             </div>
           </div>
@@ -294,6 +297,10 @@ export function VaultDocCard({
           <ExpiryChip expiresAt={doc.expiresAt} />
         </div>
 
+        <p className="flex items-center gap-1 text-[10.5px] text-muted-foreground/80" title={SENSITIVITY_HINTS[sensitivity]}>
+          <FolderLock size={10} className="shrink-0" /> {SENSITIVITY_HINTS[sensitivity]}
+        </p>
+
         {doc.status === 'REJECTED' && doc.note && (
           <p className="rounded-lg bg-rose-50 px-2.5 py-1.5 text-[11px] font-medium text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
             <FileWarning size={11} className="mr-1 inline" /> Platform note: {doc.note}
@@ -305,15 +312,11 @@ export function VaultDocCard({
           </p>
         )}
 
-        {(onReplace || onDelete || doc.media?.url) && (
+        {(onReplace || onDelete) && (
           <div className="flex flex-wrap items-center gap-2">
-            {doc.media?.url && (
-              <Button variant="ghost" size="sm" className="h-8 rounded-lg text-xs" asChild>
-                <a href={doc.media.url} target="_blank" rel="noreferrer">
-                  <ExternalLink size={13} className="mr-1.5" /> View
-                </a>
-              </Button>
-            )}
+            <Button variant="ghost" size="sm" className="h-8 rounded-lg text-xs" onClick={openDoc}>
+              <ExternalLink size={13} className="mr-1.5" /> View
+            </Button>
             {onReplace && (
               <Button variant="outline" size="sm" className="h-8 rounded-lg text-xs" onClick={onReplace}>
                 <RefreshCw size={13} className="mr-1.5" /> Replace

@@ -33,6 +33,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { PrismaClient } from '@prisma/client'
+import { encryptBox, decryptBox } from './crypto-box'
 import pino from 'pino'
 import {
   makeWASocket,
@@ -219,7 +220,7 @@ function persistNow(s: SenderSession): void {
     console.error(`[wa-service] local snapshot write failed (${s.senderId}):`, err)
   }
   void prisma.whatsAppSender
-    .update({ where: { id: s.senderId }, data: { credsJson: json } })
+    .update({ where: { id: s.senderId }, data: { credsJson: encryptBox(json) } }) // 6.6.8 — AES-256-GCM at rest
     .catch((err) => console.error(`[wa-service] creds DB write failed (${s.senderId}):`, err))
 }
 
@@ -585,7 +586,18 @@ async function restoreAllFromDb(): Promise<{ restored: number; failed: number }>
     if (sessions.has(row.id)) continue
     // Local file is written in the same persist pass and never lags the DB —
     // prefer it (fresher on a crash), fall back to the DB blob when missing/corrupt.
-    const json = readLocalSnapshot(row.id) ?? row.credsJson
+    // 6.6.8 — DB credsJson is encrypted at rest; decrypt here (legacy
+    // plaintext rows pass through and get re-encrypted on the next persist).
+    let dbJson: string | null = null
+    if (row.credsJson) {
+      try {
+        dbJson = decryptBox(row.credsJson)
+      } catch (err) {
+        console.error(`[wa-service] creds decrypt failed (${row.phoneNumber}):`, err)
+        dbJson = null
+      }
+    }
+    const json = readLocalSnapshot(row.id) ?? dbJson
     if (!json) continue
     const s = restoreFromSnapshot(row.id, row.phoneNumber, json)
     if (!s) {

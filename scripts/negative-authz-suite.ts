@@ -19,6 +19,14 @@
 //   NEG-10  privileged-without-MFA   (payouts.manage, no enrollment)       → 403 MFA_*
 //   NEG-11  last-active-owner        (revoke last org.owner seat)           → 409 (H2)
 //   NEG-12  break-glass alert        (login → BREAK_GLASS_LOGIN audited)
+//   NEG-13  vault via public media   (GET /api/media/vault/…)               → 404
+//   NEG-14  vault unauthenticated    (proxy GET without a session)          → 401
+//   NEG-15  vault cross-session       (member fetches owner's one-time URL)  → 403
+//   NEG-16  vault one-time replay     (second fetch of the same URL)         → 410
+//   NEG-17  vault expired URL         (ttl=1s, fetch after expiry)           → 410
+//   NEG-18  member-vs-identity doc   (plain member requests identity doc)   → 403
+//   NEG-19  cross-tenant doc download (org B owner requests org A doc)      → 403
+//   NEG-20  org-internal positive ctl (member fetches ORG_INTERNAL doc)      → 201+200
 // ─────────────────────────────────────────────────────────────────────────────
 import { assertNotProd } from './lib/assert-not-prod'
 import { db } from '../src/lib/db'
@@ -356,19 +364,133 @@ async function main() {
         orderBy: { createdAt: 'desc' },
       })
       const pass = Boolean(audited)
-      record('NEG-12', 'break-glass login is alerted + audited', 'BREAK_GLASS_LOGIN audit row', pass, audited ? audited.summary.slice(0, 60) : 'no audit row')
+      record('NEG-12', 'break-glass login is alerted + audited', 'BREAK_GLASS_LOGIN audit row', pass, audited ? (audited.summary ?? '').slice(0, 60) : 'no audit row')
     }
 
-    // DEFERRED (6.6-bound): private-doc via public URL, expired signed URL,
-    // cross-tenant document download — the authenticated vault proxy lands
-    // with 6.6; these cases run in the post-6.6 suite revision.
-    results.push({
-      id: 'DEFERRED',
-      name: 'private-document negative cases (public URL, expiry, cross-tenant download)',
-      expect: '403/404 after 6.6',
-      result: 'SKIP',
-      detail: 'Vault proxy (6.6) not yet implemented — tracked in the plan.',
-    })
+    // ── Private-vault document cases (6.6 / 6.10 case 9 — post-6.6 round) ──
+    // Fixtures: two org-scoped vault documents owned by ownerA in org A —
+    // NATIONAL_ID (SENSITIVE_IDENTITY: members denied) and COMMERCIAL_REG
+    // (ORG_INTERNAL: members allowed). Real rendition bytes via the real
+    // image pipeline into the private-vault namespace.
+    {
+      const { processImageUpload } = await import('../src/lib/storage/image-pipeline')
+      const { VAULT_NAMESPACE } = await import('../src/lib/storage/namespace')
+      const sharp = (await import('sharp')).default
+      const png = await sharp({ create: { width: 72, height: 72, channels: 3, background: '#5b6472' } }).png().toBuffer()
+      const processed = await processImageUpload(png, { namespace: VAULT_NAMESPACE })
+      const vaultAsset = await db.mediaAsset.create({
+        data: {
+          key: processed.baseKey,
+          namespace: VAULT_NAMESPACE,
+          originalName: 'neg-suite-fixture.png',
+          mime: processed.mime,
+          size: processed.originalBytes,
+          width: processed.width,
+          height: processed.height,
+          sha256: processed.sha256,
+          variants: JSON.stringify(processed.variants),
+          uploadedById: ownerA.id,
+        },
+      })
+      const docIdentity = await db.accountDocument.create({
+        data: { userId: ownerA.id, organizationId: orgA.id, mediaId: vaultAsset.id, documentType: 'NATIONAL_ID', status: 'PENDING' },
+      })
+      const docInternal = await db.accountDocument.create({
+        data: { userId: ownerA.id, organizationId: orgA.id, mediaId: vaultAsset.id, documentType: 'COMMERCIAL_REG', status: 'PENDING' },
+      })
+      const ownerCookie = await login(`neg-owner-a-${stamp}@staging.invalid`)
+      const memberCookie = await login(`neg-member-a-${stamp}@staging.invalid`)
+      const ownerBCookie = await login(`neg-owner-b-${stamp}@staging.invalid`)
+
+      try {
+        // NEG-13 — the public media route hard-404s the vault namespace ─────
+        {
+          const r = await http('GET', '/api/media/vault/2026/10/abcdef12-x.full.png', null)
+          record('NEG-13', 'vault key via public media route', '404 (structural, pre-storage)', r.status === 404, `got ${r.status}`)
+        }
+
+        // NEG-14 — unauthenticated proxy retrieval ─────────────────────────
+        {
+          const r = await http('GET', `/api/vault/${docInternal.id}?exp=9999999999&nonce=deadbeef&sig=ff`, null)
+          record('NEG-14', 'vault proxy without a session', '401', r.status === 401, `got ${r.status}`)
+        }
+
+        // NEG-15 — cross-session retrieval of a one-time URL ───────────────
+        {
+          const issue = await http('POST', `/api/documents/${docInternal.id}/access`, ownerCookie, {})
+          const url: string | undefined = issue.json?.url
+          if (issue.status !== 201 || !url) {
+            record('NEG-15', 'vault cross-session retrieval', 'owner issues 201 first', false, `issue failed: ${issue.status} ${issue.json?.error ?? ''}`)
+          } else {
+            const res = await fetch(`${BASE}${url}`, { headers: { cookie: memberCookie ?? '' } })
+            record('NEG-15', 'member fetches owner-issued one-time URL', '403 NOT_GRANTED_TO_USER', res.status === 403, `got ${res.status}`)
+          }
+        }
+
+        // NEG-16 — one-time nonce: first fetch 200, replay 410 ─────────────
+        {
+          const issue = await http('POST', `/api/documents/${docInternal.id}/access`, ownerCookie, {})
+          const url: string | undefined = issue.json?.url
+          const first = url ? await fetch(`${BASE}${url}`, { headers: { cookie: ownerCookie ?? '' } }) : null
+          const ct = first?.headers.get('content-type') ?? ''
+          const replay = url ? await fetch(`${BASE}${url}`, { headers: { cookie: ownerCookie ?? '' } }) : null
+          const pass = !!first && first.status === 200 && ct.startsWith('image/') && replay?.status === 410
+          record(
+            'NEG-16',
+            'one-time nonce (owner fetch 200 png + replay 410)',
+            '200 image/* then 410',
+            pass,
+            `first=${first?.status} (${ct || 'no ct'}), replay=${replay?.status}`
+          )
+        }
+
+        // NEG-17 — expiry enforced at retrieval ────────────────────────────
+        {
+          const issue = await http('POST', `/api/documents/${docInternal.id}/access`, ownerCookie, { ttlSeconds: 1 })
+          const url: string | undefined = issue.json?.url
+          await new Promise((r) => setTimeout(r, 1600))
+          const res = url ? await fetch(`${BASE}${url}`, { headers: { cookie: ownerCookie ?? '' } }) : null
+          const resJson = res ? await res.json().catch(() => null) : null
+          record('NEG-17', 'expired one-time URL', '410 EXPIRED', res?.status === 410 && resJson?.code === 'EXPIRED', `got ${res?.status} ${resJson ? JSON.stringify(resJson).slice(0, 40) : ''}`)
+        }
+
+        // NEG-18 — plain member vs SENSITIVE_IDENTITY org document ────────
+        {
+          const r = await http('POST', `/api/documents/${docIdentity.id}/access`, memberCookie, {})
+          record('NEG-18', 'org member requests identity-class document', '403 (6.8 matrix)', r.status === 403, `got ${r.status}`)
+        }
+
+        // NEG-19 — cross-tenant document URL issuance ──────────────────────
+        {
+          const r = await http('POST', `/api/documents/${docIdentity.id}/access`, ownerBCookie, {})
+          record('NEG-19', 'org B owner requests org A identity document', '403 (cross-tenant)', r.status === 403, `got ${r.status}`)
+        }
+
+        // NEG-20 — positive control: ORG_INTERNAL member access ────────────
+        {
+          const issue = await http('POST', `/api/documents/${docInternal.id}/access`, memberCookie, {})
+          const url: string | undefined = issue.json?.url
+          const res = url ? await fetch(`${BASE}${url}`, { headers: { cookie: memberCookie ?? '' } }) : null
+          const pass = issue.status === 201 && !!url && res?.status === 200
+          record(
+            'NEG-20',
+            'org member retrieves ORG_INTERNAL document (positive control)',
+            'issue 201 + fetch 200',
+            pass,
+            `issue=${issue.status}, fetch=${res?.status}`
+          )
+        }
+      } finally {
+        // vault fixture cleanup: documents, asset row, rendition bytes
+        await db.vaultAccessGrant.deleteMany({ where: { documentId: { in: [docIdentity.id, docInternal.id] } } })
+        await db.accountDocument.deleteMany({ where: { id: { in: [docIdentity.id, docInternal.id] } } })
+        await db.mediaAsset.deleteMany({ where: { id: vaultAsset.id } })
+        const storage = (await import('../src/lib/storage')).getStorage()
+        for (const k of Object.values(processed.variants)) {
+          await storage.delete(k).catch(() => {})
+        }
+      }
+    }
   } finally {
     // ── cleanup (fixtures only; audit rows stay as the immutable trail) ──────
     const emails = [

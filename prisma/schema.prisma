@@ -77,6 +77,7 @@ model User {
   disputesResolved   Dispute[]            @relation("DisputeResolver")
   recurringSchedules RecurringRfq[]
   mediaAssets        MediaAsset[]         @relation("MediaAssets")
+  vaultAccessGrants  VaultAccessGrant[]    @relation("VaultAccessGrants")
   paymentsCaptured   Payment[]             @relation("PaymentsCapturedBy")
   payouts            Payout[]             @relation("PayoutSeller")
 
@@ -792,18 +793,20 @@ model RfqMessage {
 model MediaAsset {
   id               String            @id @default(cuid())
   key              String            @unique // storage base key (no extension)
+  namespace        String            @default("public-media") // public-media | private-vault — 6.6.1: separate key roots; dedup NEVER crosses namespaces
   originalName     String
   mime             String
   size             Int
   width            Int?
   height           Int?
-  sha256           String            @unique
+  sha256           String
   variants         String?           @db.Text // MYSQL: JSON {thumb,medium,large,full} storage keys
   uploadedById     String
   uploadedBy       User              @relation("MediaAssets", fields: [uploadedById], references: [id])
   accountDocuments AccountDocument[] @relation("AccountDocumentMedia")
   createdAt        DateTime          @default(now())
 
+  @@unique([namespace, sha256])
   @@index([uploadedById, createdAt])
 }
 
@@ -1445,11 +1448,35 @@ model AccountDocument {
 
   submissions        RequirementSubmission[]
   requestAttachments RequestAttachment[]     @relation("RequestAttachmentDocument")
+  vaultAccessGrants  VaultAccessGrant[]      @relation("VaultAccessGrants")
 
   @@index([userId, documentType, status])
   @@index([organizationId])
   @@index([mediaId])
   @@index([reviewedById]) // MYSQL-FK-INDEX: reviewedById relation needs its own leftmost index
+}
+
+// ── 3.7b VaultAccessGrant — one-time, short-TTL retrieval grants for private-vault
+// documents (6.6.4). Every issued /api/vault URL carries a unique nonce backed
+// by a row here; retrieval consumes the row atomically (updateMany WHERE
+// consumedAt IS NULL — 1 row or reject). Issuance (DOCUMENT_URL_ISSUED) and
+// actual retrieval (DOCUMENT_FILE_RETRIEVED) are distinct audit events. ──
+model VaultAccessGrant {
+  id          String          @id @default(cuid())
+  documentId  String
+  document    AccountDocument @relation("VaultAccessGrants", fields: [documentId], references: [id], onDelete: Cascade)
+  userId      String // the user the URL was issued to (bound into the HMAC)
+  user        User            @relation("VaultAccessGrants", fields: [userId], references: [id], onDelete: Cascade)
+  nonce       String          @unique // random 48-hex — one-time use, atomic consume
+  basis       String           @default("OWNER") // OWNER | PLATFORM_REVIEWER | ORG_MEMBER | FINANCIER_SCOPE — 6.8 access basis at issuance
+  expiresAt   DateTime // minutes-TTL (default 5) — enforced at retrieval, not just by signature
+  consumedAt  DateTime? // set exactly once by the proxy route; replay ⇒ reject
+  issuedIp    String? // best-effort caller IP at issuance
+  createdAt   DateTime        @default(now())
+
+  @@index([userId, createdAt])
+  @@index([documentId, createdAt])
+  @@index([expiresAt]) // expired-grant reaper
 }
 
 // Free-form request attachments not tied to a specific requirement (loose-parent pattern).

@@ -13,11 +13,21 @@ export interface StoredFile {
   size: number
 }
 
+export interface PutOptions {
+  /**
+   * Private-vault write (6.6.1): drivers that serve bytes over public HTTP
+   * (ftp-hosting) MUST keep these bytes off the public host — local disk
+   * only. local-disk behaves identically either way (its root is only
+   * reachable through the app's routes, and /api/media hard-404s vault keys).
+   */
+  private?: boolean
+}
+
 export interface StorageAdapter {
   readonly name: string
 
   /** Persist bytes at `key` (creates parent dirs as needed). */
-  put(key: string, data: Buffer): Promise<StoredFile>
+  put(key: string, data: Buffer, opts?: PutOptions): Promise<StoredFile>
 
   /** Read bytes at `key`. Throws if missing. */
   get(key: string): Promise<Buffer>
