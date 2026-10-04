@@ -1047,6 +1047,88 @@
       "moduleKeys": []
     },
     {
+      "route": "/api/admin/whatsapp/campaigns",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "whatsapp.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/whatsapp/campaigns/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "PATCH",
+        "DELETE"
+      ],
+      "permissionKeys": [
+        "whatsapp.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/whatsapp/campaigns/[id]/control",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "whatsapp.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/whatsapp/campaigns/[id]/start",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "whatsapp.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/whatsapp/chatbot",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "whatsapp.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/whatsapp/chatbot/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "PATCH",
+        "DELETE"
+      ],
+      "permissionKeys": [
+        "whatsapp.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/whatsapp/chatbot/test",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "whatsapp.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
       "route": "/api/admin/whatsapp/messages",
       "bucket": "PLATFORM_PRIVILEGED",
       "methods": [
@@ -1130,6 +1212,30 @@
       "bucket": "PLATFORM_PRIVILEGED",
       "methods": [
         "POST"
+      ],
+      "permissionKeys": [
+        "whatsapp.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/whatsapp/templates",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "whatsapp.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/whatsapp/templates/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "PATCH",
+        "DELETE"
       ],
       "permissionKeys": [
         "whatsapp.manage"

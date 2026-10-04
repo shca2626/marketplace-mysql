@@ -67,11 +67,24 @@ function AuthShell({
 }
 
 /** ── Forgot password ────────────────────────────────────────────────────── */
+
+/** OTPFIX — normalize whatever the user typed into the local 9-digit form
+ *  (strips spaces/dashes, drops a leading 967 country code) so the reset
+ *  view boots with the exact phone the OTP was sent to. */
+function toLocalDigits(raw: string): string {
+  let d = raw.replace(/\D/g, '')
+  if (d.length === 12 && d.startsWith('967')) d = d.slice(3)
+  return d.slice(0, 9)
+}
+
 export function ForgotPasswordView() {
   const navigate = useMarketplace((s) => s.navigate)
   const [identifier, setIdentifier] = useState('')
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState<null | 'email' | 'phone'>(null)
+  // OTPFIX — the phone the OTP was actually sent to (carried into the reset
+  // view so it never asks for a SECOND code — that was the duplicate send).
+  const [carriedPhone, setCarriedPhone] = useState('')
 
   const isPhone = !identifier.includes('@')
 
@@ -91,6 +104,7 @@ export function ForgotPasswordView() {
         return
       }
       setSent(json.via === 'phone' ? 'phone' : 'email')
+      if (json.via === 'phone') setCarriedPhone(toLocalDigits(identifier))
     } catch {
       toast({ title: 'Error', description: 'Network error — please try again', variant: 'destructive' })
     } finally {
@@ -123,7 +137,7 @@ export function ForgotPasswordView() {
             If an account exists for <span className="font-semibold text-foreground">{identifier}</span>, a
             6-digit reset code was sent to its WhatsApp. It is valid for 5 minutes.
           </p>
-          <Button className="w-full rounded-xl" onClick={() => navigate('reset-password', { resetVia: 'phone' })}>
+          <Button className="w-full rounded-xl" onClick={() => navigate('reset-password', { resetVia: 'phone', resetPhone: carriedPhone })}>
             <MessageCircle size={15} className="mr-1.5" /> Enter the code now
           </Button>
           <Button variant="outline" className="w-full rounded-xl" onClick={() => navigate('home')}>
@@ -183,13 +197,16 @@ export function ResetPasswordView() {
 
   // ── Phase 3 phone-OTP flow state ──
   const [flow, setFlow] = useState<'link' | 'phone'>(params.resetVia === 'phone' || !token ? 'phone' : 'link')
-  const [phone, setPhone] = useState('')
+  // OTPFIX — arriving from forgot-password means the code was ALREADY sent
+  // to this number: boot straight into "enter the code" (no duplicate OTP).
+  const arrivedWithCode = Boolean(params.resetVia === 'phone' && params.resetPhone)
+  const [phone, setPhone] = useState(arrivedWithCode ? toLocalDigits(params.resetPhone ?? '') : '')
   const [otp, setOtp] = useState('')
-  const [otpSent, setOtpSent] = useState(false)
+  const [otpSent, setOtpSent] = useState(arrivedWithCode)
   const [otpToken, setOtpToken] = useState<string | null>(null)
   const [sendingOtp, setSendingOtp] = useState(false)
   const [devCode, setDevCode] = useState<string | null>(null)
-  const [resendIn, setResendIn] = useState(0)
+  const [resendIn, setResendIn] = useState(arrivedWithCode ? 60 : 0)
   const resendTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const phoneValid = /^(70|71|73|77|78)\d{7}$/.test(phone.replace(/\D/g, ''))
@@ -393,6 +410,12 @@ export function ResetPasswordView() {
                       {resendIn > 0 ? `Resend in ${resendIn}s` : 'Resend code'}
                     </button>
                   </div>
+                  {phoneValid && (
+                    <p className="text-[11px] leading-snug text-muted-foreground">
+                      <MessageCircle size={11} className="mr-1 inline" />
+                      Sent to +967 {phone.slice(0, 3)} {phone.slice(3, 6)} {phone.slice(6)} — valid for 5 minutes.
+                    </p>
+                  )}
                   <div className="flex justify-center py-1">
                     <InputOTP
                       maxLength={6}

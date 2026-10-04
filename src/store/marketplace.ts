@@ -95,6 +95,7 @@ export interface ViewParams {
   accountTab?: string // buyer account console: open a specific tab (?view=account&tab=profile — IA-100)
   authToken?: string // AUTHSEC-1: raw token from reset/verify email links
   resetVia?: 'phone' | 'email' // Phase 3: which reset flow the view should boot into
+  resetPhone?: string // OTPFIX: local 9-digit phone carried from forgot-password (code already sent)
 }
 
 export interface ApplySettingsPayload {

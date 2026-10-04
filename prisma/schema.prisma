@@ -1964,12 +1964,70 @@ model WhatsAppMessage {
   error          String?        @db.Text
   userId         String? // recipient user (null for pre-account OTP)
   notificationId String? // mirrored in-app Notification when applicable
+  campaignId     String? // WA-BIZ: bulk campaign this send belongs to
   createdAt      DateTime       @default(now())
   sentAt         DateTime?
 
   @@index([toPhone, createdAt])
   @@index([status, createdAt])
   @@index([userId])
+  @@index([campaignId])
+}
+
+// WA-BIZ — reusable message templates with {{placeholder}} variables.
+// Rendered at send time; usage counts feed the admin console KPIs.
+model WhatsAppTemplate {
+  id        String   @id @default(cuid())
+  name      String   @unique // slug, e.g. "order-shipped"
+  category  String   @default("MARKETING") // MARKETING | UTILITY | NOTIFICATION | CUSTOM
+  language  String   @default("ar") // ar | en — display hint for the editor
+  body      String   @db.Text // supports {{name}}-style placeholders
+  status    String   @default("DRAFT") // DRAFT | APPROVED | ARCHIVED
+  useCount  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  campaigns BulkCampaign[]
+}
+
+// WA-BIZ — chatbot auto-reply rules. Evaluated by the mini-service on every
+// incoming message (priority asc, first match wins) and replied on the same
+// paired line. hits++ on every fire for the console analytics.
+model ChatbotRule {
+  id        String   @id @default(cuid())
+  name      String // human label, e.g. "Working hours"
+  matchType String   @default("CONTAINS") // CONTAINS | EXACT | STARTS_WITH | REGEX
+  pattern   String   @db.Text // keyword / regex source (case-insensitive)
+  reply     String   @db.Text // sent back when matched
+  active    Boolean  @default(true)
+  priority  Int      @default(100) // lower runs first
+  hits      Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// WA-BIZ — bulk sending campaigns. Audience is resolved ONCE at creation into
+// a phone snapshot so later user changes never mutate a running campaign.
+model BulkCampaign {
+  id          String            @id @default(cuid())
+  name        String
+  body        String            @db.Text // final rendered body sent to every recipient
+  templateId  String?
+  template    WhatsAppTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  audience    String            @default("CUSTOM") // ALL_USERS | BUYERS | SELLERS | CUSTOM
+  phones      String?           @db.Text // newline-separated E.164 snapshot
+  status      String            @default("DRAFT") // DRAFT | QUEUED | SENDING | PAUSED | COMPLETED | CANCELLED | FAILED
+  total       Int               @default(0)
+  sent        Int               @default(0)
+  failed      Int               @default(0)
+  createdBy   String? // admin user id
+  scheduledAt DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([status])
 }
 
 // Per-user channel toggles — the in-app bell is ALWAYS on; WhatsApp / email /

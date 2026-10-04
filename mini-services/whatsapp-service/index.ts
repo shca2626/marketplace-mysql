@@ -47,6 +47,7 @@ import {
   type SignalDataSet,
   type SignalDataTypeMap,
   type SignalKeyStore,
+  type WAMessage,
   type WASocket,
 } from '@whiskeysockets/baileys'
 
@@ -303,6 +304,31 @@ async function connect(s: SenderSession): Promise<void> {
   })
   sock.ev.on('connection.update', (u: Partial<ConnectionState>) => {
     void onConnectionUpdate(s, u)
+  })
+  // WA-BIZ — chatbot auto-reply: evaluate every LIVE incoming text against
+  // the ACTIVE ChatbotRule rows (priority asc, first match wins) and reply on
+  // this same socket. Everything is wrapped so the socket can never crash.
+  sock.ev.on('messages.upsert', (upsert: { messages: WAMessage[]; type: string }) => {
+    try {
+      // Only live deliveries ('notify') — history sync / appends must never
+      // trigger auto-replies to old messages.
+      if (upsert.type !== 'notify') return
+      for (const msg of upsert.messages) {
+        try {
+          if (!msg.message) continue
+          if (msg.key?.fromMe) continue
+          const jid = msg.key?.remoteJid
+          if (!jid || !jid.endsWith('@s.whatsapp.net')) continue // skip groups ('@g.us') + status broadcasts
+          const text = msg.message.conversation ?? msg.message.extendedTextMessage?.text
+          if (!text || !text.trim()) continue
+          void handleChatbotIncoming(s, jid, text)
+        } catch {
+          /* one malformed message never kills the loop */
+        }
+      }
+    } catch {
+      /* the socket must never crash on upsert handling */
+    }
   })
 }
 
@@ -891,6 +917,352 @@ async function handleSend(payload: {
   return { status: 200, body: { ok: true } }
 }
 
+// ── WA-BIZ: chatbot auto-reply ──────────────────────────────────────────────
+
+/** The subset of ChatbotRule the matcher needs — keep this shape and the
+ * matching semantics in sync with src/server/modules/whatsapp/chatbot.ts
+ * (the Next-side live test console evaluates with the same rules). */
+interface ChatbotRuleLite {
+  id: string
+  name: string
+  matchType: string
+  pattern: string
+  reply: string
+}
+
+// 30s rule cache — every incoming message evaluates the ACTIVE rules;
+// without the cache each text would hit the DB.
+let chatbotRuleCache: { rules: ChatbotRuleLite[]; at: number } | null = null
+const CHATBOT_RULE_CACHE_MS = 30_000
+
+async function loadActiveChatbotRules(): Promise<ChatbotRuleLite[]> {
+  if (chatbotRuleCache && Date.now() - chatbotRuleCache.at < CHATBOT_RULE_CACHE_MS) {
+    return chatbotRuleCache.rules
+  }
+  const rows = await prisma.chatbotRule.findMany({
+    where: { active: true },
+    orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],
+    select: { id: true, name: true, matchType: true, pattern: true, reply: true },
+  })
+  chatbotRuleCache = { rules: rows, at: Date.now() }
+  return rows
+}
+
+/** Case-insensitive CONTAINS | EXACT | STARTS_WITH, REGEX compiled inside a
+ * try/catch so an invalid source NEVER throws — it just never matches. */
+function chatbotRuleMatches(rule: ChatbotRuleLite, text: string): boolean {
+  const haystack = text.trim().toLowerCase()
+  if (!haystack) return false
+  const needle = rule.pattern.trim().toLowerCase()
+  if (!needle) return false
+  switch (rule.matchType) {
+    case 'CONTAINS':
+      return haystack.includes(needle)
+    case 'EXACT':
+      return haystack === needle
+    case 'STARTS_WITH':
+      return haystack.startsWith(needle)
+    case 'REGEX':
+      try {
+        return new RegExp(rule.pattern, 'i').test(text.trim())
+      } catch {
+        return false
+      }
+    default:
+      return false
+  }
+}
+
+/** Auto-reply one incoming text on the socket it arrived at. Fully guarded —
+ * the socket must never crash because a rule fired badly. */
+async function handleChatbotIncoming(s: SenderSession, remoteJid: string, text: string): Promise<void> {
+  let rule: ChatbotRuleLite | undefined
+  try {
+    const rules = await loadActiveChatbotRules()
+    rule = rules.find((r) => chatbotRuleMatches(r, text))
+  } catch (err) {
+    console.error('[wa-service] chatbot rule load failed:', err)
+    return
+  }
+  if (!rule) return
+
+  const sock = s.sock
+  if (!sock || s.dead) return
+  const toPhone = `+${remoteJid.split('@')[0]}` // E.164 from the jid
+
+  try {
+    const result = await withTimeout(sock.sendMessage(remoteJid, { text: rule.reply }), 25_000, 'chatbot-reply-timeout')
+    if (!result) return
+  } catch (err) {
+    console.error(`[wa-service] chatbot reply send failed (${toPhone}):`, err)
+    return
+  }
+
+  try {
+    await prisma.chatbotRule.update({ where: { id: rule.id }, data: { hits: { increment: 1 } } })
+  } catch (err) {
+    console.error('[wa-service] chatbot hits++ failed:', err)
+  }
+
+  try {
+    await prisma.whatsAppMessage.create({
+      data: {
+        senderId: s.senderId,
+        toPhone,
+        template: 'CHATBOT',
+        body: `[in] ${text.slice(0, 180)} → ${rule.reply.slice(0, 180)}`,
+        status: 'SENT',
+        sentAt: new Date(),
+      },
+    })
+  } catch (err) {
+    console.error('[wa-service] chatbot audit row write failed:', err)
+  }
+
+  s.lastSeen = new Date()
+  await dbUpdate(s, { lastUsedAt: new Date() })
+  console.log(`[wa-service] chatbot rule "${rule.name}" replied to ${toPhone}`)
+}
+
+// ── WA-BIZ: bulk campaign runner ────────────────────────────────────────────
+
+const CAMPAIGN_PACE_MS = 1_200 // ~1.2s between sends (WhatsApp-friendly)
+const CAMPAIGN_PROGRESS_EVERY = 5 // DB progress write cadence
+
+/** Run-state switch read by the loop BEFORE every send. Parked on globalThis
+ * so a `bun --hot` reload shares the map with a loop started by the previous
+ * module instance (pause/cancel keep working across reloads). */
+const waCampaignGlobal = globalThis as {
+  __vendoraWaCampaignControls?: Map<string, 'pause' | 'cancel'>
+  __vendoraWaRunningCampaigns?: Set<string>
+}
+const campaignControls = waCampaignGlobal.__vendoraWaCampaignControls ?? new Map<string, 'pause' | 'cancel'>()
+waCampaignGlobal.__vendoraWaCampaignControls = campaignControls
+const runningCampaigns = waCampaignGlobal.__vendoraWaRunningCampaigns ?? new Set<string>()
+waCampaignGlobal.__vendoraWaRunningCampaigns = runningCampaigns
+
+const CAMPAIGN_PUBLIC_SELECT = {
+  id: true,
+  name: true,
+  status: true,
+  audience: true,
+  total: true,
+  sent: true,
+  failed: true,
+  startedAt: true,
+  completedAt: true,
+} as const
+
+type CampaignPublicRow = {
+  id: string
+  name: string
+  status: string
+  audience: string
+  total: number
+  sent: number
+  failed: number
+  startedAt: Date | null
+  completedAt: Date | null
+}
+
+function serializeCampaign(c: CampaignPublicRow): Record<string, unknown> {
+  return {
+    id: c.id,
+    name: c.name,
+    status: c.status,
+    audience: c.audience,
+    total: c.total,
+    sent: c.sent,
+    failed: c.failed,
+    startedAt: c.startedAt ? c.startedAt.toISOString() : null,
+    completedAt: c.completedAt ? c.completedAt.toISOString() : null,
+  }
+}
+
+/** POST /campaigns/run — flip to SENDING and kick the paced background loop.
+ * Idempotent-ish: an already-running campaign just returns its current row. */
+async function runCampaign(campaignId: string): Promise<{ status: number; body: Record<string, unknown> }> {
+  const campaign = await prisma.bulkCampaign.findUnique({
+    where: { id: campaignId },
+    select: { ...CAMPAIGN_PUBLIC_SELECT, startedAt: true },
+  })
+  if (!campaign) return { status: 404, body: { ok: false, error: 'campaign-not-found' } }
+  if (campaign.status === 'SENDING' || runningCampaigns.has(campaignId)) {
+    return { status: 200, body: { ok: true, campaign: serializeCampaign(campaign) } }
+  }
+  if (!['DRAFT', 'QUEUED', 'PAUSED'].includes(campaign.status)) {
+    return { status: 409, body: { ok: false, error: `campaign-not-runnable-from-${campaign.status}` } }
+  }
+
+  const updated = await prisma.bulkCampaign.update({
+    where: { id: campaignId },
+    data: { status: 'SENDING', startedAt: campaign.startedAt ?? new Date() },
+    select: CAMPAIGN_PUBLIC_SELECT,
+  })
+  campaignControls.delete(campaignId) // drop a stale directive from a previous run
+  runningCampaigns.add(campaignId)
+  void campaignLoop(campaignId).finally(() => {
+    runningCampaigns.delete(campaignId)
+  })
+  console.log(`[wa-service] campaign "${updated.name}" started (${updated.total} recipients)`)
+  return { status: 200, body: { ok: true, campaign: serializeCampaign(updated) } }
+}
+
+/** The paced send loop — runs detached from the HTTP request. Re-checks the
+ * control map BEFORE every send so pause/cancel land within one send. */
+async function campaignLoop(campaignId: string): Promise<void> {
+  try {
+    const campaign = await prisma.bulkCampaign.findUnique({
+      where: { id: campaignId },
+      select: { name: true, body: true, phones: true, sent: true, failed: true },
+    })
+    if (!campaign) return
+    const phones = (campaign.phones ?? '').split('\n').map((p) => p.trim()).filter(Boolean)
+    if (phones.length === 0) {
+      await prisma.bulkCampaign.update({
+        where: { id: campaignId },
+        data: { status: 'FAILED', completedAt: new Date() },
+      })
+      console.warn(`[wa-service] campaign "${campaign.name}" has an empty phones snapshot — marked FAILED`)
+      return
+    }
+
+    // One default sender for the whole run (same pick as /send without an
+    // explicit senderId) — ledger rows attribute to this line.
+    const session = await pickSender(null)
+    if (!session) {
+      await prisma.bulkCampaign.update({
+        where: { id: campaignId },
+        data: { status: 'FAILED', completedAt: new Date() },
+      })
+      console.error(`[wa-service] campaign "${campaign.name}" FAILED: no-paired-sender`)
+      return
+    }
+
+    let sent = campaign.sent
+    let failed = campaign.failed
+    const startIndex = sent + failed // resume continues where the last run stopped
+    console.log(
+      `[wa-service] campaign "${campaign.name}" running: ${phones.length - startIndex}/${phones.length} remaining via ${session.phoneNumber}`
+    )
+
+    for (let i = startIndex; i < phones.length; i++) {
+      const control = campaignControls.get(campaignId)
+      if (control === 'cancel') {
+        campaignControls.delete(campaignId)
+        await prisma.bulkCampaign.update({
+          where: { id: campaignId },
+          data: { status: 'CANCELLED', completedAt: new Date(), sent, failed },
+        })
+        console.log(`[wa-service] campaign "${campaign.name}" cancelled at ${sent + failed}/${phones.length}`)
+        return
+      }
+      if (control === 'pause') {
+        campaignControls.delete(campaignId)
+        await prisma.bulkCampaign.update({
+          where: { id: campaignId },
+          data: { status: 'PAUSED', sent, failed },
+        })
+        console.log(`[wa-service] campaign "${campaign.name}" paused at ${sent + failed}/${phones.length}`)
+        return
+      }
+
+      if (i > startIndex) await sleep(CAMPAIGN_PACE_MS)
+
+      const phone = phones[i]
+      const res = await handleSend({ toPhone: phone, body: campaign.body, senderId: null })
+      if (res.status === 503) {
+        // No connected session — the run cannot continue meaningfully.
+        await prisma.bulkCampaign.update({
+          where: { id: campaignId },
+          data: { status: 'FAILED', completedAt: new Date(), sent, failed },
+        })
+        console.error(`[wa-service] campaign "${campaign.name}" FAILED: ${String(res.body.error ?? 'no-connected-session')}`)
+        return
+      }
+
+      const ok = res.status === 200
+      if (ok) sent += 1
+      else failed += 1
+      try {
+        await prisma.whatsAppMessage.create({
+          data: {
+            senderId: session.senderId,
+            toPhone: phone,
+            template: 'MARKETING',
+            body: campaign.body,
+            status: ok ? 'SENT' : 'FAILED',
+            error: ok ? null : String(res.body.error ?? `service responded ${res.status}`),
+            campaignId,
+            sentAt: ok ? new Date() : null,
+          },
+        })
+      } catch (err) {
+        console.error('[wa-service] campaign ledger row write failed:', err)
+      }
+
+      if ((sent + failed) % CAMPAIGN_PROGRESS_EVERY === 0 || i === phones.length - 1) {
+        await prisma.bulkCampaign
+          .update({ where: { id: campaignId }, data: { sent, failed } })
+          .catch((err: unknown) => console.error('[wa-service] campaign progress write failed:', err))
+      }
+    }
+
+    await prisma.bulkCampaign.update({
+      where: { id: campaignId },
+      data: { status: 'COMPLETED', completedAt: new Date(), sent, failed },
+    })
+    console.log(`[wa-service] campaign "${campaign.name}" completed: ${sent} sent, ${failed} failed`)
+  } catch (err) {
+    console.error(`[wa-service] campaign loop crashed (${campaignId}):`, err)
+    await prisma.bulkCampaign
+      .update({ where: { id: campaignId }, data: { status: 'FAILED', completedAt: new Date() } })
+      .catch(() => undefined)
+  }
+}
+
+/** POST /campaigns/control — set the in-memory directive ('pause' halts the
+ * loop, 'cancel' aborts it); 'resume' also re-kicks /campaigns/run when the
+ * loop previously exited on a pause. */
+async function controlCampaign(
+  campaignId: string,
+  action: string
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  if (action !== 'pause' && action !== 'resume' && action !== 'cancel') {
+    return { status: 400, body: { ok: false, error: 'invalid-action' } }
+  }
+  const campaign = await prisma.bulkCampaign.findUnique({
+    where: { id: campaignId },
+    select: { id: true, status: true },
+  })
+  if (!campaign) return { status: 404, body: { ok: false, error: 'campaign-not-found' } }
+
+  if (action === 'pause') {
+    campaignControls.set(campaignId, 'pause')
+  } else if (action === 'cancel') {
+    campaignControls.set(campaignId, 'cancel')
+    // A paused campaign has NO live loop left to consume the directive —
+    // cancel the row directly so it can never strand in PAUSED forever.
+    if (campaign.status === 'PAUSED' && !runningCampaigns.has(campaignId)) {
+      await prisma.bulkCampaign.update({
+        where: { id: campaignId },
+        data: { status: 'CANCELLED', completedAt: new Date() },
+      })
+      console.log(`[wa-service] campaign ${campaignId} cancelled while paused`)
+    }
+  } else {
+    // resume — drop any pending pause and re-kick the loop when it exited.
+    campaignControls.delete(campaignId)
+    if (campaign.status === 'PAUSED') return runCampaign(campaignId)
+  }
+
+  const fresh = await prisma.bulkCampaign.findUnique({
+    where: { id: campaignId },
+    select: CAMPAIGN_PUBLIC_SELECT,
+  })
+  return { status: 200, body: { ok: true, campaign: fresh ? serializeCampaign(fresh) : null } }
+}
+
 // ── Small helpers ───────────────────────────────────────────────────────────
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -899,6 +1271,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
     new Promise<T>((_, reject) => setTimeout(() => reject(new Error(label)), ms)),
   ])
 }
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
 function findSessionByPayload(payload: { senderId?: unknown; phoneNumber?: unknown }): SenderSession | null {
   if (typeof payload.senderId === 'string' && payload.senderId) {
@@ -987,6 +1361,25 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     if (method === 'POST' && pathname === '/send') {
       const payload = await readBody(req)
       const { status, body } = await handleSend(payload)
+      return send(res, status, body)
+    }
+
+    if (method === 'POST' && pathname === '/campaigns/run') {
+      const payload = await readBody(req)
+      const campaignId = typeof payload.campaignId === 'string' ? payload.campaignId : ''
+      if (!campaignId) return send(res, 400, { ok: false, error: 'campaignId-required' })
+      const { status, body } = await runCampaign(campaignId)
+      return send(res, status, body)
+    }
+
+    if (method === 'POST' && pathname === '/campaigns/control') {
+      const payload = await readBody(req)
+      const campaignId = typeof payload.campaignId === 'string' ? payload.campaignId : ''
+      const action = typeof payload.action === 'string' ? payload.action : ''
+      if (!campaignId || !action) {
+        return send(res, 400, { ok: false, error: 'campaignId-and-action-required' })
+      }
+      const { status, body } = await controlCampaign(campaignId, action)
       return send(res, status, body)
     }
 

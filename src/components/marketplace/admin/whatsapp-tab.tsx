@@ -1,11 +1,16 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { LucideIcon } from 'lucide-react'
 import {
   AlertTriangle,
+  Bot,
   CheckCircle2,
   Copy,
+  FileText,
+  History,
   Loader2,
+  Megaphone,
   MessageCircle,
   QrCode,
   RefreshCw,
@@ -37,14 +42,26 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { AdminEmptyState, apiRequest, toastApiError } from './shared'
+import { CampaignsManager } from './whatsapp/campaigns-manager'
+import { ChatbotManager } from './whatsapp/chatbot-manager'
+import { TemplatesManager } from './whatsapp/templates-manager'
+import {
+  CAMPAIGN_LIVE_STATUSES,
+  KpiCard,
+  type CampaignDTO,
+  type RuleDTO,
+  type TemplateDTO,
+} from './whatsapp/shared'
 
 /**
- * Admin console → WhatsApp Channels (Phase 3).
+ * Admin console → WhatsApp Business suite (Phase 3 pairing + wa-biz-2 tabs).
  *
  * The platform sends WhatsApp for FREE through Baileys: the owner pairs ANY
- * international SIM here (pairing code typed into WhatsApp → Linked devices →
+ * international SIM (pairing code typed into WhatsApp → Linked devices →
  * "Link with phone number instead"), and that line becomes the outbound sender
- * for OTP codes + notification mirrors. Every send lands in the ledger below.
+ * for OTP codes + notification mirrors. This console now spans five tabs:
+ *   Senders · Templates · Chatbot · Campaigns · Messages
+ * backed by a KPI strip and (while a campaign is in flight) a 5s live poll.
  */
 
 interface SenderDTO {
@@ -123,7 +140,19 @@ function formatSenderPhone(e164: string): string {
   return e164
 }
 
+type WhatsAppSection = 'senders' | 'templates' | 'chatbot' | 'campaigns' | 'messages'
+
+const SECTIONS: { key: WhatsAppSection; label: string; icon: LucideIcon }[] = [
+  { key: 'senders', label: 'Senders', icon: Smartphone },
+  { key: 'templates', label: 'Templates', icon: FileText },
+  { key: 'chatbot', label: 'Chatbot', icon: Bot },
+  { key: 'campaigns', label: 'Campaigns', icon: Megaphone },
+  { key: 'messages', label: 'Messages', icon: History },
+]
+
 export function WhatsAppTab() {
+  const [section, setSection] = useState<WhatsAppSection>('senders')
+
   // 6s poll: while a pairing window is live the service auto-refreshes codes
   // into the DB, and the card list should surface them quickly.
   const {
@@ -134,77 +163,205 @@ export function WhatsAppTab() {
   } = useApi<{ senders: SenderDTO[] }>('/api/admin/whatsapp/senders', {
     pollMs: 6_000,
   })
-  const { data: ledgerData, refetch: refetchLedger } = useApi<{ messages: MessageDTO[] }>(
-    '/api/admin/whatsapp/messages?take=50'
+  const { data: ledgerData, loading: ledgerLoading, refetch: refetchLedger } = useApi<{ messages: MessageDTO[] }>(
+    '/api/admin/whatsapp/messages?take=200'
   )
+  // wa-biz suite loaders — owned HERE (not inside the managers) so the KPI
+  // strip and the tab bodies always render the exact same data.
+  const templatesApi = useApi<{ templates: TemplateDTO[] }>('/api/admin/whatsapp/templates')
+  const rulesApi = useApi<{ rules: RuleDTO[] }>('/api/admin/whatsapp/chatbot')
+  const campaignsApi = useApi<{ campaigns: CampaignDTO[] }>('/api/admin/whatsapp/campaigns')
 
   const senders = data?.senders ?? []
   const messages = ledgerData?.messages ?? []
+  const rules = rulesApi.data?.rules
+  const campaigns = campaignsApi.data?.campaigns
+
   const pairedCount = senders.filter((s) => s.status === 'PAIRED').length
+  const messages24h = messages.filter((m) => Date.now() - new Date(m.createdAt).getTime() < 86_400_000).length
+  const activeRules = rules?.filter((r) => r.active).length ?? null
+  const runningCampaigns = campaigns?.filter((c) => c.status === 'SENDING' || c.status === 'QUEUED').length ?? null
+  const campaignLive = !!campaigns?.some((c) => CAMPAIGN_LIVE_STATUSES.includes(c.status))
 
   const refreshAll = useCallback(() => {
     void refetch()
     void refetchLedger()
-  }, [refetch, refetchLedger])
+    void templatesApi.refetch()
+    void rulesApi.refetch()
+    void campaignsApi.refetch()
+  }, [refetch, refetchLedger, templatesApi.refetch, rulesApi.refetch, campaignsApi.refetch])
+
+  // Live progress: while any campaign is QUEUED/SENDING/PAUSED, refresh the
+  // campaigns list every 5s (silent — no skeleton flash) and stop on its own
+  // once nothing is running. Interval cleanup also covers unmount.
+  useEffect(() => {
+    if (!campaignLive) return
+    const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+      void campaignsApi.refetch({ silent: true })
+    }, 5_000)
+    return () => clearInterval(timer)
+  }, [campaignLive, campaignsApi.refetch])
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="flex items-center gap-2 text-lg font-bold">
-            <MessageCircle size={18} className="text-primary" /> WhatsApp channels
-          </h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Pair any international SIM as a free outbound line — OTP codes and notification
-            mirrors are sent from the default paired number.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge
-            className={cn(
-              'rounded-full border-0 text-[11px] font-semibold',
-              pairedCount > 0
-                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                : 'bg-stone-200 text-stone-600 dark:bg-stone-800 dark:text-stone-400'
-            )}
-          >
-            {pairedCount} paired
-          </Badge>
-          <Button variant="outline" size="sm" onClick={refreshAll} className="h-9 rounded-xl">
-            <RefreshCw size={14} className="mr-1.5" /> Refresh
-          </Button>
-        </div>
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          Pair sender lines, build reusable templates, auto-reply to incoming messages and run bulk
+          campaigns — everything sends over your own WhatsApp numbers, free through Baileys.
+        </p>
+        <Button variant="outline" size="sm" onClick={refreshAll} className="h-9 rounded-xl">
+          <RefreshCw size={14} className="mr-1.5" /> Refresh
+        </Button>
       </div>
 
-      <AddSenderForm onAdded={refreshAll} />
-
-      {loading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 2 }).map((_, i) => (
-            <Skeleton key={i} className="h-28 w-full rounded-2xl" />
-          ))}
-        </div>
-      ) : error ? (
-        <AdminEmptyState
-          icon={AlertTriangle}
-          title="Could not load channels"
-          description={error}
-        />
-      ) : senders.length === 0 ? (
-        <AdminEmptyState
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <KpiCard
           icon={Smartphone}
-          title="No WhatsApp lines yet"
-          description="Add the number of a SIM that has WhatsApp installed — you will get a pairing code to type on that phone once."
+          label="Paired lines"
+          value={pairedCount}
+          loading={loading}
+          tone="emerald"
+          hint={`${senders.length} line${senders.length === 1 ? '' : 's'} total`}
         />
-      ) : (
+        <KpiCard
+          icon={History}
+          label="Messages (24h)"
+          value={messages24h}
+          loading={ledgerLoading}
+          hint={`${messages.length} recent logged`}
+        />
+        <KpiCard
+          icon={Bot}
+          label="Active chatbot rules"
+          value={activeRules ?? '—'}
+          loading={rulesApi.loading}
+          tone="violet"
+        />
+        <KpiCard
+          icon={Megaphone}
+          label="Running campaigns"
+          value={runningCampaigns ?? '—'}
+          loading={campaignsApi.loading}
+          tone="amber"
+          hint={campaignLive ? 'Live · refreshing every 5s' : undefined}
+        />
+      </div>
+
+      {/* Sticky section tabs — they dock right under the dashboard topbar (h-14) */}
+      <div className="sticky top-14 z-20 -mx-4 border-b bg-background/95 px-4 pb-2 pt-1 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+        <nav
+          aria-label="WhatsApp sections"
+          className="flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {SECTIONS.map((s) => {
+            const active = section === s.key
+            const Icon = s.icon
+            const count = s.key === 'chatbot' ? activeRules : s.key === 'campaigns' ? runningCampaigns : null
+            return (
+              <button
+                key={s.key}
+                type="button"
+                aria-current={active ? 'true' : undefined}
+                onClick={() => {
+                  setSection(s.key)
+                  // The ledger only lives on this tab — top it up silently on
+                  // entry so fresh campaign/chatbot rows appear without a
+                  // manual Refresh (no skeleton flash, no polling).
+                  if (s.key === 'messages') void refetchLedger({ silent: true })
+                }}
+                className={cn(
+                  'flex shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition-colors',
+                  active
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground'
+                )}
+              >
+                <Icon size={14} />
+                {s.label}
+                {!!count && (
+                  <span
+                    className={cn(
+                      'rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none tabular-nums',
+                      active
+                        ? 'bg-primary-foreground/20 text-primary-foreground'
+                        : 'bg-muted text-muted-foreground'
+                    )}
+                  >
+                    {count}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </nav>
+      </div>
+
+      {/* Tab bodies — Senders + Messages keep the battle-tested Phase 3 UI */}
+      {section === 'senders' && (
         <div className="space-y-3">
-          {senders.map((s) => (
-            <SenderCard key={s.id} sender={s} onChanged={refreshAll} />
-          ))}
+          <AddSenderForm onAdded={refreshAll} />
+
+          {loading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 2 }).map((_, i) => (
+                <Skeleton key={i} className="h-28 w-full rounded-2xl" />
+              ))}
+            </div>
+          ) : error ? (
+            <AdminEmptyState
+              icon={AlertTriangle}
+              title="Could not load channels"
+              description={error}
+            />
+          ) : senders.length === 0 ? (
+            <AdminEmptyState
+              icon={Smartphone}
+              title="No WhatsApp lines yet"
+              description="Add the number of a SIM that has WhatsApp installed — you will get a pairing code to type on that phone once."
+            />
+          ) : (
+            <div className="space-y-3">
+              {senders.map((s) => (
+                <SenderCard key={s.id} sender={s} onChanged={refreshAll} />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      <MessageLedger messages={messages} />
+      {section === 'templates' && (
+        <TemplatesManager
+          data={templatesApi.data}
+          loading={templatesApi.loading}
+          error={templatesApi.error}
+          refetch={templatesApi.refetch}
+        />
+      )}
+
+      {section === 'chatbot' && (
+        <ChatbotManager
+          data={rulesApi.data}
+          loading={rulesApi.loading}
+          error={rulesApi.error}
+          refetch={rulesApi.refetch}
+          setData={rulesApi.setData}
+        />
+      )}
+
+      {section === 'campaigns' && (
+        <CampaignsManager
+          data={campaignsApi.data}
+          loading={campaignsApi.loading}
+          error={campaignsApi.error}
+          refetch={campaignsApi.refetch}
+          templates={templatesApi.data?.templates ?? []}
+          live={campaignLive}
+        />
+      )}
+
+      {section === 'messages' && <MessageLedger messages={messages} />}
     </div>
   )
 }

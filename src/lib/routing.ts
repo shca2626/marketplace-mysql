@@ -67,6 +67,9 @@ export function viewToQuery(view: View, params: ViewParams = {}): string {
   if (view === 'financing' && params.financingWizard) sp.set('wizard', params.financingWizard)
   if ((view === 'reset-password' || view === 'verify-email') && params.authToken) sp.set('token', params.authToken)
   if (view === 'reset-password' && params.resetVia) sp.set('via', params.resetVia)
+  // OTPFIX — carry the phone over from forgot-password so the reset view
+  // boots with the code it ALREADY sent (no second OTP request).
+  if (view === 'reset-password' && params.resetPhone) sp.set('phone', params.resetPhone)
   const qs = sp.toString()
   return qs
 }
@@ -138,6 +141,8 @@ export function parseLocation(href: string = typeof window !== 'undefined' ? win
     if (view === 'reset-password') {
       const via = sp.get('via')
       if (via === 'phone' || via === 'email') params.resetVia = via
+      const phone = sp.get('phone')
+      if (phone) params.resetPhone = phone
     }
     return { view, params }
   } catch {
