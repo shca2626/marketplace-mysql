@@ -1938,6 +1938,7 @@ model WhatsAppSender {
   status      String    @default("PENDING_PAIRING") // PENDING_PAIRING | PAIRED | DISCONNECTED | FAILED
   credsJson   String?   @db.MediumText // Baileys session credentials (encrypted-at-rest candidate)
   pairingCode String? // 8-char code the owner types on their phone (pairing flow)
+  codeIssuedAt DateTime? // when the CURRENT pairing code was issued (codes expire in ~2-3 min)
   qrExpiresAt DateTime?
   isDefault   Boolean   @default(false) // the active outbound line
   lastUsedAt  DateTime?

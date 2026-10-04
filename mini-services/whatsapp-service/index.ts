@@ -117,6 +117,17 @@ interface SenderSession {
   reconnectAttempts: number
   reconnectTimer: ReturnType<typeof setTimeout> | null
   persistTimer: ReturnType<typeof setTimeout> | null
+  // ── Pairing-window state (user-reported "Unable to connect the phone"
+  // 2026-10-05: WhatsApp drops unregistered sockets after ~2-3 min, which
+  // silently invalidated the displayed code while the admin was typing it
+  // on the phone). We now keep the window alive: auto-reconnect + fresh code.
+  pairingCode: string | null
+  codeIssuedAt: Date | null
+  pairingStartedAt: Date | null // first code request of this pairing window
+  refreshCount: number // codes issued in the current window
+  qrString: string | null // latest Baileys QR (same session as the code)
+  qrIssuedAt: Date | null
+  refreshTimer: ReturnType<typeof setTimeout> | null
 }
 
 const sessions = new Map<string, SenderSession>()
@@ -129,6 +140,7 @@ if (hotReloadGuard.__vendoraWhatsappSessions) {
     s.dead = true
     if (s.reconnectTimer) clearTimeout(s.reconnectTimer)
     if (s.persistTimer) clearTimeout(s.persistTimer)
+    if (s.refreshTimer) clearTimeout(s.refreshTimer)
     try {
       s.sock?.end(undefined)
     } catch {
@@ -284,6 +296,16 @@ async function connect(s: SenderSession): Promise<void> {
 }
 
 async function onConnectionUpdate(s: SenderSession, u: Partial<ConnectionState>): Promise<void> {
+  if (u.qr) {
+    // Unregistered connection — Baileys emitted a QR for the same noise keys
+    // the pairing code is derived from, so BOTH the QR scan and the code
+    // link the same socket. Keep the freshest one for the admin panel.
+    s.qrString = u.qr
+    s.qrIssuedAt = new Date()
+    if (!s.connected) s.connected = true // QR emission implies a live socket
+    return
+  }
+
   if (u.connection === 'open') {
     s.connected = true
     s.reconnectAttempts = 0
@@ -317,8 +339,24 @@ async function onConnectionUpdate(s: SenderSession, u: Partial<ConnectionState>)
     }
 
     // A pairing socket that dies before the code is entered: the code is dead.
+    // AUTO-REFRESH (user-reported "Unable to connect the phone", 2026-10-05):
+    // WhatsApp drops unregistered sockets after ~2-3 min. Instead of giving
+    // up and leaving a dead code on screen, reconnect + issue a fresh code
+    // automatically while the pairing window is still young.
     if (s.pairing && !s.creds.registered) {
-      s.lastError = 'Pairing window closed before the code was entered — request a new pairing code.'
+      const windowMs = Date.now() - (s.pairingStartedAt?.getTime() ?? Date.now())
+      if (windowMs <= PAIRING_WINDOW_MS && s.refreshCount < MAX_PAIRING_CODES && !s.dead) {
+        s.lastError = 'Pairing connection dropped — issuing a fresh code automatically…'
+        await dbUpdate(s, { status: 'PENDING_PAIRING', lastError: s.lastError })
+        destroySession(s, false)
+        console.warn(
+          `[wa-service] pairing socket dropped (${s.phoneNumber}) — auto-refresh in 2s (code #${s.refreshCount + 1})`
+        )
+        schedulePairingRefresh(s)
+        return
+      }
+      s.lastError =
+        'Pairing window expired — click “Pair now” again to get a fresh code. Codes stay valid only a few minutes.'
       await dbUpdate(s, { status: 'PENDING_PAIRING', lastError: s.lastError })
       destroySession(s, false)
       console.warn(`[wa-service] pairing window closed (${s.phoneNumber})`)
@@ -398,6 +436,10 @@ function destroySession(s: SenderSession, flush: boolean): void {
     clearTimeout(s.persistTimer)
     s.persistTimer = null
   }
+  if (s.refreshTimer) {
+    clearTimeout(s.refreshTimer)
+    s.refreshTimer = null
+  }
   if (flush) {
     try {
       persistNow(s)
@@ -422,8 +464,22 @@ async function dbUpdate(s: SenderSession, data: Record<string, unknown>): Promis
 
 // ── Pairing ──────────────────────────────────────────────────────────────────
 
+// Pairing-window budget (user-reported "Unable to connect the phone"): WhatsApp
+// drops unregistered sockets after ~2-3 min and codes expire with them. While
+// the admin still has the pairing dialog open we auto-reconnect and issue a
+// fresh code, for up to this long since the FIRST code request …
+const PAIRING_WINDOW_MS = 15 * 60_000 // … 15 minutes …
+const MAX_PAIRING_CODES = 8 // … and at most this many codes per window.
+
 function digitsOnly(raw: string): string {
   return raw.replace(/\D/g, '')
+}
+
+function pairingWindowInfo(s: SenderSession): { refreshing: boolean; expiresAt: string | null } {
+  const started = s.pairingStartedAt
+  if (!started) return { refreshing: false, expiresAt: null }
+  const expiresAt = new Date(started.getTime() + PAIRING_WINDOW_MS)
+  return { refreshing: Date.now() <= expiresAt.getTime(), expiresAt: expiresAt.toISOString() }
 }
 
 /** Resolves once the socket is ready for a pairing request (QR emitted or the
@@ -432,6 +488,10 @@ function waitForFirstConnectionState(s: SenderSession, timeoutMs: number): Promi
   return new Promise((resolve) => {
     const sock = s.sock
     if (!sock) {
+      resolve()
+      return
+    }
+    if (s.qrString || s.connected) {
       resolve()
       return
     }
@@ -457,39 +517,14 @@ function waitForFirstConnectionState(s: SenderSession, timeoutMs: number): Promi
   })
 }
 
-async function startPairing(senderId: string, phoneNumber: string): Promise<string> {
-  const prev = sessions.get(senderId)
-  if (prev) {
-    prev.dead = true
-    destroySession(prev, false)
-  }
-
-  const digits = digitsOnly(phoneNumber)
-  if (digits.length < 8 || digits.length > 15) {
-    throw new ServiceError(400, 'invalid-phone-number')
-  }
-
-  const creds = initAuthCreds()
-  const store = new MemoryKeyStore()
-  const s: SenderSession = {
-    senderId,
-    phoneNumber: `+${digits}`,
-    creds,
-    store,
-    sock: null,
-    connected: false,
-    pairing: true,
-    dead: false,
-    markedPaired: false,
-    lastSeen: new Date(),
-    lastError: null,
-    reconnectAttempts: 0,
-    reconnectTimer: null,
-    persistTimer: null,
-  }
-  store.onChange = () => schedulePersist(s)
-  sessions.set(senderId, s)
-
+/** Core socket+code bootstrap shared by startPairing, the auto-refresher and
+ *  the boot restore path. Connects `s` (fresh creds already set), waits for
+ *  the noise handshake, requests a pairing code and records it everywhere.
+ *  Returns the fresh code. Throws ServiceError on failure. */
+async function connectAndRequestCode(
+  s: SenderSession,
+  opts: { firstWindow: boolean }
+): Promise<string> {
   try {
     await connect(s)
   } catch (err) {
@@ -508,7 +543,7 @@ async function startPairing(senderId: string, phoneNumber: string): Promise<stri
   let pairingCode: string
   try {
     pairingCode = await withTimeout(
-      sock.requestPairingCode(digits),
+      sock.requestPairingCode(digitsOnly(s.phoneNumber)),
       30_000,
       'pairing-code-timeout'
     )
@@ -520,10 +555,109 @@ async function startPairing(senderId: string, phoneNumber: string): Promise<stri
     throw new ServiceError(502, `pairing-code-failed: ${msg}`)
   }
 
+  s.pairingCode = pairingCode
+  s.codeIssuedAt = new Date()
+  s.refreshCount += 1
+  if (opts.firstWindow) s.pairingStartedAt = s.codeIssuedAt
+
   persistNow(s) // pairingCode + me.id land in creds — persist immediately
-  await dbUpdate(s, { status: 'PENDING_PAIRING', pairingCode, lastError: null })
-  console.log(`[wa-service] pairing code issued for +${digits} (sender ${senderId}): ${pairingCode}`)
+  await dbUpdate(s, {
+    status: 'PENDING_PAIRING',
+    pairingCode,
+    codeIssuedAt: s.codeIssuedAt,
+    lastError: null,
+  })
+  console.log(
+    `[wa-service] pairing code #${s.refreshCount} issued for ${s.phoneNumber} (sender ${s.senderId}): ${pairingCode}`
+  )
   return pairingCode
+}
+
+/** The pairing socket died before the code was entered — keep the window
+ *  alive: fresh creds, fresh socket, fresh code (budget-capped). */
+function schedulePairingRefresh(s: SenderSession): void {
+  if (s.dead || s.refreshTimer) return
+  const carried = {
+    pairingStartedAt: s.pairingStartedAt,
+    refreshCount: s.refreshCount,
+  }
+  s.refreshTimer = setTimeout(() => {
+    s.refreshTimer = null
+    if (s.dead || s.creds.registered) return
+    // Fresh identity for the retry (the dropped noise key is burned server-
+    // side); keep the window bookkeeping so the budget still applies.
+    s.creds = initAuthCreds()
+    s.store = new MemoryKeyStore()
+    s.store.onChange = () => schedulePersist(s)
+    s.pairingStartedAt = carried.pairingStartedAt
+    s.refreshCount = carried.refreshCount
+    s.qrString = null
+    s.qrIssuedAt = null
+    s.sock = null
+    s.connected = false
+    s.reconnectAttempts = 0
+    sessions.set(s.senderId, s) // destroySession removed us from the map
+    connectAndRequestCode(s, { firstWindow: !carried.pairingStartedAt })
+      .then(() => {
+        console.log(`[wa-service] pairing auto-refreshed (${s.phoneNumber}) — fresh code ${s.pairingCode}`)
+      })
+      .catch(async (err: unknown) => {
+        // Refresh failed — if budget remains, try again (backoff); else stop.
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error(`[wa-service] pairing refresh failed (${s.phoneNumber}): ${msg}`)
+        if (s.dead || s.creds.registered) return
+        const windowMs = Date.now() - (s.pairingStartedAt?.getTime() ?? Date.now())
+        if (windowMs <= PAIRING_WINDOW_MS && s.refreshCount < MAX_PAIRING_CODES) {
+          destroySession(s, false)
+          schedulePairingRefresh(s)
+        } else {
+          s.lastError = 'Pairing window expired — click “Pair now” again to get a fresh code.'
+          await dbUpdate(s, { status: 'PENDING_PAIRING', lastError: s.lastError })
+          destroySession(s, false)
+        }
+      })
+  }, 2_000)
+}
+
+async function startPairing(senderId: string, phoneNumber: string): Promise<string> {
+  const prev = sessions.get(senderId)
+  if (prev) {
+    prev.dead = true
+    destroySession(prev, false)
+  }
+
+  const digits = digitsOnly(phoneNumber)
+  if (digits.length < 8 || digits.length > 15) {
+    throw new ServiceError(400, 'invalid-phone-number')
+  }
+
+  const s: SenderSession = {
+    senderId,
+    phoneNumber: `+${digits}`,
+    creds: initAuthCreds(),
+    store: new MemoryKeyStore(),
+    sock: null,
+    connected: false,
+    pairing: true,
+    dead: false,
+    markedPaired: false,
+    lastSeen: new Date(),
+    lastError: null,
+    reconnectAttempts: 0,
+    reconnectTimer: null,
+    persistTimer: null,
+    pairingCode: null,
+    codeIssuedAt: null,
+    pairingStartedAt: null,
+    refreshCount: 0,
+    qrString: null,
+    qrIssuedAt: null,
+    refreshTimer: null,
+  }
+  s.store.onChange = () => schedulePersist(s)
+  sessions.set(senderId, s)
+
+  return connectAndRequestCode(s, { firstWindow: true })
 }
 
 // ── Restore sessions from snapshots ─────────────────────────────────────────
@@ -555,6 +689,15 @@ function restoreFromSnapshot(senderId: string, phoneNumber: string, json: string
       reconnectAttempts: 0,
       reconnectTimer: null,
       persistTimer: null,
+      pairingCode: null,
+      codeIssuedAt: null,
+      // A restart always kills the live pairing slot server-side, so the
+      // persisted code/QR are dead by definition — start a fresh window.
+      pairingStartedAt: null,
+      refreshCount: 0,
+      qrString: null,
+      qrIssuedAt: null,
+      refreshTimer: null,
     }
     store.onChange = () => schedulePersist(s)
     sessions.set(senderId, s)
@@ -608,6 +751,15 @@ async function restoreAllFromDb(): Promise<{ restored: number; failed: number }>
       await connect(s)
       restored += 1
       console.log(`[wa-service] restored session ${row.phoneNumber} (${row.status})`)
+      // Restored while still unpaired → the persisted pairing code died with
+      // the previous process. Issue a fresh one automatically so the admin
+      // panel shows a live code (+ QR) without clicking anything.
+      if (!s.creds.registered && !s.dead) {
+        void connectAndRequestCode(s, { firstWindow: true }).catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err)
+          console.warn(`[wa-service] boot fresh-code failed (${row.phoneNumber}): ${msg}`)
+        })
+      }
     } catch (err) {
       failed += 1
       console.error(`[wa-service] restore connect failed (${row.phoneNumber}):`, err)
@@ -808,15 +960,24 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     }
 
     if (method === 'GET' && pathname === '/senders/status') {
-      const senders = [...sessions.values()].map((s) => ({
-        senderId: s.senderId,
-        phoneNumber: s.phoneNumber,
-        connected: s.connected,
-        registered: !!s.creds.registered,
-        pairing: s.pairing && !s.creds.registered,
-        lastSeen: s.lastSeen.toISOString(),
-        lastError: s.lastError,
-      }))
+      const senders = [...sessions.values()].map((s) => {
+        const window = pairingWindowInfo(s)
+        return {
+          senderId: s.senderId,
+          phoneNumber: s.phoneNumber,
+          connected: s.connected,
+          registered: !!s.creds.registered,
+          pairing: s.pairing && !s.creds.registered,
+          pairingCode: s.pairing && !s.creds.registered ? s.pairingCode : null,
+          codeIssuedAt: s.pairing && !s.creds.registered ? s.codeIssuedAt?.toISOString() ?? null : null,
+          refreshing: s.pairing && !s.creds.registered ? window.refreshing : false,
+          windowExpiresAt: s.pairing && !s.creds.registered ? window.expiresAt : null,
+          refreshCount: s.refreshCount,
+          qr: s.pairing && !s.creds.registered && s.qrString ? s.qrString : null,
+          lastSeen: s.lastSeen.toISOString(),
+          lastError: s.lastError,
+        }
+      })
       return send(res, 200, { ok: true, senders })
     }
 
@@ -887,6 +1048,20 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
 // ── Boot ────────────────────────────────────────────────────────────────────
 
 mkdirSync(SESSIONS_DIR, { recursive: true })
+
+// Single-instance guard: a second process that loses the port race (watchdog
+// restart, manual start, sandbox duplicate) must EXIT instead of lingering as
+// a zombie with its own session map — that split-brain is exactly what made
+// pairing status flap and sockets replace each other (user-reported
+// 2026-10-05).
+server.on('error', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EADDRINUSE') {
+    console.log(`[wa-service] port ${PORT} already in use — another instance is running, exiting.`)
+    process.exit(0)
+  }
+  console.error('[wa-service] server error:', err)
+  process.exit(1)
+})
 
 server.listen(PORT, () => {
   console.log(`[wa-service] Vendora WhatsApp service listening on :${PORT}`)
