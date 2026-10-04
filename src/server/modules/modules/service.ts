@@ -119,13 +119,31 @@ export async function resolveModuleState(
   return result
 }
 
-/** Point check: is this module enabled for the context? */
+/** Point check: is this module enabled for the context?
+ *  Phase 6 (6.3): UNKNOWN module keys fail CLOSED — a typo in a route's
+ *  requireModule() call must never grant access. The config error is logged
+ *  so the mistake surfaces in operations. */
 export async function isModuleEnabled(
   moduleKey: string,
   ctx: { orgId?: string | null; orgType?: string | null } = {}
 ): Promise<boolean> {
-  const state = await resolveModuleState(ctx)
-  return state[moduleKey] ?? true // unknown module keys fail open (core behavior)
+  const gate = await moduleGateState(moduleKey, ctx)
+  return gate.enabled
+}
+
+/** One-shot gate resolution for guards: distinguishes MODULE_UNKNOWN
+ *  (fail-closed config error) from MODULE_DISABLED (deliberate flip). */
+export async function moduleGateState(
+  moduleKey: string,
+  ctx: { orgId?: string | null; orgType?: string | null } = {}
+): Promise<{ enabled: boolean; unknown: boolean }> {
+  const state = await loadModuleStateCached()
+  if (!(moduleKey in state.modules)) {
+    console.error(`[modules] CONFIG ERROR: unknown module key "${moduleKey}" — failing closed (route refused)`)
+    return { enabled: false, unknown: true }
+  }
+  const resolved = await resolveModuleState(ctx)
+  return { enabled: resolved[moduleKey] ?? false, unknown: false }
 }
 
 /**
@@ -153,10 +171,16 @@ export async function userModuleState(userId: string): Promise<Record<string, bo
   return merged
 }
 
-/** Point check for a user (union of their org chains — see userModuleState). */
+/** Point check for a user (union of their org chains — see userModuleState).
+ *  Phase 6 (6.3): unknown keys fail closed, same as isModuleEnabled. */
 export async function isModuleEnabledForUser(moduleKey: string, userId: string): Promise<boolean> {
-  const state = await userModuleState(userId)
-  return state[moduleKey] ?? true // unknown module keys fail open (core behavior)
+  const state = await loadModuleStateCached()
+  if (!(moduleKey in state.modules)) {
+    console.error(`[modules] CONFIG ERROR: unknown module key "${moduleKey}" — failing closed (route refused)`)
+    return false
+  }
+  const userState = await userModuleState(userId)
+  return userState[moduleKey] ?? false
 }
 
 const globalForModules = globalThis as unknown as {

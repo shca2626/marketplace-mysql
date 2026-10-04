@@ -21,6 +21,7 @@ import { writeFile } from 'node:fs/promises'
 import { PrismaClient } from '@prisma/client'
 import { processImageUpload } from '../src/lib/storage/image-pipeline'
 import { mediaUrl } from '../src/lib/storage/url'
+import { assertNotProd } from './lib/assert-not-prod'
 
 const db = new PrismaClient()
 
@@ -844,6 +845,7 @@ const REVIEW_POOL: [string, number, string[]][] = [
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
+assertNotProd() // Phase 6 (6.0b.8/B1): fail-closed — no production mode, ever
   console.log('🧹 Clearing old catalog data (solar pivot)...')
 
   await db.notification.deleteMany()

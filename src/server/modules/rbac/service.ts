@@ -1,5 +1,6 @@
 import { randomBytes } from 'crypto'
 import { db } from '@/lib/db'
+import { sha256Hex } from '@/lib/secret-box'
 import {
   ALL_ORG_PERMISSIONS,
   ALL_PLATFORM_PERMISSIONS,
@@ -77,9 +78,9 @@ export interface ActorContext {
 }
 
 export async function getActorContext(user: { id: string; role: string }): Promise<ActorContext> {
-  if (user.role === 'ADMIN') {
-    return { isSuperAdmin: true, permissions: new Set(ALL_PLATFORM_PERMISSIONS) }
-  }
+  // Phase 6 (6.2): RBAC-only. The legacy User.role === 'ADMIN' shortcut is
+  // GONE — the platform owner operates through the protected
+  // platform.super-admin assignment (seeded by scripts/seed-rbac.ts step 3).
   const assignments = await db.userRole.findMany({
     where: { userId: user.id, organizationId: '' },
     select: { role: { select: { key: true, permissions: { select: { permissionKey: true } } } } },
@@ -133,9 +134,8 @@ export interface SessionRbac {
 }
 
 export async function buildSessionRbac(user: { id: string; role: string }): Promise<SessionRbac> {
-  if (user.role === 'ADMIN') {
-    return { permissions: [...ALL_PLATFORM_PERMISSIONS], isPlatformStaff: true }
-  }
+  // Phase 6 (6.2): RBAC-only — every account (legacy ADMIN included) derives
+  // its permissions from actual assignments.
   const assignments = await db.userRole.findMany({
     where: { userId: user.id, organizationId: '' },
     include: { role: { include: { permissions: { select: { permissionKey: true } } } } },
@@ -563,8 +563,8 @@ export async function assignRole(
   })
   if (!user) throw new RbacServiceError('User not found', 404)
   if (user.status === 'SUSPENDED') throw new RbacServiceError('This account is suspended', 403)
-  // RBACSEC-1: legacy ADMIN accounts are implicit super-admins — only
-  // super admins may attach further roles to them.
+  // Phase 6: legacy ADMIN accounts are protected — only super administrators
+  // may attach further roles to them (their power is the super-admin role).
   if (user.role === 'ADMIN' && !ctx.isSuperAdmin) {
     throw new RbacServiceError('Access denied — this account is a super administrator', 403)
   }
@@ -578,6 +578,15 @@ export async function assignRole(
     if (!org) throw new RbacServiceError('Organization not found', 404)
     organizationId = org.id
     organizationName = org.name
+    // Phase 6 (6.4 / M2): org-scoped assignment requires an ACTIVE membership
+    // — the canonical resolver, the only interpretation in the codebase.
+    const { requireActiveMembership, MembershipError } = await import('@/server/membership')
+    try {
+      await requireActiveMembership(user.id, organizationId)
+    } catch (err) {
+      if (err instanceof MembershipError) throw new RbacServiceError(err.message, err.status)
+      throw err
+    }
   }
 
   const existing = await db.userRole.findUnique({
@@ -619,6 +628,17 @@ export async function revokeAssignment(actor: RbacActor, id: string): Promise<vo
     },
   })
   if (!assignment) throw new RbacServiceError('Assignment not found', 404)
+  // Phase 6 (6.4 / H2): revoking the org.owner seat of the last active owner
+  // fails closed — grant the new owner FIRST, then revoke (atomic-swap order).
+  if (assignment.role.key === 'org.owner' && assignment.organizationId) {
+    const { assertNotLastActiveOwner, MembershipError } = await import('@/server/membership')
+    try {
+      await assertNotLastActiveOwner(assignment.organizationId, { excludingUserId: assignment.userId })
+    } catch (err) {
+      if (err instanceof MembershipError) throw new RbacServiceError(err.message, err.status)
+      throw err
+    }
+  }
   // RBACSEC-1: protected-role seats (super-admin, org.owner) can only be
   // revoked by super admins — and never your own super-admin seat.
   if (assignment.role.isProtected) {
@@ -755,14 +775,17 @@ export interface InvitationDTO {
   invitedByName: string | null
   expiresAt: string
   createdAt: string
-  token: string
+  /** Phase 6 (6.5): the RAW token is returned ONCE at creation time only —
+   * never persisted, never included in list views (only its SHA-256 hash is
+   * stored). */
+  token?: string
 }
 
 type InvitationRow = {
   id: string
   email: string
   name: string | null
-  token: string
+  tokenHash: string
   status: string
   invitedByName: string | null
   expiresAt: Date
@@ -783,7 +806,7 @@ function toInvitationDTO(inv: InvitationRow): InvitationDTO {
     invitedByName: inv.invitedByName,
     expiresAt: inv.expiresAt.toISOString(),
     createdAt: inv.createdAt.toISOString(),
-    token: inv.token,
+    // token deliberately NOT included — hashed at rest (6.5)
   }
 }
 
@@ -825,13 +848,14 @@ export async function createInvitation(
   })
   if (openInvite) throw new RbacServiceError('An open invitation for this email already exists', 409)
 
+  const rawToken = randomBytes(24).toString('hex')
   const invitation = await db.staffInvitation.create({
     data: {
       email,
       name: input.name?.trim() || null,
       roleId: role.id,
       organizationId: '',
-      token: randomBytes(24).toString('hex'),
+      tokenHash: sha256Hex(rawToken), // Phase 6 (6.5): hash at rest — raw shown once below
       status: 'PENDING',
       invitedBy: actor.id,
       invitedByName: actor.name,
@@ -849,7 +873,7 @@ export async function createInvitation(
     summary: `Staff invitation sent to ${email} for role "${role.name}"`,
     metadata: { email, roleKey: role.key, expiresAt: invitation.expiresAt.toISOString() },
   })
-  return toInvitationDTO(invitation)
+  return { ...toInvitationDTO(invitation), token: rawToken }
 }
 
 export async function revokeInvitation(actor: RbacActor, id: string): Promise<void> {
@@ -881,8 +905,10 @@ export async function consumeInvitation(
   email: string,
   token: string
 ): Promise<{ roleId: string; roleName: string; organizationId: string } | null> {
+  // Phase 6 (6.5): lookup by SHA-256 hash — the raw token exists only in the
+  // invitation email/link.
   const invitation = await db.staffInvitation.findUnique({
-    where: { token },
+    where: { tokenHash: sha256Hex(token) },
     include: { role: { select: { id: true, name: true, scope: true } } },
   })
   const valid =

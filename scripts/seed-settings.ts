@@ -12,6 +12,7 @@ import { join } from 'node:path'
 import { db } from '../src/lib/db'
 import { processImageUpload } from '../src/lib/storage/image-pipeline'
 import { mediaUrl } from '../src/lib/storage/url'
+import { assertNotProd } from './lib/assert-not-prod'
 import {
   DEFAULT_STOREFRONT_SETTINGS,
   type StorefrontSettings,
@@ -67,6 +68,7 @@ const SLIDES: SlideSpec[] = [
 ]
 
 async function main() {
+assertNotProd() // Phase 6 (6.0b.8/B1): fail-closed — no production mode, ever
   // 1) Settings row — create only when missing.
   const existingSettings = await db.platformSetting.findUnique({ where: { key: 'storefront' } })
   if (existingSettings) {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getSessionUser, hashPassword, setSessionCookie, verifyPassword } from '@/lib/auth'
-import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
+import { assertSameOrigin, enforceRateLimit, clientIp } from '@/lib/http'
 import { recordAudit } from '@/server/modules/audit/service'
 import { bumpSessionVersion } from '@/lib/auth-tokens'
 import { passwordChangedEmail } from '@/lib/emails/auth-emails'
@@ -77,7 +77,10 @@ export async function POST(req: NextRequest) {
     // Sign-out-everywhere semantics for OTHER sessions; this one stays valid by
     // re-issuing its cookie against the new sessionVersion epoch.
     const newVersion = await bumpSessionVersion(user.id)
-    await setSessionCookie(user.id, newVersion)
+    await setSessionCookie(user.id, newVersion, {
+      userAgent: req.headers.get('user-agent'),
+      ip: clientIp(req),
+    })
 
     if (user.email) {
       const mail = passwordChangedEmail({ name: user.name })

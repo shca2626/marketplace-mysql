@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { emitNotification } from '@/server/modules/notifications/service'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 
 /**
  * KYC LEVEL ENGINE (Phase 3 — single source of truth, computed once, read
@@ -239,7 +240,8 @@ export const KYC_PUBLISH_GATE_MESSAGE =
   'Verify your identity to publish products — upload a national ID or passport in Account → Verification (KYC level 2).'
 
 export async function assertSellerCanPublish(user: { id: string; role: string }): Promise<void> {
-  if (user.role === 'ADMIN') return // platform override
+  // Phase 6 (6.2 sweep): platform override via RBAC (catalog staff), not the role badge.
+  if (await userHasPlatformPermission(user.id, 'catalog.products.moderate')) return
   const level = await computeUserKycLevel(user.id)
   if (level < KYC_PUBLISH_REQUIRED_LEVEL) {
     throw Object.assign(new Error(KYC_PUBLISH_GATE_MESSAGE), { status: 403 })

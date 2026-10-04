@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { requireUser } from '@/server/guards'
 import { getOrganization, updateApprovalThreshold, OrgServiceError } from '@/server/modules/organizations/service'
 import { assertSameOrigin } from '@/lib/http'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 
 // GET /api/organizations/[id] — detail (members + groups); member or admin only
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -10,7 +11,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   if (error) return error
   try {
     const { id } = await ctx.params
-    const organization = await getOrganization(id, user!.id, user!.role === 'ADMIN')
+    const organization = await getOrganization(id, user!.id, await userHasPlatformPermission(user!.id, 'orgs.view'))
     return NextResponse.json({ organization })
   } catch (err) {
     if (err instanceof OrgServiceError) {
@@ -46,7 +47,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const organization = await updateApprovalThreshold(
       id,
       user!.id,
-      user!.role === 'ADMIN',
+      await userHasPlatformPermission(user!.id, 'orgs.update'),
       parsed.data.approvalThreshold
     )
     return NextResponse.json({ organization })

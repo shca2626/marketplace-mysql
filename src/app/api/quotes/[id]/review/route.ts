@@ -4,8 +4,9 @@ import { requireAdmin } from '@/server/guards'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { reviewQuote, RfqServiceError } from '@/server/modules/rfq/service'
 
-// POST /api/quotes/[id]/review — admin quote-routing review (ADMIN only).
+// POST /api/quotes/[id]/review — admin quote-routing review.
 // APPROVE releases a queued quote to the buyer; REJECT declines it with a reason.
+// Phase 6 (6.1.2): explicit permission key — the bare legacy admin gate is gone.
 
 const reviewSchema = z.object({
   decision: z.enum(['APPROVE', 'REJECT']),
@@ -13,7 +14,7 @@ const reviewSchema = z.object({
 })
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('rfq.quotes.review')
   if (error) return error
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf

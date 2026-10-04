@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
-import { getSessionUser } from '@/lib/auth'
+import { requireAdmin } from '@/server/guards'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { getStorefrontSettings, saveStorefrontSettings, getAllSlides } from '@/lib/settings/server'
 import { DEFAULT_STOREFRONT_SETTINGS } from '@/lib/settings/schema'
@@ -8,13 +8,6 @@ import { DEFAULT_STOREFRONT_SETTINGS } from '@/lib/settings/schema'
 // /api/admin/settings — platform configuration management (ADMIN only).
 // GET  → full settings + ALL slides (incl. inactive) for the settings forms.
 // PUT  → validate + persist the settings document (zod-strict).
-
-async function requireAdmin() {
-  const user = await getSessionUser()
-  if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
-  if (user.role !== 'ADMIN') return { error: NextResponse.json({ error: 'Admin access required' }, { status: 403 }) }
-  return { user }
-}
 
 export async function GET() {
   const guard = await requireAdmin('storefront.manage')

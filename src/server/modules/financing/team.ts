@@ -1,4 +1,5 @@
 import { randomBytes } from 'crypto'
+import { sha256Hex } from '@/lib/secret-box'
 import { db } from '@/lib/db'
 import { recordAudit } from '@/server/modules/audit/service'
 import { FinancingError, requireFinancierContext } from './shared'
@@ -45,7 +46,8 @@ export interface TeamInvitationDTO {
   invitedByName: string | null
   expiresAt: string
   createdAt: string
-  token: string
+  /** Phase 6 (6.5): raw token shown once at creation only; omitted in lists. */
+  token?: string
 }
 
 export interface InstitutionTeamDTO {
@@ -122,7 +124,7 @@ export async function listInstitutionTeam(userId: string): Promise<InstitutionTe
       invitedByName: i.invitedByName,
       expiresAt: i.expiresAt.toISOString(),
       createdAt: i.createdAt.toISOString(),
-      token: i.token,
+      // token omitted — only the SHA-256 hash is stored (6.5)
     })),
     assignableRoles: assignable.map((r) => ({
       id: r.id,
@@ -165,13 +167,14 @@ export async function inviteInstitutionStaff(
   })
   if (openInvite) throw new FinancingError('An open invitation for this email already exists', 409)
 
+  const rawToken = randomBytes(24).toString('hex')
   const invitation = await db.staffInvitation.create({
     data: {
       email,
       name: input.name?.trim() || null,
       roleId: role.id,
       organizationId: ctx.organizationId,
-      token: randomBytes(24).toString('hex'),
+      tokenHash: sha256Hex(rawToken), // Phase 6 (6.5): hash at rest — raw shown once
       status: 'PENDING',
       invitedBy: userId,
       invitedByName: actorName,
@@ -201,7 +204,7 @@ export async function inviteInstitutionStaff(
     invitedByName: invitation.invitedByName,
     expiresAt: invitation.expiresAt.toISOString(),
     createdAt: invitation.createdAt.toISOString(),
-    token: invitation.token,
+    token: rawToken, // one-time display — the stored value is the hash
   }
 }
 

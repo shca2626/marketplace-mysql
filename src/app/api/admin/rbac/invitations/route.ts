@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireAdminAny } from '@/server/guards'
+import { requireAdminAny, requireStepUpMfa } from '@/server/guards'
 import { assertSameOrigin } from '@/lib/http'
 import { createInvitation, listInvitations, RbacServiceError } from '@/server/modules/rbac/service'
 
@@ -32,6 +32,9 @@ export async function POST(req: NextRequest) {
 
   const { user, error } = await requireAdminAny(['staff.invite', 'rbac.manage'])
   if (error) return error
+  // Phase 6 (6.7.5): sensitive action — requires a fresh MFA confirmation.
+  const su = await requireStepUpMfa()
+  if (su.error) return su.error
   try {
     const parsed = inviteSchema.safeParse(await req.json())
     if (!parsed.success) {

@@ -26,6 +26,7 @@ import { PrismaClient, Prisma } from '@prisma/client'
 import { randomBytes, scryptSync } from 'crypto'
 import { readFileSync } from 'fs'
 import { join } from 'path'
+import { assertNotProd } from './lib/assert-not-prod'
 
 const db = new PrismaClient()
 
@@ -60,6 +61,7 @@ function daysFromNow(n: number, hour = 18): Date {
 }
 
 async function main() {
+assertNotProd() // Phase 6 (6.0b.8/B1): fail-closed — no production mode, ever
   console.log('🧹 Clearing existing data (FK-safe order)...')
   await db.auditLog.deleteMany()
   await db.approvalRequest.deleteMany()

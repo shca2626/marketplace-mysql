@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { recordAudit } from '@/server/modules/audit/service'
 import { resolvePanel } from '@/server/modules/settings/service'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 import {
   FinancingError,
   PROFILE_FIELD_KEYS,
@@ -248,7 +249,7 @@ export async function createConditionTemplate(
   let organizationId: string | null = null
   if (!input.scope || input.scope === 'GENERAL') {
     // GENERAL = the platform-curated library — admin-only (R-5 / DP-24)
-    if (actor.role !== 'ADMIN') throw new FinancingError('Only platform admins manage the GENERAL library', 403)
+    if (!(await userHasPlatformPermission(actor.id, 'financing.requirements.manage'))) throw new FinancingError('Only platform staff with the "financing.requirements.manage" permission manage the GENERAL library', 403)
     scope = 'GENERAL'
   } else {
     // FINANCIER = private to the caller's financier org (org-scoped, DP-1)
@@ -402,7 +403,7 @@ function assertTemplateAccess(
   organizationId: string | null
 ): void | Promise<void> {
   if (scope === 'GENERAL') {
-    if (actor.role !== 'ADMIN') {
+    if (!(await userHasPlatformPermission(actor.id, 'financing.requirements.manage'))) {
       throw new FinancingError('Only platform admins manage the GENERAL library', 403)
     }
     return

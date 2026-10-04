@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireAdmin } from '@/server/guards'
+import { requireAdmin, requireStepUpMfa } from '@/server/guards'
 import { assertSameOrigin } from '@/lib/http'
 import {
   effectiveMatrix,
@@ -39,6 +39,9 @@ export async function POST(req: NextRequest) {
 
   const { user, error } = await requireAdmin('modules.manage')
   if (error) return error
+  // Phase 6 (6.7.5): sensitive action — requires a fresh MFA confirmation.
+  const su = await requireStepUpMfa()
+  if (su.error) return su.error
   try {
     const parsed = setSchema.safeParse(await req.json())
     if (!parsed.success) {

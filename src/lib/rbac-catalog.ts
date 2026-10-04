@@ -146,6 +146,7 @@ export const PERMISSION_DOMAINS: PermissionDomain[] = [
     description: 'RFQ pipeline, negotiations and scoped settings.',
     permissions: [
       { key: 'rfq.pipeline.view', label: 'View RFQ pipeline', description: 'Browse every RFQ, quote and negotiation.' },
+      { key: 'rfq.quotes.review', label: 'Review & route quotes', description: 'Approve or reject seller quotes queued for platform review (Phase 6: explicit key for the quote-routing review route).' },
       { key: 'rfq.settings.manage', label: 'Manage RFQ settings', description: 'Edit scoped behavior panels and roll back changes.' },
     ],
   },

@@ -6,6 +6,7 @@ import { RATE_LIMITS } from '@/lib/rate-limit'
 import { UPLOAD_LIMITS, processImageUpload } from '@/lib/storage/image-pipeline'
 import { serializeMediaAsset } from '@/lib/serialize-media'
 import type { MediaAssetDTO } from '@/lib/types'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 
 // POST /api/uploads — multipart image upload (day-1 storage core).
 // Authenticated SELLER/ADMIN only. Each file is magic-byte-sniffed, size-capped,
@@ -17,7 +18,7 @@ export async function POST(req: NextRequest) {
 
   const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Please sign in first' }, { status: 401 })
-  if (user.role !== 'SELLER' && user.role !== 'ADMIN') {
+  if (user.role !== 'SELLER' && !(await userHasPlatformPermission(user.id, 'catalog.products.update'))) {
     return NextResponse.json({ error: 'Only sellers can upload media' }, { status: 403 })
   }
   if (user.role === 'SELLER' && user.status === 'SUSPENDED') {
@@ -106,7 +107,7 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(Math.max(Number(searchParams.get('limit')) || 24, 1), 60)
     const offset = Math.max(Number(searchParams.get('offset')) || 0, 0)
 
-    const where = user.role === 'ADMIN' ? {} : { uploadedById: user.id }
+    const where = (await userHasPlatformPermission(user.id, 'catalog.products.view')) ? {} : { uploadedById: user.id }
     const [rows, total] = await Promise.all([
       db.mediaAsset.findMany({ where, orderBy: { createdAt: 'desc' }, take: limit, skip: offset }),
       db.mediaAsset.count({ where }),

@@ -25,6 +25,7 @@ import {
 import { toast } from '@/hooks/use-toast'
 import { useApi } from '@/hooks/use-api'
 import { apiRequest, toastApiError } from './shared'
+import { useStepUp } from './step-up-guard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -91,6 +92,9 @@ export function ModulesTab() {
   const [orgDialogOpen, setOrgDialogOpen] = useState(false)
   const [orgQuery, setOrgQuery] = useState('')
 
+  // Phase 6 (6.7.5) — module activation changes are step-up guarded.
+  const { guard: guardStepUp, node: stepUpDialog } = useStepUp()
+
   const modules = useMemo(() => data?.modules ?? [], [data])
   const effective = data?.effective
 
@@ -120,11 +124,14 @@ export function ModulesTab() {
   /** Toggle one cell — writes (or removes) the override at that scope. */
   const toggle = async (moduleKey: string, scopeType: string, scopeId: string, next: boolean) => {
     setBusy(`${moduleKey}|${scopeType}|${scopeId}`)
-    const res = await apiRequest<ModulesResponse>('/api/admin/modules', {
-      method: 'POST',
-      body: JSON.stringify({ moduleKey, scopeType, scopeId, enabled: next }),
-    })
+    const res = await guardStepUp(() =>
+      apiRequest<ModulesResponse>('/api/admin/modules', {
+        method: 'POST',
+        body: JSON.stringify({ moduleKey, scopeType, scopeId, enabled: next }),
+      })
+    )
     setBusy(null)
+    if (!res) return // step-up cancelled / enrollment required
     if (!res.ok || !res.data) {
       toastApiError(res.error, 'Activation change failed')
       return
@@ -139,11 +146,14 @@ export function ModulesTab() {
 
   const clearOverride = async (moduleKey: string, scopeType: string, scopeId: string) => {
     setBusy(`${moduleKey}|${scopeType}|${scopeId}|clear`)
-    const res = await apiRequest<ModulesResponse>('/api/admin/modules', {
-      method: 'POST',
-      body: JSON.stringify({ moduleKey, scopeType, scopeId, enabled: false, remove: true }),
-    })
+    const res = await guardStepUp(() =>
+      apiRequest<ModulesResponse>('/api/admin/modules', {
+        method: 'POST',
+        body: JSON.stringify({ moduleKey, scopeType, scopeId, enabled: false, remove: true }),
+      })
+    )
     setBusy(null)
+    if (!res) return // step-up cancelled / enrollment required
     if (!res.ok || !res.data) {
       toastApiError(res.error, 'Override removal failed')
       return
@@ -374,6 +384,9 @@ export function ModulesTab() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Phase 6 — step-up MFA dialog (shared retry guard) */}
+      {stepUpDialog}
     </div>
   )
 }

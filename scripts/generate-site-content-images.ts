@@ -8,6 +8,7 @@
  */
 import ZAI from 'z-ai-web-dev-sdk'
 import { mkdirSync, existsSync } from 'node:fs'
+import { assertNotProd } from './lib/assert-not-prod'
 
 const OUT_DIR = 'db/site-content-images'
 
@@ -54,6 +55,7 @@ const ITEMS: Item[] = [
 ]
 
 async function main() {
+assertNotProd() // Phase 6 (6.0b.8/B1): fail-closed — no production mode, ever
   mkdirSync(OUT_DIR, { recursive: true })
   const zai = await ZAI.create()
   let generated = 0

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin } from '@/server/guards'
+import { requireAdmin, requireStepUpMfa } from '@/server/guards'
 import { markPayoutPaid, PayoutServiceError } from '@/server/modules/payouts/service'
 import { assertSameOrigin } from '@/lib/http'
 
@@ -11,6 +11,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { user, error } = await requireAdmin('payouts.manage')
   if (error) return error
+  // Phase 6 (6.7.5): sensitive action — requires a fresh MFA confirmation.
+  const su = await requireStepUpMfa()
+  if (su.error) return su.error
   try {
     const { id } = await ctx.params
     const body = await req.json().catch(() => ({}))

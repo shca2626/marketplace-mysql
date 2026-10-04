@@ -9,6 +9,7 @@ import { sellerNeedsPublishReview } from '@/server/modules/catalog/settings'
 import { recordPublicationConsent } from '@/server/modules/catalog/review'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 
 // GET /api/products — list with filters/search/sort/pagination.
 // All filtering, search, sorting and pagination happen in SQL (TD-03 resolved);
@@ -39,7 +40,7 @@ export async function GET(req: NextRequest) {
     let sessionUserId: string | null = null
     let isAdmin = false
     const user = await getSessionUser()
-    if (user) isAdmin = user.role === 'ADMIN'
+    if (user) isAdmin = await userHasPlatformPermission(user.id, 'catalog.products.view')
     if (mine) {
       if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       sessionUserId = user.id
@@ -142,7 +143,7 @@ export async function POST(req: NextRequest) {
 
     const user = await getSessionUser()
     if (!user) return NextResponse.json({ error: 'Please sign in first' }, { status: 401 })
-    if (user.role !== 'SELLER' && user.role !== 'ADMIN')
+    if (user.role !== 'SELLER' && !(await userHasPlatformPermission(user.id, 'catalog.products.create')))
       return NextResponse.json({ error: 'Only sellers can create products' }, { status: 403 })
     if (user.role === 'SELLER' && user.status === 'SUSPENDED')
       return NextResponse.json(
@@ -169,7 +170,7 @@ export async function POST(req: NextRequest) {
     // (L2). Drafts stay open to every seller — the gate only guards visibility.
     // Admins are exempt (platform moderation).
     const wantsPublish = (parsed.data.status ?? 'ACTIVE') === 'ACTIVE'
-    const isAdmin = user.role === 'ADMIN'
+    const isAdmin = await userHasPlatformPermission(user.id, 'catalog.products.moderate')
     if (wantsPublish && !isAdmin) {
       try {
         await assertSellerCanPublish(user)

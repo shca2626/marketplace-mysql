@@ -12,8 +12,10 @@
 
 import { db } from '../src/lib/db'
 import { ORG_ROLE_BY_LEGACY, PERMISSION_DOMAINS, SYSTEM_ROLES, isProtectedRoleKey } from '../src/lib/rbac-catalog'
+import { assertNotProd } from './lib/assert-not-prod'
 
 async function main() {
+assertNotProd() // Phase 6 (6.0b.8/B1): fail-closed — no production mode, ever
   console.log('── RBAC seed ────────────────────────────────────────────')
 
   // 1. Permissions ─────────────────────────────────────────────────────────

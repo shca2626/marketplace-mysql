@@ -28,8 +28,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ user: toSessionUser(user, rbac) })
     }
     // Admins must not lose their platform role through the storefront flow —
-    // this guard prevents the "admin downgraded to seller" regression.
-    if (user.role === 'ADMIN') {
+    // this guard prevents the "staff downgraded to seller" regression.
+    // Phase 6: staff = any platform-scope RBAC assignment (or the legacy ADMIN badge).
+    const staffAssignment = await db.userRole.findFirst({ where: { userId: user.id, organizationId: '' }, select: { id: true } })
+    if (user.role === 'ADMIN' || staffAssignment) {
       return NextResponse.json(
         { error: 'Admin accounts already have full marketplace access' },
         { status: 403 }

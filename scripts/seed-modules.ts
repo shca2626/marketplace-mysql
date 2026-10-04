@@ -10,6 +10,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { db } from '../src/lib/db'
+import { assertNotProd } from './lib/assert-not-prod'
 
 const MODULE_CATALOG: {
   key: string
@@ -98,6 +99,7 @@ const MODULE_CATALOG: {
 ]
 
 async function main() {
+assertNotProd() // Phase 6 (6.0b.8/B1): fail-closed — no production mode, ever
   console.log('── Module catalog seed ──────────────────────────────────')
   for (const m of MODULE_CATALOG) {
     await db.moduleDefinition.upsert({

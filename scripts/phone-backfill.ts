@@ -13,6 +13,7 @@
  * Run: bun scripts/phone-backfill.ts
  */
 import { PrismaClient } from '@prisma/client'
+import { assertNotProd } from './lib/assert-not-prod'
 
 const prisma = new PrismaClient()
 
@@ -43,6 +44,7 @@ export function normalizePhone(raw: string): string | null {
 }
 
 async function main() {
+assertNotProd() // Phase 6 (6.0b.8/B1): fail-closed — no production mode, ever
   const users = await prisma.user.findMany({
     where: { phone: { not: null } },
     select: { id: true, phone: true, email: true, name: true, createdAt: true },

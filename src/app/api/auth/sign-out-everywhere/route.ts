@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSessionUser } from '@/lib/auth'
+import { getSessionUser, revokeAllUserSessions } from '@/lib/auth'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 import { recordAudit } from '@/server/modules/audit/service'
@@ -24,6 +24,9 @@ export async function POST(req: NextRequest) {
     if (rl) return rl
 
     await bumpSessionVersion(user.id)
+    // Phase 6 (6.7.7): mark every registry row revoked — the version bump
+    // kills the tokens; the registry records WHY for the audit trail.
+    const revoked = await revokeAllUserSessions(user.id, 'ALL_SESSIONS')
 
     await recordAudit({
       actorId: user.id,
@@ -32,6 +35,7 @@ export async function POST(req: NextRequest) {
       entityType: 'User',
       entityId: user.id,
       summary: `Signed out of all devices: ${user.email}`,
+      metadata: { sessionsRevoked: revoked },
     })
 
     return NextResponse.json({ ok: true, message: 'Signed out on all devices.' })

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { hashPassword, getSessionUser, setSessionCookie, toSessionUser } from '@/lib/auth'
-import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
+import { assertSameOrigin, enforceRateLimit, clientIp } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 import { recordAudit } from '@/server/modules/audit/service'
 import { buildSessionRbac } from '@/server/modules/rbac/service'
@@ -164,7 +164,10 @@ export async function POST(req: NextRequest) {
         summary: `New financier applicant registered: ${phone}`,
         metadata: { phone, kycLevel: 1, via: 'financier-door' },
       })
-      await setSessionCookie(createdUser.id, createdUser.sessionVersion)
+      await setSessionCookie(createdUser.id, createdUser.sessionVersion, {
+        userAgent: req.headers.get('user-agent'),
+        ip: clientIp(req),
+      })
       applicantId = createdUser.id
       applicantPhone = phone
     }

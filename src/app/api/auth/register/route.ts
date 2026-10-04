@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { hashPassword, setSessionCookie, toSessionUser } from '@/lib/auth'
-import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
+import { assertSameOrigin, clientIp, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 import { recordAudit } from '@/server/modules/audit/service'
 import { buildSessionRbac, consumeInvitation } from '@/server/modules/rbac/service'
@@ -155,7 +155,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    await setSessionCookie(user.id, user.sessionVersion)
+    await setSessionCookie(user.id, user.sessionVersion, {
+      userAgent: req.headers.get('user-agent'),
+      ip: clientIp(req),
+    })
     const rbac = await buildSessionRbac(user)
     return NextResponse.json({ user: toSessionUser(user, rbac) }, { status: 201 })
   } catch (err) {

@@ -18,6 +18,7 @@ import { createHash } from 'node:crypto'
 import { PrismaClient } from '@prisma/client'
 import { processImageUpload } from '../src/lib/storage/image-pipeline'
 import { mediaUrl } from '../src/lib/storage/url'
+import { assertNotProd } from './lib/assert-not-prod'
 
 const prisma = new PrismaClient()
 
@@ -45,6 +46,7 @@ const FILE_TO_CDN: Record<string, string[]> = {
 }
 
 async function main() {
+assertNotProd() // Phase 6 (6.0b.8/B1): fail-closed — no production mode, ever
   const admin = await prisma.user.findFirst({ where: { email: 'admin@vendora.com' } })
   if (!admin) throw new Error('admin@vendora.com not found')
 

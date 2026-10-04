@@ -103,3 +103,4 @@ db/custom.db-journal
 /db/TESTER-ACCOUNTS.md
 /db/product-images/
 /db/product-images-gen.log
+.qa-tmp/

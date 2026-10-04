@@ -9,6 +9,7 @@
  * "Solar Equipment Lease-to-Own" Murabaha program. Idempotent — safe to re-run.
  */
 import { PrismaClient } from '@prisma/client'
+import { assertNotProd } from './lib/assert-not-prod'
 
 const db = new PrismaClient()
 
@@ -153,6 +154,7 @@ async function upsertCoverage(serviceId: string, regions: string[]) {
 }
 
 async function main() {
+assertNotProd() // Phase 6 (6.0b.8/B1): fail-closed — no production mode, ever
   const all = [USER_EXAMPLE, ...OTHERS]
   let touched = 0
   for (const rich of all) {

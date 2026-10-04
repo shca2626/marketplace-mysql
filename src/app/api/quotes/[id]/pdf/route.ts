@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib'
 import { getSessionUser } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 
 /**
  * GET /api/quotes/[id]/pdf — server-rendered quote document.
@@ -63,7 +64,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!quote) return NextResponse.json({ error: 'Quote not found' }, { status: 404 })
 
   const isRequester = quote.rfq.userId === session.id
-  const isAdmin = session.role === 'ADMIN'
+  const isAdmin = await userHasPlatformPermission(session.id, 'rfq.pipeline.view')
   const isIssuer = quote.sellerId === session.id || quote.createdBy.id === session.id
   if (!isRequester && !isAdmin && !isIssuer) {
     return NextResponse.json({ error: 'Access denied' }, { status: 403 })

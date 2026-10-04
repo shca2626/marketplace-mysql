@@ -5,10 +5,12 @@
  * One-off: run manually, not part of the seed pipeline.
  */
 import { PrismaClient } from '@prisma/client'
+import { assertNotProd } from './lib/assert-not-prod'
 
 const db = new PrismaClient()
 
 async function main() {
+assertNotProd() // Phase 6 (6.0b.8/B1): fail-closed — no production mode, ever
   const demo = await db.user.findUnique({ where: { email: 'demo@vendora.com' } })
   if (!demo) throw new Error('demo@vendora.com not found')
 

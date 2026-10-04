@@ -4,6 +4,7 @@ import { emitNotification, emitNotifications, type EmitInput } from '@/server/mo
 import { resolvePanel } from '@/server/modules/settings/service'
 import { createRfq, computeEligibleSellers, rfqSettingsCtx, RfqServiceError } from './service'
 import type { RecurringScheduleDTO } from '@/lib/types'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 
 /**
  * RECURRING RFQs — runtime enforcement of the "Recurring RFQs" settings panel.
@@ -253,7 +254,7 @@ export async function listMySchedules(userId: string): Promise<RecurringSchedule
 }
 
 export async function pauseSchedule(id: string, actor: { id: string; role: string }): Promise<RecurringScheduleDTO> {
-  const s = await ownedSchedule(id, actor.id, actor.role === 'ADMIN')
+  const s = await ownedSchedule(id, actor.id, await userHasPlatformPermission(actor.id, 'rfq.pipeline.view'))
   const updated = await db.recurringRfq.update({ where: { id }, data: { active: false } })
   await recordAudit({
     actorId: actor.id,
@@ -267,7 +268,7 @@ export async function pauseSchedule(id: string, actor: { id: string; role: strin
 }
 
 export async function resumeSchedule(id: string, actor: { id: string; role: string }): Promise<RecurringScheduleDTO> {
-  const s = await ownedSchedule(id, actor.id, actor.role === 'ADMIN')
+  const s = await ownedSchedule(id, actor.id, await userHasPlatformPermission(actor.id, 'rfq.pipeline.view'))
   // Don't resurrect auto-cancelled (empty-cycle) schedules without a reset
   const updated = await db.recurringRfq.update({
     where: { id },
@@ -291,7 +292,7 @@ export async function resumeSchedule(id: string, actor: { id: string; role: stri
 }
 
 export async function skipCycle(id: string, actor: { id: string; role: string }): Promise<RecurringScheduleDTO> {
-  const s = await ownedSchedule(id, actor.id, actor.role === 'ADMIN')
+  const s = await ownedSchedule(id, actor.id, await userHasPlatformPermission(actor.id, 'rfq.pipeline.view'))
   const settings = await resolvePanel('recurring', await rfqSettingsCtx(s.organizationId))
   if (!settings.buyerSkipCycle) {
     throw new RecurringServiceError('Skipping a cycle is not allowed by the platform', 403)
@@ -320,7 +321,7 @@ export async function skipCycle(id: string, actor: { id: string; role: string })
 }
 
 export async function deleteSchedule(id: string, actor: { id: string; role: string }): Promise<{ ok: true }> {
-  await ownedSchedule(id, actor.id, actor.role === 'ADMIN')
+  await ownedSchedule(id, actor.id, await userHasPlatformPermission(actor.id, 'rfq.pipeline.view'))
   await db.recurringRfq.delete({ where: { id } })
   await recordAudit({
     actorId: actor.id,

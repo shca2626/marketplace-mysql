@@ -6,7 +6,7 @@
  * /api/admin/stats?mysql=1 admin diagnostics branch.
  *
  * TARGET: the single managed Aiven MySQL service reached via the URL in .env:
- *   mysql://avnadmin:<password>@mysql-marketplace-sunsolar1.f.aivencloud.com:23363/defaultdb?ssl-mode=REQUIRED
+ *   mysql://USER:PASSWORD@HOST:PORT/DBNAME?ssl-mode=REQUIRED
  *
  * SSL is mandatory — Aiven rejects plaintext connections. Every connection in
  * this module is created with TLS enabled. The server certificate is NOT

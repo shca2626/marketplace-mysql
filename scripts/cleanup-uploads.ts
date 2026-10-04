@@ -13,8 +13,10 @@
 import { db } from '../src/lib/db'
 import { readdirSync, statSync, unlinkSync } from 'fs'
 import path from 'path'
+import { assertNotProd } from './lib/assert-not-prod'
 
 async function main() {
+assertNotProd() // Phase 6 (6.0b.8/B1): fail-closed — no production mode, ever
   const doDelete = process.argv.includes('--delete')
   const products = await db.product.findMany({ select: { images: true } })
 

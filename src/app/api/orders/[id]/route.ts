@@ -7,6 +7,7 @@ import { cancelApprovalForOrder } from '@/server/modules/approvals/service'
 import { cancelPaymentForOrder } from '@/server/modules/payments/service'
 import { emitNotification, emitNotifications, type EmitInput } from '@/server/modules/notifications/service'
 import { assertSameOrigin } from '@/lib/http'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 
 const STATUS_FLOW = ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED']
 
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
     const isBuyer = order.buyerId === user.id
     const isSeller = order.items.some((i) => i.sellerId === user.id)
-    const isAdmin = user.role === 'ADMIN'
+    const isAdmin = await userHasPlatformPermission(user.id, 'orders.view')
     if (!isBuyer && !isSeller && !isAdmin)
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
@@ -135,7 +136,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
 
     const isSeller = order.items.some((i) => i.sellerId === user.id)
-    const isAdmin = user.role === 'ADMIN'
+    const isAdmin = await userHasPlatformPermission(user.id, 'orders.update')
     if (!isSeller && !isAdmin) return NextResponse.json({ error: 'Only the seller can update fulfillment' }, { status: 403 })
 
     if (order.status === 'PENDING_APPROVAL')

@@ -10,6 +10,7 @@ import {
   MessageCircle,
   Phone,
   ShieldCheck,
+  Smartphone,
   Store,
   Tag,
   Ticket,
@@ -62,6 +63,14 @@ export function AuthModal() {
   // ── login: phone-or-email identifier ──
   const [identifier, setIdentifier] = useState('')
 
+  // ── login: Phase 6 MFA challenge (6.7.9) ──
+  // A password-only login on an MFA-enrolled account returns 401 with
+  // { mfaRequired: true } and NO session — the form swaps to a code step and
+  // resubmits { identifier, password, code } (TOTP or XXXX-XXXX backup code).
+  const [mfaStep, setMfaStep] = useState(false)
+  const [mfaCode, setMfaCode] = useState('')
+  const [mfaError, setMfaError] = useState<string | null>(null)
+
   // ── register: phone + OTP flow ──
   const [phone, setPhone] = useState('')
   const [otpSent, setOtpSent] = useState(false)
@@ -108,6 +117,9 @@ export function AuthModal() {
     setOtp('')
     setOtpToken(null)
     setResendIn(0)
+    setMfaStep(false)
+    setMfaCode('')
+    setMfaError(null)
   }, [mode])
 
   const finish = (user: SessionUser) => {
@@ -125,6 +137,9 @@ export function AuthModal() {
     })
     if (afterAuth) navigate(afterAuth.view, afterAuth.params)
     setPassword('')
+    setMfaStep(false)
+    setMfaCode('')
+    setMfaError(null)
   }
 
   // ── OTP: request + verify ──
@@ -188,10 +203,25 @@ export function AuthModal() {
         const res = await fetch('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ identifier, password }),
+          // Only the code rides along once the MFA step is active — the
+          // identifier/password stay in state and are never re-displayed.
+          body: JSON.stringify(
+            mfaStep ? { identifier, password, code: mfaCode.trim() } : { identifier, password }
+          ),
         })
         const json = await res.json()
         if (!res.ok) {
+          if (json.mfaRequired) {
+            // Swap to (or stay on) the two-factor step. First entry (password
+            // only) keeps the friendly hint; a rejected code shows the error.
+            const attemptedCode = mfaStep
+            setMfaStep(true)
+            setMfaCode('')
+            if (attemptedCode) {
+              setMfaError(json.error ?? 'That code is not valid — please try again.')
+            }
+            return
+          }
           toast({ title: 'Sign in failed', description: json.error, variant: 'destructive' })
           return
         }
@@ -236,6 +266,9 @@ export function AuthModal() {
   const useDemo = () => {
     setIdentifier('demo@vendora.com')
     setPassword('demo1234')
+    setMfaStep(false)
+    setMfaCode('')
+    setMfaError(null)
   }
 
   return (
@@ -243,11 +276,13 @@ export function AuthModal() {
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-xl">
-            {mode === 'login' ? 'Welcome back' : 'Create your account'}
+            {mode === 'login' ? (mfaStep ? 'Two-factor verification' : 'Welcome back') : 'Create your account'}
           </DialogTitle>
           <DialogDescription>
             {mode === 'login'
-              ? 'Sign in with your phone number or email.'
+              ? mfaStep
+                ? 'Enter the code from your authenticator app to finish signing in.'
+                : 'Sign in with your phone number or email.'
               : 'Join the marketplace — buy, review and sell. It takes about a minute.'}
           </DialogDescription>
         </DialogHeader>
@@ -467,7 +502,74 @@ export function AuthModal() {
             </>
           )}
 
-          {mode === 'login' && (
+          {mode === 'login' && mfaStep && (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3 rounded-xl border bg-muted/30 p-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Smartphone size={16} />
+                </span>
+                <div className="min-w-0 text-sm">
+                  <p className="font-semibold">Your account is protected</p>
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                    Signing in as{' '}
+                    <span className="font-medium text-foreground">{identifier}</span> — the
+                    password checked out.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="auth-mfa-code">Verification code</Label>
+                <Input
+                  id="auth-mfa-code"
+                  value={mfaCode}
+                  onChange={(e) => {
+                    setMfaCode(e.target.value)
+                    setMfaError(null)
+                  }}
+                  // 6-digit TOTP or an XXXX-XXXX backup code — both fit.
+                  maxLength={10}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  required
+                  disabled={loading}
+                  className="text-center font-mono text-base tracking-[0.3em]"
+                  placeholder="······"
+                  aria-invalid={!!mfaError}
+                  aria-describedby={mfaError ? 'auth-mfa-error' : 'auth-mfa-hint'}
+                />
+                {mfaError ? (
+                  <p
+                    id="auth-mfa-error"
+                    role="alert"
+                    className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive"
+                  >
+                    {mfaError}
+                  </p>
+                ) : (
+                  <p id="auth-mfa-hint" className="text-[11px] leading-snug text-muted-foreground">
+                    Enter the 6-digit code from your authenticator app — or use a backup code
+                    instead (they look like XXXX-XXXX, same field).
+                  </p>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMfaStep(false)
+                  setMfaCode('')
+                  setMfaError(null)
+                }}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              >
+                ← Back — use a different account
+              </button>
+            </div>
+          )}
+
+          {mode === 'login' && !mfaStep && (
             <div className="space-y-1.5">
               <Label htmlFor="auth-identifier">Phone or email</Label>
               <div className="relative">
@@ -488,9 +590,10 @@ export function AuthModal() {
             </div>
           )}
 
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="auth-password">Password</Label>
+          {!mfaStep && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="auth-password">Password</Label>
               {mode === 'login' && (
                 <button
                   type="button"
@@ -518,6 +621,7 @@ export function AuthModal() {
               />
             </div>
           </div>
+          )}
 
           {mode === 'register' && !otpVerified && (
             <Button
@@ -544,7 +648,7 @@ export function AuthModal() {
             disabled={loading || (mode === 'register' && !otpVerified)}
           >
             {loading && <Loader2 size={15} className="mr-1.5 animate-spin" />}
-            {mode === 'login' ? 'Sign in' : 'Create account'}
+            {mode === 'login' ? (mfaStep ? 'Verify & sign in' : 'Sign in') : 'Create account'}
           </Button>
 
           {mode === 'register' && (
@@ -553,7 +657,9 @@ export function AuthModal() {
             </p>
           )}
 
-          {/* Login ↔ register switch (keeps the post-auth navigation intent) */}
+          {/* Login ↔ register switch (keeps the post-auth navigation intent).
+              The [mode] effect above resets the MFA step so it never leaks
+              into the register form. */}
           <p className="text-center text-xs text-muted-foreground">
             {mode === 'login' ? (
               <>
@@ -612,18 +718,20 @@ export function AuthModal() {
 
           <Separator />
 
-          <div className="rounded-xl border border-dashed bg-muted/40 p-3 text-center">
-            <p className="text-xs text-muted-foreground">
-              {mode === 'login' ? 'Just exploring? Try the demo buyer:' : 'Demo buyer for quick testing:'}
-            </p>
-            <button
-              type="button"
-              onClick={useDemo}
-              className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg bg-background px-3 py-1.5 text-xs font-mono font-medium shadow-sm transition hover:bg-accent"
-            >
-              <AtSign size={12} className="text-primary" /> demo@vendora.com / demo1234
-            </button>
-          </div>
+          {!mfaStep && (
+            <div className="rounded-xl border border-dashed bg-muted/40 p-3 text-center">
+              <p className="text-xs text-muted-foreground">
+                {mode === 'login' ? 'Just exploring? Try the demo buyer:' : 'Demo buyer for quick testing:'}
+              </p>
+              <button
+                type="button"
+                onClick={useDemo}
+                className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg bg-background px-3 py-1.5 text-xs font-mono font-medium shadow-sm transition hover:bg-accent"
+              >
+                <AtSign size={12} className="text-primary" /> demo@vendora.com / demo1234
+              </button>
+            </div>
+          )}
         </form>
       </DialogContent>
     </Dialog>

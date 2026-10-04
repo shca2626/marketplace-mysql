@@ -27,6 +27,7 @@ import {
   Ruler,
   Scale,
   ScrollText,
+  Shield,
   ShieldCheck,
   Store,
   Tag,
@@ -153,6 +154,7 @@ export const ADMIN_NAV: NavConfig = {
       label: 'Configuration',
       items: [
         { key: 'rbac', label: 'Roles & Access', icon: ShieldCheck, description: 'Permissions, staff & teams', anyPermissions: ['staff.view', 'rbac.roles.view', 'rbac.manage'], badge: 'New' },
+        { key: 'security', label: 'Security', icon: Shield, description: 'MFA policy & staff enforcement', permission: 'staff.manage', badge: 'New' },
         { key: 'modules', label: 'Modules', icon: Layers, description: 'Platform capability activation matrix', permission: 'modules.manage', badge: 'New' },
         { key: 'whatsapp', label: 'WhatsApp Channels', icon: MessageCircle, description: 'Pair sender numbers & message ledger', permission: 'whatsapp.manage', badge: 'New' },
         { key: 'rfq-settings', label: 'RFQ Settings', icon: SlidersHorizontal, description: '22 scoped behavior panels', permission: 'rfq.settings.manage' },
@@ -191,6 +193,7 @@ export const ADMIN_NAV: NavConfig = {
     disputes: { title: 'Disputes', description: 'Resolution queue with escalation paths and outcomes.' },
     'rfq-settings': { title: 'RFQ Settings', description: 'Scoped behavior configuration with change history & rollback.' },
     rbac: { title: 'Roles & Access', description: 'The RBAC control center — permissions, platform staff, organization teams and invitations.' },
+    security: { title: 'Security', description: 'Platform MFA policy and per-staff enforcement — who is enrolled, who must be.' },
     modules: { title: 'Modules', description: 'The capability activation matrix — switch platform modules on/off per platform, organization type and organization.' },
     whatsapp: { title: 'WhatsApp Channels', description: 'Pair free WhatsApp sender numbers (any country), test the line and audit every outbound message.' },
     storefront: { title: 'Storefront Designer', description: 'Brand the public marketplace: name, logo, theme, hero slides.' },

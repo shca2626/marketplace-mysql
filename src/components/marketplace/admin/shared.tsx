@@ -11,10 +11,21 @@ import { cn } from '@/lib/utils'
 // Wraps fetch + JSON parsing; never throws. Toasts are left to callers so
 // success/UX copy stays contextual.
 
+export interface ApiResult<T = unknown> {
+  ok: boolean
+  data?: T
+  error?: string
+  /** Phase 6 (6.7.5) — machine-readable error code from the API, when present
+   *  (e.g. MFA_STEP_UP_REQUIRED, MFA_ENROLLMENT_REQUIRED). */
+  code?: string
+  /** HTTP status of the failed response. */
+  status?: number
+}
+
 export async function apiRequest<T = unknown>(
   url: string,
   init?: RequestInit
-): Promise<{ ok: boolean; data?: T; error?: string }> {
+): Promise<ApiResult<T>> {
   try {
     const res = await fetch(url, {
       ...init,
@@ -24,7 +35,12 @@ export async function apiRequest<T = unknown>(
     })
     const json = (await res.json().catch(() => ({}))) as Record<string, unknown>
     if (!res.ok) {
-      return { ok: false, error: (json.error as string) ?? `Request failed (${res.status})` }
+      return {
+        ok: false,
+        error: (json.error as string) ?? `Request failed (${res.status})`,
+        code: typeof json.code === 'string' ? json.code : undefined,
+        status: res.status,
+      }
     }
     return { ok: true, data: json as T }
   } catch {

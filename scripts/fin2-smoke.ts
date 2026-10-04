@@ -18,6 +18,7 @@ import {
   verifyAccountDocument,
   listAccountDocuments,
 } from '../src/server/modules/financing/documents'
+import { assertNotProd } from './lib/assert-not-prod'
 import {
   evaluateProfileField,
   generateChecklist,
@@ -33,6 +34,7 @@ const ok = (name: string, cond: boolean, extra = '') => {
 }
 
 async function main() {
+assertNotProd() // Phase 6 (6.0b.8/B1): fail-closed — no production mode, ever
   const admin = await db.user.findFirst({ where: { role: 'ADMIN' } })
   const demo = await db.user.findUnique({ where: { email: 'demo@vendora.com' } })
   const amalAdmin = await db.user.findUnique({ where: { email: 'alamal.admin@vendora.com' } })

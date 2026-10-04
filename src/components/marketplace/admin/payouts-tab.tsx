@@ -33,6 +33,7 @@ import {
   toastApiError,
   useDebounced,
 } from './shared'
+import { useStepUp } from './step-up-guard'
 
 // ── Types (contracts of /api/admin/payouts) ────────────────────────────────────
 
@@ -108,6 +109,9 @@ export function PayoutsTab() {
   const [settleNote, setSettleNote] = useState('')
   const [settling, setSettling] = useState(false)
 
+  // Phase 6 (6.7.5) — payout mutations are step-up guarded.
+  const { guard: guardStepUp, node: stepUpDialog } = useStepUp()
+
   // Render-time keyed sync: jump back to page 1 whenever filters change
   const filterKey = `${debouncedSearch}|${statusFilter}`
   const [appliedKey, setAppliedKey] = useState<string | null>(null)
@@ -139,13 +143,16 @@ export function PayoutsTab() {
     if (!settleFor) return
     const payout = settleFor
     setSettling(true)
-    const res = await apiRequest(`/api/admin/payouts/${payout.id}/${settleMode === 'mark-paid' ? 'mark-paid' : 'cancel'}`, {
-      method: 'POST',
-      body: JSON.stringify(
-        settleMode === 'mark-paid' ? { note: settleNote.trim() || undefined } : { reason: settleNote.trim() || undefined }
-      ),
-    })
+    const res = await guardStepUp(() =>
+      apiRequest(`/api/admin/payouts/${payout.id}/${settleMode === 'mark-paid' ? 'mark-paid' : 'cancel'}`, {
+        method: 'POST',
+        body: JSON.stringify(
+          settleMode === 'mark-paid' ? { note: settleNote.trim() || undefined } : { reason: settleNote.trim() || undefined }
+        ),
+      })
+    )
     setSettling(false)
+    if (!res) return // step-up cancelled / enrollment required
     if (!res.ok) {
       toastApiError(res.error, settleMode === 'mark-paid' ? 'Update failed' : 'Cancel failed')
       return
@@ -486,6 +493,9 @@ export function PayoutsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Phase 6 — step-up MFA dialog (shared retry guard) */}
+      {stepUpDialog}
     </div>
   )
 }
@@ -497,6 +507,8 @@ function CommissionConfigCard() {
   const [input, setInput] = useState('')
   const [saving, setSaving] = useState(false)
   const [initializedFor, setInitializedFor] = useState<number | null>(null)
+  // Phase 6 (6.7.5) — commission config changes are step-up guarded.
+  const { guard: guardStepUp, node: stepUpDialog } = useStepUp()
 
   if (data && initializedFor !== data.config.defaultCommissionPercent) {
     setInitializedFor(data.config.defaultCommissionPercent)
@@ -516,11 +528,14 @@ function CommissionConfigCard() {
       return
     }
     setSaving(true)
-    const res = await apiRequest<{ config: { defaultCommissionPercent: number } }>('/api/admin/payouts/config', {
-      method: 'PUT',
-      body: JSON.stringify({ defaultCommissionPercent: rate }),
-    })
+    const res = await guardStepUp(() =>
+      apiRequest<{ config: { defaultCommissionPercent: number } }>('/api/admin/payouts/config', {
+        method: 'PUT',
+        body: JSON.stringify({ defaultCommissionPercent: rate }),
+      })
+    )
     setSaving(false)
+    if (!res) return // step-up cancelled / enrollment required
     if (!res.ok) {
       toastApiError(res.error, 'Couldn’t save commission')
       return
@@ -575,6 +590,9 @@ function CommissionConfigCard() {
           Save rate
         </Button>
       </CardContent>
+
+      {/* Phase 6 — step-up MFA dialog (shared retry guard) */}
+      {stepUpDialog}
     </Card>
   )
 }
@@ -594,6 +612,8 @@ function GeneratePayoutCard({ onGenerated }: { onGenerated: () => void }) {
   const [preview, setPreview] = useState<PayoutPreview | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
+  // Phase 6 (6.7.5) — payout generation is step-up guarded.
+  const { guard: guardStepUp, node: stepUpDialog } = useStepUp()
 
   // Vendor directory search — only while the picker is open
   const vendorQ = new URLSearchParams()
@@ -628,11 +648,14 @@ function GeneratePayoutCard({ onGenerated }: { onGenerated: () => void }) {
   const generate = async () => {
     if (!selected) return
     setGenerating(true)
-    const res = await apiRequest<{ payout: { number: string; netAmount: number } }>('/api/admin/payouts/generate', {
-      method: 'POST',
-      body: JSON.stringify({ sellerId: selected.id }),
-    })
+    const res = await guardStepUp(() =>
+      apiRequest<{ payout: { number: string; netAmount: number } }>('/api/admin/payouts/generate', {
+        method: 'POST',
+        body: JSON.stringify({ sellerId: selected.id }),
+      })
+    )
     setGenerating(false)
+    if (!res) return // step-up cancelled / enrollment required
     if (!res.ok || !res.data) {
       toastApiError(res.error, 'Payout not generated')
       return
@@ -768,6 +791,9 @@ function GeneratePayoutCard({ onGenerated }: { onGenerated: () => void }) {
           </div>
         )}
       </CardContent>
+
+      {/* Phase 6 — step-up MFA dialog (shared retry guard) */}
+      {stepUpDialog}
     </Card>
   )
 }

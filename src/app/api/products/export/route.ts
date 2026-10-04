@@ -6,6 +6,7 @@ import { toCsv } from '@/lib/csv'
 import { CSV_BASE_COLUMNS, csvBool, csvExportColumns } from '@/lib/product-io'
 import { attributesForCategory } from '@/lib/catalog/definitions'
 import type { ProductDTO } from '@/lib/types'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 
 /**
  * GET /api/products/export — seller exports own products, admin exports all.
@@ -20,12 +21,12 @@ export async function GET(req: NextRequest) {
   try {
     const user = await getSessionUser()
     if (!user) return NextResponse.json({ error: 'Please sign in first' }, { status: 401 })
-    if (user.role !== 'SELLER' && user.role !== 'ADMIN')
+    if (user.role !== 'SELLER' && !(await userHasPlatformPermission(user.id, 'catalog.products.view')))
       return NextResponse.json({ error: 'Sellers only' }, { status: 403 })
 
     const sp = req.nextUrl.searchParams
     const format = sp.get('format') === 'json' ? 'json' : 'csv'
-    const scope = sp.get('scope') === 'all' && user.role === 'ADMIN' ? 'all' : 'mine'
+    const scope = sp.get('scope') === 'all' && (await userHasPlatformPermission(user.id, 'catalog.products.view')) ? 'all' : 'mine'
     const idsParam = sp.get('ids') || ''
     const ids = idsParam ? idsParam.split(',').map((s) => s.trim()).filter(Boolean) : []
 

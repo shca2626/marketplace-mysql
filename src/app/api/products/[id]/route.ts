@@ -38,7 +38,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     ])
     if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
     const isOwner = viewer?.id === product.sellerId
-    const isAdmin = viewer?.role === 'ADMIN'
+    const isAdmin = viewer ? await userHasPlatformPermission(viewer.id, 'catalog.products.view') : false
     if (product.seller.status === 'SUSPENDED' && !isOwner && !isAdmin) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 })
     }
@@ -74,7 +74,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       product: {
         ...serialized,
         ...(isOwner || isAdmin ? { reviewNote: product.reviewNote } : {}),
-        ...(viewer ? { viewerCanOffer: !isOwner && (viewer.role === 'SELLER' || viewer.role === 'ADMIN') && product.status === 'ACTIVE' } : {}),
+        ...(viewer ? { viewerCanOffer: !isOwner && (viewer.role === 'SELLER' || (await userHasPlatformPermission(viewer.id, 'catalog.products.update'))) && product.status === 'ACTIVE' } : {}),
       },
       offers: offerRows.map(serializeOffer),
       myOffer: viewerOffer && viewerOffer.status !== 'ARCHIVED' ? serializeOffer(viewerOffer) : null,
@@ -111,7 +111,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     if (!user) return NextResponse.json({ error: 'Please sign in first' }, { status: 401 })
     // RBAC Phase 2: legacy admins bypass; staff need the catalog moderation
     // permission (e.g. the Catalog Moderator role).
-    if (user.role !== 'ADMIN' && !(await userHasPlatformPermission(user.id, 'catalog.products.moderate')))
+    if (!(await userHasPlatformPermission(user.id, 'catalog.products.moderate')))
       return NextResponse.json(
         { error: 'Access denied — moderating products requires the "catalog.products.moderate" permission.' },
         { status: 403 }
@@ -175,7 +175,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
     const product = await db.product.findUnique({ where: { id } })
     if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
     const isOwner = product.sellerId === user.id
-    const isAdmin = user.role === 'ADMIN'
+    const isAdmin = await userHasPlatformPermission(user.id, 'catalog.products.update')
     if (!isOwner && !isAdmin)
       return NextResponse.json({ error: 'You can only edit your own products' }, { status: 403 })
     // Admins editing someone else's listing is a moderation event — audit it.
@@ -350,7 +350,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
     const product = await db.product.findUnique({ where: { id } })
     if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
     const isOwner = product.sellerId === user.id
-    const isAdmin = user.role === 'ADMIN'
+    const isAdmin = await userHasPlatformPermission(user.id, 'catalog.products.delete')
     if (!isOwner && !isAdmin)
       return NextResponse.json({ error: 'You can only delete your own products' }, { status: 403 })
 

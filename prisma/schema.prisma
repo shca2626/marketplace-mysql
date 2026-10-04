@@ -51,6 +51,10 @@ model User {
   sessionVersion  Int       @default(0)
   emailVerifiedAt DateTime?
 
+  // ── Phase 6 MFA (lastplan v5 6.7) ──
+  mfaRequired  Boolean @default(false) // admin-set per-account requirement; the user can enroll but never disable while required
+  isBreakGlass Boolean @default(false) // dedicated break-glass account — login-alerted + audited (6.2.3)
+
   passwordResetTokens     PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
 
@@ -114,6 +118,8 @@ model User {
 
   // ── RBAC role assignments (mergedplan.md Phase 2) ──
   roleAssignments UserRole[]
+  mfaEnrollment   MfaEnrollment?
+  authSessions    SessionRegistry[]
 
   // ── Phase 3: KYC/KYP + notification channels ──
   notificationPref     UserNotificationPref?
@@ -1031,7 +1037,7 @@ model StaffInvitation {
   name           String?
   roleId         String
   organizationId String    @default("") // "" = platform staff
-  token          String    @unique
+  tokenHash      String    @unique // Phase 6 (6.5): SHA-256 of the raw token — the raw token is shown once at invite time, never stored
   status         String    @default("PENDING") // PENDING | ACCEPTED | REVOKED
   invitedBy      String // admin user id (loose FK)
   invitedByName  String?
@@ -1042,6 +1048,65 @@ model StaffInvitation {
 
   @@index([email])
   @@index([organizationId, status])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Phase 6 — MFA + persistent session registry (lastplan v5 6.7)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// TOTP enrollment. secretEnc = AES-256-GCM ciphertext (key from the secret
+// store — MFA_ENCRYPTION_KEY, never the DB credential). The plaintext secret
+// exists only in memory during enrollment/verification (6.7.2).
+model MfaEnrollment {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  method      String    @default("TOTP") // TOTP (RFC 6238)
+  secretEnc   String    @db.Text // AES-256-GCM payload — never logged, never returned after confirmation
+  confirmedAt DateTime? // null = started, not yet confirmed (no challenge until confirmed)
+  lastTotpStep Int? // RFC 6238 §5.2 replay guard — a verified step is never accepted twice
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  backupCodes MfaBackupCode[]
+
+  @@index([userId])
+}
+
+// Single-use backup codes — salted scrypt hashes, each use flips usedAt and is
+// audited; replay is rejected (6.7.3). Admin re-issue invalidates the set.
+model MfaBackupCode {
+  id          String    @id @default(cuid())
+  enrollmentId String
+  codeHash    String    @unique // salt:hash — same format as passwords
+  usedAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  enrollment MfaEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@index([enrollmentId])
+}
+
+// Persistent session registry (6.7.7): every issued session token gets a row
+// (tokenHash = SHA-256 of the cookie value). Revocation supports a single
+// session (revokedAt) and all-sessions (sessionVersion bump stays the all-kill).
+// mfaSatisfiedAt carries the step-up freshness window (6.7.5).
+model SessionRegistry {
+  id           String    @id @default(cuid())
+  userId       String
+  tokenHash    String    @unique
+  userAgent    String?   @db.VarChar(400)
+  ip           String?   @db.VarChar(64)
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime  @default(now())
+  revokedAt    DateTime?
+  revokedReason String?  @db.VarChar(120) // LOGOUT | REVOKED_BY_USER | REVOKED_BY_ADMIN | ALL_SESSIONS
+  mfaSatisfiedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, revokedAt])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

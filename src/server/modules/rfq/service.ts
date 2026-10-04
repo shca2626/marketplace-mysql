@@ -7,6 +7,7 @@ import { resolvePanel } from '@/server/modules/settings/service'
 import { ensurePayment } from '@/server/modules/payments/service'
 import { openDisputeCountBySeller, lostDisputeCountBySeller } from './disputes'
 import type { RfqDTO, QuoteDTO, RfqLineDTO, QuoteLineDTO, RfqMessageDTO, OpenRfqDTO } from '@/lib/types'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 
 /**
  * RFQ / QUOTE — the B2B negotiation primitive.
@@ -623,7 +624,7 @@ export async function getRfq(rfqId: string, viewer: { id: string; role: string }
   if (!rfq) throw new RfqServiceError('RFQ not found', 404)
 
   const isOwner = rfq.userId === viewer.id
-  const isAdmin = viewer.role === 'ADMIN'
+  const isAdmin = await userHasPlatformPermission(viewer.id, 'rfq.pipeline.view')
   // Sellers whose catalog products are referenced by RFQ lines may view the RFQ
   // (they need this to discover requests and respond with quotes).
   const isLineSeller = rfq.lines.some((l) => l.product && l.product.sellerId === viewer.id)
@@ -702,7 +703,7 @@ export async function rfqTransition(
   if (!rfq) throw new RfqServiceError('RFQ not found', 404)
 
   const isOwner = rfq.userId === actor.id
-  const isAdmin = actor.role === 'ADMIN'
+  const isAdmin = await userHasPlatformPermission(actor.id, 'rfq.pipeline.view')
 
   // Authorization per action
   if ((action === 'SUBMIT' || action === 'CANCEL') && !isOwner && !isAdmin) {
@@ -860,7 +861,7 @@ export async function createQuote(
     throw new RfqServiceError(`RFQ is ${rfq.status} — quotes are closed`, 409)
   }
 
-  const isAdmin = actor.role === 'ADMIN'
+  const isAdmin = await userHasPlatformPermission(actor.id, 'rfq.pipeline.view')
   const products = await db.product.findMany({
     where: { id: { in: input.lines.map((l) => l.productId) } },
   })
@@ -1092,7 +1093,7 @@ export async function reviewQuote(
   decision: 'APPROVE' | 'REJECT',
   note?: string
 ): Promise<QuoteDTO> {
-  if (actor.role !== 'ADMIN') throw new RfqServiceError('Only platform admins can review quotes', 403)
+  if (!(await userHasPlatformPermission(actor.id, 'rfq.quotes.review'))) throw new RfqServiceError('Only platform staff with the "rfq.quotes.review" permission can review quotes', 403)
   const quote = await db.quote.findUnique({
     where: { id: quoteId },
     include: {
@@ -1493,7 +1494,7 @@ async function assertRfqThreadAccess(
   })
   if (!rfq) throw new RfqServiceError('RFQ not found', 404)
   const isOwner = rfq.userId === viewer.id
-  const isAdmin = viewer.role === 'ADMIN'
+  const isAdmin = await userHasPlatformPermission(viewer.id, 'rfq.pipeline.view')
   const isLineSeller = rfq.lines.some((l) => l.product && l.product.sellerId === viewer.id)
   const isInvolvedSeller = rfq.quotes.some((q) => q.sellerId === viewer.id)
   // STAB-6: open-item RFQs are a public RFQ board — sellers arriving via the
@@ -1611,7 +1612,7 @@ export async function withdrawQuote(
 ): Promise<QuoteDTO> {
   const quote = await db.quote.findUnique({ where: { id: quoteId }, include: { rfq: true } })
   if (!quote) throw new RfqServiceError('Quote not found', 404)
-  const isAdmin = actor.role === 'ADMIN'
+  const isAdmin = await userHasPlatformPermission(actor.id, 'rfq.pipeline.view')
   const isOwnSellerQuote = quote.sellerId === actor.id
   if (!isAdmin && !isOwnSellerQuote) throw new RfqServiceError('Access denied', 403)
   if (quote.status !== 'SENT') {
@@ -1702,7 +1703,7 @@ export async function convertQuoteToOrder(
   if (!quote) throw new RfqServiceError('Quote not found', 404)
 
   const isOwner = quote.rfq.userId === viewer.id
-  const isAdmin = viewer.role === 'ADMIN'
+  const isAdmin = await userHasPlatformPermission(viewer.id, 'rfq.pipeline.view')
   if (!isOwner && !isAdmin) throw new RfqServiceError('Only the requester can convert this quote', 403)
   if (quote.status !== 'ACCEPTED') {
     throw new RfqServiceError(

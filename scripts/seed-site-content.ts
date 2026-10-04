@@ -16,6 +16,7 @@ import { PrismaClient } from '@prisma/client'
 import { processImageUpload } from '../src/lib/storage/image-pipeline'
 import { mediaUrl } from '../src/lib/storage/url'
 import { HERO_COLLAGE } from '../src/lib/constants'
+import { assertNotProd } from './lib/assert-not-prod'
 
 const db = new PrismaClient()
 const IMG_DIR = 'db/site-content-images'
@@ -23,6 +24,7 @@ const IMG_DIR = 'db/site-content-images'
 const YER = 'YER'
 
 async function main() {
+assertNotProd() // Phase 6 (6.0b.8/B1): fail-closed — no production mode, ever
   console.log('🌱 seeding Phase 3–4 site content...')
 
   const admin = await db.user.findFirst({ where: { email: 'admin@vendora.com' } })
