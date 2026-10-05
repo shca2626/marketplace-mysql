@@ -61,6 +61,9 @@ server.log
 /skills/
 
 # ── internal dev-loop / sandbox artifacts (not part of the product) ──
+# NOTE: worklog.md is COMMITTED ON PURPOSE (owner mandate 2026-10-05): it is the
+# project's memory and must survive sandbox rebuilds via GitHub. It contains no
+# secrets (passwords/tokens never go in it).
 /tool-results/
 /.zscripts/
 /.seed-assets/
@@ -68,8 +71,6 @@ server.log
 /tests/
 /qa-*.png
 /agent-ctx/
-/worklog.md
-/whois.md
 /screenshots/
 /upload/
 /Caddyfile
