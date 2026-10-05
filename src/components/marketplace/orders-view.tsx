@@ -14,6 +14,7 @@ import {
   PackageCheck,
   PackageOpen,
   ReceiptText,
+  RotateCcw,
   Scale,
   Search,
   Star,
@@ -36,10 +37,13 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Textarea } from '@/components/ui/textarea'
+import { QuantityInput } from './quantity-input'
 import {
   Dialog,
   DialogContent,
@@ -103,6 +107,81 @@ function paymentStatusLabel(status: string): string {
   if (status === 'FAILED') return 'failed'
   if (status === 'CANCELLED') return 'payment cancelled'
   return 'payment pending'
+}
+
+// ── Phase 7.7 — dimension split: payment + fulfillment pills (7.7.1/7.7.2) ──
+// The legacy status badge stays (read-only during migration); these compact
+// pills surface the two AUTHORITATIVE dimensions wherever they carry
+// information the legacy badge doesn't already show.
+
+const PAYMENT_DIMENSION_STYLES: Record<string, string> = {
+  PAID: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+  FUNDED: 'bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300',
+  AWAITING_PAYMENT: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+  OUTSTANDING: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+  PARTIALLY_REFUNDED: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
+  REFUNDED: 'border border-rose-300 text-rose-700 dark:border-rose-900 dark:text-rose-300',
+}
+
+const FULFILLMENT_DIMENSION_STYLES: Record<string, string> = {
+  FULFILLED: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+  SHIPPED: 'bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300',
+  PROCESSING: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+  PARTIALLY_FULFILLED: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
+  PARTIALLY_CANCELLED: 'border border-rose-300 text-rose-700 dark:border-rose-900 dark:text-rose-300',
+  CANCELLED: 'bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400',
+  UNFULFILLED: 'bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400',
+}
+
+const REFUND_STATUS_STYLES: Record<string, string> = {
+  REQUESTED: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+  APPROVED: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
+  COMPLETED: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+  DENIED: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300',
+  CANCELLED: 'bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400',
+}
+
+/** 'PARTIALLY_REFUNDED' → 'Partially refunded' — readable pill captions. */
+function dimensionLabel(v: string): string {
+  return v
+    .toLowerCase()
+    .split('_')
+    .map((w, i) => (i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+    .join(' ')
+}
+
+/** A pill earns its space only when it adds info the legacy badge lacks. */
+function showPaymentDimension(order: OrderDTO): boolean {
+  if (
+    order.paymentStatus === 'AWAITING_PAYMENT' &&
+    ['PENDING_PAYMENT', 'PENDING_APPROVAL'].includes(order.status)
+  )
+    return false
+  if (order.paymentStatus === 'PAID' && order.status === 'PAID') return false
+  return true
+}
+
+/** Legacy status → the fulfillment value that says the same thing. */
+const LEGACY_FULFILLMENT_TWIN: Record<string, string> = {
+  CANCELLED: 'CANCELLED',
+  DELIVERED: 'FULFILLED',
+  PROCESSING: 'PROCESSING',
+  SHIPPED: 'SHIPPED',
+  PAID: 'UNFULFILLED',
+  PENDING_PAYMENT: 'UNFULFILLED',
+  PENDING_APPROVAL: 'UNFULFILLED',
+}
+
+function showFulfillmentDimension(order: OrderDTO): boolean {
+  return (LEGACY_FULFILLMENT_TWIN[order.status] ?? null) !== order.fulfillmentStatus
+}
+
+/** Money that actually moved can be asked back (7.7.3 — mirrors the API's
+ *  paidStates gate so the UI never offers a request the server would 409). */
+const REFUND_ELIGIBLE_PAYMENT = ['PAID', 'PARTIALLY_REFUNDED', 'REFUNDED', 'FUNDED', 'OUTSTANDING']
+
+function canRequestRefund(order: OrderDTO): boolean {
+  return REFUND_ELIGIBLE_PAYMENT.includes(order.paymentStatus) && order.status !== 'CANCELLED'
 }
 
 /** Estimated delivery window: 3–6 days after the order was placed. */
@@ -253,6 +332,106 @@ export function OrdersView() {
   }
 
   const orders = data?.orders ?? []
+
+  // ── Refund request dialog (Phase 7.7.3 — item-level refund requests) ──
+  const [refundDialogOrder, setRefundDialogOrder] = useState<OrderDTO | null>(null)
+  /** orderItemId → quantity to refund (0 = not selected). */
+  const [refundQtys, setRefundQtys] = useState<Record<string, number>>({})
+  const [refundReason, setRefundReason] = useState('')
+  const [refundShipping, setRefundShipping] = useState('')
+  const [refundError, setRefundError] = useState<string | null>(null)
+  const [refundSubmitting, setRefundSubmitting] = useState(false)
+  const [cancellingRefundId, setCancellingRefundId] = useState<string | null>(null)
+
+  const openRefundDialog = (order: OrderDTO) => {
+    setRefundQtys({})
+    setRefundReason('')
+    setRefundShipping('')
+    setRefundError(null)
+    setRefundSubmitting(false)
+    setRefundDialogOrder(order)
+  }
+
+  /** Live estimate of what the request asks back (items + optional shipping). */
+  const refundSelectedTotal = useMemo(() => {
+    if (!refundDialogOrder) return 0
+    const items = refundDialogOrder.items.reduce(
+      (sum, it) => sum + (refundQtys[it.id] ? it.price * refundQtys[it.id] : 0),
+      0
+    )
+    const shipping = Math.max(0, Number(refundShipping) || 0)
+    return Math.round((items + shipping) * 100) / 100
+  }, [refundDialogOrder, refundQtys, refundShipping])
+
+  const submitRefund = async () => {
+    if (!refundDialogOrder) return
+    const lines = Object.entries(refundQtys)
+      .filter(([, q]) => q >= 1)
+      .map(([orderItemId, quantity]) => ({ orderItemId, quantity }))
+    if (lines.length === 0) {
+      setRefundError('Select at least one item to refund')
+      return
+    }
+    if (refundReason.trim().length < 10) {
+      setRefundError('Please describe the reason (at least 10 characters)')
+      return
+    }
+    setRefundSubmitting(true)
+    setRefundError(null)
+    try {
+      const res = await fetch(`/api/orders/${refundDialogOrder.id}/refund`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reason: refundReason.trim(),
+          items: lines,
+          ...(Math.max(0, Number(refundShipping) || 0) > 0
+            ? { shipping: Math.max(0, Number(refundShipping) || 0) }
+            : {}),
+        }),
+      })
+      const json = (await res.json()) as { refund?: { amountTotal?: number }; error?: string }
+      if (!res.ok) {
+        setRefundError(json.error ?? 'Failed to request refund')
+        return
+      }
+      setRefundDialogOrder(null)
+      toast({
+        title: 'Refund requested',
+        description: `#${refundDialogOrder.id.slice(-8).toUpperCase()} — ${formatUSD(
+          json.refund?.amountTotal ?? refundSelectedTotal
+        )} pending review`,
+      })
+      void refetch()
+    } catch {
+      setRefundError('Network error — please try again')
+    } finally {
+      setRefundSubmitting(false)
+    }
+  }
+
+  /** Buyer cancels their own REQUESTED/APPROVED refund request. */
+  const cancelRefundRequest = async (refundId: string) => {
+    setCancellingRefundId(refundId)
+    try {
+      const res = await fetch(`/api/refunds/${refundId}/cancel`, { method: 'POST' })
+      const json = (await res.json()) as { error?: string }
+      if (!res.ok) {
+        toast({
+          title: 'Cannot cancel refund request',
+          description: json.error ?? 'Something went wrong',
+          variant: 'destructive',
+        })
+        return
+      }
+      toast({ title: 'Refund request cancelled' })
+      void refetch()
+    } catch {
+      toast({ title: 'Error', description: 'Network error', variant: 'destructive' })
+    } finally {
+      setCancellingRefundId(null)
+    }
+  }
 
   // Status chips: ALL + every status present in the order list (canonical order)
   const statusCounts = useMemo(() => {
@@ -450,6 +629,14 @@ export function OrdersView() {
                         {paymentStatusLabel(order.payment.status)}
                       </span>
                     )}
+                    {order.hasPendingRefunds && (
+                      <span
+                        className="flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                        title="A refund request on this order is awaiting review or payout — the order keeps its current payment state until the refund completes"
+                      >
+                        <RotateCcw size={12} className="shrink-0" /> Refund pending
+                      </span>
+                    )}
                     {openDisputeByOrder.has(order.id) && (
                       <span
                         className="flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-[11px] font-semibold text-rose-700 dark:bg-rose-950 dark:text-rose-300"
@@ -473,8 +660,36 @@ export function OrdersView() {
                       })()
                     )}
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center justify-end gap-2">
                     <span className="text-sm font-bold">{formatUSD(order.total)}</span>
+                    {/* Phase 7.7 — authoritative dimension pills (shown only
+                        when they add information the legacy badge lacks). */}
+                    {showPaymentDimension(order) && (
+                      <span
+                        className={cn(
+                          'flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold',
+                          PAYMENT_DIMENSION_STYLES[order.paymentStatus] ??
+                            'bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400'
+                        )}
+                        title="Payment status — the money dimension (paid, refunded, outstanding…)"
+                      >
+                        <Wallet size={11} className="shrink-0" />
+                        {dimensionLabel(order.paymentStatus)}
+                      </span>
+                    )}
+                    {showFulfillmentDimension(order) && (
+                      <span
+                        className={cn(
+                          'flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold',
+                          FULFILLMENT_DIMENSION_STYLES[order.fulfillmentStatus] ??
+                            'bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400'
+                        )}
+                        title="Fulfillment status — the delivery dimension (rolled up per seller group)"
+                      >
+                        <Truck size={11} className="shrink-0" />
+                        {dimensionLabel(order.fulfillmentStatus)}
+                      </span>
+                    )}
                     <Badge className={cn('rounded-full text-[11px] font-semibold', STATUS_COLORS[order.status])}>
                       {statusLabel(order.status)}
                     </Badge>
@@ -639,6 +854,52 @@ export function OrdersView() {
                     </button>
                   )}
 
+                  {/* Phase 7.7.3 — refund ledger for this order: chips with
+                      number + status + amount, and a buyer-side cancel while
+                      the request is still pending (REQUESTED/APPROVED). */}
+                  {order.refunds.length > 0 && (
+                    <div className="space-y-2 rounded-xl border border-dashed bg-muted/30 px-3.5 py-3">
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                        Refunds
+                      </p>
+                      {order.refunds.map((r) => (
+                        <div key={r.id} className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex min-w-0 flex-wrap items-center gap-2">
+                            <span
+                              className={cn(
+                                'rounded-full px-2.5 py-0.5 text-[11px] font-semibold',
+                                REFUND_STATUS_STYLES[r.status] ??
+                                  'bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400'
+                              )}
+                              title={`Refund ${r.number} — ${dimensionLabel(r.status)}${
+                                r.status === 'APPROVED'
+                                  ? ' (obligation established — awaiting payment)'
+                                  : r.status === 'REQUESTED'
+                                    ? ' (awaiting review)'
+                                    : ''
+                              }`}
+                            >
+                              {r.number} · {dimensionLabel(r.status)}
+                            </span>
+                            <span className="text-xs font-semibold tabular-nums">{formatUSD(r.amountTotal)}</span>
+                            <span className="text-[11px] text-muted-foreground">{formatDate(r.createdAt)}</span>
+                          </div>
+                          {(r.status === 'REQUESTED' || r.status === 'APPROVED') && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 rounded-full px-2.5 text-[11px] text-muted-foreground hover:text-foreground"
+                              disabled={cancellingRefundId === r.id}
+                              onClick={() => void cancelRefundRequest(r.id)}
+                            >
+                              {cancellingRefundId === r.id ? 'Cancelling…' : 'Cancel request'}
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-4 text-xs text-muted-foreground">
                     <span>
                       Ship to: {order.fullName}, {order.address}, {order.city} {order.zip}
@@ -694,6 +955,19 @@ export function OrdersView() {
                           Invoice
                         </Button>
                       </InvoiceDialog>
+                      {/* Phase 7.7.3 — item-level refund request (money that
+                          actually moved can be asked back). */}
+                      {canRequestRefund(order) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 rounded-full text-xs"
+                          onClick={() => openRefundDialog(order)}
+                        >
+                          <RotateCcw size={12} className="mr-1" />
+                          Request refund
+                        </Button>
+                      )}
                       {disputesConfig?.enabled &&
                         order.status !== 'CANCELLED' &&
                         !openDisputeByOrder.has(order.id) && (
@@ -900,6 +1174,168 @@ export function OrdersView() {
                 )}
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Phase 7.7.3 — refund request dialog: item-level checkboxes with qty
+          steppers, a reason (min 10 chars) and an optional shipping bucket.
+          Nothing is charged or moved — the request lands as REQUESTED and an
+          operator reviews it before approval. */}
+      <Dialog
+        open={!!refundDialogOrder}
+        onOpenChange={(open) => {
+          if (!open && !refundSubmitting) setRefundDialogOrder(null)
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcw size={16} className="text-primary" /> Request refund
+              {refundDialogOrder && (
+                <span className="font-mono text-sm font-bold">
+                  #{refundDialogOrder.id.slice(-8).toUpperCase()}
+                </span>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              Choose the items to return and describe why — the request goes to the platform for
+              review before any money moves.
+            </DialogDescription>
+          </DialogHeader>
+
+          {refundDialogOrder && (
+            <div className="space-y-4">
+              {/* Items — checkbox + quantity stepper (clamped 1..ordered qty) */}
+              <div className="space-y-2">
+                {refundDialogOrder.items.map((item) => {
+                  const qty = refundQtys[item.id] ?? 0
+                  const checked = qty >= 1
+                  return (
+                    <Label
+                      key={item.id}
+                      htmlFor={`refund-item-${item.id}`}
+                      className={cn(
+                        'flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-colors',
+                        checked ? 'border-primary/50 bg-primary/5' : 'hover:border-primary/30'
+                      )}
+                    >
+                      <Checkbox
+                        id={`refund-item-${item.id}`}
+                        checked={checked}
+                        onCheckedChange={(v) =>
+                          setRefundQtys((prev) => ({ ...prev, [item.id]: v === true ? 1 : 0 }))
+                        }
+                        disabled={refundSubmitting}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="line-clamp-1 text-sm font-medium">{item.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {item.variantName ? `${item.variantName} · ` : ''}
+                          {formatUSD(item.price)} each · ordered {item.quantity}
+                        </p>
+                      </div>
+                      {checked && (
+                        /* Stepper swallows its clicks so the row label never
+                           toggles the checkbox when adjusting the quantity. */
+                        <div
+                          className="flex shrink-0 items-center gap-2"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                          }}
+                        >
+                          <span className="hidden text-[10px] font-medium text-muted-foreground sm:inline">
+                            Qty
+                          </span>
+                          <QuantityInput
+                            compact
+                            value={qty}
+                            min={1}
+                            max={item.quantity}
+                            onChange={(v) => setRefundQtys((prev) => ({ ...prev, [item.id]: v }))}
+                          />
+                        </div>
+                      )}
+                    </Label>
+                  )
+                })}
+              </div>
+
+              {/* Reason — the reviewer needs at least a sentence */}
+              <div className="space-y-1.5">
+                <Label htmlFor="refund-reason">Reason</Label>
+                <Textarea
+                  id="refund-reason"
+                  value={refundReason}
+                  onChange={(e) => setRefundReason(e.target.value)}
+                  placeholder="What went wrong with the selected items?"
+                  className="min-h-24"
+                  maxLength={2000}
+                  disabled={refundSubmitting}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {refundReason.trim().length < 10
+                    ? `At least ${10 - refundReason.trim().length} more character${
+                        10 - refundReason.trim().length === 1 ? '' : 's'
+                      }…`
+                    : 'Good — the reviewer sees this reason.'}
+                </p>
+              </div>
+
+              {/* Optional shipping bucket */}
+              <div className="space-y-1.5">
+                <Label htmlFor="refund-shipping">
+                  Include shipping{' '}
+                  <span className="text-xs font-normal text-muted-foreground">(optional, USD)</span>
+                </Label>
+                <Input
+                  id="refund-shipping"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={refundShipping}
+                  onChange={(e) => setRefundShipping(e.target.value)}
+                  placeholder="0.00"
+                  className="h-10"
+                  disabled={refundSubmitting}
+                />
+              </div>
+
+              {/* Live estimate + inline error */}
+              <div className="flex items-center justify-between gap-3 rounded-xl border bg-muted/40 px-3.5 py-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Refund total (estimate)
+                  </p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    Reviewed before approval — amounts may adjust.
+                  </p>
+                </div>
+                <p className="shrink-0 text-lg font-bold tabular-nums">{formatUSD(refundSelectedTotal)}</p>
+              </div>
+              {refundError && <p className="text-sm font-medium text-destructive">{refundError}</p>}
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              className="rounded-xl"
+              onClick={() => setRefundDialogOrder(null)}
+              disabled={refundSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button className="rounded-xl" onClick={() => void submitRefund()} disabled={refundSubmitting}>
+              {refundSubmitting ? (
+                <>
+                  <Loader2 size={14} className="mr-1.5 animate-spin" /> Submitting…
+                </>
+              ) : (
+                'Submit request'
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

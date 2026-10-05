@@ -241,6 +241,9 @@ export function serializeOrder(
     id: string
     total: number
     status: string
+    paymentStatus?: string | null
+    fulfillmentStatus?: string | null
+    currency?: string | null
     fullName: string
     address: string
     city: string
@@ -261,6 +264,7 @@ export function serializeOrder(
       paidAt?: Date | null
       amount?: unknown
     } | null
+    refunds?: Array<{ id: string; status: string; number: string; amountTotal: number | unknown; createdAt: Date }> | null
     items: {
       id: string
       productId: string
@@ -280,6 +284,18 @@ export function serializeOrder(
     id: o.id,
     total: o.total,
     status: o.status,
+    // 7.7 dimension split — authoritative payment + fulfillment dimensions
+    paymentStatus: o.paymentStatus ?? inferPaymentStatusFromLegacy(o.status, o.payment?.status),
+    fulfillmentStatus: o.fulfillmentStatus ?? inferFulfillmentStatusFromLegacy(o.status),
+    currency: o.currency ?? 'USD',
+    hasPendingRefunds: (o.refunds ?? []).some((r) => r.status === 'REQUESTED' || r.status === 'APPROVED'),
+    refunds: (o.refunds ?? []).map((r) => ({
+      id: r.id,
+      number: r.number,
+      status: r.status,
+      amountTotal: Number(r.amountTotal),
+      createdAt: r.createdAt.toISOString(),
+    })),
     fullName: o.fullName,
     address: o.address,
     city: o.city,
@@ -324,4 +340,36 @@ export function serializeCategory(
 
 export function formatUSD(n: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
+}
+
+// ── 7.7: legacy-status inference (only for callers that pass pre-Phase-7
+// rows without the dimension columns — new reads always carry them) ──
+
+export function inferPaymentStatusFromLegacy(legacy: string, paymentRowStatus?: string | null): string {
+  switch (legacy) {
+    case 'PAID':
+    case 'PROCESSING':
+    case 'SHIPPED':
+    case 'DELIVERED':
+      return 'PAID'
+    case 'CANCELLED':
+      return paymentRowStatus === 'SUCCEEDED' ? 'PAID' : 'AWAITING_PAYMENT'
+    default:
+      return 'AWAITING_PAYMENT'
+  }
+}
+
+export function inferFulfillmentStatusFromLegacy(legacy: string): string {
+  switch (legacy) {
+    case 'PROCESSING':
+      return 'PROCESSING'
+    case 'SHIPPED':
+      return 'SHIPPED'
+    case 'DELIVERED':
+      return 'FULFILLED'
+    case 'CANCELLED':
+      return 'CANCELLED'
+    default:
+      return 'UNFULFILLED'
+  }
 }

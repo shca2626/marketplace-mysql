@@ -46,6 +46,7 @@ import {
   HandCoins,
   BadgeCheck,
   Building,
+  Coins,
   Boxes,
   TrendingUp,
   UserCog,
@@ -140,6 +141,7 @@ export const ADMIN_NAV: NavConfig = {
       items: [
         { key: 'payments', label: 'Payments', icon: Receipt, description: 'Money settlement & capture queue', permission: 'payments.view' },
         { key: 'payouts', label: 'Payouts', icon: Banknote, description: 'Vendor settlement & commission', permission: 'payouts.view' },
+        { key: 'fx', label: 'Currencies & FX', icon: Coins, description: 'Exchange rates & currency display', permission: 'pricing.view' },
         { key: 'financing', label: 'Financing', icon: Landmark, description: 'Verification gate, financiers & fees', permission: 'financing.gate.view' },
       ],
     },
@@ -185,6 +187,7 @@ export const ADMIN_NAV: NavConfig = {
     orders: { title: 'Orders', description: 'Every order placed on the platform — buyers, sellers and money.' },
     payments: { title: 'Payments', description: 'Settlement console — bank transfers and invoices awaiting capture.' },
     payouts: { title: 'Payouts', description: 'Vendor settlement batches and commission configuration.' },
+    fx: { title: 'Currencies & FX', description: 'The currency directory and authoritative exchange rates — one rate per pair, admin-managed history.' },
     financing: { title: 'Financing', description: 'The platform verification gate — review queues, financier institutions, fees and the shared requirements library.' },
     organizations: { title: 'Organizations', description: 'Manage companies, banks, MFIs, e-wallets and their members.' },
     pricing: { title: 'Pricing & Lists', description: 'Price lists and customer groups that drive contract pricing.' },

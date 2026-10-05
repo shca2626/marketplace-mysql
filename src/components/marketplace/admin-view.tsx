@@ -33,6 +33,7 @@ import { AdminProductsTab } from './admin/products-tab'
 import { AdminOrdersTab } from './admin/orders-tab'
 import { PaymentsTab } from './admin/payments-tab'
 import { PayoutsTab } from './admin/payouts-tab'
+import { FxTab } from './admin/fx-tab'
 import { FinancingTab } from './admin/financing-tab'
 import { RbacTab } from './admin/rbac-tab'
 import { SecurityTab } from './admin/security-tab'
@@ -123,6 +124,7 @@ function AdminDashboard({ user }: { user: SessionUser | null }) {
       {activeSection === 'orders' && <AdminOrdersTab />}
       {activeSection === 'payments' && <PaymentsTab />}
       {activeSection === 'payouts' && <PayoutsTab />}
+      {activeSection === 'fx' && <FxTab />}
       {activeSection === 'financing' && <FinancingTab />}
       {activeSection === 'organizations' && <OrganizationsTab />}
       {activeSection === 'pricing' && <PricingTab />}

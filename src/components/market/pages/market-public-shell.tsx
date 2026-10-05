@@ -12,6 +12,8 @@ import { CartDrawer } from '@/components/marketplace/cart-drawer'
 import { AuthModal } from '@/components/marketplace/auth-modal'
 import { BackToTop } from '@/components/marketplace/back-to-top'
 import { StorefrontTheme } from '@/components/marketplace/storefront-theme'
+// Phase 7.2 — same FX display substrate as the /market SPA
+import { FxProvider } from '@/components/marketplace/currency-context'
 
 /**
  * Market public chrome for the real (server-rendered) market routes
@@ -88,18 +90,22 @@ export function MarketPublicShell({ children }: { children: React.ReactNode }) {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-      {/* Live theme bridge — admin-configured accent / radius / default-mode */}
-      <StorefrontTheme />
-      <div className="flex min-h-screen flex-col bg-background text-foreground">
-        {/* Slim platform strip — five primary pages always reachable (§4.2) */}
-        <MarketSiteStrip />
-        <Header />
-        <main className="flex-1">{children}</main>
-        <Footer />
-        <CartDrawer />
-        <AuthModal />
-        <BackToTop />
-      </div>
+      {/* Phase 7.2 — FX display context (the header switcher + converted
+          prices on the shared ProductCard need it on these pages too). */}
+      <FxProvider>
+        {/* Live theme bridge — admin-configured accent / radius / default-mode */}
+        <StorefrontTheme />
+        <div className="flex min-h-screen flex-col bg-background text-foreground">
+          {/* Slim platform strip — five primary pages always reachable (§4.2) */}
+          <MarketSiteStrip />
+          <Header />
+          <main className="flex-1">{children}</main>
+          <Footer />
+          <CartDrawer />
+          <AuthModal />
+          <BackToTop />
+        </div>
+      </FxProvider>
     </ThemeProvider>
   )
 }

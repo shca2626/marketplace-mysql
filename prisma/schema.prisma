@@ -80,6 +80,11 @@ model User {
   vaultAccessGrants  VaultAccessGrant[]    @relation("VaultAccessGrants")
   paymentsCaptured   Payment[]             @relation("PaymentsCapturedBy")
   payouts            Payout[]             @relation("PayoutSeller")
+  payoutExecutions   Payout[]             @relation("PayoutExecutedBy")
+  sellerProfilesOwned SellerProfile[]    @relation("SellerProfileOwner")
+  refundsRequested   Refund[]             @relation("RefundRequester")
+  refundsApproved    Refund[]             @relation("RefundApprover")
+  refundsCompleted   Refund[]             @relation("RefundCompleter")
 
   // ── Applicant profile (FINANCIER_SCHEMA v5 §3.1) — additive, ALL nullable;
   //    B2C buyers unaffected until they apply for financing (DP-14) ──
@@ -287,6 +292,8 @@ model ProductOffer {
   product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   sellerId       String
   seller         User     @relation(fields: [sellerId], references: [id])
+  sellerOrgId    String? // 7.0: authoritative seller-org tenant (backfilled; new writes always set both identifiers)
+  sellerOrg      Organization? @relation("OfferSellerOrg", fields: [sellerOrgId], references: [id])
   price          Float // offer unit price (offer currency = product currency)
   compareAtPrice Float?
   stock          Int      @default(0)
@@ -302,11 +309,14 @@ model ProductOffer {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  rfqLines RfqLine[] // RFQ lines may target a specific offer
+  rfqLines   RfqLine[] // RFQ lines may target a specific offer
+  quoteLines QuoteLine[] // 7.6: quote lines snapshot the offer actually quoted
+  offerVariants OfferVariant[] // 7.6: D9 per-offer variant rows
 
   @@unique([productId, sellerId])
   @@index([productId, status])
   @@index([sellerId, status]) // seller console "My offers" listing
+  @@index([sellerOrgId]) // 7.0: org-tenant offer queries (MYSQL-FK-INDEX)
 }
 
 model Order {
@@ -322,6 +332,14 @@ model Order {
   country   String
   zip       String
   phone     String?
+
+  // ── Phase 7.7: dimension split — one status no longer serves payment and
+  // fulfillment simultaneously. Legacy `status` is retained read-only during
+  // migration (removed after 7.1b's observation discipline).──
+  paymentStatus     String @default("AWAITING_PAYMENT") // AWAITING_PAYMENT | PAID | FUNDED | PARTIALLY_REFUNDED | REFUNDED | OUTSTANDING
+  fulfillmentStatus String @default("UNFULFILLED") // UNFULFILLED | PARTIALLY_FULFILLED | FULFILLED | PARTIALLY_CANCELLED | CANCELLED
+  currency          String @default("USD") // 7.2: explicit transaction currency
+
   createdAt DateTime    @default(now())
 
   // ── B2B extensions (all optional so the B2C fast path is unchanged) ──
@@ -335,9 +353,13 @@ model Order {
   approvalRequest ApprovalRequest?
   payment         Payment?
   disputes        Dispute[]
+  fulfillments    OrderFulfillment[] // 7.7: per-seller-group fulfillment
+  refunds         Refund[] // 7.7: refund obligations + executions
 
   @@index([buyerId, createdAt])
   @@index([status])
+  @@index([paymentStatus])
+  @@index([fulfillmentStatus])
   @@index([organizationId])
 }
 
@@ -355,8 +377,15 @@ model OrderItem {
   variantId   String? // purchased ProductVariant (null = base product)
   variantName String? // snapshot of variant label at purchase time
   offerId     String? // Phase 4: purchased ProductOffer (null = primary listing offer) — loose snapshot ref; offers archive but never hard-delete
+  offerVariantId String? // 7.6: the (offer, variant) actually sold — D9 identity
+  offerVariant OfferVariant? @relation(fields: [offerVariantId], references: [id], onDelete: SetNull)
+  sellerOrgId String? // 7.0: authoritative seller-org tenant of the sale
+  sellerOrg   Organization? @relation("OrderItemSellerOrg", fields: [sellerOrgId], references: [id])
   payoutId    String? // set when this item's revenue was settled into a seller payout
   payout      Payout? @relation(fields: [payoutId], references: [id])
+  payoutLines PayoutLine[] // 7.4: settlement ledger entries covering this item
+  refundAllocations RefundAllocation[] // 7.7: refunds covering this item
+  fulfillmentItems OrderFulfillmentItem[] // 7.7: per-seller-group links
 
   @@index([orderId])
   @@index([productId])
@@ -364,6 +393,8 @@ model OrderItem {
   @@index([sellerId, payoutId])
   @@index([offerId]) // Phase 4: offer-level sales analytics
   @@index([payoutId]) // MYSQL-FK-INDEX: payoutId relation needs its own leftmost index
+  @@index([sellerOrgId]) // 7.0: org-tenant sales analytics (MYSQL-FK-INDEX)
+  @@index([offerVariantId]) // 7.6 (MYSQL-FK-INDEX)
 }
 
 model ProductVariant {
@@ -380,6 +411,8 @@ model ProductVariant {
   isActive       Boolean  @default(true)
   image          String? // uploaded-media variant image URL
   createdAt      DateTime @default(now())
+
+  offerVariants OfferVariant[] // 7.6: D9 per-offer rows pointing at this catalog variant
 
   @@index([productId, isActive])
 }
@@ -446,6 +479,14 @@ model Organization {
   orders           Order[]
   groups           CustomerGroupOrganization[] @relation("OrganizationCustomerGroups")
   approvalRequests ApprovalRequest[]
+
+  // ── Phase 7.0: seller-org tenant back-relations (three-concept identity) ──
+  sellerProfile            SellerProfile?     @relation("SellerProfileOrg")
+  offersAsSellerOrg        ProductOffer[]    @relation("OfferSellerOrg")
+  orderItemsAsSellerOrg    OrderItem[]       @relation("OrderItemSellerOrg")
+  payoutsAsSellerOrg       Payout[]         @relation("PayoutSellerOrg")
+  quotesAsSellerOrg        Quote[]           @relation("QuoteSellerOrg")
+  fulfillmentsAsSellerOrg  OrderFulfillment[] @relation("FulfillmentSellerOrg")
 
   // ── financing-domain back-relations (FINANCIER_SCHEMA v5) ──
   financierProfile      FinancierProfile?      @relation("FinancierProfileOrg")
@@ -601,6 +642,8 @@ model RfqLine {
   variantName String? // snapshot "Color: Black / Bundle: Duo"
   offerId     String? // Phase 4: target a SPECIFIC vendor offer (null = the product generally / primary listing)
   offer       ProductOffer? @relation(fields: [offerId], references: [id], onDelete: SetNull) // offer archived → line keeps product context
+  offerVariantId String? // 7.6: buyer targets a specific vendor's variant (D9 identity)
+  offerVariant  OfferVariant? @relation(fields: [offerVariantId], references: [id], onDelete: SetNull)
   quantity    Int
   targetPrice Float? // buyer's target unit price (optional)
   notes       String? @db.Text // MYSQL: free-form line notes
@@ -612,6 +655,7 @@ model RfqLine {
   @@index([rfqId])
   @@index([productId])
   @@index([variantId])
+  @@index([offerVariantId]) // 7.6 (MYSQL-FK-INDEX)
 }
 
 model Quote {
@@ -620,6 +664,8 @@ model Quote {
   rfqId         String
   createdById   String // admin or seller who issued the quote
   sellerId      String? // fulfilling seller (null = platform-facilitated)
+  sellerOrgId   String? // 7.0: authoritative seller-org tenant of the quote
+  sellerOrg     Organization? @relation("QuoteSellerOrg", fields: [sellerOrgId], references: [id])
   status        String    @default("SENT") // DRAFT | SENT | PENDING_REVIEW | ACCEPTED | DECLINED | REJECTED | EXPIRED | CONVERTED | WITHDRAWN
   currency      String    @default("USD")
   subtotal      Float
@@ -644,6 +690,7 @@ model Quote {
 
   @@index([rfqId])
   @@index([status])
+  @@index([sellerOrgId]) // 7.0 (MYSQL-FK-INDEX)
   @@index([createdById]) // MYSQL-FK-INDEX: createdById relation needs its own leftmost index
 }
 
@@ -684,6 +731,11 @@ model QuoteLine {
   productId   String
   variantId   String? // quoted variant (mirrors the RFQ line)
   variantName String? // snapshot at quote time
+  offerId     String? // 7.6: the seller offer actually quoted — H1: the snapshot is the fact, never reconstructed from a live offer
+  offer       ProductOffer? @relation(fields: [offerId], references: [id], onDelete: SetNull)
+  offerVariantId String? // 7.6: the (offer, variant) quoted — D9 identity
+  offerVariant OfferVariant? @relation(fields: [offerVariantId], references: [id], onDelete: SetNull)
+  availableStock Int? // 7.6/H1: applicable inventory at quote time (null = not inventoried)
   quantity    Int
   unitPrice   Float
   quote       Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
@@ -693,6 +745,8 @@ model QuoteLine {
   @@index([quoteId])
   @@index([productId])
   @@index([rfqLineId]) // MYSQL-FK-INDEX: rfqLineId relation needs its own leftmost index
+  @@index([offerId]) // 7.6 (MYSQL-FK-INDEX)
+  @@index([offerVariantId]) // 7.6 (MYSQL-FK-INDEX)
 }
 
 // ── Server-side notification feed (RFQ / approval / message events) ─────────
@@ -926,6 +980,8 @@ model Payout {
   number         String    @unique // PY-2026-000001
   sellerId       String
   seller         User      @relation("PayoutSeller", fields: [sellerId], references: [id])
+  sellerOrgId    String? // 7.0: authoritative seller-org tenant receiving payment
+  sellerOrg      Organization? @relation("PayoutSellerOrg", fields: [sellerOrgId], references: [id])
   periodStart    DateTime
   periodEnd      DateTime
   itemCount      Int       @default(0)
@@ -933,16 +989,257 @@ model Payout {
   commissionRate Float // percent actually applied (snapshot)
   commission     Float     @default(0)
   netAmount      Float     @default(0)
+  currency       String    @default("USD") // 7.2: explicit settlement currency
   status         String    @default("PENDING") // PENDING | PAID | CANCELLED
   paidAt         DateTime?
   note           String?   @db.Text // MYSQL: free-form payout note
+  // ── 7.4C: external transfer discipline (S4) ──
+  transferReference      String? // bank/manually-confirmed transfer reference — REQUIRED to mark paid
+  transferIdempotencyKey String? @unique // derived from payout number + execution attempt; retries reuse it
+  executedById  String? // actor who confirmed the transfer
+  executedBy    User?   @relation("PayoutExecutedBy", fields: [executedById], references: [id])
+  executedAt    DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   items OrderItem[]
+  lines PayoutLine[] // 7.4B: the immutable settlement ledger
 
   @@index([sellerId, status])
   @@index([status, createdAt])
+  @@index([sellerOrgId]) // 7.0 (MYSQL-FK-INDEX)
+  @@index([executedById]) // 7.4 (MYSQL-FK-INDEX)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 7 (lastplan v5) — Financial integrity & multi-currency substrate.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// 7.0 — the seller-org tenant profile: one per selling organization.
+// Verification lives HERE (verificationState, per S3: verification ≠
+// suspension); Organization.status stays the operational lifecycle.
+// Store settings (logo/banner/policies/payout account) land here in 8.3.
+model SellerProfile {
+  id                String   @id @default(cuid())
+  organizationId    String   @unique
+  organization      Organization @relation("SellerProfileOrg", fields: [organizationId], references: [id])
+  ownerUserId       String
+  owner             User     @relation("SellerProfileOwner", fields: [ownerUserId], references: [id])
+  verificationState String   @default("UNVERIFIED") // UNVERIFIED | PENDING | VERIFIED | REJECTED
+  verificationNote  String?  @db.Text // MYSQL: free-form verification note
+  verifiedAt        DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([verificationState])
+  @@index([ownerUserId]) // MYSQL-FK-INDEX: ownerUserId relation needs its own leftmost index
+}
+
+// 7.4B — the immutable settlement ledger. Amount/commission/currency/FX fields
+// are never UPDATEd after insert; only status transitions and appended entries.
+// claimKey (the DB backstop): orderItemId for claim-purpose lines
+// (SETTLEMENT/REISSUE) while PENDING/EFFECTIVE, else NULL — UNIQUE(claimKey)
+// means at most one live settlement claim per order item, ever. REVERSAL
+// lines never occupy the slot (an accounting fact, not a claim).
+model PayoutLine {
+  id               String    @id @default(cuid())
+  payoutId         String
+  orderItemId      String
+  linePurpose      String    // SETTLEMENT | REVERSAL | REISSUE
+  amount           Float
+  commission       Float
+  currency         String    @default("USD")
+  fxRate           Float? // FX snapshot on converted amounts (7.2)
+  fxRateAt         DateTime?
+  fxSource         String?
+  status           String    @default("PENDING") // PENDING | EFFECTIVE | REVERSED | CANCELLED
+  claimKey         String?   @unique
+  reversalOfLineId String?
+  effectiveAt      DateTime?
+  reversedAt       DateTime?
+  createdAt        DateTime  @default(now())
+
+  payout         Payout       @relation(fields: [payoutId], references: [id], onDelete: Cascade)
+  orderItem      OrderItem    @relation(fields: [orderItemId], references: [id])
+  reversalOf     PayoutLine? @relation("PayoutLineReversal", fields: [reversalOfLineId], references: [id])
+  reversals      PayoutLine[] @relation("PayoutLineReversal")
+
+  @@index([payoutId])
+  @@index([orderItemId])
+  @@index([status])
+  @@index([reversalOfLineId]) // MYSQL-FK-INDEX
+}
+
+// 7.5 — durable recurring-RFQ run state with a fencing token (S5): Tx 1
+// claims the unique run with a lease; Tx 2 executes CONDITIONED on the lease
+// token — a stale worker whose lease expired can never create a duplicate.
+model RecurringRfqRun {
+  id             String   @id @default(cuid())
+  scheduleId     String // loose FK to RecurringRfq.id — run history outlives the schedule
+  dueAt          DateTime
+  status         String   @default("CLAIMED") // CLAIMED | CREATED | FAILED
+  leaseToken     String // random per claim; rewritten on reclaim — Tx 2 verifies it (fencing)
+  leaseExpiresAt DateTime
+  attempt        Int      @default(1)
+  rfqId          String?
+  error          String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([scheduleId, dueAt]) // idempotency key
+  @@index([status, leaseExpiresAt])
+}
+
+// 7.2 — multi-currency substrate: admin-managed currency list + rate history.
+// Money rows carry explicit currency codes; conversions snapshot the rate.
+model Currency {
+  id        String  @id @default(cuid())
+  code      String  @unique // ISO-4217: USD, YER, SAR
+  name      String
+  symbol    String?
+  decimals  Int     @default(2)
+  isActive  Boolean @default(true)
+  createdAt DateTime @default(now())
+
+  ratesAsBase  ExchangeRate[] @relation("RateBase")
+  ratesAsQuote ExchangeRate[] @relation("RateQuote")
+
+  @@index([isActive])
+}
+
+model ExchangeRate {
+  id        String   @id @default(cuid())
+  baseCode  String
+  quoteCode String
+  rate      Float // 1 base = rate quote
+  source    String   @default("ADMIN") // ADMIN | SEED | IMPORT
+  validFrom DateTime @default(now())
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  base  Currency @relation("RateBase", fields: [baseCode], references: [code])
+  quote Currency @relation("RateQuote", fields: [quoteCode], references: [code])
+
+  @@unique([baseCode, quoteCode, validFrom]) // one authoritative rate per instant
+  @@index([quoteCode]) // MYSQL-FK-INDEX
+}
+
+// 7.7.2 — minimal per-seller-group fulfillment model (operational depth in
+// 8.1). One row per (order × sellerOrgId); Order.fulfillmentStatus is the
+// tested derivation over these groups.
+model OrderFulfillment {
+  id             String    @id @default(cuid())
+  orderId        String
+  sellerOrgId    String? // null = platform-facilitated group (items with no seller org)
+  sellerId       String? // historical seller-account identity (7.0 three-concept model)
+  status         String    @default("UNFULFILLED") // UNFULFILLED | PROCESSING | SHIPPED | DELIVERED | CANCELLED
+  carrier        String?
+  trackingNumber String?
+  shippedAt      DateTime?
+  deliveredAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  order    Order                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  sellerOrg Organization?        @relation("FulfillmentSellerOrg", fields: [sellerOrgId], references: [id])
+  items    OrderFulfillmentItem[]
+
+  @@index([orderId])
+  @@index([sellerOrgId])
+}
+
+model OrderFulfillmentItem {
+  id            String @id @default(cuid())
+  fulfillmentId String
+  orderItemId   String @unique
+  quantity      Int    @default(1)
+
+  fulfillment OrderFulfillment @relation(fields: [fulfillmentId], references: [id], onDelete: Cascade)
+  orderItem   OrderItem        @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@index([fulfillmentId]) // MYSQL-FK-INDEX
+}
+
+// 7.7.3 — refunds: obligation vs execution, item-level allocations (S7).
+// REQUESTED → APPROVED (obligation established) → COMPLETED (only with
+// execution evidence: a payment reference recorded by an authenticated
+// actor). Corrections append REVERSAL entries on the payout ledger (7.4) —
+// history is never rewritten. paymentStatus refund states derive ONLY from
+// COMPLETED refunds' allocations.
+model Refund {
+  id               String    @id @default(cuid())
+  number           String    @unique // RF-2026-000001
+  orderId          String
+  requestedById    String
+  reason           String    @db.Text
+  status           String    @default("REQUESTED") // REQUESTED | APPROVED | COMPLETED | DENIED | CANCELLED
+  decidedNote      String?   @db.Text
+  amountTotal      Float     @default(0) // sum of allocation buckets
+  currency         String    @default("USD")
+  paymentReference String? // execution evidence — REQUIRED to complete
+  approvedById     String?
+  approvedAt       DateTime?
+  completedById    String?
+  completedAt      DateTime?
+  deniedAt         DateTime?
+  cancelledAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  order       Order              @relation(fields: [orderId], references: [id])
+  requestedBy User               @relation("RefundRequester", fields: [requestedById], references: [id])
+  approvedBy  User?              @relation("RefundApprover", fields: [approvedById], references: [id])
+  completedBy User?              @relation("RefundCompleter", fields: [completedById], references: [id])
+  allocations RefundAllocation[]
+
+  @@index([orderId])
+  @@index([status])
+  @@index([requestedById]) // MYSQL-FK-INDEX
+  @@index([approvedById]) // MYSQL-FK-INDEX
+  @@index([completedById]) // MYSQL-FK-INDEX
+}
+
+model RefundAllocation {
+  id              String @id @default(cuid())
+  refundId        String
+  orderItemId     String
+  quantity        Int    @default(1)
+  amount          Float  @default(0) // items bucket for this allocation
+  bucketShipping  Float  @default(0)
+  bucketDiscounts Float  @default(0)
+  bucketTaxes     Float  @default(0)
+
+  refund    Refund    @relation(fields: [refundId], references: [id], onDelete: Cascade)
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@unique([refundId, orderItemId])
+  @@index([orderItemId]) // MYSQL-FK-INDEX
+}
+
+// 7.6 — D9 OfferVariant: per-offer variant rows. The (offer, variant) pair
+// is the purchase-time authority — price override, per-variant stock, sku,
+// isActive. Catalog-level ProductVariant price/stock remain presentation
+// defaults for the product owner's primary listing.
+model OfferVariant {
+  id        String   @id @default(cuid())
+  offerId   String
+  variantId String
+  price     Float? // null = inherit the offer price
+  stock     Int     @default(0)
+  sku       String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  offer   ProductOffer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  rfqLines   RfqLine[]
+  quoteLines QuoteLine[]
+  orderItems OrderItem[]
+
+  @@unique([offerId, variantId])
+  @@index([variantId]) // MYSQL-FK-INDEX
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1725,11 +2022,18 @@ model AccreditationRequest {
 
   submissions RequirementSubmission[]
 
-  @@unique([serviceId, organizationId]) // one accreditation per financier-program per org; renewals after terminal states (service-enforced)
+  // ── 7.8: renewal history + DB-derived active marker ──
+  activeKey    Int? // 1 for ACTIVE_SET statuses, NULL terminal — maintained by DB triggers (scripts/sql/accreditation-constraints.sql); application code NEVER sets it
+  supersedesId String? // the ACCREDITED record this renewal replaces
+  supersedes   AccreditationRequest?  @relation("AccreditationSupersedes", fields: [supersedesId], references: [id])
+  supersededBy AccreditationRequest[] @relation("AccreditationSupersedes")
+
+  @@unique([serviceId, organizationId, activeKey]) // 7.8: at most one LIVE request per program/org; terminal rows (activeKey NULL) keep unlimited history — multiple NULLs are legal
   @@index([organizationId, status])
   @@index([status, createdAt])
   @@index([multiGroupId])
   @@index([validUntil])
+  @@index([supersedesId]) // 7.8 (MYSQL-FK-INDEX)
   @@index([submittedById]) // MYSQL-FK-INDEX: submittedById relation needs its own leftmost index
   @@index([platformReviewedById]) // MYSQL-FK-INDEX: platformReviewedById relation needs its own leftmost index
   @@index([decidedById]) // MYSQL-FK-INDEX: decidedById relation needs its own leftmost index

@@ -35,6 +35,8 @@ import { discountPercent, formatDate, formatNumber, formatUSD, initials, timeAgo
 import { StarPicker } from './star-rating'
 import { QuantityInput } from './quantity-input'
 import { ProductCard } from './product-card'
+// Phase 7.2 — approximate display-currency conversion (YER / SAR)
+import { ConvertedPrice } from './currency-context'
 import { SellOfferPanel } from './sell-offer-dialog'
 import { viewToHref } from '@/lib/routing'
 import { absoluteUrl, shareLink } from '@/lib/share'
@@ -744,20 +746,28 @@ export function ProductView() {
                 {contract.priceListName ? `${contract.priceListName} · ` : ''}at qty {quantity}
                 {activeOrg ? ` · for ${activeOrg.name}` : ''}
               </p>
+              {/* Phase 7.2 — approximate converted price in the display
+                  currency (nothing renders in USD mode). */}
+              <ConvertedPrice amountUsd={contract.unitPrice} className="mt-1" />
             </motion.div>
           ) : (
-            <div className="mt-5 flex items-end gap-3">
-              <span className="text-4xl font-extrabold tracking-tight text-bh-navy">{formatUSD(effectivePrice)}</span>
-              {effectiveCompareAt && (
-                <span className="pb-1 text-lg text-bh-muted line-through">
-                  {formatUSD(effectiveCompareAt)}
-                </span>
-              )}
-              {discount !== null && (
-                <Badge variant="destructive" className="mb-1.5">
-                  Save {discount}%
-                </Badge>
-              )}
+            <div className="mt-5 flex flex-col gap-0.5">
+              <div className="flex items-end gap-3">
+                <span className="text-4xl font-extrabold tracking-tight text-bh-navy">{formatUSD(effectivePrice)}</span>
+                {effectiveCompareAt && (
+                  <span className="pb-1 text-lg text-bh-muted line-through">
+                    {formatUSD(effectiveCompareAt)}
+                  </span>
+                )}
+                {discount !== null && (
+                  <Badge variant="destructive" className="mb-1.5">
+                    Save {discount}%
+                  </Badge>
+                )}
+              </div>
+              {/* Phase 7.2 — approximate converted price in the display
+                  currency (nothing renders in USD mode). */}
+              <ConvertedPrice amountUsd={effectivePrice} />
             </div>
           )}
 

@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { recordAudit } from '@/server/modules/audit/service'
+import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
 import { nextNumber } from '@/server/modules/sequences/service'
 import { needsApproval, createQuoteAcceptApprovalRequest } from '@/server/modules/approvals/service'
 import { emitNotification, emitNotifications, type EmitInput } from '@/server/modules/notifications/service'
@@ -8,6 +8,8 @@ import { ensurePayment } from '@/server/modules/payments/service'
 import { openDisputeCountBySeller, lostDisputeCountBySeller } from './disputes'
 import type { RfqDTO, QuoteDTO, RfqLineDTO, QuoteLineDTO, RfqMessageDTO, OpenRfqDTO } from '@/lib/types'
 import { userHasPlatformPermission } from '@/server/modules/rbac/service'
+import type { Prisma } from '@prisma/client'
+import { createFulfillmentGroups } from '@/server/modules/orders/service'
 
 /**
  * RFQ / QUOTE — the B2B negotiation primitive.
@@ -438,6 +440,7 @@ export interface RfqLineInput {
   sku?: string | null
   variantId?: string | null
   offerId?: string | null
+  offerVariantId?: string | null // 7.6: buyer targets a specific vendor's (offer, variant) pair (D9)
   quantity: number
   targetPrice?: number | null
   notes?: string | null
@@ -445,7 +448,10 @@ export interface RfqLineInput {
 
 export async function createRfq(
   userId: string,
-  input: { title?: string | null; description?: string | null; organizationId?: string | null; lines: RfqLineInput[]; expiresInDays?: number | null }
+  input: { title?: string | null; description?: string | null; organizationId?: string | null; lines: RfqLineInput[]; expiresInDays?: number | null },
+  // 7.5 (fenced recurring runs): pass a transaction client so the RFQ INSERT
+  // lands inside the caller's fencing transaction, plus an initial status.
+  opts?: { tx?: Prisma.TransactionClient; status?: 'DRAFT' | 'SUBMITTED'; number?: string }
 ): Promise<RfqDTO> {
   if (!input.lines?.length) throw new RfqServiceError('An RFQ needs at least one line item')
 
@@ -515,6 +521,19 @@ export async function createRfq(
       if (!variant) throw new RfqServiceError('The selected variant does not exist for that product')
       if (!variant.isActive) throw new RfqServiceError('The selected variant is not available')
     }
+    // 7.6.3: wherever an (offer, variant) pair is consumed the pair must
+    // exist, be active, and belong to the same product — fail closed.
+    if (line.offerVariantId) {
+      if (!line.offerId) throw new RfqServiceError('An offer option requires its parent offer')
+      const ov = await db.offerVariant.findUnique({
+        where: { id: line.offerVariantId },
+        include: { offer: { select: { id: true, productId: true, status: true } } },
+      })
+      if (!ov || ov.offer.id !== line.offerId || !ov.isActive || ov.offer.status !== 'ACTIVE')
+        throw new RfqServiceError('The selected offer option is no longer available')
+      if (line.productId && ov.offer.productId !== line.productId)
+        throw new RfqServiceError('The selected offer option belongs to a different product')
+    }
     // Minimum order quantity (product.moq × commercial rules)
     if (line.productId) {
       const p = productMap.get(line.productId)
@@ -541,15 +560,20 @@ export async function createRfq(
     expiresAt = new Date(Date.now() + days * 86_400_000)
   }
 
-  const number = await nextNumber('RFQ')
-  const rfq = await db.rfq.create({
+  // In fenced-tx mode the caller pre-generates the number (a nested
+  // nextNumber inside another transaction's callback is unsupported and
+  // deadlocks); in normal mode it is generated here.
+  const number = opts?.number ?? (await nextNumber('RFQ'))
+  const dbc = opts?.tx ?? db
+  const rfq = await dbc.rfq.create({
     data: {
       number,
       userId,
       organizationId,
       title: input.title?.trim() || null,
       description: input.description?.trim() || null,
-      status: 'DRAFT',
+      status: opts?.status ?? 'DRAFT',
+      ...(opts?.status === 'SUBMITTED' ? { submittedAt: new Date() } : {}),
       expiresAt,
       lines: {
         create: input.lines.map((l) => {
@@ -567,6 +591,7 @@ export async function createRfq(
             variantId: l.variantId ?? null,
             variantName,
             offerId: l.offerId ?? null,
+            offerVariantId: l.offerVariantId ?? null,
             quantity: l.quantity,
             targetPrice: l.targetPrice ?? null,
             notes: l.notes ?? null,
@@ -577,15 +602,27 @@ export async function createRfq(
     include: { ...rfqInclude, _count: { select: { quotes: true } } },
   })
 
-  await recordAudit({
-    actorId: userId,
-    actorType: 'USER',
-    action: 'RFQ_CREATED',
-    entityType: 'Rfq',
-    entityId: rfq.id,
-    summary: `RFQ ${number} drafted (${input.lines.length} lines)`,
-    metadata: { organizationId },
-  })
+  if (opts?.tx) {
+    await recordAuditTx(opts.tx, {
+      actorId: userId,
+      actorType: 'USER',
+      action: 'RFQ_CREATED',
+      entityType: 'Rfq',
+      entityId: rfq.id,
+      summary: `RFQ ${number} drafted (${input.lines.length} lines)`,
+      metadata: { organizationId },
+    })
+  } else {
+    await recordAudit({
+      actorId: userId,
+      actorType: 'USER',
+      action: 'RFQ_CREATED',
+      entityType: 'Rfq',
+      entityId: rfq.id,
+      summary: `RFQ ${number} drafted (${input.lines.length} lines)`,
+      metadata: { organizationId },
+    })
+  }
 
   return serializeRfq(rfq as never, false)
 }
@@ -990,6 +1027,54 @@ export async function createQuote(
   // Variant snapshot: mirror the referenced RFQ line's variant (server truth)
   const variantByLine = new Map(rfq.lines.map((l) => [l.id, { variantId: l.variantId ?? null, variantName: l.variantName ?? null }]))
 
+  // ── 7.6: (offer, variant) identity + inventory snapshot at quote time (H1).
+  // The quote line records the seller-specific terms ACTUALLY quoted — offer
+  // ref, variant ref, applicable inventory — and that snapshot is the fact:
+  // pricing changes to the live offer afterward never alter an issued quote.
+  // Pair validation (7.6.3): the pair must exist, be active, and belong to the
+  // same product — fail closed.
+  const rfqLineById = new Map(rfq.lines.map((l) => [l.id, l]))
+  const offerSnapshotByLine = new Map<string, { offerId: string | null; offerVariantId: string | null; availableStock: number | null }>()
+  {
+    const wantedOfferIds = [
+      ...new Set(
+        input.lines
+          .map((l) => (l.rfqLineId ? rfqLineById.get(l.rfqLineId)?.offerId : undefined))
+          .filter((x): x is string => !!x)
+      ),
+    ]
+    const offerRows = wantedOfferIds.length
+      ? await db.productOffer.findMany({ where: { id: { in: wantedOfferIds } }, include: { offerVariants: true } })
+      : []
+    const offerRowById = new Map(offerRows.map((o) => [o.id, o]))
+    for (const l of input.lines) {
+      const rfqLine = l.rfqLineId ? rfqLineById.get(l.rfqLineId) : undefined
+      if (!rfqLine?.offerId) {
+        offerSnapshotByLine.set(`${l.rfqLineId}:${l.productId}`, { offerId: null, offerVariantId: null, availableStock: null })
+        continue
+      }
+      const offer = offerRowById.get(rfqLine.offerId)
+      if (!offer || offer.productId !== l.productId || offer.status !== 'ACTIVE')
+        throw new RfqServiceError('The offer this line targets is no longer available — refresh and re-quote')
+      if (rfqLine.offerVariantId) {
+        const ov = offer.offerVariants.find((x) => x.id === rfqLine.offerVariantId)
+        if (!ov || !ov.isActive)
+          throw new RfqServiceError('The offer option this line targets is no longer available — refresh and re-quote')
+        offerSnapshotByLine.set(`${l.rfqLineId}:${l.productId}`, {
+          offerId: offer.id,
+          offerVariantId: ov.id,
+          availableStock: ov.stock,
+        })
+      } else {
+        offerSnapshotByLine.set(`${l.rfqLineId}:${l.productId}`, {
+          offerId: offer.id,
+          offerVariantId: null,
+          availableStock: offer.stock,
+        })
+      }
+    }
+  }
+
   const quote = await db.$transaction(async (tx) => {
     const created = await tx.quote.create({
       data: {
@@ -1008,18 +1093,25 @@ export async function createQuote(
         notes: input.notes?.trim() || null,
         sentAt: quoteStatus === 'SENT' ? new Date() : null,
         lines: {
-          create: input.lines.map((l) => ({
-            rfqLineId: l.rfqLineId && rfqLineIds.has(l.rfqLineId) ? l.rfqLineId : null,
-            productId: l.productId,
-            variantId: l.rfqLineId && rfqLineIds.has(l.rfqLineId)
-              ? variantByLine.get(l.rfqLineId)!.variantId
-              : null,
-            variantName: l.rfqLineId && rfqLineIds.has(l.rfqLineId)
-              ? variantByLine.get(l.rfqLineId)!.variantName
-              : null,
-            quantity: l.quantity,
-            unitPrice: l.unitPrice,
-          })),
+          create: input.lines.map((l) => {
+            const snap = offerSnapshotByLine.get(`${l.rfqLineId}:${l.productId}`) ?? { offerId: null, offerVariantId: null, availableStock: null }
+            return {
+              rfqLineId: l.rfqLineId && rfqLineIds.has(l.rfqLineId) ? l.rfqLineId : null,
+              productId: l.productId,
+              variantId: l.rfqLineId && rfqLineIds.has(l.rfqLineId)
+                ? variantByLine.get(l.rfqLineId)!.variantId
+                : null,
+              variantName: l.rfqLineId && rfqLineIds.has(l.rfqLineId)
+                ? variantByLine.get(l.rfqLineId)!.variantName
+                : null,
+              // 7.6/H1: the seller-specific terms actually quoted — snapshotted
+              offerId: snap.offerId,
+              offerVariantId: snap.offerVariantId,
+              availableStock: snap.availableStock,
+              quantity: l.quantity,
+              unitPrice: l.unitPrice,
+            }
+          }),
         },
       },
       include: {
@@ -1748,6 +1840,21 @@ export async function convertQuoteToOrder(
     }
   }
 
+  // ── 7.6: offer attribution — resolve the (offer, variant) rows quoted so
+  // conversion can stamp the ACTUAL seller identity + D9 pair on the order
+  // items. H1: the quote line's snapshot IS the fact; the live offer is only
+  // consulted for identity + stock authority, never to re-derive terms.
+  const quotedOfferIds = [...new Set(quote.lines.map((l) => l.offerId).filter((x): x is string => !!x))]
+  const quotedOffers = quotedOfferIds.length
+    ? await db.productOffer.findMany({ where: { id: { in: quotedOfferIds } } })
+    : []
+  const offerById = new Map(quotedOffers.map((o) => [o.id, o]))
+  const sellerOrgRows = await db.sellerProfile.findMany({
+    where: { ownerUserId: { in: [...new Set(quotedOffers.map((o) => o.sellerId))] } },
+    select: { ownerUserId: true, organizationId: true },
+  })
+  const offerSellerOrg = new Map(sellerOrgRows.map((sp) => [sp.ownerUserId, sp.organizationId]))
+
   // Shipping details: explicit input → buyer's latest order → org billing → fallbacks
   const lastOrder = await db.order.findFirst({
     where: { buyerId: quote.rfq.userId },
@@ -1800,6 +1907,11 @@ export async function convertQuoteToOrder(
         buyerId: quote.rfq.userId,
         total: quote.total,
         status: 'PROCESSING', // B2B invoiced order — payment on terms, not prepaid
+        // 7.7 dimensions: an invoiced NET-terms order has money outstanding,
+        // fulfillment starts unfulfilled (groups created below)
+        paymentStatus: 'AWAITING_PAYMENT',
+        fulfillmentStatus: 'UNFULFILLED',
+        currency: quote.currency ?? 'USD',
         fullName: shipping.fullName,
         address: shipping.address,
         city: shipping.city,
@@ -1812,21 +1924,80 @@ export async function convertQuoteToOrder(
         sourceType: 'RFQ',
         sourceQuoteId: quote.id,
         items: {
-          create: quote.lines.map((l) => ({
-            productId: l.productId,
-            sellerId: l.product.sellerId,
-            variantId: l.variantId ?? null,
-            variantName: l.variantName ?? null,
-            quantity: l.quantity,
-            price: l.unitPrice,
-            title: l.variantName ? `${l.product.title} — ${l.variantName}` : l.product.title,
-            image: firstImage(l.product.images),
-          })),
+          // 7.6: conversion sets sellerId/sellerOrgId from the OFFER's seller
+          // when the line quoted one — the offer layer is the single
+          // authoritative source of seller attribution for commerce.
+          create: quote.lines.map((l) => {
+            const offer = l.offerId ? offerById.get(l.offerId) : undefined
+            const effectiveSellerId = offer ? offer.sellerId : l.product.sellerId
+            return {
+              productId: l.productId,
+              sellerId: effectiveSellerId,
+              sellerOrgId: offer ? (offerSellerOrg.get(offer.sellerId) ?? offer.sellerOrgId ?? null) : null,
+              variantId: l.variantId ?? null,
+              variantName: l.variantName ?? null,
+              offerId: l.offerId ?? null,
+              offerVariantId: l.offerVariantId ?? null,
+              quantity: l.quantity,
+              price: l.unitPrice,
+              title: l.variantName ? `${l.product.title} — ${l.variantName}` : l.product.title,
+              image: firstImage(l.product.images),
+            }
+          }),
         },
       },
       include: { items: true },
     })
 
+    // 7.7.2: per-seller-group fulfillment substrate for the converted order
+    await createFulfillmentGroups(
+      tx,
+      created.id,
+      created.items.map((it) => ({
+        id: it.id,
+        quantity: it.quantity,
+        sellerId: it.sellerId,
+        sellerOrgId: it.sellerOrgId,
+      }))
+    )
+
+    // 7.3.1: conditional atomic decrements, count-verified — the whole
+    // conversion rolls back if any authority ran out between the re-check
+    // above and now (acceptance may predate stock changes).
+    for (const l of quote.lines) {
+      const offer = l.offerId ? offerById.get(l.offerId) : undefined
+      if (l.offerVariantId) {
+        const res = await tx.offerVariant.updateMany({
+          where: { id: l.offerVariantId, stock: { gte: l.quantity } },
+          data: { stock: { decrement: l.quantity } },
+        })
+        if (res.count !== 1)
+          throw new RfqServiceError(
+            `Not enough stock for the quoted option of "${l.product.title}" — request a revised quote.`,
+            409
+          )
+      } else if (offer) {
+        const res = await tx.productOffer.updateMany({
+          where: { id: offer.id, stock: { gte: l.quantity } },
+          data: { stock: { decrement: l.quantity }, soldCount: { increment: l.quantity } },
+        })
+        if (res.count !== 1)
+          throw new RfqServiceError(
+            `Not enough stock for "${l.product.title}" (quoted offer) — request a revised quote.`,
+            409
+          )
+      } else if (l.variantId) {
+        const res = await tx.productVariant.updateMany({
+          where: { id: l.variantId, stock: { gte: l.quantity } },
+          data: { stock: { decrement: l.quantity } },
+        })
+        if (res.count !== 1)
+          throw new RfqServiceError(
+            `Not enough stock for "${l.product.title}" (${l.variantName ?? 'option'}) — request a revised quote.`,
+            409
+          )
+      }
+    }
     for (const [productId, qty] of needed) {
       await tx.product.update({
         where: { id: productId },

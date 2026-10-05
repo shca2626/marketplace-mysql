@@ -41,6 +41,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { cn } from '@/lib/utils'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,6 +52,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   AdminEmptyState,
@@ -62,6 +64,8 @@ import {
 } from './shared'
 
 // ── Types (contract of GET /api/admin/vendors) ──────────────────────────────
+
+type SellerVerificationState = 'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'REJECTED'
 
 interface VendorRow {
   id: string
@@ -76,6 +80,15 @@ interface VendorRow {
   verifiedAt: string | null
   commissionRate: number | null
   memberSince: string
+  // Phase 7.0 — the seller-org tenant + its verification state (S3:
+  // verification lives on SellerProfile, not Organization.status).
+  sellerOrg: {
+    organizationId: string
+    organizationName: string
+    organizationStatus: string
+    verificationState: SellerVerificationState
+    verifiedAt: string | null
+  } | null
   products: number
   unitsSold: number
   gmv: number
@@ -107,6 +120,33 @@ const VERIFIED_FILTERS = [
   { value: 'no', label: 'Unverified' },
 ]
 
+// Phase 7.0 — seller-org store verification pill (SellerProfile state).
+const VERIFICATION_STATE_MAP: Record<
+  SellerVerificationState,
+  { label: string; badge: string; hint: string }
+> = {
+  VERIFIED: {
+    label: 'Verified store',
+    badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+    hint: 'The seller org passed verification — RFQ routing trusts this store.',
+  },
+  PENDING: {
+    label: 'Review pending',
+    badge: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+    hint: 'Documents submitted — awaiting your decision.',
+  },
+  REJECTED: {
+    label: 'Rejected',
+    badge: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300',
+    hint: 'Verification was refused — the store can still operate unverified.',
+  },
+  UNVERIFIED: {
+    label: 'Unverified store',
+    badge: 'border border-dashed bg-background text-muted-foreground',
+    hint: 'No verification attempt recorded for this seller org.',
+  },
+}
+
 const PAGE_SIZE = 20
 
 // ── Vendors tab ──────────────────────────────────────────────────────────────
@@ -123,6 +163,9 @@ export function VendorsTab() {
   const [suspendFor, setSuspendFor] = useState<VendorRow | null>(null)
   const [suspendReason, setSuspendReason] = useState('')
   const [commissionFor, setCommissionFor] = useState<VendorRow | null>(null)
+
+  // Phase 7.0 — seller-org verification dialog
+  const [verificationFor, setVerificationFor] = useState<VendorRow | null>(null)
 
   // Render-time keyed sync: jump back to page 1 whenever filters change
   const filterKey = `${debouncedSearch}|${statusFilter}|${verifiedFilter}`
@@ -362,6 +405,14 @@ export function VendorsTab() {
                           <p className="truncate text-xs text-muted-foreground">
                             {vendor.name} · {vendor.email}
                           </p>
+                          {vendor.sellerOrg && (
+                            <p
+                              className="truncate text-xs text-muted-foreground"
+                              title={`${vendor.sellerOrg.organizationName} — ${vendor.sellerOrg.organizationStatus}`}
+                            >
+                              Org: {vendor.sellerOrg.organizationName}
+                            </p>
+                          )}
                           <p className="truncate text-xs text-muted-foreground" title={formatDate(vendor.memberSince)}>
                             Member since {formatDate(vendor.memberSince)}
                           </p>
@@ -379,7 +430,7 @@ export function VendorsTab() {
                       )}
                     </td>
                     <td className="px-4 py-3.5">
-                      <VerifiedBadge verified={vendor.verified} verifiedAt={vendor.verifiedAt} />
+                      <VerificationCell vendor={vendor} />
                     </td>
                     <td className="px-4 py-3.5">
                       <StatusBadgeCell vendor={vendor} />
@@ -396,6 +447,7 @@ export function VendorsTab() {
                             action === 'verify' ? 'RFQ routing can now auto-approve this vendor.' : undefined
                           )
                         }
+                        onSetVerification={setVerificationFor}
                         onCommission={setCommissionFor}
                         onSuspend={openSuspend}
                         onReactivate={(v) =>
@@ -429,6 +481,14 @@ export function VendorsTab() {
                       <div className="min-w-0">
                         <p className="truncate font-semibold">{displayName(vendor)}</p>
                         <p className="truncate text-xs text-muted-foreground">{vendor.email}</p>
+                        {vendor.sellerOrg && (
+                          <p
+                            className="truncate text-xs text-muted-foreground"
+                            title={`${vendor.sellerOrg.organizationName} — ${vendor.sellerOrg.organizationStatus}`}
+                          >
+                            Org: {vendor.sellerOrg.organizationName}
+                          </p>
+                        )}
                         <p className="truncate text-xs text-muted-foreground">
                           Since {formatDate(vendor.memberSince)}
                         </p>
@@ -436,7 +496,7 @@ export function VendorsTab() {
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1.5">
                       <StatusBadgeCell vendor={vendor} />
-                      <VerifiedBadge verified={vendor.verified} verifiedAt={vendor.verifiedAt} />
+                      <VerificationCell vendor={vendor} compact />
                     </div>
                   </div>
                   <div className="mt-3">
@@ -464,6 +524,7 @@ export function VendorsTab() {
                           action === 'verify' ? 'RFQ routing can now auto-approve this vendor.' : undefined
                         )
                       }
+                      onSetVerification={setVerificationFor}
                       onCommission={setCommissionFor}
                       onSuspend={openSuspend}
                       onReactivate={(v) =>
@@ -539,6 +600,16 @@ export function VendorsTab() {
             if (ok) setCommissionFor(null)
           }}
         />
+
+        {/* Phase 7.0 — seller-org verification dialog */}
+        <VerificationDialog
+          vendor={verificationFor}
+          onClose={() => setVerificationFor(null)}
+          onSaved={() => {
+            void refetchList()
+            refreshCounts()
+          }}
+        />
       </div>
     </TooltipProvider>
   )
@@ -611,6 +682,42 @@ function VerifiedBadge({ verified, verifiedAt }: { verified: boolean; verifiedAt
   )
 }
 
+// Phase 7.0 — store verification cell: the seller-org state pill plus the
+// legacy verified badge (derived from the new state when a seller org exists).
+function VerificationCell({ vendor, compact = false }: { vendor: VendorRow; compact?: boolean }) {
+  const state = vendor.sellerOrg?.verificationState ?? null
+  const legacyVerified = vendor.sellerOrg ? state === 'VERIFIED' : vendor.verified
+  return (
+    <div className="flex flex-col items-start gap-1.5">
+      {state ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge
+              className={cn(
+                'shrink-0 rounded-full border-0 text-[11px] font-semibold',
+                VERIFICATION_STATE_MAP[state].badge
+              )}
+            >
+              {VERIFICATION_STATE_MAP[state].label}
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>
+            Seller-org verification
+            {vendor.sellerOrg?.verifiedAt && state === 'VERIFIED'
+              ? ` — ${formatDate(vendor.sellerOrg.verifiedAt)}`
+              : ''}
+          </TooltipContent>
+        </Tooltip>
+      ) : (
+        <Badge className="shrink-0 rounded-full border border-dashed bg-background text-[11px] font-semibold text-muted-foreground">
+          No seller org
+        </Badge>
+      )}
+      {!compact && <VerifiedBadge verified={legacyVerified} verifiedAt={vendor.verifiedAt} />}
+    </div>
+  )
+}
+
 function StatusBadgeCell({ vendor }: { vendor: VendorRow }) {
   if (vendor.status === 'SUSPENDED') {
     return (
@@ -634,6 +741,7 @@ function VendorActions({
   vendor,
   busy,
   onVerify,
+  onSetVerification,
   onCommission,
   onSuspend,
   onReactivate,
@@ -641,6 +749,7 @@ function VendorActions({
   vendor: VendorRow
   busy: boolean
   onVerify: (vendor: VendorRow, action: 'verify' | 'unverify') => void
+  onSetVerification: (vendor: VendorRow) => void
   onCommission: (vendor: VendorRow) => void
   onSuspend: (vendor: VendorRow) => void
   onReactivate: (vendor: VendorRow) => void
@@ -663,6 +772,16 @@ function VendorActions({
       >
         {vendor.verified ? <BadgeCheck size={13} className="mr-1.5 opacity-60" /> : <BadgeCheck size={13} className="mr-1.5 text-emerald-600 dark:text-emerald-400" />}
         {vendor.verified ? 'Unverify' : 'Verify'}
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-8 rounded-lg border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
+        onClick={() => onSetVerification(vendor)}
+        aria-label={`Set the store verification state for ${displayName(vendor)}`}
+      >
+        <ShieldQuestion size={13} className="mr-1.5" />
+        Set verification
       </Button>
       <Button
         variant="outline"
@@ -798,7 +917,144 @@ function CommissionDialog({
   )
 }
 
-// ── Pager ────────────────────────────────────────────────────────────────────
+// ── Seller-org verification dialog (Phase 7.0) ────────────────────────────────
+
+const VERIFICATION_STATE_ORDER: SellerVerificationState[] = ['UNVERIFIED', 'PENDING', 'VERIFIED', 'REJECTED']
+
+function VerificationDialog({
+  vendor,
+  onClose,
+  onSaved,
+}: {
+  vendor: VendorRow | null
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [state, setState] = useState<SellerVerificationState>('UNVERIFIED')
+  const [note, setNote] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [initializedFor, setInitializedFor] = useState<VendorRow | null>(null)
+
+  // Re-seed the fields every time a different vendor opens the dialog
+  // (render-time keyed sync, the CommissionDialog pattern)
+  if (vendor && initializedFor !== vendor) {
+    setInitializedFor(vendor)
+    setState(vendor.sellerOrg?.verificationState ?? 'UNVERIFIED')
+    setNote('')
+    setError(null)
+  }
+  if (!vendor && initializedFor !== null) setInitializedFor(null)
+
+  const save = async () => {
+    if (!vendor) return
+    setSaving(true)
+    setError(null)
+    const res = await apiRequest<{ verification: { verificationState: SellerVerificationState } }>(
+      `/api/admin/vendors/${vendor.id}/verification`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ state, note: note.trim() || undefined }),
+      }
+    )
+    setSaving(false)
+    if (!res.ok) {
+      setError(res.error ?? 'Failed to set the verification state')
+      return
+    }
+    toast({
+      title: `${displayName(vendor)} — store ${state.toLowerCase()}`,
+      description:
+        state === 'VERIFIED'
+          ? 'The seller org is verified. RFQ routing and trust signals pick this up immediately.'
+          : `Seller-org verification set to ${state}.`,
+    })
+    onClose()
+    onSaved()
+  }
+
+  return (
+    <Dialog open={!!vendor} onOpenChange={(open) => !open && !saving && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ShieldQuestion size={16} className="text-primary" /> Store verification —{' '}
+            {vendor ? displayName(vendor) : ''}
+          </DialogTitle>
+          <DialogDescription>
+            The seller-org verification state (Phase 7.0). Verification is separate from suspension — the
+            organization&apos;s operational status is untouched.
+            {vendor?.sellerOrg ? ` Org: ${vendor.sellerOrg.organizationName}.` : ''}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <RadioGroup
+            value={state}
+            onValueChange={(v) => setState(v as SellerVerificationState)}
+            className="gap-2.5"
+            aria-label="Verification state"
+          >
+            {VERIFICATION_STATE_ORDER.map((s) => (
+              <Label
+                key={s}
+                htmlFor={`verification-state-${s}`}
+                className="flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors hover:border-primary/40"
+              >
+                <RadioGroupItem id={`verification-state-${s}`} value={s} className="mt-0.5" />
+                <span className="min-w-0">
+                  <span className="flex items-center gap-2">
+                    <Badge className={cn('rounded-full border-0 text-[11px] font-semibold', VERIFICATION_STATE_MAP[s].badge)}>
+                      {VERIFICATION_STATE_MAP[s].label}
+                    </Badge>
+                    {vendor?.sellerOrg?.verificationState === s && (
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        current
+                      </span>
+                    )}
+                  </span>
+                  <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+                    {VERIFICATION_STATE_MAP[s].hint}
+                  </span>
+                </span>
+              </Label>
+            ))}
+          </RadioGroup>
+          <div className="space-y-1.5">
+            <Label htmlFor="verification-note" className="text-xs text-muted-foreground">
+              Note (optional — recorded with the decision)
+            </Label>
+            <Textarea
+              id="verification-note"
+              value={note}
+              onChange={(e) => setNote(e.target.value.slice(0, 1000))}
+              placeholder="e.g. Trade license + tax certificate matched — approved"
+              className="min-h-[72px]"
+            />
+          </div>
+          {error && (
+            <p
+              role="alert"
+              className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive"
+            >
+              {error}
+            </p>
+          )}
+        </div>
+        <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+          <Button variant="outline" className="rounded-xl" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button className="rounded-xl" disabled={saving} onClick={() => void save()}>
+            {saving ? <Loader2 size={15} className="mr-2 animate-spin" /> : null}
+            Save state
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ── Pager ──────────────────────────────────────────────────────────────────────
 
 function Pager({
   page,

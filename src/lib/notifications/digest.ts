@@ -95,6 +95,7 @@ const FAMILY_BY_TYPE: Record<string, string> = {
   VENDOR_STATUS: 'platform',
   PAYMENT_STATUS: 'platform',
   PAYOUT_STATUS: 'platform',
+  REFUND_STATUS: 'platform', // Phase 7.7: refund obligation/execution events
 }
 
 function familyOf(type: string): { key: string; meta: DigestFamilyMeta } {

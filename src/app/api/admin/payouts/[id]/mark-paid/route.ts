@@ -3,8 +3,12 @@ import { requireAdmin, requireStepUpMfa } from '@/server/guards'
 import { markPayoutPaid, PayoutServiceError } from '@/server/modules/payouts/service'
 import { assertSameOrigin } from '@/lib/http'
 
-// POST /api/admin/payouts/[id]/mark-paid — the wire transfer went out.
-// Notifies the vendor, writes an audit row.
+// POST /api/admin/payouts/[id]/mark-paid — the confirmed-execution event
+// (Phase 7.4C / S4): the wire transfer went out AND carries evidence.
+// A transfer reference is REQUIRED (bank/manually-confirmed) — a status flip
+// without evidence is not a settlement. Retries reuse the transfer idempotency
+// key; a reference already used by another payout is blocked. Lines flip
+// PENDING → EFFECTIVE here and only here.
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
@@ -17,10 +21,19 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   try {
     const { id } = await ctx.params
     const body = await req.json().catch(() => ({}))
+    const transferReference = typeof body?.transferReference === 'string' ? body.transferReference : ''
     const note = typeof body?.note === 'string' ? body.note : undefined
-    const payout = await markPayoutPaid(user!.id, id, note)
+    const payout = await markPayoutPaid(user!.id, id, { transferReference, note })
     return NextResponse.json({
-      payout: { id: payout.id, number: payout.number, status: payout.status, paidAt: payout.paidAt?.toISOString() ?? null },
+      payout: {
+        id: payout!.id,
+        number: payout!.number,
+        status: payout!.status,
+        paidAt: payout!.paidAt?.toISOString() ?? null,
+        transferReference: payout!.transferReference,
+        transferIdempotencyKey: payout!.transferIdempotencyKey,
+        executedAt: payout!.executedAt?.toISOString() ?? null,
+      },
     })
   } catch (err) {
     if (err instanceof PayoutServiceError) {

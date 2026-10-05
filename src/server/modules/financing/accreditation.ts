@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { recordAudit } from '@/server/modules/audit/service'
+import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
 import { emitNotification, emitNotifications } from '@/server/modules/notifications/service'
 import { nextNumber } from '@/server/modules/sequences/service'
 import { resolvePanel } from '@/server/modules/settings/service'
@@ -197,51 +197,89 @@ export async function createAccreditationRequest(
   const org = await db.organization.findUnique({ where: { id: input.organizationId } })
   if (!org) throw new FinancingError('Organization not found', 404)
 
-  // @@unique(serviceId, organizationId): one record per pair, ever.
-  const existing = await db.accreditationRequest.findUnique({
-    where: { serviceId_organizationId: { serviceId: input.serviceId, organizationId: input.organizationId } },
+  // 7.8: @@unique(serviceId, organizationId, activeKey) — at most one LIVE
+  // (activeKey=1) request per program/org; terminal rows (activeKey NULL)
+  // keep UNLIMITED renewal history. The database derives activeKey from
+  // status via triggers, so the marker can never disagree with status.
+  const existing = await db.accreditationRequest.findFirst({
+    where: { serviceId: input.serviceId, organizationId: input.organizationId, activeKey: 1 },
+    orderBy: { createdAt: 'desc' },
   })
-  if (existing && !(ACCREDITATION_TERMINAL as readonly string[]).includes(existing.status)) {
-    throw new FinancingError(
-      `An accreditation request for this program already exists (${existing.number} — ${existing.status})`,
-      409
-    )
-  }
   if (existing) {
-    // Renewal after a terminal state: the NEW request supersedes the old row
-    // (the DB unique forbids a second row). History survives in AuditLog.
-    await db.accreditationRequest.delete({ where: { id: existing.id } })
-    await recordAudit({
-      actorId: userId,
-      actorType: 'USER',
-      action: 'ACCREDITATION_RENEWED',
-      entityType: 'AccreditationRequest',
-      entityId: existing.id,
-      summary: `${existing.number} (${existing.status}) superseded by a renewal application`,
-      metadata: { previousStatus: existing.status, organizationId: input.organizationId },
-    })
+    // 7.8.4 — expiry before renewal: a lapsed ACCREDITED grant is flipped to
+    // EXPIRED inside this same transaction, so an expired grant can never
+    // block its own renewal. A grant still within validUntil (or any other
+    // live status) blocks a second application by design (documented rule).
+    if (existing.status === 'ACCREDITED' && existing.validUntil && existing.validUntil.getTime() <= Date.now()) {
+      await db.$transaction(async (tx) => {
+        await tx.accreditationRequest.update({
+          where: { id: existing.id },
+          data: { status: 'EXPIRED' },
+        })
+        await recordAuditTx(tx, {
+          actorId: userId,
+          actorType: 'USER',
+          action: 'ACCREDITATION_EXPIRED',
+          entityType: 'AccreditationRequest',
+          entityId: existing.id,
+          summary: `${existing.number} grant validity lapsed (${existing.validUntil!.toISOString()}) — renewal unlocked`,
+          metadata: { renewalFlip: true },
+        })
+      })
+    } else {
+      throw new FinancingError(
+        `An accreditation request for this program already exists (${existing.number} — ${existing.status})`,
+        409
+      )
+    }
   }
 
-  const number = await nextNumber('ACC')
-  const created = await db.accreditationRequest.create({
-    data: {
-      number,
-      organizationId: input.organizationId,
-      submittedById: userId,
+  // Renewal chain: the latest ACCREDITED (or now-EXPIRED) record this new
+  // application supersedes (7.8.5 — supersedesId self-relation; history kept).
+  const superseded = await db.accreditationRequest.findFirst({
+    where: {
       serviceId: input.serviceId,
-      scopeNotes: input.scopeNotes?.trim() || null,
-      status: 'DRAFT',
+      organizationId: input.organizationId,
+      status: { in: ['ACCREDITED', 'EXPIRED'] },
     },
-    include: accInclude,
+    orderBy: { createdAt: 'desc' },
   })
-  await recordAudit({
-    actorId: userId,
-    actorType: 'USER',
-    action: 'ACCREDITATION_REQUEST_CREATED',
-    entityType: 'AccreditationRequest',
-    entityId: created.id,
-    summary: `${org.name} drafted accreditation ${number} for ${service.name}`,
-    metadata: { serviceId: input.serviceId, organizationId: input.organizationId },
+
+  const number = await nextNumber('ACC')
+  const created = await db.$transaction(async (tx) => {
+    const row = await tx.accreditationRequest.create({
+      data: {
+        number,
+        organizationId: input.organizationId,
+        submittedById: userId,
+        serviceId: input.serviceId,
+        scopeNotes: input.scopeNotes?.trim() || null,
+        status: 'DRAFT',
+        supersedesId: superseded?.id ?? null,
+      },
+      include: accInclude,
+    })
+    await recordAuditTx(tx, {
+      actorId: userId,
+      actorType: 'USER',
+      action: 'ACCREDITATION_REQUEST_CREATED',
+      entityType: 'AccreditationRequest',
+      entityId: row.id,
+      summary: `${org.name} drafted accreditation ${number} for ${service.name}${superseded ? ` (renewal of ${superseded.number})` : ''}`,
+      metadata: { serviceId: input.serviceId, organizationId: input.organizationId, supersedesId: superseded?.id ?? null },
+    })
+    if (superseded) {
+      await recordAuditTx(tx, {
+        actorId: userId,
+        actorType: 'USER',
+        action: 'ACCREDITATION_RENEWED',
+        entityType: 'AccreditationRequest',
+        entityId: superseded.id,
+        summary: `${superseded.number} superseded by renewal application ${number}`,
+        metadata: { previousStatus: superseded.status, organizationId: input.organizationId, newRequestId: row.id },
+      })
+    }
+    return row
   })
   return serializeAccreditation(created as never)
 }

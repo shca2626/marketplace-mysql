@@ -8,6 +8,8 @@ import { useMarketplace } from '@/store/marketplace'
 import type { ProductDTO } from '@/lib/types'
 import { discountPercent, formatNumber, formatUSD } from '@/lib/format'
 import { StarRating } from './star-rating'
+// Phase 7.2 — approximate display-currency conversion (YER / SAR)
+import { ConvertedPrice } from './currency-context'
 import { Card, CardFooter, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -203,13 +205,18 @@ export function ProductCard({ product, index = 0 }: { product: ProductDTO; index
             </span>
           </a>
           <div className="flex w-full items-baseline justify-between gap-2">
-            <div className="flex min-w-0 items-baseline gap-1.5">
-              <span className="truncate text-base font-bold text-foreground">{formatUSD(product.price)}</span>
-              {product.compareAtPrice && (
-                <span className="shrink-0 text-xs text-muted-foreground line-through">
-                  {formatUSD(product.compareAtPrice)}
-                </span>
-              )}
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <div className="flex min-w-0 items-baseline gap-1.5">
+                <span className="truncate text-base font-bold text-foreground">{formatUSD(product.price)}</span>
+                {product.compareAtPrice && (
+                  <span className="shrink-0 text-xs text-muted-foreground line-through">
+                    {formatUSD(product.compareAtPrice)}
+                  </span>
+                )}
+              </div>
+              {/* Phase 7.2 — approximate converted price (renders only when a
+                  non-USD display currency is active; USD stays primary). */}
+              <ConvertedPrice amountUsd={product.price} />
             </div>
             <span className="shrink-0 text-[11px] text-muted-foreground">{formatNumber(product.soldCount)} sold</span>
           </div>

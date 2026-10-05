@@ -197,7 +197,9 @@ export async function succeedPayment(
   const orderOnTerms = payment.order.sourceType === 'RFQ' || !!payment.order.paymentTerms
   const orderBecamePaid = input.orderBecomesPaid !== false && !orderOnTerms
   if (orderBecamePaid) {
-    await tx.order.update({ where: { id: payment.orderId }, data: { status: 'PAID' } })
+    // 7.7.1: the money dimension flips with the legacy status (kept in sync
+    // for old readers during the migration window).
+    await tx.order.update({ where: { id: payment.orderId }, data: { status: 'PAID', paymentStatus: 'PAID' } })
   }
   return { orderBecamePaid }
 }

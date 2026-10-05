@@ -6,11 +6,13 @@ import {
   CheckCircle2,
   ChevronDown,
   Coins,
+  Layers,
   Loader2,
   PiggyBank,
   Save,
   SearchX,
   ShieldAlert,
+  Undo2,
   Wallet,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
@@ -38,6 +40,17 @@ import { useStepUp } from './step-up-guard'
 // ── Types (contracts of /api/admin/payouts) ────────────────────────────────────
 
 type PayoutStatus = 'PENDING' | 'PAID' | 'CANCELLED'
+type SettleMode = 'mark-paid' | 'cancel' | 'reverse'
+type LinePurpose = 'SETTLEMENT' | 'REVERSAL' | 'REISSUE'
+type LineStatus = 'PENDING' | 'EFFECTIVE' | 'REVERSED' | 'CANCELLED'
+
+interface PayoutLineSummary {
+  total: number
+  effective: number
+  reversed: number
+  cancellations: number
+  reversals: number
+}
 
 interface PayoutRow {
   id: string
@@ -52,6 +65,11 @@ interface PayoutRow {
   status: PayoutStatus
   paidAt: string | null
   note: string | null
+  // Phase 7.4C — external transfer discipline (S4)
+  transferReference: string | null
+  transferIdempotencyKey: string | null
+  executedAt: string | null
+  lineSummary: PayoutLineSummary
   createdAt: string
 }
 
@@ -91,9 +109,27 @@ const PAYOUT_STATUS_MAP: Record<string, { label: string; badge: string }> = {
 
 const STATUS_FILTERS: PayoutStatus[] = ['PENDING', 'PAID', 'CANCELLED']
 
+// Phase 7.4B — ledger line chips
+const LINE_PURPOSE_MAP: Record<LinePurpose, { label: string; badge: string }> = {
+  SETTLEMENT: { label: 'Settlement', badge: 'bg-stone-200 text-stone-700 dark:bg-stone-800 dark:text-stone-300' },
+  REISSUE: { label: 'Reissue', badge: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' },
+  REVERSAL: { label: 'Reversal', badge: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' },
+}
+
+const LINE_STATUS_MAP: Record<LineStatus, { label: string; badge: string }> = {
+  EFFECTIVE: { label: 'Effective', badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' },
+  PENDING: { label: 'Pending', badge: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' },
+  REVERSED: {
+    label: 'Reversed',
+    badge: 'border border-rose-300 bg-background text-rose-700 dark:border-rose-900 dark:text-rose-300',
+  },
+  CANCELLED: { label: 'Cancelled', badge: 'bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400' },
+}
+
 const PAGE_SIZE = 20
 
 const vendorLabel = (v: { name: string; storeName: string | null }) => v.storeName?.trim() || v.name
+const shortId = (id: string) => `#${id.slice(-8).toUpperCase()}`
 
 // ── Payouts tab ─────────────────────────────────────────────────────────────────
 
@@ -105,9 +141,14 @@ export function PayoutsTab() {
 
   // Payout-level dialogs
   const [settleFor, setSettleFor] = useState<PayoutRow | null>(null)
-  const [settleMode, setSettleMode] = useState<'mark-paid' | 'cancel'>('mark-paid')
+  const [settleMode, setSettleMode] = useState<SettleMode>('mark-paid')
   const [settleNote, setSettleNote] = useState('')
+  const [settleReference, setSettleReference] = useState('')
+  const [settleError, setSettleError] = useState<string | null>(null)
   const [settling, setSettling] = useState(false)
+
+  // Phase 7.4B — the settlement ledger dialog
+  const [ledgerFor, setLedgerFor] = useState<PayoutRow | null>(null)
 
   // Phase 6 (6.7.5) — payout mutations are step-up guarded.
   const { guard: guardStepUp, node: stepUpDialog } = useStepUp()
@@ -133,37 +174,58 @@ export function PayoutsTab() {
   } = useApi<PayoutsResponse>(`/api/admin/payouts?${query.toString()}`)
   const payouts = data?.payouts ?? []
 
-  const openSettle = (payout: PayoutRow, mode: 'mark-paid' | 'cancel') => {
+  const openSettle = (payout: PayoutRow, mode: SettleMode) => {
     setSettleNote('')
+    setSettleReference('')
+    setSettleError(null)
     setSettleMode(mode)
     setSettleFor(payout)
   }
+
+  const settleValid =
+    settleMode === 'mark-paid'
+      ? settleReference.trim().length > 0
+      : settleMode === 'reverse'
+        ? settleNote.trim().length >= 3
+        : true
 
   const confirmSettle = async () => {
     if (!settleFor) return
     const payout = settleFor
     setSettling(true)
+    setSettleError(null)
     const res = await guardStepUp(() =>
-      apiRequest(`/api/admin/payouts/${payout.id}/${settleMode === 'mark-paid' ? 'mark-paid' : 'cancel'}`, {
+      apiRequest(`/api/admin/payouts/${payout.id}/${settleMode === 'mark-paid' ? 'mark-paid' : settleMode === 'cancel' ? 'cancel' : 'reverse'}`, {
         method: 'POST',
         body: JSON.stringify(
-          settleMode === 'mark-paid' ? { note: settleNote.trim() || undefined } : { reason: settleNote.trim() || undefined }
+          settleMode === 'mark-paid'
+            ? { transferReference: settleReference.trim(), note: settleNote.trim() || undefined }
+            : { reason: settleNote.trim() || undefined }
         ),
       })
     )
     setSettling(false)
     if (!res) return // step-up cancelled / enrollment required
     if (!res.ok) {
-      toastApiError(res.error, settleMode === 'mark-paid' ? 'Update failed' : 'Cancel failed')
+      // 400 (missing reference) / 409 (duplicate reference, wrong state) —
+      // surfaced inline so the operator can fix and retry without losing input.
+      setSettleError(res.error ?? 'The action failed — please try again')
       return
     }
     setSettleFor(null)
     toast({
-      title: settleMode === 'mark-paid' ? `Payout ${payout.number} marked paid` : `Payout ${payout.number} cancelled`,
+      title:
+        settleMode === 'mark-paid'
+          ? `Payout ${payout.number} marked paid`
+          : settleMode === 'cancel'
+            ? `Payout ${payout.number} cancelled`
+            : `Payout ${payout.number} reversed`,
       description:
         settleMode === 'mark-paid'
-          ? `${formatUSD(payout.netAmount)} to ${vendorLabel(payout.seller)} — vendor notified.`
-          : 'The vendor was notified. Settled items return to the unsettled pool.',
+          ? `${formatUSD(payout.netAmount)} to ${vendorLabel(payout.seller)} — ref ${settleReference.trim()} recorded on the settlement ledger.`
+          : settleMode === 'cancel'
+            ? 'The vendor was notified. Settled items return to the unsettled pool.'
+            : 'REVERSAL entries appended, originals flipped to REVERSED and claims released — a corrected payout can reissue.',
     })
     void refetchList()
   }
@@ -288,6 +350,22 @@ export function PayoutsTab() {
                         “{payout.note}”
                       </p>
                     )}
+                    {payout.transferReference && (
+                      <Badge
+                        variant="outline"
+                        className="mt-1 max-w-44 truncate rounded-full px-1.5 font-mono text-[10px]"
+                        title={
+                          payout.executedAt
+                            ? `Transfer reference — executed ${formatDate(payout.executedAt)}`
+                            : 'Transfer reference'
+                        }
+                      >
+                        TRF {payout.transferReference}
+                      </Badge>
+                    )}
+                    <div className="mt-1">
+                      <LineSummaryChip summary={payout.lineSummary} />
+                    </div>
                   </td>
                   <td className="px-4 py-3.5">
                     <p className="max-w-44 truncate font-semibold" title={vendorLabel(payout.seller)}>
@@ -312,33 +390,58 @@ export function PayoutsTab() {
                     {payout.paidAt && (
                       <p className="mt-1 text-[11px] text-muted-foreground">Paid {formatDate(payout.paidAt)}</p>
                     )}
+                    {payout.executedAt && (
+                      <p className="mt-0.5 text-[11px] text-muted-foreground" title={new Date(payout.executedAt).toLocaleString()}>
+                        Executed {timeAgo(payout.executedAt)}
+                      </p>
+                    )}
                   </td>
                   <td className="px-4 py-3.5">
-                    {payout.status === 'PENDING' ? (
-                      <div className="flex flex-wrap items-center justify-end gap-1.5">
-                        <Button
-                          size="sm"
-                          className="h-8 rounded-lg"
-                          onClick={() => openSettle(payout, 'mark-paid')}
-                          aria-label={`Mark payout ${payout.number} as paid`}
-                        >
-                          <CheckCircle2 size={13} className="mr-1.5" /> Mark paid
-                        </Button>
+                    <div className="flex flex-wrap items-center justify-end gap-1.5">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 rounded-lg text-muted-foreground"
+                        onClick={() => setLedgerFor(payout)}
+                        aria-label={`Open the settlement ledger for payout ${payout.number}`}
+                      >
+                        <Layers size={13} className="mr-1.5" /> Ledger
+                      </Button>
+                      {payout.status === 'PENDING' ? (
+                        <>
+                          <Button
+                            size="sm"
+                            className="h-8 rounded-lg"
+                            onClick={() => openSettle(payout, 'mark-paid')}
+                            aria-label={`Mark payout ${payout.number} as paid`}
+                          >
+                            <CheckCircle2 size={13} className="mr-1.5" /> Mark paid
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 rounded-lg border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => openSettle(payout, 'cancel')}
+                            aria-label={`Cancel payout ${payout.number}`}
+                          >
+                            <Ban size={13} className="mr-1.5" /> Cancel
+                          </Button>
+                        </>
+                      ) : payout.status === 'PAID' ? (
                         <Button
                           variant="outline"
                           size="sm"
                           className="h-8 rounded-lg border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                          onClick={() => openSettle(payout, 'cancel')}
-                          aria-label={`Cancel payout ${payout.number}`}
+                          disabled={payout.lineSummary ? payout.lineSummary.effective === 0 : false}
+                          onClick={() => openSettle(payout, 'reverse')}
+                          aria-label={`Reverse payout ${payout.number}`}
                         >
-                          <Ban size={13} className="mr-1.5" /> Cancel
+                          <Undo2 size={13} className="mr-1.5" /> Reverse
                         </Button>
-                      </div>
-                    ) : (
-                      <p className="text-right text-xs text-muted-foreground">
-                        {payout.status === 'PAID' ? 'Settled' : 'Closed'}
-                      </p>
-                    )}
+                      ) : (
+                        <p className="text-right text-xs text-muted-foreground">Closed</p>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -360,8 +463,31 @@ export function PayoutsTab() {
                     <p className="truncate text-xs text-muted-foreground">
                       {formatDate(payout.periodEnd)} · {payout.itemCount} items
                     </p>
+                    {payout.transferReference && (
+                      <Badge
+                        variant="outline"
+                        className="mt-1 max-w-44 truncate rounded-full px-1.5 font-mono text-[10px]"
+                        title={
+                          payout.executedAt
+                            ? `Transfer reference — executed ${formatDate(payout.executedAt)}`
+                            : 'Transfer reference'
+                        }
+                      >
+                        TRF {payout.transferReference}
+                      </Badge>
+                    )}
+                    <div className="mt-1">
+                      <LineSummaryChip summary={payout.lineSummary} />
+                    </div>
                   </div>
-                  <StatusBadge status={payout.status} map={PAYOUT_STATUS_MAP} />
+                  <div className="flex shrink-0 flex-col items-end gap-1.5">
+                    <StatusBadge status={payout.status} map={PAYOUT_STATUS_MAP} />
+                    {payout.executedAt && (
+                      <p className="text-[11px] text-muted-foreground" title={new Date(payout.executedAt).toLocaleString()}>
+                        Executed {timeAgo(payout.executedAt)}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2 rounded-xl bg-muted/50 p-2.5 text-center">
                   <div>
@@ -384,8 +510,8 @@ export function PayoutsTab() {
                     “{payout.note}”
                   </p>
                 )}
-                {payout.status === 'PENDING' && (
-                  <div className="flex items-center gap-1.5 border-t pt-2.5">
+                {payout.status === 'PENDING' ? (
+                  <div className="flex flex-wrap items-center gap-1.5 border-t pt-2.5">
                     <Button size="sm" className="h-8 flex-1 rounded-lg" onClick={() => openSettle(payout, 'mark-paid')}>
                       <CheckCircle2 size={13} className="mr-1.5" /> Mark paid
                     </Button>
@@ -397,6 +523,38 @@ export function PayoutsTab() {
                     >
                       <Ban size={13} className="mr-1.5" /> Cancel
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 rounded-lg text-muted-foreground"
+                      onClick={() => setLedgerFor(payout)}
+                      aria-label={`Open the settlement ledger for payout ${payout.number}`}
+                    >
+                      <Layers size={13} className="mr-1" /> Ledger
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-1.5 border-t pt-2.5">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 rounded-lg text-muted-foreground"
+                      onClick={() => setLedgerFor(payout)}
+                      aria-label={`Open the settlement ledger for payout ${payout.number}`}
+                    >
+                      <Layers size={13} className="mr-1" /> Ledger
+                    </Button>
+                    {payout.status === 'PAID' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 rounded-lg border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        disabled={payout.lineSummary ? payout.lineSummary.effective === 0 : false}
+                        onClick={() => openSettle(payout, 'reverse')}
+                      >
+                        <Undo2 size={13} className="mr-1.5" /> Reverse
+                      </Button>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -437,7 +595,7 @@ export function PayoutsTab() {
         </div>
       )}
 
-      {/* Mark paid / cancel dialog */}
+      {/* Mark paid / cancel / reverse dialog (Phase 7.4 — transfer discipline) */}
       <Dialog open={!!settleFor} onOpenChange={(open) => !open && !settling && setSettleFor(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -446,53 +604,108 @@ export function PayoutsTab() {
                 <>
                   <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400" /> Mark payout as paid
                 </>
-              ) : (
+              ) : settleMode === 'cancel' ? (
                 <>
                   <Ban size={16} className="text-destructive" /> Cancel payout
+                </>
+              ) : (
+                <>
+                  <Undo2 size={16} className="text-destructive" /> Reverse payout
                 </>
               )}
             </DialogTitle>
             <DialogDescription>
               {settleMode === 'mark-paid' ? (
                 <>
-                  Confirm the wire transfer went out{settleFor ? ` — ${formatUSD(settleFor.netAmount)} to ${vendorLabel(settleFor.seller)}` : ''}.
-                  The vendor is notified.
+                  Confirm the wire transfer went out{settleFor ? ` — ${formatUSD(settleFor.netAmount)} to ${vendorLabel(settleFor.seller)}` : ''}
+                  with evidence. The lines flip to <strong>effective</strong> only on this confirmed execution.
                 </>
-              ) : (
+              ) : settleMode === 'cancel' ? (
                 <>
                   Cancelling{settleFor ? ` payout ${settleFor.number}` : ''}? Its settled items return to the unsettled pool and the
                   vendor is notified.
                 </>
+              ) : (
+                <>
+                  Reversing{settleFor ? ` payout ${settleFor.number}` : ''} posts REVERSAL ledger entries, flips the effective
+                  lines to <strong>reversed</strong> and releases their claims — a corrected payout can reissue afterwards.
+                </>
               )}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-1.5">
-            <Label htmlFor="payout-note" className="text-xs text-muted-foreground">
-              {settleMode === 'mark-paid' ? 'Note (optional — e.g. wire reference)' : 'Reason (optional — shown to the vendor)'}
-            </Label>
-            <Textarea
-              id="payout-note"
-              value={settleNote}
-              onChange={(e) => setSettleNote(e.target.value.slice(0, 300))}
-              placeholder={settleMode === 'mark-paid' ? 'e.g. Wire TRX-90421 sent 09:40' : 'e.g. Held for dispute review'}
-              className="min-h-[72px]"
-            />
+          <div className="space-y-3">
+            {settleMode === 'mark-paid' && (
+              <div className="space-y-1.5">
+                <Label htmlFor="payout-transfer-ref" className="text-xs text-muted-foreground">
+                  Bank transfer reference — required
+                </Label>
+                <Input
+                  id="payout-transfer-ref"
+                  value={settleReference}
+                  onChange={(e) => setSettleReference(e.target.value.slice(0, 190))}
+                  placeholder="e.g. TRF-90421"
+                  className="h-10 rounded-xl font-mono"
+                  aria-describedby="payout-transfer-ref-hint"
+                />
+                <p id="payout-transfer-ref-hint" className="text-xs text-muted-foreground">
+                  Bank transfer reference — required evidence for the settlement ledger. It must be unique across payouts.
+                </p>
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label htmlFor="payout-note" className="text-xs text-muted-foreground">
+                {settleMode === 'mark-paid'
+                  ? 'Note (optional — context for the audit log)'
+                  : settleMode === 'cancel'
+                    ? 'Reason (optional — shown to the vendor)'
+                    : 'Reason (required — recorded with the reversal)'}
+              </Label>
+              <Textarea
+                id="payout-note"
+                value={settleNote}
+                onChange={(e) => setSettleNote(e.target.value.slice(0, 500))}
+                placeholder={
+                  settleMode === 'mark-paid'
+                    ? 'e.g. Wire batch #12 — First Merchant Bank'
+                    : settleMode === 'cancel'
+                      ? 'e.g. Held for dispute review'
+                      : 'e.g. Wrong account credited — recovering funds'
+                }
+                className="min-h-[72px]"
+              />
+            </div>
+            {settleError && (
+              <p
+                role="alert"
+                className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive"
+              >
+                {settleError}
+              </p>
+            )}
           </div>
           <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
-            <Button variant="outline" className="rounded-xl" onClick={() => setSettleFor(null)} disabled={settling}>
-              Keep pending
+            <Button
+              variant="outline"
+              className="rounded-xl"
+              onClick={() => setSettleFor(null)}
+              disabled={settling}
+            >
+              {settleMode === 'mark-paid' ? 'Keep pending' : settleMode === 'cancel' ? 'Keep active' : 'Keep as is'}
             </Button>
             <Button
-              className={`rounded-xl ${settleMode === 'cancel' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}`}
-              disabled={settling}
+              className={`rounded-xl ${settleMode !== 'mark-paid' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}`}
+              disabled={settling || !settleValid}
               onClick={() => void confirmSettle()}
             >
               {settling ? <Loader2 size={15} className="mr-2 animate-spin" /> : null}
-              {settleMode === 'mark-paid' ? 'Confirm paid' : 'Cancel payout'}
+              {settleMode === 'mark-paid' ? 'Confirm paid' : settleMode === 'cancel' ? 'Cancel payout' : 'Reverse payout'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Phase 7.4B — settlement ledger dialog */}
+      <LedgerDialog payout={ledgerFor} onClose={() => setLedgerFor(null)} />
 
       {/* Phase 6 — step-up MFA dialog (shared retry guard) */}
       {stepUpDialog}
@@ -501,6 +714,211 @@ export function PayoutsTab() {
 }
 
 // ── Commission config card ─────────────────────────────────────────────────────
+
+// ── Phase 7.4B — line summary chip ("4 lines · 4 effective" / "4 + 2 reversals") ──
+
+function LineSummaryChip({ summary }: { summary: PayoutLineSummary }) {
+  if (!summary) return null
+  const hasReversals = summary.reversals > 0
+  const label = hasReversals
+    ? `${summary.total} + ${summary.reversals} reversals`
+    : `${summary.total} lines · ${summary.effective} effective`
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        'rounded-full px-1.5 text-[10px] font-medium',
+        hasReversals && 'border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-300'
+      )}
+      title={`Settlement ledger: ${summary.total} lines — ${summary.effective} effective, ${summary.reversed} reversed, ${summary.cancellations} cancelled, ${summary.reversals} reversal entries`}
+    >
+      {label}
+    </Badge>
+  )
+}
+
+// ── Phase 7.4B — settlement ledger dialog (GET /api/admin/payouts/[id]) ──────
+
+interface PayoutDetailLine {
+  id: string
+  linePurpose: LinePurpose
+  status: LineStatus
+  amount: number
+  commission: number
+  currency: string
+  claimKey: string | null
+  reversalOfLineId: string | null
+  effectiveAt: string | null
+  reversedAt: string | null
+  createdAt: string
+  orderItem: { id: string; title: string; quantity: number; price: number; orderId: string } | null
+}
+
+interface PayoutDetail {
+  id: string
+  number: string
+  seller: { id: string; name: string; storeName: string | null; email: string }
+  periodStart: string
+  periodEnd: string
+  itemCount: number
+  grossAmount: number
+  commissionRate: number
+  commission: number
+  netAmount: number
+  currency: string
+  status: PayoutStatus
+  paidAt: string | null
+  note: string | null
+  transferReference: string | null
+  transferIdempotencyKey: string | null
+  executedAt: string | null
+  createdAt: string
+  lines: PayoutDetailLine[]
+}
+
+function LedgerDialog({ payout, onClose }: { payout: PayoutRow | null; onClose: () => void }) {
+  const { data, loading, error } = useApi<{ payout: PayoutDetail }>(payout ? `/api/admin/payouts/${payout.id}` : null)
+  const detail = data?.payout ?? null
+
+  return (
+    <Dialog open={!!payout} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-4xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Layers size={16} className="text-primary" /> Settlement ledger — {payout?.number ?? ''}
+          </DialogTitle>
+          <DialogDescription>
+            The immutable PayoutLine ledger (Phase 7.4B). Amounts are never rewritten — only status transitions
+            and appended reversal entries.
+          </DialogDescription>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="space-y-2.5">
+            <Skeleton className="h-16 w-full rounded-xl" />
+            <Skeleton className="h-40 w-full rounded-xl" />
+          </div>
+        ) : error ? (
+          <AdminEmptyState icon={ShieldAlert} title="Couldn't load the ledger" description={error}>
+            <Button variant="outline" className="rounded-xl" onClick={onClose}>
+              Close
+            </Button>
+          </AdminEmptyState>
+        ) : !detail ? (
+          <p className="text-sm text-muted-foreground">Payout not found.</p>
+        ) : (
+          <div className="space-y-4">
+            {/* Header facts */}
+            <div className="space-y-2.5 rounded-2xl border bg-muted/30 p-3.5">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                <p className="text-sm font-semibold">{vendorLabel(detail.seller)}</p>
+                <StatusBadge status={detail.status} map={PAYOUT_STATUS_MAP} />
+                {detail.transferReference && (
+                  <Badge variant="outline" className="rounded-full px-1.5 font-mono text-[10px]" title="Transfer reference">
+                    TRF {detail.transferReference}
+                  </Badge>
+                )}
+                {detail.executedAt && (
+                  <p className="text-[11px] text-muted-foreground" title={new Date(detail.executedAt).toLocaleString()}>
+                    Executed {formatDate(detail.executedAt)}
+                  </p>
+                )}
+                {detail.transferIdempotencyKey && (
+                  <p className="font-mono text-[10px] text-muted-foreground" title="Transfer idempotency key">
+                    idem {detail.transferIdempotencyKey}
+                  </p>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <PreviewStat label="Gross" value={formatUSD(detail.grossAmount)} />
+                <PreviewStat label={`Commission · ${detail.commissionRate}%`} value={`−${formatUSD(detail.commission)}`} />
+                <PreviewStat label="Net" value={formatUSD(detail.netAmount)} />
+                <PreviewStat label="Lines" value={String(detail.lines.length)} />
+              </div>
+              {detail.note && (
+                <p className="text-xs text-muted-foreground" title={detail.note}>
+                  “{detail.note}”
+                </p>
+              )}
+            </div>
+
+            {/* Lines table */}
+            <div className="max-h-96 overflow-y-auto overflow-x-auto scrollbar-thin rounded-2xl border">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-muted/80 backdrop-blur">
+                  <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
+                    <th scope="col" className="px-3 py-2.5 font-medium">Purpose</th>
+                    <th scope="col" className="px-3 py-2.5 font-medium">Status</th>
+                    <th scope="col" className="px-3 py-2.5 font-medium">Amount</th>
+                    <th scope="col" className="px-3 py-2.5 font-medium">Order item</th>
+                    <th scope="col" className="px-3 py-2.5 font-medium">Claim</th>
+                    <th scope="col" className="px-3 py-2.5 font-medium">Timing</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detail.lines.map((line) => (
+                    <tr key={line.id} className="border-b align-top transition-colors last:border-0 hover:bg-accent/50">
+                      <td className="px-3 py-2.5">
+                        <StatusBadge status={line.linePurpose} map={LINE_PURPOSE_MAP} />
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <StatusBadge status={line.status} map={LINE_STATUS_MAP} />
+                      </td>
+                      <td className="px-3 py-2.5 tabular-nums">
+                        <span className="font-semibold">{formatUSD(line.amount)}</span>
+                        <span className="block text-[11px] text-muted-foreground">−{formatUSD(line.commission)} comm.</span>
+                        <span className="block font-mono text-[10px] text-muted-foreground">{line.currency}</span>
+                      </td>
+                      <td className="max-w-48 px-3 py-2.5">
+                        {line.orderItem ? (
+                          <>
+                            <p className="truncate text-xs font-medium" title={line.orderItem.title}>
+                              {line.orderItem.title}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground">
+                              ×{line.orderItem.quantity} · order {shortId(line.orderItem.orderId)}
+                            </p>
+                          </>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {line.claimKey ? (
+                          <p className="font-mono text-[10px]" title="Claim key — unique live settlement claim per order item">
+                            {line.claimKey.slice(0, 10)}…
+                          </p>
+                        ) : (
+                          <span className="text-[11px] text-muted-foreground">—</span>
+                        )}
+                        {line.reversalOfLineId && (
+                          <p className="mt-0.5 text-[10px] text-rose-600 dark:text-rose-400" title={line.reversalOfLineId}>
+                            reversal of {shortId(line.reversalOfLineId)}
+                          </p>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 text-[11px] text-muted-foreground">
+                        <p title={new Date(line.createdAt).toLocaleString()}>Added {timeAgo(line.createdAt)}</p>
+                        {line.effectiveAt && <p title={new Date(line.effectiveAt).toLocaleString()}>Effective {timeAgo(line.effectiveAt)}</p>}
+                        {line.reversedAt && <p title={new Date(line.reversedAt).toLocaleString()}>Reversed {timeAgo(line.reversedAt)}</p>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+          <Button variant="outline" className="rounded-xl" onClick={onClose}>
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 function CommissionConfigCard() {
   const { data, loading, refetch } = useApi<{ config: { defaultCommissionPercent: number } }>('/api/admin/payouts/config')

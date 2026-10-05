@@ -294,6 +294,12 @@ export interface OrderDTO {
   id: string
   total: number
   status: string
+  // ── Phase 7.7 dimension split (authoritative) ──
+  paymentStatus: string // AWAITING_PAYMENT | PAID | FUNDED | PARTIALLY_REFUNDED | REFUNDED | OUTSTANDING
+  fulfillmentStatus: string // UNFULFILLED | PARTIALLY_FULFILLED | FULFILLED | PARTIALLY_CANCELLED | CANCELLED | PROCESSING | SHIPPED
+  currency: string
+  hasPendingRefunds: boolean
+  refunds: Array<{ id: string; number: string; status: string; amountTotal: number; createdAt: string }>
   fullName: string
   address: string
   city: string

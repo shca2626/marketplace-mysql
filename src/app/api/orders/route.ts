@@ -7,6 +7,7 @@ import { computePricing } from '@/lib/pricing'
 import { findActiveCoupon, type ActiveCoupon } from '@/server/modules/coupons/service'
 import { needsApproval, createOrderApprovalRequest, notifyOrderApprovalRequested } from '@/server/modules/approvals/service'
 import { ensurePayment, succeedPayment, notifyOrderPaid } from '@/server/modules/payments/service'
+import { createFulfillmentGroups, releaseExpiredReservations } from '@/server/modules/orders/service'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 
@@ -30,6 +31,15 @@ const checkoutSchema = z.object({
   couponCode: z.string().trim().max(24).optional().nullable(),
   paymentMethod: z.enum(['CARD', 'BANK_TRANSFER']).optional(), // absent = CARD (legacy callers)
 })
+
+/** 7.3.1: thrown inside the checkout transaction when a conditional atomic
+ * decrement matched 0 rows (concurrent buyer took the last units) — rolls
+ * the whole order back so exactly one order survives the race. */
+class StockConflict extends Error {
+  constructor(public kind: 'product' | 'variant' | 'offer' | 'offerVariant', public rowId: string) {
+    super(`stock race on ${kind} ${rowId}`)
+  }
+}
 
 // POST /api/orders — checkout
 export async function POST(req: NextRequest) {
@@ -96,6 +106,24 @@ export async function POST(req: NextRequest) {
       return v && v.productId === item.productId ? (v.price ?? null) : null
     }
 
+    // 7.6.3 pair validation: wherever an (offer, variant) pair is consumed the
+    // pair must exist, be active, and belong to the same product — fail closed.
+    const offerVariantIds = [
+      ...new Set(
+        items
+          .filter((i) => i.offerId && i.variantId)
+          .map((i) => `${i.offerId}:${i.variantId}`)
+      ),
+    ]
+    const offerVariantRows = offerVariantIds.length
+      ? await db.offerVariant.findMany({
+          where: { offerId: { in: offerVariantIds.map((k) => k.split(':')[0]) } },
+          include: { offer: { select: { productId: true, status: true } } },
+        })
+      : []
+    const offerVariantMap = new Map(offerVariantRows.map((ov) => [`${ov.offerId}:${ov.variantId}`, ov]))
+    const offerVariantStock = new Map<string, number>()
+
     for (const item of items) {
       const p = productMap.get(item.productId)
       if (!p) return NextResponse.json({ error: 'A product in your cart no longer exists' }, { status: 400 })
@@ -115,7 +143,21 @@ export async function POST(req: NextRequest) {
             { error: `The seller of an offer in your cart is currently unavailable` },
             { status: 400 }
           )
-        if (o.stock < item.quantity)
+        if (item.variantId) {
+          // 7.6: the (offer, variant) pair is the purchase-time authority (D9)
+          const ov = offerVariantMap.get(`${item.offerId}:${item.variantId}`)
+          if (!ov || !ov.isActive || ov.offer.productId !== item.productId)
+            return NextResponse.json(
+              { error: `The selected option for "${p.title}" is not available on this offer` },
+              { status: 400 }
+            )
+          if (ov.stock < item.quantity)
+            return NextResponse.json(
+              { error: `Only ${ov.stock} left in stock for "${p.title}" (selected offer option)` },
+              { status: 400 }
+            )
+          offerVariantStock.set(`${item.offerId}:${item.variantId}`, (offerVariantStock.get(`${item.offerId}:${item.variantId}`) ?? 0) + item.quantity)
+        } else if (o.stock < item.quantity)
           return NextResponse.json(
             { error: `Only ${o.stock} left in stock for "${p.title}" (selected offer)` },
             { status: 400 }
@@ -142,7 +184,12 @@ export async function POST(req: NextRequest) {
 
     const subtotal = items.reduce((sum, i) => {
       const p = productMap.get(i.productId)!
-      const unit = i.offerId ? (offerMap.get(i.offerId)?.price ?? p.price) : (linePrice(i) ?? p.price)
+      const ov = i.offerId && i.variantId ? offerVariantMap.get(`${i.offerId}:${i.variantId}`) : undefined
+      const unit = ov
+        ? (ov.price ?? offerMap.get(i.offerId!)?.price ?? p.price)
+        : i.offerId
+          ? (offerMap.get(i.offerId)?.price ?? p.price)
+          : (linePrice(i) ?? p.price)
       return sum + unit * i.quantity
     }, 0)
 
@@ -193,6 +240,15 @@ export async function POST(req: NextRequest) {
         pricing.total
       )
 
+    // Seller-org resolution (7.0): items carry the authoritative org tenant —
+    // the offer's org when buying via an offer, else the product owner's org.
+    const sellerIdsForOrg = [...new Set([...products.map((p) => p.sellerId), ...offerRows.map((o) => o.sellerId)])]
+    const sellerOrgRows = await db.sellerProfile.findMany({
+      where: { ownerUserId: { in: sellerIdsForOrg } },
+      select: { ownerUserId: true, organizationId: true },
+    })
+    const sellerOrgMap = new Map(sellerOrgRows.map((sp) => [sp.ownerUserId, sp.organizationId]))
+
     const { order, paymentCaptured } = await db.$transaction(async (tx) => {
       const created = await tx.order.create({
         data: {
@@ -202,6 +258,10 @@ export async function POST(req: NextRequest) {
           // buyer's wire + operator capture; approval-routed orders pay after
           // the org clears them.
           status: routeForApproval ? 'PENDING_APPROVAL' : method === 'CARD' ? 'PAID' : 'PENDING_PAYMENT',
+          // 7.7 dimension split — money dimension mirrors the legacy gate
+          paymentStatus: 'AWAITING_PAYMENT',
+          fulfillmentStatus: 'UNFULFILLED',
+          currency: 'USD',
           organizationId: orgId,
           ...shipping,
           phone: shipping.phone ?? null,
@@ -217,16 +277,20 @@ export async function POST(req: NextRequest) {
               }
               const variant = i.variantId ? variantMap.get(i.variantId) : undefined
               const offer = i.offerId ? offerMap.get(i.offerId) : undefined
+              const ov = i.offerId && i.variantId ? offerVariantMap.get(`${i.offerId}:${i.variantId}`) : undefined
+              const effectiveSellerId = offer ? offer.sellerId : p.sellerId
               return {
                 productId: p.id,
-                sellerId: offer ? offer.sellerId : p.sellerId,
+                sellerId: effectiveSellerId,
+                sellerOrgId: sellerOrgMap.get(effectiveSellerId) ?? null,
                 quantity: i.quantity,
-                price: offer ? offer.price : (linePrice(i) ?? p.price),
+                price: ov ? (ov.price ?? offer!.price) : offer ? offer.price : (linePrice(i) ?? p.price),
                 title: p.title,
                 image,
                 variantId: offer ? null : (variant?.id ?? null),
                 variantName: offer ? null : (variant?.name ?? null),
                 offerId: offer?.id ?? null,
+                offerVariantId: ov?.id ?? null,
               }
             }),
           },
@@ -234,34 +298,59 @@ export async function POST(req: NextRequest) {
         include: { items: true },
       })
 
+      // 7.7.2: per-seller-group fulfillment substrate for the fresh order
+      await createFulfillmentGroups(
+        tx,
+        created.id,
+        created.items.map((it) => ({ id: it.id, quantity: it.quantity, sellerId: it.sellerId, sellerOrgId: it.sellerOrgId }))
+      )
+
+      // 7.3.1: conditional atomic decrements everywhere — `updateMany where
+      // stock >= qty`, count-verified; any mismatch throws and rolls the WHOLE
+      // transaction back (two parallel last-unit checkouts → exactly one order).
+      const takeStock = async (kind: 'product' | 'variant' | 'offer' | 'offerVariant', rowId: string, qty: number) => {
+        if (qty <= 0) return
+        if (kind === 'product') {
+          const res = await tx.product.updateMany({
+            where: { id: rowId, stock: { gte: qty } },
+            data: { stock: { decrement: qty }, soldCount: { increment: qty } },
+          })
+          if (res.count !== 1) throw new StockConflict(kind, rowId)
+        } else if (kind === 'variant') {
+          const res = await tx.productVariant.updateMany({ where: { id: rowId, stock: { gte: qty } }, data: { stock: { decrement: qty } } })
+          if (res.count !== 1) throw new StockConflict(kind, rowId)
+        } else if (kind === 'offer') {
+          const res = await tx.productOffer.updateMany({
+            where: { id: rowId, stock: { gte: qty } },
+            data: { stock: { decrement: qty }, soldCount: { increment: qty } },
+          })
+          if (res.count !== 1) throw new StockConflict(kind, rowId)
+        } else {
+          const res = await tx.offerVariant.updateMany({ where: { id: rowId, stock: { gte: qty } }, data: { stock: { decrement: qty } } })
+          if (res.count !== 1) throw new StockConflict(kind, rowId)
+        }
+      }
+
       for (const i of items) {
         const p = productMap.get(i.productId)!
         if (i.offerId) {
-          // Offer purchase: offer stock is authoritative; soldCount tracks the product
-          await tx.productOffer.update({
-            where: { id: i.offerId },
-            data: { stock: { decrement: i.quantity }, soldCount: { increment: i.quantity } },
-          })
-          await tx.product.update({
-            where: { id: p.id },
-            data: { soldCount: { increment: i.quantity } },
-          })
+          if (i.variantId) {
+            // (offer, variant) pair is the single stock authority (D9/7.3.2)
+            const ov = offerVariantMap.get(`${i.offerId}:${i.variantId}`)!
+            await takeStock('offerVariant', ov.id, i.quantity)
+            await tx.product.update({ where: { id: p.id }, data: { soldCount: { increment: i.quantity } } })
+          } else {
+            await takeStock('offer', i.offerId, i.quantity)
+            await tx.product.update({ where: { id: p.id }, data: { soldCount: { increment: i.quantity } } })
+          }
           continue
         }
-        // Variant stock is authoritative per combination; product.stock tracks the total
+        // Variant stock is authoritative per combination; product.stock is the
+        // derived read-model for the owner's primary listing (7.3.2)
         if (i.variantId && variantMap.has(i.variantId)) {
-          await tx.productVariant.update({
-            where: { id: i.variantId },
-            data: { stock: { decrement: i.quantity } },
-          })
+          await takeStock('variant', i.variantId, i.quantity)
         }
-        await tx.product.update({
-          where: { id: p.id },
-          data: {
-            stock: { decrement: i.quantity },
-            soldCount: { increment: i.quantity },
-          },
-        })
+        await takeStock('product', p.id, i.quantity)
       }
 
       let paymentCaptured = false
@@ -336,21 +425,32 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     )
   } catch (err) {
+    // 7.3.1: a conditional-decrement mismatch surfaces as a friendly race
+    // message, not a 500 — the buyer can retry with the stock that remains.
+    if (err instanceof StockConflict) {
+      return NextResponse.json(
+        { error: 'Another shopper just bought the last units — the cart was refreshed with the stock that remains. Please review and try again.' },
+        { status: 409 }
+      )
+    }
     console.error('orders POST error', err)
     return NextResponse.json({ error: 'Checkout failed' }, { status: 500 })
   }
 }
 
-// GET /api/orders — my purchase history
+// GET /api/orders — my purchase history (also lazily sweeps expired
+// approval reservations — 7.3.3, throttled to once per minute per process)
 export async function GET() {
   try {
     const user = await getSessionUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+    releaseExpiredReservations().catch(() => {})
+
     const orders = await db.order.findMany({
       where: { buyerId: user.id },
       orderBy: { createdAt: 'desc' },
-      include: { items: true, payment: true },
+      include: { items: true, payment: true, refunds: { select: { id: true, status: true, number: true, amountTotal: true, createdAt: true } } },
     })
 
     return NextResponse.json({ orders: orders.map((o) => serializeOrder(o)) })

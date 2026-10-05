@@ -43,6 +43,7 @@ export type NotificationType =
   | 'ORDER_STATUS' // buyer: fulfillment advanced / order cancelled; seller: order paid / cancelled
   | 'PAYMENT_STATUS' // buyer: payment captured, failed or awaiting confirmation
   | 'PAYOUT_STATUS' // seller: a payout was created or marked paid
+  | 'REFUND_STATUS' // buyer: refund requested / approved / completed / denied (Phase 7.7)
   // ── financier module (FINANCIER_SCHEMA v5 §6) ──
   | 'PLATFORM_RETURNED_REQUEST' // applicant: gate returned the request for completion
   | 'PLATFORM_FORWARDED_REQUEST' // applicant: gate passed, financier will review

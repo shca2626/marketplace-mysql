@@ -28,6 +28,8 @@ import type { CategoryDTO } from '@/lib/types'
 import { initials } from '@/lib/format'
 import { SearchBox } from './search-box'
 import { NotificationsBell } from './notifications-bell'
+// Phase 7.2 — storefront display-currency switcher (USD / YER / SAR)
+import { CurrencySwitcher } from './currency-context'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -191,6 +193,10 @@ export function Header() {
 
         {/* Actions */}
         <div className="ml-auto flex items-center gap-1 sm:gap-2">
+          {/* Phase 7.2 — display-currency chips (stone tabs, near search/cart).
+              Compact symbols only; the catalog toolbar carries the mobile copy. */}
+          <CurrencySwitcher className="hidden sm:flex" />
+
           <Button
             variant="ghost"
             size="icon"

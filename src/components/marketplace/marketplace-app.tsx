@@ -48,6 +48,8 @@ import { RegisterFinancierView } from './register/register-financier-view'
 import { BackToTop } from './back-to-top'
 import { StorefrontTheme } from './storefront-theme'
 import { SupportWidget } from './support-widget'
+// Phase 7.2 — multi-currency display substrate (USD pricing + YER/SAR display)
+import { FxProvider } from './currency-context'
 
 /** Public shopping surfaces. */
 const STOREFRONT_VIEWS: Record<string, () => React.ReactNode> = {
@@ -154,31 +156,17 @@ export function MarketplaceApp() {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-      {/* Live theme bridge — pushes admin-configured accent / radius /
-          default-mode onto the document root for BOTH storefront and
-          dashboards the moment settings load or change. */}
-      <StorefrontTheme />
-      {isConsole ? (
-        /* ── Internal console — dedicated dashboard shell ── */
-        <div className="min-h-screen bg-muted/40 text-foreground">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={view}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2, ease: 'easeOut' }}
-            >
-              {active?.()}
-            </motion.div>
-          </AnimatePresence>
-          <AuthModal />
-        </div>
-      ) : (
-        /* ── Public storefront — marketing chrome ── */
-        <div className="flex min-h-screen flex-col bg-background text-foreground">
-          <Header />
-          <main className="flex-1">
+      {/* Phase 7.2 — FX display context (currency switcher + approximate
+          converted prices). Wraps BOTH storefront and consoles so the shared
+          components (product cards, dialogs) can convert anywhere. */}
+      <FxProvider>
+        {/* Live theme bridge — pushes admin-configured accent / radius /
+            default-mode onto the document root for BOTH storefront and
+            dashboards the moment settings load or change. */}
+        <StorefrontTheme />
+        {isConsole ? (
+          /* ── Internal console — dedicated dashboard shell ── */
+          <div className="min-h-screen bg-muted/40 text-foreground">
             <AnimatePresence mode="wait">
               <motion.div
                 key={view}
@@ -190,14 +178,33 @@ export function MarketplaceApp() {
                 {active?.()}
               </motion.div>
             </AnimatePresence>
-          </main>
-          <Footer />
-          <SupportWidget />
-          <CartDrawer />
-          <AuthModal />
-          <BackToTop />
-        </div>
-      )}
+            <AuthModal />
+          </div>
+        ) : (
+          /* ── Public storefront — marketing chrome ── */
+          <div className="flex min-h-screen flex-col bg-background text-foreground">
+            <Header />
+            <main className="flex-1">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={view}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                >
+                  {active?.()}
+                </motion.div>
+              </AnimatePresence>
+            </main>
+            <Footer />
+            <SupportWidget />
+            <CartDrawer />
+            <AuthModal />
+            <BackToTop />
+          </div>
+        )}
+      </FxProvider>
     </ThemeProvider>
   )
 }

@@ -19,7 +19,8 @@ export async function GET(req: NextRequest) {
 
     const where: Record<string, unknown> = {}
     if (status) where.status = status
-    if (paymentStatus) where.payment = { status: paymentStatus }
+    if (paymentStatus) where.paymentStatus = paymentStatus // 7.7: dimension filter
+    if (sp.get('fulfillmentStatus')) where.fulfillmentStatus = sp.get('fulfillmentStatus')
     if (q) {
       where.OR = [
         { id: { contains: q } },
@@ -46,9 +47,11 @@ export async function GET(req: NextRequest) {
       }),
     ])
 
-    // Status + money roll-ups for the header strip
-    const [statusRows, revenueRow] = await Promise.all([
+    // Status + money roll-ups for the header strip (7.7: both dimensions)
+    const [statusRows, paymentRows, fulfillmentRows, revenueRow] = await Promise.all([
       db.order.groupBy({ by: ['status'], _count: { _all: true } }),
+      db.order.groupBy({ by: ['paymentStatus'], _count: { _all: true } }),
+      db.order.groupBy({ by: ['fulfillmentStatus'], _count: { _all: true } }),
       db.order.aggregate({
         where: { status: { not: 'CANCELLED' } },
         _sum: { total: true },
@@ -56,6 +59,8 @@ export async function GET(req: NextRequest) {
       }),
     ])
     const statusCounts = Object.fromEntries(statusRows.map((r) => [r.status, r._count._all]))
+    const paymentCounts = Object.fromEntries(paymentRows.map((r) => [r.paymentStatus, r._count._all]))
+    const fulfillmentCounts = Object.fromEntries(fulfillmentRows.map((r) => [r.fulfillmentStatus, r._count._all]))
 
     const sellerIds = [...new Set(orders.flatMap((o) => o.items.map((i) => i.sellerId)))]
     const sellers = sellerIds.length
@@ -71,11 +76,16 @@ export async function GET(req: NextRequest) {
         revenue: Math.round((revenueRow._sum.total ?? 0) * 100) / 100,
         aov: Math.round((revenueRow._avg.total ?? 0) * 100) / 100,
         statusCounts,
+        paymentCounts,
+        fulfillmentCounts,
       },
       orders: orders.map((o) => ({
         id: o.id,
         total: o.total,
         status: o.status,
+        paymentStatus: o.paymentStatus,
+        fulfillmentStatus: o.fulfillmentStatus,
+        currency: o.currency,
         fullName: o.fullName,
         city: o.city,
         country: o.country,
