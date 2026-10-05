@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-05T02:25:48.061Z",
+  "generatedAt": "2026-10-05T18:31:19.643Z",
   "task": "Phase 7.8.1–7.8.3 accreditation status CHECK + DB-derived activeKey (lastplan 7.8)",
   "sql": "scripts/sql/accreditation-constraints.sql",
   "activeSet": [
@@ -98,7 +98,7 @@
         "id": "cmuipye1s004woktasbpi07fi",
         "number": "ACC-2026-000001",
         "status": "ACCREDITED",
-        "activeKey": 1
+        "activeKey": null
       }
     ],
     "rowsAfter": [

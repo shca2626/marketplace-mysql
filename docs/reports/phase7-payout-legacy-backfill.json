@@ -1,30 +1,52 @@
 {
-  "generatedAt": "2026-10-05T02:15:01.980Z",
+  "generatedAt": "2026-10-05T18:31:02.459Z",
   "task": "Phase 7.4D.8 legacy payout backfill — PayoutLine ledger projection of OrderItem.payoutId links (lastplan 7.4.8)",
   "roundingRule": "per-line commission rounding: round(price × qty × commissionRate/100 × 100)/100; reconciliation tolerance = 0.005 × lineCount",
   "counts": {
-    "payoutsProcessed": 0,
+    "payoutsProcessed": 1,
     "linesCreated": 0,
     "linesAlreadyPresent": 0,
-    "payoutsBrokenLink": 0
+    "payoutsBrokenLink": 1
   },
   "thisRun": {
-    "payoutsProcessed": 0,
+    "payoutsProcessed": 1,
     "linesCreated": 0,
     "linesAlreadyPresent": 0,
-    "payoutsBrokenLink": 0
+    "payoutsBrokenLink": 1
   },
   "dbStateAfter": {
-    "payouts": 0,
+    "payouts": 1,
     "payoutLines": 0,
     "claimKeysHeld": 0
   },
   "reconciliation": {
-    "payoutsReconciled": 0,
+    "payoutsReconciled": 1,
     "amountExact": 0,
     "commissionWithinTolerance": 0,
-    "perPayout": []
+    "perPayout": [
+      {
+        "payoutId": "cmuuot6a4000mlwvlhzkij402",
+        "payoutNumber": "PY-2026-000002",
+        "lineCount": 0,
+        "sumAmount": 0,
+        "payoutGross": 657.98,
+        "amountDiff": 657.98,
+        "sumCommission": 0,
+        "payoutCommission": 65.8,
+        "commissionDiff": 65.8,
+        "commissionTolerance": 0,
+        "netCheck": true
+      }
+    ]
   },
-  "ambiguities": [],
+  "ambiguities": [
+    {
+      "payoutId": "cmuuot6a4000mlwvlhzkij402",
+      "payoutNumber": "PY-2026-000002",
+      "kind": "no-linked-items",
+      "detail": "payout PY-2026-000002 (gross 657.98, status PAID) has no OrderItem rows pointing at it via payoutId",
+      "decision": "no ledger lines can be derived — the legacy payout row is preserved as-is and flagged; item claims cannot be reconstructed without links (recorded, not assumed)"
+    }
+  ],
   "gate": "PASS — zero unresolved ambiguity cases"
 }

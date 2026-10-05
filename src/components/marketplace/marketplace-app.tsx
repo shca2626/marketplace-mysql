@@ -85,6 +85,12 @@ export function MarketplaceApp() {
   const applyLocation = useMarketplace((s) => s.applyLocation)
   const applySettings = useMarketplace((s) => s.applySettings)
   const setSpaActive = useMarketplace((s) => s.setSpaActive)
+  const initCurrency = useMarketplace((s) => s.initCurrency)
+
+  // Phase 8 — dynamic currency: subscribing here re-renders the WHOLE view
+  // tree (factories below create fresh JSX) so every price re-formats through
+  // the live rate the moment the visitor switches currency.
+  const activeCurrencyCode = useMarketplace((s) => s.activeCurrency.code)
 
   // Mark the SPA as mounted — navigate() from marketplace components reused
   // on platform pages (homepage product cards, etc.) then falls back to a

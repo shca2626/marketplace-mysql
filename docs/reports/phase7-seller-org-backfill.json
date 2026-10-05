@@ -1,28 +1,28 @@
 {
-  "generatedAt": "2026-10-05T02:13:48.345Z",
+  "generatedAt": "2026-10-05T18:29:50.318Z",
   "task": "Phase 7.0 seller-org substrate backfill (lastplan 7.0.3 + 7.0.4 / docs/seller-tenant-model.md §6)",
   "counts": {
-    "sellersProcessed": 15,
+    "sellersProcessed": 30,
     "orgsCreated": 10,
-    "orgsReused": 5,
-    "sellerProfilesCreated": 15,
+    "orgsReused": 20,
+    "sellerProfilesCreated": 30,
     "membershipsCreated": 10,
     "offersStamped": 3,
-    "orderItemsStamped": 35,
-    "payoutsStamped": 0,
-    "quotesStamped": 2,
-    "primaryOffersCreated": 33,
+    "orderItemsStamped": 70,
+    "payoutsStamped": 1,
+    "quotesStamped": 4,
+    "primaryOffersCreated": 66,
     "productsAlreadyCovered": 0
   },
   "thisRun": {
     "sellersProcessed": 15,
-    "orgsCreated": 10,
-    "orgsReused": 5,
+    "orgsCreated": 0,
+    "orgsReused": 15,
     "sellerProfilesCreated": 15,
-    "membershipsCreated": 10,
-    "offersStamped": 3,
+    "membershipsCreated": 0,
+    "offersStamped": 0,
     "orderItemsStamped": 35,
-    "payoutsStamped": 0,
+    "payoutsStamped": 1,
     "quotesStamped": 2,
     "primaryOffersCreated": 33,
     "productsAlreadyCovered": 0,
@@ -31,11 +31,11 @@
   "dbStateAfter": {
     "organizations": 24,
     "sellerProfiles": 15,
-    "productOffers": 36,
-    "productOffersWithSellerOrgId": 36,
+    "productOffers": 33,
+    "productOffersWithSellerOrgId": 33,
     "orderItemsWithSellerOrgId": 35,
     "quotesWithSellerOrgId": 2,
-    "payoutsWithSellerOrgId": 0
+    "payoutsWithSellerOrgId": 1
   },
   "reconciliation": {
     "1_everySellerHasOrgProfileOwnerMembership": {

@@ -80,7 +80,7 @@ function SourceBadge({ row }: { row: CurrencyRow }) {
         manual
       </Badge>
     )
-  if (row.source.startsWith('live'))
+  if (row.source.toLowerCase().startsWith('live'))
     return (
       <Badge className="bg-emerald-100 text-[10px] font-bold uppercase tracking-wide text-emerald-700 hover:bg-emerald-100">
         live
@@ -210,7 +210,7 @@ export function CurrencyTab() {
     toast({ title: 'Auto-refresh window saved', description: `Stale rates refresh themselves after ${minutes} minutes.` })
   }
 
-  const liveCount = rows.filter((r) => r.source.startsWith('live') && !r.isManual && r.code !== 'USD').length
+  const liveCount = rows.filter((r) => r.source.toLowerCase().startsWith('live') && !r.isManual && r.code !== 'USD').length
   const manualCount = rows.filter((r) => r.isManual).length
   const activeCount = rows.filter((r) => r.isActive).length
   const newestSync = rows.reduce<string | null>((acc, r) => {

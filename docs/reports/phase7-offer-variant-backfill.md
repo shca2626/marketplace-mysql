@@ -1,6 +1,6 @@
 # Phase 7.6.4 — OfferVariant migration + QuoteLine offer adoption
 
-Generated: 2026-10-05T02:23:16.706Z
+Generated: 2026-10-05T18:31:09.670Z
 Script: scripts/backfill-offer-variants.ts (idempotent, resumable — existing (offerId, variantId) rows are never duplicated; offerId is only stamped when NULL)
 
 ## What ran
@@ -16,16 +16,16 @@ Script: scripts/backfill-offer-variants.ts (idempotent, resumable — existing (
 
 | Metric | Count |
 |---|---|
-| Offers scanned | 72 |
-| Offers on variant products | 4 |
-| Offers skipped (product has no variants) | 68 |
-| OfferVariants created | 4 |
+| Offers scanned | 105 |
+| Offers on variant products | 6 |
+| Offers skipped (product has no variants) | 99 |
+| OfferVariants created | 8 |
 | OfferVariants already present (skipped) | 4 |
 | Inactive catalog variants not replicated | 0 |
-| QuoteLines examined | 4 |
+| QuoteLines examined | 6 |
 | QuoteLines offerId stamped | 0 |
 | QuoteLines offerVariantId stamped | 0 |
-| QuoteLines with nothing provable to adopt | 4 |
+| QuoteLines with nothing provable to adopt | 6 |
 
 DB state now: offerVariants=4, quoteLinesWithOfferId=0, quoteLinesWithOfferVariantId=0, offersFullyCovered=2, offersPartiallyCovered=0
 

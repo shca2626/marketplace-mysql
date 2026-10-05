@@ -1,6 +1,6 @@
 # Phase 7.7.7 — Legacy order-status initialization + ambiguity report
 
-Generated: 2026-10-05T02:21:22.178Z
+Generated: 2026-10-05T18:31:01.231Z
 Script: scripts/backfill-order-status.ts (idempotent, resumable — item links are unique-guarded)
 
 ## What ran
@@ -16,8 +16,8 @@ their quantities), then the fulfillmentStatus roll-up. The legacy single `status
 | Metric | Count |
 |---|---|
 | Orders processed (this DB total) | 20 |
-| Fulfillment groups created (cumulative) | 35 |
-| Fulfillment item links created (cumulative) | 35 |
+| Fulfillment groups created (cumulative) | 70 |
+| Fulfillment item links created (cumulative) | 70 |
 | Currency defaults applied (USD) | 0 |
 | Orders skipped (already initialized) | 0 |
 

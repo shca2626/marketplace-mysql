@@ -1,6 +1,6 @@
 # Phase 7.0 — Seller-org substrate backfill (lastplan 7.0.3 + 7.0.4)
 
-Generated: 2026-10-05T02:13:48.345Z
+Generated: 2026-10-05T18:29:50.318Z
 Spec: docs/seller-tenant-model.md (binding) · scripts/backfill-seller-orgs.ts (idempotent, resumable)
 Counts below are cumulative across runs; reconciliation is re-derived from live DB state on every run.
 
@@ -14,19 +14,19 @@ offers / order items / payouts / quotes → normalized primary offers for every 
 
 | Metric | Count |
 |---|---|
-| Sellers processed | 15 |
+| Sellers processed | 30 |
 | Orgs created | 10 |
-| Orgs reused (existing OWNER membership) | 5 |
-| SellerProfiles created | 15 |
+| Orgs reused (existing OWNER membership) | 20 |
+| SellerProfiles created | 30 |
 | OWNER memberships created | 10 |
 | ProductOffers stamped (sellerOrgId) | 3 |
-| OrderItems stamped (sellerOrgId) | 35 |
-| Payouts stamped (sellerOrgId) | 0 |
-| Quotes stamped (sellerOrgId) | 2 |
-| Primary offers created (ACTIVE) | 33 |
+| OrderItems stamped (sellerOrgId) | 70 |
+| Payouts stamped (sellerOrgId) | 1 |
+| Quotes stamped (sellerOrgId) | 4 |
+| Primary offers created (ACTIVE) | 66 |
 | Products already covered by an offer | 0 (status distribution: none) |
 
-DB state now: organizations=24, sellerProfiles=15, productOffers=36, productOffersWithSellerOrgId=36, orderItemsWithSellerOrgId=35, quotesWithSellerOrgId=2, payoutsWithSellerOrgId=0
+DB state now: organizations=24, sellerProfiles=15, productOffers=33, productOffersWithSellerOrgId=33, orderItemsWithSellerOrgId=35, quotesWithSellerOrgId=2, payoutsWithSellerOrgId=1
 
 ## Reconciliation — the 7.0 gate (every check must be ZERO mismatches)
 

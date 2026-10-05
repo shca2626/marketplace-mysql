@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-05T02:21:22.178Z",
+  "generatedAt": "2026-10-05T18:31:01.231Z",
   "task": "Phase 7.7.7 legacy order-status initialization + ambiguity report (lastplan 7.7.7 / S6)",
   "mapping": {
     "payment": {
@@ -20,10 +20,10 @@
   },
   "limitation": "legacy data cannot prove per-seller partial fulfillment — a globally SHIPPED order initializes every group as SHIPPED; no historical per-seller evidence exists or is implied",
   "counts": {
-    "ordersProcessed": 20,
+    "ordersProcessed": 40,
     "ordersSkippedAlreadyInitialized": 0,
-    "fulfillmentGroupsCreated": 35,
-    "fulfillmentItemLinksCreated": 35,
+    "fulfillmentGroupsCreated": 70,
+    "fulfillmentItemLinksCreated": 70,
     "currencyDefaultsApplied": 0
   },
   "thisRun": {
