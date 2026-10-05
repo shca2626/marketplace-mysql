@@ -4,6 +4,7 @@ import { emitNotification, emitNotifications } from '@/server/modules/notificati
 import { nextNumber } from '@/server/modules/sequences/service'
 import { resolvePanel } from '@/server/modules/settings/service'
 import { FinancingError, assertApplicantActor, iso, type OfferStatus } from './shared'
+import { assertOfferWithinUnderwritingLimit } from './limits' // 10.7: underwriting-limit enforcement
 import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 
 /**
@@ -127,7 +128,7 @@ async function loadRequestForFinancier(userId: string, requestId: string) {
   const request = await db.financingRequest.findUnique({
     where: { id: requestId },
     include: {
-      service: { select: { name: true, financierProfile: { select: { organizationId: true, organization: { select: { name: true } } } } } },
+      service: { select: { name: true, financierProfile: { select: { id: true, organizationId: true, organization: { select: { name: true } } } } } },
     },
   })
   if (!request) throw new FinancingError('Request not found', 404)
@@ -191,6 +192,9 @@ export async function createOffer(userId: string, input: OfferInput): Promise<Fi
   if (input.amount <= 0) throw new FinancingError('Offer amount must be positive')
   if (input.tenorMonths < 1 || input.tenorMonths > 120) throw new FinancingError('Tenor must be between 1 and 120 months')
 
+  // 10.7 — underwriting limit check (no row = unlimited; never blocks legacy flow)
+  await assertOfferWithinUnderwritingLimit(userId, request, input.amount)
+
   // maxOffersPerRequest cap (every revision is a new row — DP-12)
   const general = await resolvePanel('financingGeneral')
   const cap = Number(general.maxOffersPerRequest) || 5
@@ -250,11 +254,15 @@ export async function sendOffer(userId: string, offerId: string, validUntilOverr
     include: { request: { select: { id: true, status: true, number: true, createdById: true } } },
   })
   if (!offer) throw new FinancingError('Offer not found', 404)
-  await loadRequestForFinancier(userId, offer.requestId)
+  const request = await loadRequestForFinancier(userId, offer.requestId)
   if (offer.status !== 'DRAFT') throw new FinancingError(`Offer is already ${offer.status}`, 409)
   if (!['FORWARDED_TO_FINANCIER', 'UNDER_FINANCIER_REVIEW', 'OFFERED'].includes(offer.request.status)) {
     throw new FinancingError(`The request is ${offer.request.status} — offers are closed`, 409)
   }
+
+  // 10.7 — re-check at send time (a DRAFT drafted before a limit was lowered
+  // must not slip through)
+  await assertOfferWithinUnderwritingLimit(userId, request, offer.amount)
 
   // validUntil default: +14 days (§6 convention)
   let validUntil: Date | null

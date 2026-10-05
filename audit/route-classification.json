@@ -655,7 +655,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Digest trigger \u2014 internal endpoint guarded by header secret + optional session; runs the digest job (see service). Ops-only."
+      "notes": "Digest trigger — internal endpoint guarded by header secret + optional session; runs the digest job (see service). Ops-only."
     },
     {
       "route": "/api/admin/orders",
@@ -827,6 +827,42 @@
       "moduleKeys": []
     },
     {
+      "route": "/api/admin/price-lists",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "pricing.view"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/price-lists/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "PATCH",
+        "DELETE"
+      ],
+      "permissionKeys": [
+        "pricing.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/price-lists/[id]/entries",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "PUT"
+      ],
+      "permissionKeys": [
+        "pricing.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
       "route": "/api/admin/products",
       "bucket": "PLATFORM_PRIVILEGED",
       "methods": [
@@ -877,42 +913,6 @@
       ],
       "moduleKeys": [],
       "notes": "Phase 9.3 bulk archive/restore/feature/unfeature — one audit entry per action, reason mandatory."
-    },
-    {
-      "route": "/api/admin/price-lists",
-      "bucket": "PLATFORM_PRIVILEGED",
-      "methods": [
-        "GET",
-        "POST"
-      ],
-      "permissionKeys": [
-        "pricing.view"
-      ],
-      "moduleKeys": []
-    },
-    {
-      "route": "/api/admin/price-lists/[id]",
-      "bucket": "PLATFORM_PRIVILEGED",
-      "methods": [
-        "GET",
-        "PATCH",
-        "DELETE"
-      ],
-      "permissionKeys": [
-        "pricing.manage"
-      ],
-      "moduleKeys": []
-    },
-    {
-      "route": "/api/admin/price-lists/[id]/entries",
-      "bucket": "PLATFORM_PRIVILEGED",
-      "methods": [
-        "PUT"
-      ],
-      "permissionKeys": [
-        "pricing.manage"
-      ],
-      "moduleKeys": []
     },
     {
       "route": "/api/admin/quotes",
@@ -1501,7 +1501,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Self-service \u2014 verifies current password; bumps sessionVersion."
+      "notes": "Self-service — verifies current password; bumps sessionVersion."
     },
     {
       "route": "/api/auth/forgot-password",
@@ -1587,7 +1587,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Registration door (B2B company self-signup) \u2014 creates account + org."
+      "notes": "Registration door (B2B company self-signup) — creates account + org."
     },
     {
       "route": "/api/auth/register/financier",
@@ -1597,7 +1597,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Financier door \u2014 creates account via email-bound invitation token (hashed, 6.5)."
+      "notes": "Financier door — creates account via email-bound invitation token (hashed, 6.5)."
     },
     {
       "route": "/api/auth/reset-password",
@@ -1674,7 +1674,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Seller-scoped certification CRUD \u2014 ownership checked in service (seller profile owner)."
+      "notes": "Seller-scoped certification CRUD — ownership checked in service (seller profile owner)."
     },
     {
       "route": "/api/chat/widget/messages",
@@ -1702,7 +1702,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Public webchat widget (WA-CHAT) \u2014 anonymous by design; the session cookie is read only to prefill the visitor name/phone and link an existing account (guard-lint scans MANUAL_REVIEW because of the optional getSessionUser call, reviewed as PUBLIC)."
+      "notes": "Public webchat widget (WA-CHAT) — anonymous by design; the session cookie is read only to prefill the visitor name/phone and link an existing account (guard-lint scans MANUAL_REVIEW because of the optional getSessionUser call, reviewed as PUBLIC)."
     },
     {
       "route": "/api/contact",
@@ -1883,6 +1883,33 @@
       "moduleKeys": []
     },
     {
+      "route": "/api/financier/analytics/export",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/analytics/overview",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/branches",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
       "route": "/api/financier/conditions",
       "bucket": "AUTHENTICATED_USER",
       "methods": [
@@ -1922,6 +1949,95 @@
       "moduleKeys": []
     },
     {
+      "route": "/api/financier/contracts",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Versioned contract templates (Phase 10.3): staff-scoped; sha256 computed server-side; version minted max+1 per kind."
+    },
+    {
+      "route": "/api/financier/contracts/[id]",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "PUT"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Contract template draft edit — DRAFT-only (409 once ACTIVE/RETIRED); sha256 recomputed on body change."
+    },
+    {
+      "route": "/api/financier/contracts/[id]/activate",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Single-active template activation — all other templates of the kind retire atomically."
+    },
+    {
+      "route": "/api/financier/contracts/[id]/retire",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Template retirement — leaves no active template; new signings fail closed until a new activation."
+    },
+    {
+      "route": "/api/financier/disbursements",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/disbursements/[id]/cancel",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/disbursements/[id]/confirm",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/esign/executions",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "E-signature execution ledger (Phase 10.4) for the financier org; evidence parsed for the detail dialog."
+    },
+    {
+      "route": "/api/financier/limits",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "PUT"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
       "route": "/api/financier/offers",
       "bucket": "AUTHENTICATED_USER",
       "methods": [
@@ -1941,10 +2057,57 @@
       "moduleKeys": []
     },
     {
+      "route": "/api/financier/payments",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/payments/[id]/allocate",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/payments/[id]/reverse",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
       "route": "/api/financier/profile",
       "bucket": "AUTHENTICATED_USER",
       "methods": [
         "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/reconciliations",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/reconciliations/[id]/resolve",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
       ],
       "permissionKeys": [],
       "moduleKeys": []
@@ -2005,6 +2168,26 @@
       "moduleKeys": []
     },
     {
+      "route": "/api/financier/risk-assessments",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/risk-config",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "PUT"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
       "route": "/api/financier/services",
       "bucket": "AUTHENTICATED_USER",
       "methods": [
@@ -2044,6 +2227,28 @@
       "moduleKeys": []
     },
     {
+      "route": "/api/financier/sharia/certifications",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Sharia certifications register (Phase 10.3): OWNER/ADMIN staff of the active financier org via requireFinancierContext + membership guard in the service; expiry reminders emitted idempotently on list."
+    },
+    {
+      "route": "/api/financier/sharia/certifications/[id]",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "PUT",
+        "DELETE"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Sharia certification update/delete: OWNER/ADMIN staff; org binding re-checked against the row's financier profile in the service."
+    },
+    {
       "route": "/api/financier/team",
       "bucket": "AUTHENTICATED_USER",
       "methods": [
@@ -2074,6 +2279,37 @@
       ],
       "permissionKeys": [],
       "moduleKeys": []
+    },
+    {
+      "route": "/api/financing/agreements/[id]/contract",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Buyer e-sign context: applicant-only (creator or applicant-org member); 404 TEMPLATE_INACTIVE when no active template."
+    },
+    {
+      "route": "/api/financing/agreements/[id]/sign",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Buyer e-sign execution: fail-closed chain — applicant binding (403), ACTIVE+first execution (409), active template (404), hash fail-closed (400), consent (400), step-up MFA (428/400)."
+    },
+    {
+      "route": "/api/financing/agreements/[id]/statement",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [
+        "financing-hub"
+      ]
     },
     {
       "route": "/api/financing/requests",
@@ -2149,7 +2385,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Public financing hub listing (GET). POST (apply) requires session \u2014 inline auth in handler."
+      "notes": "Public financing hub listing (GET). POST (apply) requires session — inline auth in handler."
     },
     {
       "route": "/api/financing/services/[id]",
@@ -2278,7 +2514,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Buyer payment attempt \u2014 ownership checked in payment service."
+      "notes": "Buyer payment attempt — ownership checked in payment service."
     },
     {
       "route": "/api/orders/[id]/refund",
@@ -2288,7 +2524,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Session buyer (getSessionUser + ownership check inside requestRefund: only the order buyer may request; refundable only when money actually moved \u2014 paidStates guard). Rate-limited like checkout."
+      "notes": "Session buyer (getSessionUser + ownership check inside requestRefund: only the order buyer may request; refundable only when money actually moved — paidStates guard). Rate-limited like checkout."
     },
     {
       "route": "/api/organizations",
@@ -2392,7 +2628,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Offer update/delete \u2014 offer seller ownership checked in service."
+      "notes": "Offer update/delete — offer seller ownership checked in service."
     },
     {
       "route": "/api/products/bulk",
@@ -2513,7 +2749,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Session user (getSessionUser): returns only the caller\u2019s own refunds (buyerRefunds scopes by order.buyerId = userId)."
+      "notes": "Session user (getSessionUser): returns only the caller’s own refunds (buyerRefunds scopes by order.buyerId = userId)."
     },
     {
       "route": "/api/refunds/[id]/cancel",
@@ -2523,7 +2759,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Session user (getSessionUser): cancelRefund verifies the refund\u2019s order belongs to the caller before any transition; only REQUESTED/APPROVED are cancellable."
+      "notes": "Session user (getSessionUser): cancelRefund verifies the refund’s order belongs to the caller before any transition; only REQUESTED/APPROVED are cancellable."
     },
     {
       "route": "/api/reviews",
@@ -2627,7 +2863,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Seller fulfillment queue \u2014 items where sellerId = caller."
+      "notes": "Seller fulfillment queue — items where sellerId = caller."
     },
     {
       "route": "/api/seller/profile",
@@ -2704,7 +2940,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Media asset delete \u2014 ownership checked (uploadedById = caller) or catalog permission."
+      "notes": "Media asset delete — ownership checked (uploadedById = caller) or catalog permission."
     },
     {
       "route": "/api/vault/[documentId]",
@@ -2714,7 +2950,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Private-vault authenticated proxy (6.6.4): session re-authenticated per retrieval; HMAC-signed one-time nonce (VaultAccessGrant) verified + atomically consumed; access RE-authorized against the 6.8 matrix (owner / financing.documents.verify / org member per class / financier review scope) inside consumeVaultUrl \u2014 not a static permission key. Cache-Control: no-store; never redirects to storage/CDN."
+      "notes": "Private-vault authenticated proxy (6.6.4): session re-authenticated per retrieval; HMAC-signed one-time nonce (VaultAccessGrant) verified + atomically consumed; access RE-authorized against the 6.8 matrix (owner / financing.documents.verify / org member per class / financier review scope) inside consumeVaultUrl — not a static permission key. Cache-Control: no-store; never redirects to storage/CDN."
     }
   ]
 }

@@ -306,7 +306,7 @@ export async function updateConditionTemplate(
     include: { _count: { select: { serviceRequirements: true } } },
   })
   if (!existing) throw new FinancingError('Condition template not found', 404)
-  assertTemplateAccess(actor, existing.scope, existing.organizationId)
+  await assertTemplateAccess(actor, existing.scope, existing.organizationId)
 
   // The 8 kinds shape the answer columns — never retype an attached condition
   const nextType = (input.conditionType ?? existing.conditionType) as ConditionType
@@ -378,7 +378,7 @@ export async function setConditionTemplateActive(
 ): Promise<ConditionTemplateDTO> {
   const existing = await db.conditionTemplate.findUnique({ where: { id: templateId } })
   if (!existing) throw new FinancingError('Condition template not found', 404)
-  assertTemplateAccess(actor, existing.scope, existing.organizationId)
+  await assertTemplateAccess(actor, existing.scope, existing.organizationId)
   const updated = await db.conditionTemplate.update({
     where: { id: templateId },
     data: { isActive },
@@ -396,12 +396,15 @@ export async function setConditionTemplateActive(
   return serializeTemplate(updated as never)
 }
 
-/** Scope guard: GENERAL → platform admin; FINANCIER → OWNER/ADMIN of the owning org. */
-function assertTemplateAccess(
+/** Scope guard: GENERAL → platform admin; FINANCIER → OWNER/ADMIN of the owning org.
+ * (Phase 10 fix: this was a latent TS1308 — `await` in a non-async function —
+ * that made the module uncompilable by SWC and silently skipped the FINANCIER
+ * membership check at the two un-awaited call sites below.) */
+async function assertTemplateAccess(
   actor: { id: string; role: string },
   scope: string,
   organizationId: string | null
-): void | Promise<void> {
+): Promise<void> {
   if (scope === 'GENERAL') {
     if (!(await userHasPlatformPermission(actor.id, 'financing.requirements.manage'))) {
       throw new FinancingError('Only platform admins manage the GENERAL library', 403)
@@ -409,11 +412,10 @@ function assertTemplateAccess(
     return
   }
   if (!organizationId) throw new FinancingError('Malformed financier condition', 500)
-  return db.organizationMember
-    .findFirst({ where: { userId: actor.id, organizationId, role: { in: ['OWNER', 'ADMIN'] } } })
-    .then((m) => {
-      if (!m) throw new FinancingError('Access denied', 403)
-    })
+  const m = await db.organizationMember.findFirst({
+    where: { userId: actor.id, organizationId, role: { in: ['OWNER', 'ADMIN'] } },
+  })
+  if (!m) throw new FinancingError('Access denied', 403)
 }
 
 // ── ConditionOption child management (R-1: options are rows, never JSON) ────

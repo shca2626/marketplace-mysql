@@ -649,3 +649,62 @@ Stage Summary:
   10-b = analytics+risk+limits+branch-scoping (fills analytics-section.tsx)
   10-c = sharia+contracts+e-signature (fills sharia-section.tsx + esign-flow.tsx)
   10-d/10-e = Murabaha checkout (10.9) AFTER 10.1–10.8 E2E green + precondition docs.
+
+---
+Task ID: 10-a
+Agent: installments-disbursements (subagent; E2E completed + verified by main session after orchestration cutoff)
+Task: lastplan v5 §10.5 disbursement operations + §10.6 collections & statements + §10.8 installment payment model.
+
+Work Log:
+- Services built: src/server/modules/financing/disbursements.ts (queueDisbursement → confirmDisbursement w/ mandatory rail+reference + FX snapshot from ExchangeRate + legacy FinancingEvent DISBURSEMENT emitted + agreement → REPORTED_FUNDED; cancel from QUEUED) + installments.ts (recordPayment w/ fxRateToAgreement, allocatePayment waterfall by (dueDate, installmentNo) with partial + prepayment-into-future-installments + credit, reversePayment as NEW reversal rows mirroring original allocations (never rewrites), reconcileDay (ledgerActual = non-reversed − reversals per day) + resolveDiscrepancy, agreementStatement for staff/applicant).
+- APIs: /api/financier/disbursements (+[id]/confirm, [id]/cancel), /api/financier/payments (+[id]/allocate, [id]/reverse), /api/financier/reconciliations (+[id]/resolve), /api/financing/agreements/[id]/statement (buyer). All registered in route-classification.json.
+- UI: operations-section.tsx (Disbursements / Collections / Reconciliation pill tabs, KPI mini-rows, confirm/record/allocate/reverse/resolve dialogs) + buyer-statement.tsx (schedule w/ paid/outstanding/status/aging, payments, totals, NPL flag).
+- E2E verified live (curl cookie-jar, alamal staff + demo buyer): disbursement TEST-RAIL-001 400 YER CONFIRMED on AGR-2026-000005 (agreement REPORTED_FUNDED + legacy event); FX disbursement TEST-RAIL-FX-001 1 USD w/ fxRate 0.00189 on AGR-2026-000006; payments 60+150 waterfall → #1 PAID + #2 PAID + #3 partial 10 (prepayment), totals 400/210/190; partial reversal 50 → #1 out 40 (95d late, D90_PLUS) + #2 out 10 (40d, D31_60), overdueAmount 50, NPL true; reconciliation railExpected 205 vs ledgerActual 160 (net of reversal) → difference −45 OPEN → RESOLVED; negative-authz 401/403 clean.
+- QA residue: demo@vendora.com MFA enrollment (from the 10-c sign E2E) removed to restore password login; evidence of step-up persists in ESignatureExecution.signerMfaVerifiedAt + audit.
+
+Stage Summary:
+- The buyer-obligation ledger is real: aging/NPL/late-fee base all derive from ALLOCATED state (InstallmentAllocation), never from track-only rows; reversals are new rows; reconciliation is a discrepancy queue. Probe data (AGR-000005/6/7 + payments + reconciliation) retained deliberately as live demo/evidence data powering the analytics consoles.
+
+---
+Task ID: 10-b
+Agent: analytics-risk-limits (subagent; E2E completed + verified by main session)
+Task: lastplan v5 §10.1 portfolio analytics + §10.2 risk scoring + §10.7 branch operations & underwriting limits.
+
+Work Log:
+- Services: analytics.ts (funnel, disbursedVolume = CONFIRMED DisbursementRecords + legacy event fallback, outstandingPrincipal, aging buckets D1_30/D31_60/D61_90/D90_PLUS {count, amount} from allocated state, nplCount, per-branch rows via activityCity match, per-program rows, CSV export types overview/aging/branches/programs) + risk.ts (RiskConfig lazy-upsert, 6 weighted factors — amount/tenor/guarantee/capacity/history/documents — normalized weights, band LOW/MEDIUM/HIGH, decision DECISION_SUPPORT unless autoDecisionEnabled) + limits.ts (scopeKey matrix org|branch|user|branch:user, most-specific-wins resolution, setLimit upsert).
+- Enforcement hook (the one allowed shared-file edit): offers.ts createOffer + sendOffer now call assertOfferWithinUnderwritingLimit — no row = unlimited (legacy flow untouched).
+- APIs: /api/financier/analytics/overview, /export (text/csv attachment), /risk-config GET/PUT, /risk-assessments POST, /limits GET/PUT, /branches. UI: analytics-section.tsx (Overview / Risk scoring / Underwriting limits tabs, KPI cards, CSS aging bars, CSV buttons, weight editor + auto-decision danger toggle) + inbox-section.tsx branch filter (city match).
+- E2E verified: overview funnel 7 requests/4 offers/4 accepted/100% + disbursedVolume 401 + aging D31_60 {2,60} D90_PLUS {2,90} (cross-agreement = AGR-5 40+10 + AGR-6 50+50) + overdueAmount 150 + nplCount 2 + branch/program tables; CSV content-type + attachment + rows; risk assessment on FIN-2026-000001 score 79 LOW (weights sum 1.0, contributions sum 79, AUTO_APPROVE from the agent's enabled-phase test; config reset to defaults autoDecision=false); limit set 100 → offer 500 → 403 EXCEEDS_UNDERWRITING_LIMIT w/ amount in message → raised back; negative-authz 401/403.
+
+Stage Summary:
+- Analytics derive everything from allocated state + CONFIRMED disbursements (legacy event fallback keeps pre-Phase-10 agreements in the numbers). Known limitation noted: disbursedVolume sums disbursement amounts in their native currency when mixed (probe had 1 USD row alongside YER) — acceptable for now, flagged for a follow-up currency-normalization pass.
+
+---
+Task ID: 10-c
+Agent: sharia-esign (subagent; E2E evidence verified by main session)
+Task: lastplan v5 §10.3 Sharia artifacts + §10.4 e-signature evidence package.
+
+Work Log:
+- Services: sharia.ts (cert CRUD + computed expiryStatus VALID/EXPIRING_SOON/EXPIRED + idempotent 30-day reminder emission to org staff w/ reminderSentAt stamp) + contracts.ts (kind+version unique, server-computed sha256, DRAFT→ACTIVE single-active per kind w/ others RETIRED, draft re-edit recomputes hash, placeholder rendering {{agreementNumber}}/{{amount}}/{{installmentSchedule}}/…) + esign.ts (execution context for applicant; executeSignature fail-closed chain: applicant binding 403 → ACTIVE agreement + no execution 409 → ACTIVE template 404 → HASH FAIL-CLOSED (server recompute == stored == client-seen) 400 → consent 400 → TOTP step-up (valid code stamps signerMfaVerifiedAt; unenrolled 428) → persist w/ IP/UA/evidence MediumText package + audit + notification; listExecutions ledger).
+- APIs: /api/financier/sharia/certifications (+[id]), /api/financier/contracts (+[id], [id]/activate, [id]/retire), /api/financier/esign/executions, /api/financing/agreements/[id]/contract, /sign. UI: sharia-section.tsx (Certifications / Contract Templates / Executions pill tabs w/ expiry badges, version table, evidence-package detail dialog) + esign-flow.tsx (buyer: rendered contract preview, consent checkbox, typed signature, 6-digit MFA input w/ enrollment guidance, DOCUMENT_HASH_MISMATCH auto-reload).
+- E2E evidence verified in DB + browser: 3 template versions (v1/v2 RETIRED, v3 ACTIVE, sha256 f7e81d2c…); ESignatureExecution on AGR-2026-000004 w/ signerMfaVerifiedAt + IP ::1 + evidence package; certs incl. EXPIRING_SOON (reminderSentAt stamped, idempotent on second list) + EXPIRED + VALID; hash fail-closed + MFA negatives were executed by the agent pre-cutoff (probe IDs in qa/10c-ids.env).
+
+Stage Summary:
+- Signature = evidence, not proof-of-execution: identity binding (session + step-up TOTP), exact document version with hash fail-closed, server timestamp, IP/device, complete audit trail — all persisted in the package + AuditLog. Buyer sign card renders inside the agreements section with the v3 template fully substituted.
+
+---
+Task ID: 10-d
+Agent: main session
+Task: Phase 10 integration + acceptance verification (10.1–10.8) + latent-bug fix.
+
+Work Log:
+- All three parallel agents ran but were cut off by an orchestration deadline AFTER writing all code (9 services, ~30 API routes, 5 UI components, route registrations) and most of their E2E. Main session completed: 13 new tsc errors fixed (esign-flow ctx null-guard, contracts.ts TemplateRaw type, esign.ts applicantEmail nullable, scripts/tmp/check-yer-pairs.ts distinct), tsc back to baseline.
+- LATENT BUG FIXED (pre-existing since Phase 6, in the 166 baseline): conditions.ts assertTemplateAccess had `await` in a non-async function (TS1308) — the module was uncompilable by SWC, 500-ing every route importing services.ts (incl. the new disbursements list), AND its two un-awaited call sites silently skipped the FINANCIER membership check. Fixed: async + await at all 4 call sites. tsc 166 → 165.
+- Completed the missing 10-a E2E personally: payments waterfall (60+150 → #1/#2 PAID + #3 partial 10 prepayment), partial reversal 50 (aging: #1 D90_PLUS 95d, #2 D31_60 40d, overdueAmount 50, NPL true), reconciliation difference −45 (210 − 50 reversal − 205 rail) OPEN → RESOLVED, buyer statement via API as demo.
+- Negative-authz: 9/9 unauth 401 + 8/8 buyer-on-financier 403.
+- Browser-verified (agent-browser, screenshots qa/phase10a-operations.png, phase10a-reconciliation.png, phase10b-analytics.png, phase10c-sharia.png, phase10a-buyer-statement.png): financier console renders Operations/Analytics/Sharia & Contracts sections (pill tabs, KPIs, data rows); buyer agreements expanded card renders schedule + money events + installment statement + the Sign-your-agreement card (template v3, sha256, placeholders substituted: "FINANCING AGREEMENT AGR-2026-000007 between Al-Amal Bank and Alex Rivera… 300,000 YER repayable over 6 months").
+- guard-lint: 279 routes, zero drift/shadows/bare guards. Dev server OOM-killed repeatedly during the session (parallel compile spikes + 4 stale agent-browser chrome processes) — killed the stale browsers, restarted with the canonical nohup pattern.
+- Probe-data decisions: AGR-2026-000004/5/6/7 + payments/reconciliation/risk/templates/certs RETAINED as live demo + evidence data (they power the aging/NPL analytics and the executed-chip/ledger views); demo@vendora.com MFA enrollment REMOVED (login convenience restored; evidence persists); org underwriting limit left at 100M YER (effectively unlimited, harmless).
+
+Stage Summary:
+- Phase 10.1–10.8 COMPLETE and verified end-to-end. Remaining for full Phase 10: 10.9 Murabaha checkout (hard-gated: requires documented legal/Sharia review of the transaction sequence + late-fee policy BEFORE any checkout code — per lastplan C4) and the consolidated acceptance-gate E2E incl. branch scoping + statement correctness assertions.

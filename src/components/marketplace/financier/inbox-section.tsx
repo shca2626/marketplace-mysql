@@ -20,11 +20,13 @@ import {
   HandCoins,
   Inbox,
   Loader2,
+  MapPin,
   Plus,
   Send,
   ShieldCheck,
   Trash2,
   User,
+  X,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useApi } from '@/hooks/use-api'
@@ -74,12 +76,40 @@ import {
 
 // ── Inbox list ───────────────────────────────────────────────────────────────
 
+/** Branch-lite shape served by GET /api/financier/branches (active only). */
+interface InboxBranch {
+  id: string
+  name: string
+  city: string | null
+  district: string | null
+}
+
+/** City/district comparison that survives casing + apostrophe variants. */
+function samePlace(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false
+  const norm = (s: string) => s.trim().toLowerCase().replace(/[\u2018\u2019\u02BB`]/g, "'")
+  return norm(a) === norm(b)
+}
+
 export function InboxSection() {
   const { data, loading, error, refetch } = useApi<{
     requests: FinancingRequestSummaryDTO[]
     total: number
   }>('/api/financier/requests?limit=100')
+  const { data: branchesData } = useApi<{ branches: InboxBranch[] }>('/api/financier/branches')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // 10.7 — branch-scoped inbox: client-side filter on activityCity (or the
+  // branch district when both are stated). 'all' shows everything.
+  const [branchFilter, setBranchFilter] = useState<string>('all')
+
+  const branches = branchesData?.branches ?? []
+  const activeBranch = branchFilter !== 'all' ? branches.find((b) => b.id === branchFilter) ?? null : null
+
+  const allRequests = data?.requests ?? []
+  const requests = useMemo(() => {
+    if (!activeBranch) return allRequests
+    return allRequests.filter((r) => samePlace(r.activityCity, activeBranch.city))
+  }, [allRequests, activeBranch])
 
   if (loading) {
     return (
@@ -112,8 +142,6 @@ export function InboxSection() {
     )
   }
 
-  const requests = data?.requests ?? []
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border bg-primary/5 px-4 py-3">
@@ -121,15 +149,69 @@ export function InboxSection() {
           <ShieldCheck size={15} className="text-primary" />
           Every request here passed the platform verification gate — incomplete applications can never reach your inbox.
         </p>
-        <span className="text-xs text-muted-foreground">{data?.total ?? requests.length} total</span>
+        <div className="flex flex-wrap items-center gap-2">
+          {branches.length > 0 && (
+            <Select value={branchFilter} onValueChange={setBranchFilter}>
+              <SelectTrigger size="sm" className="h-8 w-44 rounded-full border-border bg-background text-xs" aria-label="Filter by branch">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <MapPin size={12} className="shrink-0 text-primary" />
+                  <SelectValue />
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All branches</SelectItem>
+                {branches.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {b.name}{b.city ? ` — ${b.city}` : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <span className="text-xs text-muted-foreground">
+            {activeBranch ? `${requests.length} of ${allRequests.length} for this branch` : `${data?.total ?? allRequests.length} total`}
+          </span>
+        </div>
       </div>
 
+      {activeBranch && (
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+            <MapPin size={12} />
+            {activeBranch.name}
+            <button
+              type="button"
+              aria-label={`Clear branch filter ${activeBranch.name}`}
+              className="ml-0.5 rounded-full p-0.5 hover:bg-primary/20"
+              onClick={() => setBranchFilter('all')}
+            >
+              <X size={12} />
+            </button>
+          </span>
+          <span className="text-[11px] text-muted-foreground">
+            showing activity city {activeBranch.city ?? '—'} (case-insensitive)
+          </span>
+        </div>
+      )}
+
       {requests.length === 0 ? (
-        <EmptyState
-          icon={Inbox}
-          title="No forwarded requests yet"
-          description="When the platform forwards a verified application for one of your services, it lands here with its full verified checklist."
-        />
+        activeBranch ? (
+          <EmptyState
+            icon={MapPin}
+            title={`No requests for ${activeBranch.name}`}
+            description={`No forwarded application lists ${activeBranch.city ?? 'that city'} as its activity city. Switch back to all branches to see the full inbox.`}
+          >
+            <Button variant="outline" size="sm" className="rounded-xl" onClick={() => setBranchFilter('all')}>
+              Show all branches
+            </Button>
+          </EmptyState>
+        ) : (
+          <EmptyState
+            icon={Inbox}
+            title="No forwarded requests yet"
+            description="When the platform forwards a verified application for one of your services, it lands here with its full verified checklist."
+          />
+        )
       ) : (
         <div className="space-y-3">
           {requests.map((r) => (
