@@ -131,8 +131,10 @@ export interface ProductDTO {
   images: string[]
   categoryId: string
   category: CategoryDTO
-  sellerId: string
-  seller: { id: string; name: string; storeName?: string | null }
+  // 9.1: null = platform-curated catalog record (buyable only via a vendor's
+  // ACTIVE ProductOffer — see offers list on the product page).
+  sellerId: string | null
+  seller: { id: string; name: string; storeName?: string | null } | null
   stock: number
   soldCount: number
   rating: number
@@ -208,6 +210,17 @@ export interface ProductOfferDTO {
   soldCount: number
   createdAt: string
   product?: { id: string; title: string; status: string; slug: string | null; category: string; image: string | null }
+}
+
+/** 9.1: minimal structural offer shape for cart/buy-panel inputs — accepts
+ * ProductOfferDTO (SPA) and the public page's server-rendered offer rows alike. */
+export interface CartOfferInput {
+  id: string
+  sellerId: string
+  price: number
+  stock: number
+  sku?: string | null
+  seller?: { name: string; storeName: string | null } | null
 }
 
 /** Phase 3 KYP — a certification/compliance artifact on a product. */
@@ -322,7 +335,9 @@ export interface CartItem {
   image?: string | null
   stock: number
   quantity: number
-  sellerId: string
+  // 9.1: null = a curated catalog line awaiting a vendor offer pick (the buy
+  // panel enforces offer selection; checkout rejects offer-less curated lines).
+  sellerId: string | null
   sellerName?: string | null
   variantId?: string | null
   variantLabel?: string | null

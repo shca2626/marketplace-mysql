@@ -569,7 +569,7 @@ async function main() {
         items: {
           create: plan.items.map((i, n) => ({
             productId: items[n].id,
-            sellerId: items[n].sellerId,
+            sellerId: items[n].sellerId!, // 9.1: seeded products always carry their seller
             quantity: i.qty,
             price: items[n].price,
             title: items[n].title,
@@ -611,7 +611,7 @@ async function main() {
         items: {
           create: plan.items.map((i, n) => ({
             productId: items[n].id,
-            sellerId: items[n].sellerId,
+            sellerId: items[n].sellerId!, // 9.1: seeded products always carry their seller
             quantity: i.qty,
             price: items[n].price,
             title: items[n].title,

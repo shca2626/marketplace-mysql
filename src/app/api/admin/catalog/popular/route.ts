@@ -18,7 +18,8 @@ export async function GET() {
         popularRank: p.popularRank,
         featured: p.featured,
         category: p.category.name,
-        seller: p.seller.storeName,
+        // 9.1: curated records carry no seller — labeled as the Vendora catalog.
+        seller: p.seller?.storeName ?? 'Vendora Catalog',
         image: (() => {
           try {
             const arr = JSON.parse(p.images || '[]')

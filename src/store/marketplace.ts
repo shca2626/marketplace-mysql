@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import type { CartItem, ProductDTO, ProductOfferDTO, ProductVariantDTO, SessionUser } from '@/lib/types'
+import type { CartItem, CartOfferInput, ProductDTO, ProductVariantDTO, SessionUser } from '@/lib/types'
 import type { StorefrontSettings, BannerSlideDTO } from '@/lib/settings/schema'
 import { DEFAULT_STOREFRONT_SETTINGS } from '@/lib/settings/schema'
 import {
@@ -153,7 +153,7 @@ interface MarketplaceState {
     product: ProductDTO,
     quantity?: number,
     variant?: ProductVariantDTO | null,
-    offer?: ProductOfferDTO | null
+    offer?: CartOfferInput | null
   ) => { ok: boolean; message: string }
   updateQuantity: (lineId: string, quantity: number) => void
   removeFromCart: (lineId: string) => void

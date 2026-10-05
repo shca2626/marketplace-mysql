@@ -32,8 +32,10 @@ type ProductRaw = {
   images: string
   categoryId: string
   category: { id: string; name: string; slug: string; icon?: string | null }
-  sellerId: string
-  seller: { id: string; name: string; storeName?: string | null }
+  // 9.1: null sellerId/seller = platform-curated catalog record — DTO carries
+  // seller: null; the storefront renders the vendor-offers list instead.
+  sellerId: string | null
+  seller: { id: string; name: string; storeName?: string | null } | null
   stock: number
   soldCount: number
   rating: number

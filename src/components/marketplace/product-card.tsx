@@ -54,6 +54,7 @@ export function ProductCard({ product, index = 0 }: { product: ProductDTO; index
     // Modifier clicks keep native behavior (open in new tab/window).
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
     if (!spaActive) return // outside the SPA — the href navigates natively
+    if (!product.sellerId) return // 9.1: curated records have no store
     e.preventDefault()
     navigate('store', { sellerId: product.sellerId })
   }
@@ -192,17 +193,25 @@ export function ProductCard({ product, index = 0 }: { product: ProductDTO; index
               {product.title}
             </a>
           </h3>
-          <a
-            href={storeHref}
-            className="flex w-full items-center gap-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-primary"
-            onClick={openStore}
-            aria-label={`Visit ${(product.seller?.storeName ?? product.seller?.name) || 'seller'} store`}
-          >
-            <Store size={12} className="shrink-0" />
-            <span className="truncate">
-              {product.seller?.storeName ?? product.seller?.name ?? 'Vendora seller'}
+          {product.sellerId && product.seller ? (
+            <a
+              href={storeHref}
+              className="flex w-full items-center gap-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-primary"
+              onClick={openStore}
+              aria-label={`Visit ${(product.seller?.storeName ?? product.seller?.name) || 'seller'} store`}
+            >
+              <Store size={12} className="shrink-0" />
+              <span className="truncate">
+                {product.seller?.storeName ?? product.seller?.name ?? 'Vendora seller'}
+              </span>
+            </a>
+          ) : (
+            // 9.1: curated catalog record — no vendor store to visit.
+            <span className="flex w-full items-center gap-1 text-[11px] font-medium text-muted-foreground">
+              <Store size={12} className="shrink-0 text-bh-gold-dark" />
+              <span className="truncate">Vendora Catalog</span>
             </span>
-          </a>
+          )}
           <div className="flex w-full items-baseline justify-between gap-2">
             <div className="flex min-w-0 flex-col gap-0.5">
               <div className="flex min-w-0 items-baseline gap-1.5">

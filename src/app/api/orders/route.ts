@@ -41,6 +41,15 @@ class StockConflict extends Error {
   }
 }
 
+/** 9.1.3: a cart line resolved to no authoritative price (curated record
+ * without a vendor offer) — 400 with sourcing messaging, never a legacy
+ * price/stock fallback. */
+class UnpurchasableLine extends Error {
+  constructor(public title: string) {
+    super(`unpurchasable line ${title}`)
+  }
+}
+
 // POST /api/orders — checkout
 export async function POST(req: NextRequest) {
   try {
@@ -71,7 +80,8 @@ export async function POST(req: NextRequest) {
     const productMap = new Map(products.map((p) => [p.id, p]))
 
     // Vendor-lifecycle guard: a suspended vendor's catalog is un-purchasable
-    const sellerIds = [...new Set(products.map((p) => p.sellerId))]
+    // (9.1: curated rows carry sellerId null — excluded from this check).
+    const sellerIds = [...new Set(products.map((p) => p.sellerId).filter((s): s is string => !!s))]
     const suspendedSellers = await db.user.findMany({
       where: { id: { in: sellerIds }, status: 'SUSPENDED' },
       select: { storeName: true, name: true },
@@ -129,6 +139,18 @@ export async function POST(req: NextRequest) {
       if (!p) return NextResponse.json({ error: 'A product in your cart no longer exists' }, { status: 400 })
       if (p.status !== 'ACTIVE')
         return NextResponse.json({ error: `"${p.title}" is no longer available` }, { status: 400 })
+      // ── 9.1.2/9.1.3 PURCHASABILITY RULE: a curated catalog record
+      // (sellerId null) is buyable ONLY through a real vendor's ACTIVE offer.
+      // No legacy price/stock fallback exists for curated items, by design.
+      if (p.sellerId === null && !item.offerId) {
+        return NextResponse.json(
+          {
+            error: `"${p.title}" is a Vendora catalog record — pick a vendor offer to purchase it. Browse the vendors selling this item on its product page.`,
+            code: 'CURATED_REQUIRES_OFFER',
+          },
+          { status: 400 }
+        )
+      }
       if (item.offerId) {
         // Offer line — validate the offer itself (product, status, seller, stock)
         const o = offerMap.get(item.offerId)
@@ -182,14 +204,29 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const subtotal = items.reduce((sum, i) => {
+    // Resolve the authoritative unit price per cart line — FAIL-CLOSED (9.1.3):
+    // no `?? p.price` legacy fallback on offer lines. Curated lines carry an
+    // offer (validated above); seller-owned lines may use the listing price
+    // (the primary listing IS that seller's offer — 7.0 single-authority rule).
+    const lineUnitPrice = (i: (typeof items)[number]): number | null => {
       const p = productMap.get(i.productId)!
-      const ov = i.offerId && i.variantId ? offerVariantMap.get(`${i.offerId}:${i.variantId}`) : undefined
-      const unit = ov
-        ? (ov.price ?? offerMap.get(i.offerId!)?.price ?? p.price)
-        : i.offerId
-          ? (offerMap.get(i.offerId)?.price ?? p.price)
-          : (linePrice(i) ?? p.price)
+      if (i.offerId) {
+        const offer = offerMap.get(i.offerId)
+        if (!offer) return null
+        if (i.variantId) {
+          const ov = offerVariantMap.get(`${i.offerId}:${i.variantId}`)
+          return ov?.price ?? offer.price
+        }
+        return offer.price
+      }
+      const vp = linePrice(i)
+      if (vp != null) return vp
+      return p.sellerId != null ? p.price : null // curated without offer — unreachable post-validation
+    }
+
+    const subtotal = items.reduce((sum, i) => {
+      const unit = lineUnitPrice(i)
+      if (unit == null) throw new UnpurchasableLine(productMap.get(i.productId)?.title ?? 'An item')
       return sum + unit * i.quantity
     }, 0)
 
@@ -242,7 +279,14 @@ export async function POST(req: NextRequest) {
 
     // Seller-org resolution (7.0): items carry the authoritative org tenant —
     // the offer's org when buying via an offer, else the product owner's org.
-    const sellerIdsForOrg = [...new Set([...products.map((p) => p.sellerId), ...offerRows.map((o) => o.sellerId)])]
+    // 9.1: curated rows contribute no seller (nulls filtered out).
+    const sellerIdsForOrg = [
+      ...new Set(
+        [...products.map((p) => p.sellerId), ...offerRows.map((o) => o.sellerId)].filter(
+          (s): s is string => !!s
+        )
+      ),
+    ]
     const sellerOrgRows = await db.sellerProfile.findMany({
       where: { ownerUserId: { in: sellerIdsForOrg } },
       select: { ownerUserId: true, organizationId: true },
@@ -279,12 +323,15 @@ export async function POST(req: NextRequest) {
               const offer = i.offerId ? offerMap.get(i.offerId) : undefined
               const ov = i.offerId && i.variantId ? offerVariantMap.get(`${i.offerId}:${i.variantId}`) : undefined
               const effectiveSellerId = offer ? offer.sellerId : p.sellerId
+              // 9.1: curated records (sellerId null) were validated to carry an
+              // offer above — this guard is the type-level fail-closed backstop.
+              if (!effectiveSellerId) throw new UnpurchasableLine(p.title)
               return {
                 productId: p.id,
                 sellerId: effectiveSellerId,
                 sellerOrgId: sellerOrgMap.get(effectiveSellerId) ?? null,
                 quantity: i.quantity,
-                price: ov ? (ov.price ?? offer!.price) : offer ? offer.price : (linePrice(i) ?? p.price),
+                price: lineUnitPrice(i) ?? offer?.price ?? p.price, // 9.1.3: validated fail-closed upstream; last resort keeps TS honest
                 title: p.title,
                 image,
                 variantId: offer ? null : (variant?.id ?? null),
@@ -431,6 +478,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'Another shopper just bought the last units — the cart was refreshed with the stock that remains. Please review and try again.' },
         { status: 409 }
+      )
+    }
+    // 9.1.3: curated-without-offer line — sourcing messaging, no legacy fallback
+    if (err instanceof UnpurchasableLine) {
+      return NextResponse.json(
+        {
+          error: `"${err.title}" is a Vendora catalog record — pick a vendor offer to purchase it.`,
+          code: 'CURATED_REQUIRES_OFFER',
+        },
+        { status: 400 }
       )
     }
     console.error('orders POST error', err)

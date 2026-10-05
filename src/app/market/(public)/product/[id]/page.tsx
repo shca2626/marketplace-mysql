@@ -48,7 +48,9 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   if (!row) return { title: 'Product not found — Vendora Market' }
 
   const product = toProductDTO(row)
-  const title = product.metaTitle?.trim() || `${product.title} — ${product.seller.storeName || product.seller.name} | Vendora Market`
+  // 9.1: curated records have no seller — metadata falls back to Vendora.
+  const storeLabel = product.seller?.storeName || product.seller?.name || 'Vendora Catalog'
+  const title = product.metaTitle?.trim() || `${product.title} — ${storeLabel} | Vendora Market`
   const description =
     product.metaDescription?.trim() ||
     product.description.replace(/\s+/g, ' ').trim().slice(0, 160) ||
@@ -87,7 +89,10 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const related = await getRelatedProducts(product.id, product.categoryId)
   const base = await siteBaseUrl()
   const productUrl = toAbsoluteUrl(base, `/market/product/${product.id}`)
-  const storeUrl = `/market/store/${product.sellerId}`
+  // 9.1: curated records (sellerId null) have no store — the UI renders the
+  // vendor-offers list instead of a primary seller.
+  const isCurated = product.sellerId == null
+  const storeUrl = isCurated ? null : `/market/store/${product.sellerId}`
   const categoryUrl = `/market/category/${product.category.slug}`
 
   // ── Product JSON-LD (offers + aggregateRating when reviews exist) ──
@@ -101,7 +106,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
     ...(product.sku ? { sku: product.sku } : {}),
     ...(product.barcode ? { gtin13: product.barcode } : {}),
     category: product.category.name,
-    brand: { '@type': 'Brand', name: product.seller.storeName || product.seller.name },
+    brand: { '@type': 'Brand', name: product.seller?.storeName || product.seller?.name || 'Vendora Catalog' },
     offers: {
       '@type': 'Offer',
       url: productUrl,
@@ -109,7 +114,8 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
       price: product.price,
       availability: product.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
       itemCondition: 'https://schema.org/NewCondition',
-      seller: { '@type': 'Organization', name: product.seller.storeName || product.seller.name },
+      // 9.1: curated catalog record — the marketplace itself is the seller of record
+      seller: { '@type': 'Organization', name: product.seller?.storeName || product.seller?.name || 'Vendora' },
     },
   }
   if (product.reviewCount > 0 && product.rating > 0) {
@@ -165,13 +171,20 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           <span className="inline-flex items-center gap-1.5">
             <Package size={14} className="text-bh-faded" /> {formatNumber(product.soldCount)} sold
           </span>
-          <a
-            href={storeUrl}
-            className="inline-flex items-center gap-1.5 font-medium text-bh-navy underline-offset-4 transition-colors hover:text-bh-action hover:underline"
-          >
-            <Store size={14} className="text-bh-gold-dark" />
-            {product.seller.storeName || product.seller.name}
-          </a>
+          {storeUrl && product.seller ? (
+            <a
+              href={storeUrl}
+              className="inline-flex items-center gap-1.5 font-medium text-bh-navy underline-offset-4 transition-colors hover:text-bh-action hover:underline"
+            >
+              <Store size={14} className="text-bh-gold-dark" />
+              {product.seller.storeName || product.seller.name}
+            </a>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 font-medium text-bh-muted">
+              <Store size={14} className="text-bh-gold-dark" />
+              Vendora Catalog — available from verified vendors below
+            </span>
+          )}
         </div>
       </header>
 
@@ -181,9 +194,10 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           {/* Sidebar */}
           <aside className="space-y-6 self-start lg:col-span-4" aria-label="Buy">
             <div className="lg:sticky lg:top-40 space-y-6">
-              <ProductBuyPanel product={product} variants={variants} />
+              <ProductBuyPanel product={product} variants={variants} offers={otherSellers} />
 
-              {/* Seller card */}
+              {/* Seller card — 9.1: curated records render the vendor list instead */}
+              {product.seller && storeUrl ? (
               <div className="rounded-2xl border border-bh-border bg-bh-card p-5 shadow-card">
                 <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-bh-muted">Sold by</p>
                 <div className="flex items-center gap-3">
@@ -210,6 +224,39 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                   <Store size={15} className="text-bh-gold-dark" /> Visit store
                 </Link>
               </div>
+              ) : (
+              <div className="rounded-2xl border border-bh-border bg-bh-card p-5 shadow-card">
+                <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-bh-muted">Available from these vendors</p>
+                {otherSellers.length > 0 ? (
+                  <ul className="space-y-2.5">
+                    {otherSellers.slice(0, 5).map((o) => (
+                      <li key={o.id} className="flex items-center justify-between gap-3 text-sm">
+                        <span className="min-w-0 flex-1 truncate font-medium text-bh-navy">
+                          {o.seller.storeName || o.seller.name}
+                        </span>
+                        <span className="shrink-0 font-mono text-sm font-semibold text-bh-navy">
+                          {formatUSD(o.price)}
+                        </span>
+                      </li>
+                    ))}
+                    <li>
+                      <a
+                        href="#vendor-offers"
+                        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-bh-border bg-bh-bg-gold px-4 text-sm font-semibold text-bh-navy transition-colors hover:bg-bh-gold/30"
+                      >
+                        <Store size={15} className="text-bh-gold-dark" />
+                        {otherSellers.length === 1 ? 'View the vendor offer' : `View all ${otherSellers.length} vendor offers`}
+                      </a>
+                    </li>
+                  </ul>
+                ) : (
+                  <p className="text-sm leading-relaxed text-bh-muted">
+                    This Vendora catalog record is currently being sourced — no vendor offer is live yet.
+                    Check back soon, or request a quote and let vendors come to you.
+                  </p>
+                )}
+              </div>
+              )}
 
               {/* Assurance facts */}
               <div className="rounded-2xl border border-bh-border bg-bh-card p-5 shadow-card">
@@ -350,15 +397,17 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                 happens in the marketplace SPA at /market?view=product&id=. */}
             {otherSellers.length > 0 && (
               <section
+                id="vendor-offers"
                 className="rounded-2xl border border-bh-border bg-bh-card p-6 shadow-card"
                 aria-labelledby="offers-heading"
               >
                 <h2 id="offers-heading" className="h2-practical mb-1 text-bh-navy">
-                  Other sellers
+                  {isCurated ? 'Available from these vendors' : 'Other sellers'}
                 </h2>
                 <p className="mb-4 text-xs text-bh-muted">
-                  {otherSellers.length} more vendor {otherSellers.length === 1 ? 'offer' : 'offers'} on this listing —
-                  compare every seller in the marketplace.
+                  {isCurated
+                    ? 'A Vendora catalog record — purchase from any verified vendor below.'
+                    : `${otherSellers.length} more vendor ${otherSellers.length === 1 ? 'offer' : 'offers'} on this listing — compare every seller in the marketplace.`}
                 </p>
                 <ul className="space-y-2">
                   {otherSellers.map((offer) => (

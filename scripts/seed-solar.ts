@@ -970,7 +970,7 @@ assertNotProd() // Phase 6 (6.0b.8/B1): fail-closed — no production mode, ever
     createdProducts.push({
       id: created.id,
       title: created.title,
-      sellerId: created.sellerId,
+      sellerId: created.sellerId!, // 9.1: seeded products always carry their seller
       price: p.price,
       image: img,
       stock: p.stock,

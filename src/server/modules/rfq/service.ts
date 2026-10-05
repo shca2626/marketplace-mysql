@@ -277,6 +277,8 @@ export async function computeEligibleSellers(
   const titlesBySeller = new Map<string, string[]>()
   for (const s of sellers) {
     if (!s.product) continue
+    // 9.1: curated catalog records have no seller to group under.
+    if (!s.product.sellerId) continue
     titlesBySeller.set(s.product.sellerId, [...(titlesBySeller.get(s.product.sellerId) ?? []), s.product.title])
   }
 
@@ -814,6 +816,8 @@ export async function rfqTransition(
         })
         const keywordsBySeller = new Map<string, Set<string>>()
         for (const p of products) {
+          // 9.1: curated catalog records have no seller to match.
+          if (!p.sellerId) continue
           const kw = keywordsBySeller.get(p.sellerId) ?? new Set<string>()
           for (const t of tokenizeKeywords(p.title, p.category?.name)) kw.add(t)
           keywordsBySeller.set(p.sellerId, kw)
@@ -1930,6 +1934,13 @@ export async function convertQuoteToOrder(
           create: quote.lines.map((l) => {
             const offer = l.offerId ? offerById.get(l.offerId) : undefined
             const effectiveSellerId = offer ? offer.sellerId : l.product.sellerId
+            // 9.1: curated products convert only via offers — attribution
+            // always lands on a real seller (7.6 single-authority rule).
+            if (!effectiveSellerId) {
+              throw new Error(
+                `Quote line for curated product "${l.product.title}" has no vendor offer — cannot convert to an order.`
+              )
+            }
             return {
               productId: l.productId,
               sellerId: effectiveSellerId,

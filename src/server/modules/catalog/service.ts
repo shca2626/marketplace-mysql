@@ -591,11 +591,13 @@ export async function findDuplicates(): Promise<{ strong: DuplicatePair[]; candi
   return { strong, candidates: candidates.slice(0, 40) }
 }
 
-function dupInfo(p: { id: string; title: string; gtin: string | null; mpn: string | null; brand: { name: string } | null; seller: { storeName: string | null; name: string } }) {
+function dupInfo(p: { id: string; title: string; gtin: string | null; mpn: string | null; brand: { name: string } | null; seller: { storeName: string | null; name: string } | null }) {
+  // 9.1: curated records carry no seller — labeled as the Vendora catalog.
+  const sellerLabel = p.seller?.storeName || p.seller?.name || 'Vendora Catalog'
   return {
     id: p.id,
     title: p.title,
-    seller: p.seller.storeName ?? p.seller.name,
+    seller: sellerLabel,
     gtin: p.gtin,
     mpn: p.mpn,
     brand: p.brand?.name ?? null,
@@ -622,7 +624,10 @@ export async function mergeProducts(adminId: string, duplicateId: string, target
 
   const result = await db.$transaction(async (tx) => {
     // 1) The duplicate's seller becomes an offer holder on the target (if different from target owner)
-    if (dup.sellerId !== target.sellerId) {
+    //    9.1: a curated duplicate (sellerId null) contributes no offer; merging a
+    //    SELLER listing into a CURATED target is the aggregator-model path —
+    //    the seller's listing converts into an offer on the curated record.
+    if (dup.sellerId && dup.sellerId !== target.sellerId) {
       const existing = await tx.productOffer.findUnique({
         where: { productId_sellerId: { productId: targetId, sellerId: dup.sellerId } },
         select: { id: true, status: true },

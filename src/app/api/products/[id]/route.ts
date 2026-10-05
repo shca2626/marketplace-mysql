@@ -39,7 +39,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
     const isOwner = viewer?.id === product.sellerId
     const isAdmin = viewer ? await userHasPlatformPermission(viewer.id, 'catalog.products.view') : false
-    if (product.seller.status === 'SUSPENDED' && !isOwner && !isAdmin) {
+    // 9.1: curated records (seller null) have no suspended-seller state to check.
+    if (product.seller?.status === 'SUSPENDED' && !isOwner && !isAdmin) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 })
     }
 
@@ -49,7 +50,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     const favIds = await favoriteIdsFor(session?.id, [product.id])
 
     const related = await db.product.findMany({
-      where: { categoryId: product.categoryId, status: 'ACTIVE', seller: { status: 'ACTIVE' }, id: { not: product.id } },
+      // 9.1: curated records (sellerId null) qualify for related rails too.
+      where: { categoryId: product.categoryId, status: 'ACTIVE', OR: [{ sellerId: null }, { seller: { status: 'ACTIVE' } }], id: { not: product.id } },
       include: productInclude,
       orderBy: { soldCount: 'desc' },
       take: 4,

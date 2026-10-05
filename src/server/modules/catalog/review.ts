@@ -85,17 +85,20 @@ export async function decideProductReview(
     metadata: { action, note: note?.trim() ?? null, before: product.status, after: updated.status },
   })
 
-  await emitNotification({
-    userId: product.sellerId,
-    type: 'PRODUCT_REVIEW_STATUS',
-    title: action === 'APPROVE' ? 'Listing approved' : 'Listing rejected',
-    body:
-      action === 'APPROVE'
-        ? `"${product.title}" passed platform review and is now live in the catalog.`
-        : `"${product.title}" was rejected: ${note!.trim()}`,
-    linkView: 'seller',
-    linkId: productId,
-  })
+  // 9.1: curated records have no seller to notify (platform-owned decision).
+  if (product.sellerId) {
+    await emitNotification({
+      userId: product.sellerId,
+      type: 'PRODUCT_REVIEW_STATUS',
+      title: action === 'APPROVE' ? 'Listing approved' : 'Listing rejected',
+      body:
+        action === 'APPROVE'
+          ? `"${product.title}" passed platform review and is now live in the catalog.`
+          : `"${product.title}" was rejected: ${note!.trim()}`,
+      linkView: 'seller',
+      linkId: productId,
+    })
+  }
 
   return updated
 }
@@ -258,7 +261,11 @@ export async function listReviewQueue() {
       createdAt: p.createdAt.toISOString(),
       reviewNote: p.reviewNote,
       category: p.category.name,
-      seller: { id: p.seller.id, name: p.seller.name, storeName: p.seller.storeName, kycLevel: p.seller.kycLevel },
+      // 9.1: curated records carry no seller — the queue labels them as the
+      // platform catalog instead of a vendor.
+      seller: p.seller
+        ? { id: p.seller.id, name: p.seller.name, storeName: p.seller.storeName, kycLevel: p.seller.kycLevel }
+        : { id: 'vendora-catalog', name: 'Vendora Catalog', storeName: 'Vendora Catalog', kycLevel: null },
       hasImage: (() => {
         try {
           const arr = JSON.parse(p.images || '[]')

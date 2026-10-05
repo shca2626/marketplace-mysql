@@ -288,16 +288,19 @@ export async function adminVerifyCertification(
     metadata: { note: note ?? null, productId: cert.productId },
   })
   // Notify the seller — the bell + (mirrored) WhatsApp channel.
-  await emitNotification({
-    userId: cert.product.sellerId,
-    type: 'CERTIFICATION_STATUS',
-    title: approve ? 'Certification verified' : 'Certification rejected',
-    body: approve
-      ? `Your ${CERTIFICATION_KIND_LABELS[cert.kind] ?? cert.kind.toLowerCase()} "${cert.title}" on "${cert.product.title}" passed platform review — buyers now see the Verified specs badge.`
-      : `Your ${CERTIFICATION_KIND_LABELS[cert.kind] ?? cert.kind.toLowerCase()} "${cert.title}" on "${cert.product.title}" was rejected${note ? `: ${note.trim()}` : '.'}`,
-    linkView: 'seller',
-    linkId: cert.productId,
-  })
+  // 9.1: curated records have no seller to notify.
+  if (cert.product.sellerId) {
+    await emitNotification({
+      userId: cert.product.sellerId,
+      type: 'CERTIFICATION_STATUS',
+      title: approve ? 'Certification verified' : 'Certification rejected',
+      body: approve
+        ? `Your ${CERTIFICATION_KIND_LABELS[cert.kind] ?? cert.kind.toLowerCase()} "${cert.title}" on "${cert.product.title}" passed platform review — buyers now see the Verified specs badge.`
+        : `Your ${CERTIFICATION_KIND_LABELS[cert.kind] ?? cert.kind.toLowerCase()} "${cert.title}" on "${cert.product.title}" was rejected${note ? `: ${note.trim()}` : '.'}`,
+      linkView: 'seller',
+      linkId: cert.productId,
+    })
+  }
   return serializeCertification(updated as CertRaw)
 }
 

@@ -167,6 +167,8 @@ export async function GET(req: NextRequest) {
       entry.unitsSold += it.quantity
     }
     for (const p of productAggs) {
+      // 9.1: curated records (sellerId null) contribute to no seller's stats.
+      if (!p.sellerId) continue
       const entry = sellerMap.get(p.sellerId)
       if (!entry) continue
       entry.products += 1

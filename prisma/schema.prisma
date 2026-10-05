@@ -59,6 +59,7 @@ model User {
   emailVerificationTokens EmailVerificationToken[]
 
   products           Product[]
+  productsCurated    Product[]     @relation("ProductsCuratedBy") // 9.1: curated catalog records this admin owns (provenance)
   orders             Order[]
   reviews            Review[]
   favorites          Favorite[]
@@ -210,8 +211,15 @@ model Product {
   images         String   @default("[]") @db.VarChar(4000) // MYSQL: JSON string array of URLs (Aiven MySQL 8.4: TEXT columns can't take literal defaults — VarChar can; measured max ~50 chars, 4000 = ample headroom)
   categoryId     String
   category       Category @relation(fields: [categoryId], references: [id])
-  sellerId       String
-  seller         User     @relation(fields: [sellerId], references: [id])
+  // ── 9.1 3P catalog ownership: null = platform-curated catalog record ──
+  // (no primary seller; purchasable ONLY via a real vendor's ACTIVE ProductOffer —
+  // checkout enforces it, the legacy price/stock fallback paths are removed).
+  // Non-null = the classic seller-owned listing (primary-seller semantics kept).
+  sellerId       String?
+  seller         User?     @relation(fields: [sellerId], references: [id])
+  // 9.1 provenance: which admin actor created/owns the curated record (audit trail).
+  curatedById    String?
+  curatedBy      User?     @relation("ProductsCuratedBy", fields: [curatedById], references: [id])
   stock          Int      @default(10) // total units; with variants = sum of variant stock
   soldCount      Int      @default(0)
   rating         Float    @default(0)

@@ -154,10 +154,10 @@ export function CartView() {
                             via {item.offerSellerName ?? item.sellerName}
                           </span>
                         )}
-                        {item.sellerName ? (
+                        {item.sellerName && item.sellerId ? (
                           <button
                             className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-primary"
-                            onClick={() => navigate('store', { sellerId: item.sellerId })}
+                            onClick={() => navigate('store', { sellerId: item.sellerId! })}
                             aria-label={`Visit ${item.sellerName} store`}
                           >
                             Sold by {item.sellerName}

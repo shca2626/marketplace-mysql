@@ -158,6 +158,7 @@ export function CartDrawer() {
                         <button
                           className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-primary"
                           onClick={() => {
+                            if (!item.sellerId) return // 9.1: curated line
                             setCartOpen(false)
                             navigate('store', { sellerId: item.sellerId })
                           }}

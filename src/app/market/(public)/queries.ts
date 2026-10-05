@@ -38,7 +38,7 @@ export interface PublicOfferRow {
 export const getPublicProduct = cache(async (id: string) => {
   try {
     const product = await db.product.findFirst({
-      where: { id, status: 'ACTIVE', seller: { status: 'ACTIVE' } },
+      where: { id, status: 'ACTIVE', OR: [{ sellerId: null }, { seller: { status: 'ACTIVE' } }] }, // 9.1: curated records (null seller) included
       include: {
         ...productInclude,
         variants: { where: { isActive: true }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
@@ -88,7 +88,7 @@ export function toProductDTO(product: NonNullable<ProductWithRelations>): Produc
 /** Related products — same category, excluding the current one (featured/popular first). */
 export async function getRelatedProducts(productId: string, categoryId: string, take = 4): Promise<ProductDTO[]> {
   const rows = await db.product.findMany({
-    where: { status: 'ACTIVE', seller: { status: 'ACTIVE' }, categoryId, id: { not: productId } },
+    where: { status: 'ACTIVE', OR: [{ sellerId: null }, { seller: { status: 'ACTIVE' } }], categoryId, id: { not: productId } }, // 9.1: curated records included
     include: productInclude,
     orderBy: [{ featured: 'desc' }, { soldCount: 'desc' }],
     take,
@@ -197,17 +197,17 @@ export const getPublicCategory = cache(async (slug: string): Promise<PublicCateg
 
     const [rows, total, sellerRows] = await Promise.all([
       db.product.findMany({
-        where: { categoryId: category.id, status: 'ACTIVE', seller: { status: 'ACTIVE' } },
+        where: { categoryId: category.id, status: 'ACTIVE', OR: [{ sellerId: null }, { seller: { status: 'ACTIVE' } }] }, // 9.1: curated records included
         include: productInclude,
         orderBy: [{ featured: 'desc' }, { soldCount: 'desc' }],
         take: CATEGORY_GRID_CAP,
       }),
       db.product.count({
-        where: { categoryId: category.id, status: 'ACTIVE', seller: { status: 'ACTIVE' } },
+        where: { categoryId: category.id, status: 'ACTIVE', OR: [{ sellerId: null }, { seller: { status: 'ACTIVE' } }] }, // 9.1: curated records included
       }),
       // distinct seller ids listing in this category (count() has no distinct arg)
       db.product.findMany({
-        where: { categoryId: category.id, status: 'ACTIVE', seller: { status: 'ACTIVE' } },
+        where: { categoryId: category.id, status: 'ACTIVE', OR: [{ sellerId: null }, { seller: { status: 'ACTIVE' } }] }, // 9.1: curated records included
         distinct: ['sellerId'],
         select: { sellerId: true },
       }),
@@ -242,7 +242,7 @@ export const getCategoriesWithCounts = cache(async () => {
   try {
     const categories = await db.category.findMany({
       orderBy: { name: 'asc' },
-      include: { _count: { select: { products: { where: { status: 'ACTIVE', seller: { status: 'ACTIVE' } } } } } },
+      include: { _count: { select: { products: { where: { status: 'ACTIVE', OR: [{ sellerId: null }, { seller: { status: 'ACTIVE' } }] } } } } }, // 9.1: curated records counted
     })
     return categories.map((c) => ({
       id: c.id,

@@ -57,8 +57,9 @@ export async function GET(req: NextRequest) {
         where.status = statusFilter
     } else {
       // Public storefront: only live products from vendors in good standing
+      // 9.1: curated catalog records (sellerId null) are public by themselves.
       where.status = 'ACTIVE'
-      where.seller = { status: 'ACTIVE' }
+      where.OR = [{ sellerId: null }, { seller: { status: 'ACTIVE' } }]
     }
     if (featured) where.featured = true
     if (sellerId) where.sellerId = sellerId // store pages — coexists with the seller-status filter
@@ -77,6 +78,8 @@ export async function GET(req: NextRequest) {
           { category: { name: { contains: t } } },
           { seller: { storeName: { contains: t } } },
           { seller: { name: { contains: t } } },
+          // 9.1: match curated records by their own title when seller-less
+          ...(t ? [{ title: { contains: t } }] : []),
         ],
       }))
     }

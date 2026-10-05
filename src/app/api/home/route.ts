@@ -9,28 +9,28 @@ export async function GET() {
     const [featured, trending, newArrivals, categories, productCount, sellerCount, reviewCount, orderCount] =
       await Promise.all([
         db.product.findMany({
-          where: { status: 'ACTIVE', featured: true, seller: { status: 'ACTIVE' } },
+          where: { status: 'ACTIVE', featured: true, OR: [{ sellerId: null }, { seller: { status: 'ACTIVE' } }] }, // 9.1: curated included
           include: productInclude,
           orderBy: [{ rating: 'desc' }, { soldCount: 'desc' }],
           take: 8,
         }),
         db.product.findMany({
-          where: { status: 'ACTIVE', seller: { status: 'ACTIVE' } },
+          where: { status: 'ACTIVE', OR: [{ sellerId: null }, { seller: { status: 'ACTIVE' } }] }, // 9.1: curated included
           include: productInclude,
           orderBy: { soldCount: 'desc' },
           take: 8,
         }),
         db.product.findMany({
-          where: { status: 'ACTIVE', seller: { status: 'ACTIVE' } },
+          where: { status: 'ACTIVE', OR: [{ sellerId: null }, { seller: { status: 'ACTIVE' } }] }, // 9.1: curated included
           include: productInclude,
           orderBy: { createdAt: 'desc' },
           take: 8,
         }),
         db.category.findMany({
           orderBy: { name: 'asc' },
-          include: { products: { where: { status: 'ACTIVE', seller: { status: 'ACTIVE' } }, select: { images: true } } },
+          include: { products: { where: { status: 'ACTIVE', OR: [{ sellerId: null }, { seller: { status: 'ACTIVE' } }] }, select: { images: true } } }, // 9.1: curated included
         }),
-        db.product.count({ where: { status: 'ACTIVE', seller: { status: 'ACTIVE' } } }),
+        db.product.count({ where: { status: 'ACTIVE', OR: [{ sellerId: null }, { seller: { status: 'ACTIVE' } }] } }), // 9.1: curated counted
         db.user.count({ where: { role: 'SELLER', status: 'ACTIVE' } }),
         db.review.count(),
         db.order.count(),
