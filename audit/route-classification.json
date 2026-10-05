@@ -66,6 +66,40 @@
       "moduleKeys": []
     },
     {
+      "route": "/api/admin/agreements",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "catalog.products.moderate"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/agreements/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "PATCH"
+      ],
+      "permissionKeys": [
+        "catalog.products.moderate"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/agreements/consents",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "catalog.products.moderate"
+      ],
+      "moduleKeys": []
+    },
+    {
       "route": "/api/admin/audit-logs",
       "bucket": "PLATFORM_PRIVILEGED",
       "methods": [
@@ -305,6 +339,19 @@
       ],
       "permissionKeys": [
         "coupons.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/currency",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST",
+        "PATCH"
+      ],
+      "permissionKeys": [
+        "storefront.manage"
       ],
       "moduleKeys": []
     },
@@ -608,7 +655,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Digest trigger — internal endpoint guarded by header secret + optional session; runs the digest job (see service). Ops-only."
+      "notes": "Digest trigger \u2014 internal endpoint guarded by header secret + optional session; runs the digest job (see service). Ops-only."
     },
     {
       "route": "/api/admin/orders",
@@ -778,6 +825,58 @@
         "payouts.manage"
       ],
       "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/products",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "catalog.products.update"
+      ],
+      "moduleKeys": [],
+      "notes": "Phase 9.2 admin full-field creation of a CURATED platform catalog record (sellerId null, curatedById admin, isCurated true) — no KYC/publication-agreement gates; platform is the author."
+    },
+    {
+      "route": "/api/admin/products/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "permissionKeys": [
+        "catalog.products.update",
+        "catalog.products.moderate",
+        "catalog.products.delete"
+      ],
+      "moduleKeys": [],
+      "notes": "Phase 9.3 admin console: PUT full-field edit of ANY listing with mandatory reason + field-level audit diff + seller notification; PATCH archive/restore with reason; DELETE guarded hard-delete (offers/orders/reviews/favorites/quotes refuse)."
+    },
+    {
+      "route": "/api/admin/products/[id]/audit",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "catalog.products.view"
+      ],
+      "moduleKeys": [],
+      "notes": "Phase 9.3 product-scoped audit trail (diff viewer data source) — entityType=Product rows only."
+    },
+    {
+      "route": "/api/admin/products/bulk",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "catalog.products.moderate"
+      ],
+      "moduleKeys": [],
+      "notes": "Phase 9.3 bulk archive/restore/feature/unfeature — one audit entry per action, reason mandatory."
     },
     {
       "route": "/api/admin/price-lists",
@@ -1402,7 +1501,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Self-service — verifies current password; bumps sessionVersion."
+      "notes": "Self-service \u2014 verifies current password; bumps sessionVersion."
     },
     {
       "route": "/api/auth/forgot-password",
@@ -1488,7 +1587,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Registration door (B2B company self-signup) — creates account + org."
+      "notes": "Registration door (B2B company self-signup) \u2014 creates account + org."
     },
     {
       "route": "/api/auth/register/financier",
@@ -1498,7 +1597,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Financier door — creates account via email-bound invitation token (hashed, 6.5)."
+      "notes": "Financier door \u2014 creates account via email-bound invitation token (hashed, 6.5)."
     },
     {
       "route": "/api/auth/reset-password",
@@ -1575,7 +1674,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Seller-scoped certification CRUD — ownership checked in service (seller profile owner)."
+      "notes": "Seller-scoped certification CRUD \u2014 ownership checked in service (seller profile owner)."
     },
     {
       "route": "/api/chat/widget/messages",
@@ -1603,7 +1702,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Public webchat widget (WA-CHAT) — anonymous by design; the session cookie is read only to prefill the visitor name/phone and link an existing account (guard-lint scans MANUAL_REVIEW because of the optional getSessionUser call, reviewed as PUBLIC)."
+      "notes": "Public webchat widget (WA-CHAT) \u2014 anonymous by design; the session cookie is read only to prefill the visitor name/phone and link an existing account (guard-lint scans MANUAL_REVIEW because of the optional getSessionUser call, reviewed as PUBLIC)."
     },
     {
       "route": "/api/contact",
@@ -2050,7 +2149,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Public financing hub listing (GET). POST (apply) requires session — inline auth in handler."
+      "notes": "Public financing hub listing (GET). POST (apply) requires session \u2014 inline auth in handler."
     },
     {
       "route": "/api/financing/services/[id]",
@@ -2179,7 +2278,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Buyer payment attempt — ownership checked in payment service."
+      "notes": "Buyer payment attempt \u2014 ownership checked in payment service."
     },
     {
       "route": "/api/orders/[id]/refund",
@@ -2189,7 +2288,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Session buyer (getSessionUser + ownership check inside requestRefund: only the order buyer may request; refundable only when money actually moved — paidStates guard). Rate-limited like checkout."
+      "notes": "Session buyer (getSessionUser + ownership check inside requestRefund: only the order buyer may request; refundable only when money actually moved \u2014 paidStates guard). Rate-limited like checkout."
     },
     {
       "route": "/api/organizations",
@@ -2293,7 +2392,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Offer update/delete — offer seller ownership checked in service."
+      "notes": "Offer update/delete \u2014 offer seller ownership checked in service."
     },
     {
       "route": "/api/products/bulk",
@@ -2414,7 +2513,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Session user (getSessionUser): returns only the caller’s own refunds (buyerRefunds scopes by order.buyerId = userId)."
+      "notes": "Session user (getSessionUser): returns only the caller\u2019s own refunds (buyerRefunds scopes by order.buyerId = userId)."
     },
     {
       "route": "/api/refunds/[id]/cancel",
@@ -2424,7 +2523,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Session user (getSessionUser): cancelRefund verifies the refund’s order belongs to the caller before any transition; only REQUESTED/APPROVED are cancellable."
+      "notes": "Session user (getSessionUser): cancelRefund verifies the refund\u2019s order belongs to the caller before any transition; only REQUESTED/APPROVED are cancellable."
     },
     {
       "route": "/api/reviews",
@@ -2528,7 +2627,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Seller fulfillment queue — items where sellerId = caller."
+      "notes": "Seller fulfillment queue \u2014 items where sellerId = caller."
     },
     {
       "route": "/api/seller/profile",
@@ -2569,6 +2668,15 @@
       "moduleKeys": []
     },
     {
+      "route": "/api/settings/currency",
+      "bucket": "PUBLIC",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
       "route": "/api/spec-attributes",
       "bucket": "AUTHENTICATED_USER",
       "methods": [
@@ -2596,7 +2704,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Media asset delete — ownership checked (uploadedById = caller) or catalog permission."
+      "notes": "Media asset delete \u2014 ownership checked (uploadedById = caller) or catalog permission."
     },
     {
       "route": "/api/vault/[documentId]",
@@ -2606,29 +2714,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Private-vault authenticated proxy (6.6.4): session re-authenticated per retrieval; HMAC-signed one-time nonce (VaultAccessGrant) verified + atomically consumed; access RE-authorized against the 6.8 matrix (owner / financing.documents.verify / org member per class / financier review scope) inside consumeVaultUrl — not a static permission key. Cache-Control: no-store; never redirects to storage/CDN."
-    },
-    {
-      "route": "/api/settings/currency",
-      "bucket": "PUBLIC",
-      "methods": [
-        "GET"
-      ],
-      "permissionKeys": [],
-      "moduleKeys": []
-    },
-    {
-      "route": "/api/admin/currency",
-      "bucket": "PLATFORM_PRIVILEGED",
-      "methods": [
-        "GET",
-        "POST",
-        "PATCH"
-      ],
-      "permissionKeys": [
-        "storefront.manage"
-      ],
-      "moduleKeys": []
+      "notes": "Private-vault authenticated proxy (6.6.4): session re-authenticated per retrieval; HMAC-signed one-time nonce (VaultAccessGrant) verified + atomically consumed; access RE-authorized against the 6.8 matrix (owner / financing.documents.verify / org member per class / financier review scope) inside consumeVaultUrl \u2014 not a static permission key. Cache-Control: no-store; never redirects to storage/CDN."
     }
   ]
 }

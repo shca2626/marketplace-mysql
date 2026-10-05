@@ -293,7 +293,11 @@ export async function POST(req: NextRequest) {
     })
     const sellerOrgMap = new Map(sellerOrgRows.map((sp) => [sp.ownerUserId, sp.organizationId]))
 
-    const { order, paymentCaptured } = await db.$transaction(async (tx) => {
+    // 20s timeout — remote-Aiven latency headroom (same as payouts/refunds):
+    // checkout performs many sequential conditional-decrement queries and the
+    // default 5s interactive-transaction limit can expire mid-transaction.
+    const { order, paymentCaptured } = await db.$transaction(
+      async (tx) => {
       const created = await tx.order.create({
         data: {
           buyerId: user.id,
@@ -426,7 +430,9 @@ export async function POST(req: NextRequest) {
         }
       }
       return { order: created, paymentCaptured }
-    })
+      },
+      { timeout: 20_000 } // remote-Aiven latency headroom
+    )
 
     // Bell event for the org's approvers (after the tx commits — no ghost pings on rollback)
     if (routeForApproval) {

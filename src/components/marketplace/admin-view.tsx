@@ -49,6 +49,7 @@ import { CatalogUnitsTab } from './admin/catalog/units-tab'
 import { CatalogOrgTypesTab } from './admin/catalog/org-types-tab'
 import { CatalogDuplicatesTab } from './admin/catalog/duplicates-tab'
 import { CatalogPopularTab } from './admin/catalog/popular-tab'
+import { AgreementsTab } from './admin/agreements-tab'
 import { AdminSettings } from './admin-settings'
 import { RfqSettings } from './admin/settings/rfq-settings'
 
@@ -121,6 +122,7 @@ function AdminDashboard({ user }: { user: SessionUser | null }) {
       {activeSection === 'catalog-org-types' && <CatalogOrgTypesTab />}
       {activeSection === 'catalog-duplicates' && <CatalogDuplicatesTab />}
       {activeSection === 'catalog-popular' && <CatalogPopularTab />}
+      {activeSection === 'catalog-agreements' && <AgreementsTab />}
       {activeSection === 'orders' && <AdminOrdersTab />}
       {activeSection === 'payments' && <PaymentsTab />}
       {activeSection === 'payouts' && <PayoutsTab />}

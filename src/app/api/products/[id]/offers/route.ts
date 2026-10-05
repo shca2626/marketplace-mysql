@@ -75,6 +75,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     )
   } catch (err) {
     if (err instanceof OfferError) return NextResponse.json({ error: err.message }, { status: err.status })
+    // Plain Errors carrying a status (e.g. the KYC publish gate's 403) must
+    // surface their actionable message, not a 500.
+    const status = (err as { status?: number }).status
+    if (typeof status === 'number' && status >= 400 && status < 500)
+      return NextResponse.json({ error: (err as Error).message }, { status })
     console.error('product offers POST error', err)
     return NextResponse.json({ error: 'Failed to attach offer' }, { status: 500 })
   }

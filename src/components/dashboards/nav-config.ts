@@ -25,6 +25,7 @@ import {
   Package,
   Palette,
   Ruler,
+  FileSignature,
   Scale,
   ScrollText,
   Shield,
@@ -134,6 +135,7 @@ export const ADMIN_NAV: NavConfig = {
         { key: 'catalog-org-types', label: 'Org Types', icon: Building, description: 'Organization type labels & ordering', permission: 'catalog.products.moderate' },
         { key: 'catalog-duplicates', label: 'Duplicates', icon: GitMerge, description: 'Similarity scan & merge governance', permission: 'catalog.products.moderate' },
         { key: 'catalog-popular', label: 'Popular Rail', icon: TrendingUp, description: 'Homepage popular products ordering', permission: 'catalog.products.moderate' },
+        { key: 'catalog-agreements', label: 'Pub. Agreements', icon: FileSignature, description: 'Publication agreement templates & consent records', permission: 'catalog.products.moderate', badge: 'New' },
       ],
     },
     {
@@ -184,6 +186,7 @@ export const ADMIN_NAV: NavConfig = {
     'catalog-org-types': { title: 'Organization Types', description: 'Labels and descriptions users see for each organization type — behavior is code-defined.' },
     'catalog-duplicates': { title: 'Duplicate Governance', description: 'Scan for probable duplicates and merge them — the duplicate becomes an offer on the canonical listing.' },
     'catalog-popular': { title: 'Popular Rail', description: 'The ranked products powering the homepage Popular rail.' },
+    'catalog-agreements': { title: 'Publication Agreements', description: 'Versioned agreement templates, per-org-type defaults, and the searchable consent ledger — who agreed to publish what, when.' },
     orders: { title: 'Orders', description: 'Every order placed on the platform — buyers, sellers and money.' },
     payments: { title: 'Payments', description: 'Settlement console — bank transfers and invoices awaiting capture.' },
     payouts: { title: 'Payouts', description: 'Vendor settlement batches and commission configuration.' },

@@ -385,3 +385,239 @@ Stage Summary:
 - Next candidates: pair a real WhatsApp sender from the admin UI (needs a real phone);
   consider surfacing rate-history sparkline in the Live Rates rows; storefront
   currency-switcher mobile polish.
+
+---
+Task ID: 9 (Phase 9 — 3P Catalog Ownership Model + Admin Product Management 100%)
+Agent: main (z.ai code) + subagents 9-2a / 9-2b
+Task: lastplan v5 §9 — resolve the system-seller contradiction (C3), make curated
+records purchasable only via vendor offers, full admin product form + CRUD with
+teeth, publication agreement management. E2E the acceptance gate, migrate, push.
+
+Work Log:
+- **9.1 Data model (main):** Product.sellerId → nullable (null = platform-curated
+  record) + Product.curatedById provenance (admin actor) + User.productsCurated
+  back-relation; pushed to Aiven. scripts/p9-migrate-curated.ts migrated the
+  system-seller rows (1 product → sellerId null + curatedById + isCurated),
+  ARCHIVED the Vendora Catalog account's own offer, SUSPENDED the account (kill
+  switch: lingering offers fail the active-seller guard; seller counts fixed).
+  0 historical order items on the system seller.
+- **9.1 Purchasability (main):** checkout fail-closed — curated line without an
+  offerId → 400 CURATED_REQUIRES_OFFER + sourcing messaging; `?? p.price` legacy
+  fallbacks REMOVED (lineUnitPrice resolver: offer → (offer,variant) → variant →
+  seller-owned listing price; curated-without-offer = null → 400); suspended-seller
+  + seller-org maps null-filtered; OrderItem seller attribution guarded
+  (UnpurchasableLine backstop). RFQ quote→order conversion: curated without offer
+  throws (attribution always lands on a real seller).
+- **9.1 Null-audit (main, TS-proven):** serialize/types (ProductDTO.sellerId
+  nullable, seller: null), products/[id] (suspended check null-safe, related rails
+  curated-inclusive), public queries (getPublicProduct/related/category feeds/
+  counts curated-inclusive — the seller-status filters became OR:[{sellerId:null},
+  {seller:ACTIVE}]), products list + home + admin stats + popular + catalog
+  duplicates/merge (seller listing → curated target = offer conversion path kept),
+  catalog review queue + KYC cert notifications (curated = no seller to notify),
+  RFQ seller matching skips curated. bunx tsc: 213 → 166 errors, ZERO new from the
+  change (comm-diff verified against pre-change HEAD).
+- **9.1 Storefront rendering (main):** curated product page — header "Vendora
+  Catalog — available from verified vendors", seller card REPLACED by
+  "Available from these vendors" (top-5 offers + View-all anchor), offers section
+  retitle + #vendor-offers anchor, ProductBuyPanel vendor-offer picker (gold
+  curated banner, From-min-offer price, offer price/stock authority, offer required
+  before add-to-cart), product-card/cart-drawer/cart-view curated guards, JSON-LD
+  seller fallback, SEO metadata fallback.
+- **9.2+9.3 (subagent 9-2a, verified):** POST /api/admin/products (curated create:
+  sellerId null + curatedById + isCurated, full-field zod incl. variants/brand
+  pick-or-create/GTIN/MPN), admin-product-form-dialog.tsx (7-tab reuse: media/
+  specs/variants/shipping/SEO + gold curated banner), Add Product buttons in BOTH
+  admin Products + Catalog panels; PUT /api/admin/products/[id] (mandatory reason
+  ≥10 chars → PRODUCT_ADMIN_EDITED audit w/ field-level before/after diff +
+  PRODUCT_ADMIN_EDIT seller notification), PATCH archive/restore, DELETE guarded
+  (offers/orderItems/reviews/favorites/quoteLines → 409 archive-instead), bulk
+  archive/restore/feature (one audit entry per action), audit-diff viewer dialog.
+  E2E: create→GET(sellerId null)→edit(16-field diff)→delete-refused(409 w/offer)→
+  archive/restore→bulk(3 rows) all green; UI form created a real curated record.
+- **9.4 (subagent 9-2b, transport died post-work — main verified the artifacts):**
+  PublicationAgreementTemplate (versioned, single-active enforced on activate) +
+  PublicationConsent (unique (template,user,product), productTitle snapshot, IP)
+  models pushed; agreements.ts service (create/update-draft/activate/list+counts/
+  recordConsent idempotent/search+paginate/CSV export/getActive with legacy-seed
+  fallback); API GET/POST /api/admin/agreements + PATCH [id] + GET consents
+  (?export=csv text/csv attachment); AgreementsTab console (templates table +
+  consent ledger + export); seller publish path dual-writes into the consent ledger
+  (recordPublicationConsent in catalog/review.ts). Main-session E2E: v2 (agent's)
+  → create v3 201 → activate (single-active verified: v3 on, v2+1.0 off) → consent
+  search (product snapshot + seller info) → CSV export (text/csv + BOM + proper
+  headers) → v2 reactivated as production.
+- **Acceptance-gate E2E (main, the golden path):** qa-admin created curated
+  "Vendora Curated 550W Mono Panel" (201; sellerId null/curatedById/isCurated
+  verified in DB) → HelioMount (seller4) attached offer $118.50×25 (KYC L2 evidence
+  seeded: verified national ID + phone) → demo buyer bought 2×$118.50 = $237 PAID
+  via offerId → OrderItem.sellerId = HelioMount (attribution FROM the offer),
+  offerId set, sellerOrgId set; offer stock 25→23 (authority), product soldCount +2.
+  Browser: curated page renders vendor picker "HelioMount Hardware — $118.50" +
+  vendor card + gate section; admin products tab (Add Product + curated row) and
+  agreements tab render post-login.
+- **Fixes found by E2E (main):** offers route 500→403 for the KYC-gate plain Error
+  (status honored in catch); checkout transaction timeout 20s (remote-Aiven
+  headroom, matching payouts/refunds) — the 5s default expired mid-transaction.
+- **Regression:** negative-authz 20/20; guard-lint 255 routes zero drift (7 new
+  registered); tsc 166==166 baseline (zero new); Aiven in sync.
+
+Stage Summary:
+- Phase 9 delivered end-to-end: curated catalog records are first-class (no
+  system-seller contradiction), purchasable ONLY through real vendor offers with
+  zero legacy fallbacks, full admin product management (create/edit/archive/guarded-
+  delete/bulk + audit diffs + seller notifications), and publication agreements are
+  fully managed (versioned templates, consent ledger, CSV export, dual-write).
+- E2E evidence: C3 negative test (curated w/o offer → 400 CURATED_REQUIRES_OFFER),
+  golden path (admin→seller offer→buyer $237 PAID, attribution + stock authority
+  verified), moderation E2Es (audit diffs, guarded delete, bulk), agreements E2E
+  (single-active invariant, consent search + CSV export).
+- Data note: seller4 (HelioMount/Nadia) now carries KYC L2 evidence (verified
+  national ID) — realistic for demos; the E2E curated product + offer + $237 order
+  remain as demo data.
+- Next candidates (lastplan §10): Financier Operations 100% — portfolio analytics,
+  risk scoring, Sharia artifact management, e-signature evidence package,
+  installment payment model (10.8), Murabaha checkout preconditions (10.9).
+
+---
+Task ID: 9-2b
+Agent: catalog-agreements (Phase 9.4)
+Task: Publication agreement management — versioned admin-managed templates + immutable,
+searchable, exportable consent ledger (no hardcoded agreement text as the system of record).
+
+Work Log:
+- prisma/schema.prisma (append-only + additive back-relations, no existing model modified):
+  PublicationAgreementTemplate (version unique, isActive single-active enforced in service,
+  createdById→User "AgreementsAuthored") + PublicationConsent (template, optional product,
+  user, productTitle snapshot, ipAddress, @@unique([templateId,userId,productId]), indexes);
+  back-relations on User + Product. bun run db:push → in sync (Aiven).
+- src/server/modules/catalog/agreements.ts (NEW service): createTemplate/updateTemplate
+  (drafts only — active versions immutable so consents stay reproducible, 409),
+  activateTemplate (single-active in one $transaction), listTemplates (consent counts),
+  recordConsent (idempotent upsert on the unique key; NULL-productId guarded manually
+  because MySQL uniques ignore NULLs), searchConsents (templateId/userId/productId/q
+  free-text on product-title+seller+store/date range/pagination), exportConsents (CSV +
+  BOM + 50k cap), getActiveTemplate (active row → legacy-constant fallback row, seeded
+  lazily by seedLegacyTemplate from the Phase-4 text so consent capture NEVER silently
+  pauses), audit entries AGREEMENT_TEMPLATE_CREATED/UPDATED/ACTIVATED.
+- API (requireAdmin('catalog.products.moderate') + CSRF + rate limits; registered in
+  audit/route-classification.json — real path, not the scripts/ one the spec mentioned):
+  GET/POST /api/admin/agreements · PATCH /api/admin/agreements/[id] ({action:'activate'}
+  or draft fields) · GET /api/admin/agreements/consents (?export=csv → text/csv
+  attachment download, bare-date "to" inclusive of the whole day).
+- Seller-side dual-write (light, no seller-UI redesign): recordPublicationConsent
+  (catalog/review.ts) now records the ledger row via recordConsent + the classic audit
+  entry, returns the ledger version; POST /api/products passes clientIp + aligns
+  Product.publicationAgreementVersion to the ledger version after createProduct;
+  PUT /api/products/[id] FIXED A LATENT GAP — first-publish-via-PUT never stamped
+  publicationAgreedAt/Version on the row; now stamps them inside the update transaction.
+- UI: agreements-tab.tsx stub REPLACED (same export AgreementsTab): one console, sticky
+  pill-nav (currencies-console pattern) — Templates (table: version/title/status badge/
+  consents count/created + mobile cards; New-template dialog version+title+textarea;
+  draft edit; activate via AlertDialog "…existing consents keep their version";
+  read-only detail dialog with body + consent count; consents-count cross-link → ledger
+  pre-filtered) + Consent Ledger (search, template filter, datetime from/to, pagination,
+  blob-download Export CSV; product cell links the SPA product view, "deleted" badge when
+  the product row is gone; seller, version, accepted-at, IP columns). Warm theme, no
+  blue/indigo; max-h + overflow scroll on both tables.
+- E2E (qa-admin, live :3000 + Aiven): 401/403 negative authz ✓; v2 draft created →
+  first consent lazily seeded the 1.0 legacy template ACTIVE → activate v2 → single-active
+  verified (v2 ACTIVE, others draft) ✓; consent idempotency (product-bound + product-less,
+  same row id, counts stay 1) ✓; seller-publish dual-write both paths (POST create+publish:
+  row stamp aligned 1.0→v2 + ledger row with IP + title snapshot; PUT draft→publish: stamp
+  now lands + ledger row; re-publish no duplicate) ✓; filters q/templateId/from/userId ✓;
+  CSV export content-type + attachment + 3 rows ✓; browser-verified console render, v3
+  draft created via dialog, activate confirm → v3 ACTIVE (v2/1.0 → draft), detail dialog ✓
+  (6 screenshots qa/phase94-agreements-*.png). Probe data cleaned (v3 + probe products +
+  their consents deleted; v2 left ACTIVE; 3 evidence consents retained).
+- Verification: tsc 166 == 166 baseline (zero new); eslint zero problems on all 8 files;
+  guard-lint 255 routes ZERO drift/shadows/etc (fully green — includes parallel 9-2a's
+  routes registered by them); db:push "already in sync". Dev server OOM-killed twice
+  mid-session (parallel-agent compile spikes on the 3.9GB box) — restarted with the
+  canonical nohup pattern each time; browser session closed (Law 5).
+
+Stage Summary:
+- Publication agreements are now a managed, versioned, auditable object: admins author
+  versions, exactly one ACTIVE governs new publications, every seller acceptance lands in
+  the immutable consent ledger with product-title snapshot + IP, and the ledger exports to
+  CSV for compliance. Known deviation (deliberate, spec-conforming): the seller product
+  form still shows the legacy hardcoded sentence/label — task forbade touching
+  product-form files; the LEDGER + Product stamp now track the ACTIVE template version.
+- NOT committed/pushed (per task instructions — main session commits); work record in
+  agent-ctx/9-2b-agreements.md.
+
+---
+Task ID: 9-2a
+Agent: admin-products (Phase 9.2 + 9.3)
+Task: The owner's repeated ask — admin-side product creation (curated catalog records) + full CRUD
+and moderation with teeth on the admin Products panel (mandatory reasons, field-level audit diffs,
+seller notifications, guarded deletes, bulk actions).
+
+Work Log:
+- NOTE: this task landed in two sittings (first built the full file set, was interrupted mid-E2E;
+  second audited everything against the spec, completed E2E + browser verification, cleaned probes).
+- src/server/modules/catalog/admin-products.ts (NEW service): adminProductSchema =
+  productFormSchema + admin-only fields (brandId/brandName pick-or-create, featured, popularRank,
+  status incl. ARCHIVED); reasonSchema (>=10 chars, mandatory on every admin mutation);
+  createAdminCuratedProduct -> 9.1 ownership model (sellerId null, curatedById admin, isCurated true,
+  pre-approved reviewedAt/ById, images gate on publish, variant replace-all + stock sum, brand
+  auto-create by name); updateAdminProduct (full-field edit of ANY listing -> AuditLog
+  PRODUCT_ADMIN_EDITED with reason + changed[] field-level before/after diff (relational ids
+  resolved to names, variants summarized) + PRODUCT_ADMIN_EDIT notification to the seller);
+  adminArchiveOrRestoreProduct (ACTIVE<->ARCHIVED + featured cleared, reason recorded);
+  adminDeleteProduct (409 REFUSAL while offers/orderItems/reviews/favorites/quoteLines exist —
+  "archive instead" messaging; hard delete only unreferenced rows + PRODUCT_TAKEDOWN audit);
+  adminBulkProducts (archive/restore/feature/unfeature, ONE audit entry per action
+  PRODUCT_BULK_MODERATED, deduped seller notifications); listProductAuditTrail (product-scoped,
+  metadata parsed) for the diff viewer.
+- API (requireAdmin permission + assertSameOrigin + productWrite rate limit; registered in
+  audit/route-classification.json): POST /api/admin/products (catalog.products.update — creates
+  CURATED records only, no KYC/publication-agreement/review-queue gates: the platform is the
+  author) · PUT/PATCH/DELETE /api/admin/products/[id] (update / moderate / delete perms) ·
+  GET /api/admin/products/[id]/audit (catalog.products.view) · POST /api/admin/products/bulk
+  (catalog.products.moderate). DELETE body carries the mandatory reason.
+- src/components/marketplace/admin/admin-product-form-dialog.tsx (NEW): the full-field admin form
+  REUSING the modern seller form pieces (media-tab uploads/library/URL, variant-editor,
+  attribute-fields structured specs) + admin extras: gold "Create as curated Vendora catalog
+  record" banner, GTIN/MPN, brand linkage (none/existing/create-new), featured switch, popular
+  rank, status incl. ARCHIVED, quantity-break price tiers, highlights/custom-specs rows, shipping
+  (weightGrams/dims/processingDays/fee/policy), SEO tab; on EDIT a mandatory reason box (audit +
+  seller notification) with live character counter; submits to the new admin APIs.
+- src/components/marketplace/admin/product-moderation-dialogs.tsx (NEW): ProductReasonDialog
+  (AlertDialog archive/restore/delete with mandatory reason), BulkReasonDialog (one audit entry
+  per bulk action), ProductAuditDialog (audit-diff viewer: per-entry action badge + reason +
+  before -> after chip rows from AuditLog metadata.changed, skeleton loading, empty state).
+- products-tab.tsx REBUILT: gold Add Product button (toolbar + empty state), per-row Edit (opens
+  the full admin form), Audit history (diff viewer), Archive/Restore, Delete with confirm; bulk
+  multi-select checkboxes (page-scoped select-all, cross-page selection preserved) + sticky gold
+  bulk toolbar (Archive/Restore/Feature/Unfeature + clear); Vendora Catalog badge for curated rows;
+  mobile card layout mirrors every action.
+- catalog-products-tab.tsx: prominent gold Add Product (full-field curated creation via the admin
+  form) alongside the legacy Quick add; copy updated to the 9.1 curated-record semantics.
+- notifications/service.ts: 'PRODUCT_ADMIN_EDIT' added to the NotificationType union (the seller
+  sees platform edits/archives/restores/deletes with the reason).
+- E2E (live :3000 + Aiven, curl cookie-jar qa-admin): unauth 401 / buyer 403 / short-reason 400;
+  CREATE 201 with specs+variants+highlights+GTIN/MPN+brandName+featured+popularRank -> DB
+  sellerId null + isCurated true + curatedById admin + stock=sum(variants) + public GET seller
+  null/offers []; PUT edit w/ reason -> 200 + AuditLog PRODUCT_ADMIN_EDITED 16-field diff;
+  seller-owned edit -> PRODUCT_ADMIN_EDIT notification row for the seller; DELETE with an offer
+  attached -> 409 refusal w/ archive suggestion; PATCH archive -> ARCHIVED+unfeatured, restore ->
+  ACTIVE; bulk archive/feature 3 rows -> ONE audit entry per action (ids+reason) + affected=3.
+  Browser (qa/phase92-*.png, phase93-audit-diff-viewer.png): products tab renders all new
+  controls; admin form dialog opened and CREATED a curated record through the real UI (201);
+  audit-diff viewer renders before->after. Probe data fully cleaned (7 products, test brand,
+  offer/favorite fixtures, temp script); audit rows + seller notifications kept as evidence.
+- Verification: tsc 166 == 166 baseline (zero new); eslint zero problems on all 10 touched files;
+  guard-lint 255 routes ZERO drift (4 new routes registered); db:push "already in sync" (no schema
+  changes — schema was off-limits this task). prisma/schema.prisma untouched (its working-tree diff
+  is 9-2b's PublicationAgreement models, not mine).
+
+Stage Summary:
+- The platform owner can now create catalog records directly (the missing admin capability): a
+  curated record is born with full commerce fields, variants, specs and identity keys, and is
+  purchasable only through vendor offers — matching the 9.1 ownership model. The admin Products
+  panel is now a true moderation console: every destructive or seller-affecting action demands a
+  reason, writes a field-level audit diff, notifies the seller, and hard deletes are structurally
+  refused when commerce history is attached. Bulk actions write one audit entry per action.
+- NOT committed/pushed (per task instructions — main session commits); work record in
+  agent-ctx/9-2a-admin-products.md.

@@ -136,6 +136,10 @@ model User {
   offers           ProductOffer[] // this seller's offers on any catalog product
   productsReviewed Product[]      @relation("ProductsReviewedBy") // admin publish-review decisions
 
+  // ── Phase 9.4: publication agreement templates & consent ledger ──
+  agreementsAuthored PublicationAgreementTemplate[] @relation("AgreementsAuthored")
+  agreementConsents  PublicationConsent[]          @relation("AgreementConsents")
+
   @@index([role])
 }
 
@@ -276,6 +280,7 @@ model Product {
   variants         ProductVariant[]
   certifications  ProductCertification[]
   offers           ProductOffer[] // Phase 4: multi-vendor offers on this listing
+  agreementConsents PublicationConsent[] @relation("ProductAgreementConsents") // 9.4: publication-agreement consent ledger rows
 
   @@index([categoryId])
   @@index([sellerId, status])
@@ -2489,4 +2494,39 @@ model ModuleActivation {
 
   @@unique([moduleKey, scopeType, scopeId])
   @@index([scopeType, scopeId])
+}
+
+// ── Phase 9.4: publication agreement management ──────────────────────────────
+// Versioned Publication Agreement templates (admin-managed — no hardcoded
+// agreement text in code) + the immutable consent ledger. Exactly ONE template
+// is active at a time (enforced by activateTemplate in the service layer);
+// existing consents keep pointing at the version the seller actually accepted,
+// so every historical acceptance stays reproducible.
+model PublicationAgreementTemplate {
+  id          String   @id @default(cuid())
+  version     String   @unique // e.g. "v2"
+  title       String
+  body        String   @db.Text // the agreement markdown/text sellers accept
+  isActive    Boolean  @default(false) // exactly ONE active template recommended (enforce in service: activating one deactivates others)
+  createdById String?
+  createdBy   User?    @relation("AgreementsAuthored", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  consents    PublicationConsent[]
+}
+
+model PublicationConsent {
+  id             String   @id @default(cuid())
+  templateId     String
+  template       PublicationAgreementTemplate @relation(fields: [templateId], references: [id])
+  productId      String?
+  product        Product? @relation("ProductAgreementConsents", fields: [productId], references: [id])
+  userId         String  // the seller who consented
+  user           User    @relation("AgreementConsents", fields: [userId], references: [id])
+  productTitle   String? // snapshot for export even if product later deleted
+  acceptedAt     DateTime @default(now())
+  ipAddress      String?
+
+  @@unique([templateId, userId, productId]) // one consent per (template, user, product); product-less consents have productId null
+  @@index([templateId])
+  @@index([userId])
 }

@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { recordAudit } from '@/server/modules/audit/service'
 import { emitNotification } from '@/server/modules/notifications/service'
+import { recordConsent } from './agreements'
 
 /**
  * PHASE 4 — publish-approval workflow.
@@ -20,8 +21,28 @@ export class ReviewError extends Error {
   }
 }
 
-/** Audit-log the seller's Publication Agreement consent (owner Q6). */
-export async function recordPublicationConsent(sellerId: string, productId: string, productTitle: string, version: string): Promise<void> {
+/**
+ * Audit-log the seller's Publication Agreement consent (owner Q6).
+ *
+ * Phase 9.4 — dual-write: alongside the classic audit entry, every NEW
+ * acceptance also lands in the immutable PublicationConsent ledger (via
+ * recordConsent — idempotent, resolved against the ACTIVE template). Returns
+ * the ledger template version the consent was recorded against (null only if
+ * no template could be resolved).
+ */
+export async function recordPublicationConsent(
+  sellerId: string,
+  productId: string,
+  productTitle: string,
+  version: string,
+  ipAddress?: string | null
+): Promise<string | null> {
+  const consent = await recordConsent({
+    userId: sellerId,
+    productId,
+    productTitle,
+    ipAddress: ipAddress ?? null,
+  })
   await recordAudit({
     actorId: sellerId,
     actorType: 'SELLER',
@@ -29,8 +50,9 @@ export async function recordPublicationConsent(sellerId: string, productId: stri
     entityType: 'Product',
     entityId: productId,
     summary: `Seller accepted the Publication Agreement (v${version}) for "${productTitle}"`,
-    metadata: { productId, agreementVersion: version },
+    metadata: { productId, agreementVersion: version, ledgerVersion: consent?.version ?? null },
   })
+  return consent?.version ?? null
 }
 
 // ── Products ──────────────────────────────────────────────────────────────────

@@ -43,6 +43,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { AdminEmptyState, apiRequest, toastApiError } from '../shared'
+import { AdminProductFormDialog } from '../admin-product-form-dialog'
 
 interface CategoryRow {
   id: string
@@ -465,6 +466,8 @@ export function CatalogProductsTab() {
   const [cloningId, setCloningId] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+  // 9.2 — full-field curated creation via the admin product form
+  const [fullFormOpen, setFullFormOpen] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -507,15 +510,19 @@ export function CatalogProductsTab() {
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="max-w-xl text-sm text-muted-foreground">
-          Platform-curated listings owned by the <span className="font-semibold text-foreground">Vendora Catalog</span> account —
-          sellers attach their offers to them from the product page.
+          Platform-curated catalog records (<span className="font-semibold text-foreground">no seller of record</span>) —
+          vendors attach their offers to them from the product page; buyers buy through those offers.
         </p>
         <div className="flex shrink-0 flex-wrap gap-2">
           <Button variant="outline" className="rounded-xl" onClick={() => setImportOpen(true)}>
             <FileSpreadsheet size={15} className="mr-1.5" /> Import CSV
           </Button>
-          <Button className="rounded-xl" onClick={() => setCreateOpen(true)}>
-            <Plus size={15} className="mr-1.5" /> New curated listing
+          <Button variant="outline" className="rounded-xl" onClick={() => setCreateOpen(true)}>
+            <Plus size={15} className="mr-1.5" /> Quick add
+          </Button>
+          {/* 9.2 — the owner's ask: full-field admin creation of curated records */}
+          <Button className="rounded-xl" onClick={() => setFullFormOpen(true)}>
+            <Plus size={15} className="mr-1.5" /> Add Product
           </Button>
         </div>
       </div>
@@ -673,6 +680,16 @@ export function CatalogProductsTab() {
 
       <CuratedProductDialog open={createOpen} onOpenChange={setCreateOpen} onSaved={() => void load()} />
       <ImportCsvDialog open={importOpen} onOpenChange={setImportOpen} onSaved={() => void load()} />
+      {/* 9.2 — full-field curated creation (specs / variants / media / SEO / GTIN / brand) */}
+      <AdminProductFormDialog
+        open={fullFormOpen}
+        onOpenChange={(open) => {
+          setFullFormOpen(open)
+          if (!open) void load()
+        }}
+        editing={null}
+        onSaved={() => void load()}
+      />
     </div>
   )
 }

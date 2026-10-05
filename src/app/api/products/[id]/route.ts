@@ -10,7 +10,7 @@ import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 import { listPublicOffers, serializeOffer } from '@/server/modules/catalog/offers'
 import { getCatalogSettings, sellerNeedsPublishReview } from '@/server/modules/catalog/settings'
 import { recordPublicationConsent } from '@/server/modules/catalog/review'
-import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
+import { assertSameOrigin, enforceRateLimit, clientIp } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 
 // GET /api/products/[id] — product detail with reviews. Products of
@@ -253,8 +253,19 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
       }
     }
 
+    // Phase 9.4 dual-write: first-publish acceptance lands in the versioned
+    // consent ledger (ACTIVE template) + the classic audit entry. The ledger
+    // version also feeds the row-level stamp below so Product columns and the
+    // ledger never disagree.
+    let ledgerVersion: string | null = null
     if (d.publicationAgreed && firstPublish && !product.publicationAgreedAt) {
-      await recordPublicationConsent(user.id, id, product.title, PUBLICATION_AGREEMENT_VERSION)
+      ledgerVersion = await recordPublicationConsent(
+        user.id,
+        id,
+        product.title,
+        PUBLICATION_AGREEMENT_VERSION,
+        clientIp(req)
+      )
     }
 
     // Slug: explicit edit wins; otherwise keep existing; otherwise derive from title
@@ -301,6 +312,12 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
           mpn: d.mpn?.trim() || null,
           status: effectiveStatus,
           ...(reviewQueued ? { reviewNote: null } : {}),
+          // Phase 4 row-level stamp ("required once per listing") — set here
+          // on the first publish via PUT so it matches the POST path; the
+          // version comes from the consent ledger when one was just recorded.
+          ...(ledgerVersion
+            ? { publicationAgreedAt: new Date(), publicationAgreementVersion: ledgerVersion }
+            : {}),
         },
       })
       // Replace-all strategy keeps the grid in the form as the single source of truth

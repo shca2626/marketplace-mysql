@@ -7,7 +7,7 @@ import { ensureUniqueSlug, productFormSchema, slugify, createProduct, PUBLICATIO
 import { assertSellerCanPublish } from '@/server/modules/kyc/service'
 import { sellerNeedsPublishReview } from '@/server/modules/catalog/settings'
 import { recordPublicationConsent } from '@/server/modules/catalog/review'
-import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
+import { assertSameOrigin, enforceRateLimit, clientIp } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 
@@ -207,7 +207,22 @@ export async function POST(req: NextRequest) {
     try {
       const product = await createProduct(user.id, { ...parsed.data, status: effectiveStatus })
       if (parsed.data.publicationAgreed && wantsPublish) {
-        await recordPublicationConsent(user.id, product!.id, product!.title, PUBLICATION_AGREEMENT_VERSION)
+        // Phase 9.4 dual-write: the consent lands in the versioned ledger
+        // (against the ACTIVE template) + the classic audit entry; the row
+        // stamp is then aligned with the ledger version of record.
+        const ledgerVersion = await recordPublicationConsent(
+          user.id,
+          product!.id,
+          product!.title,
+          PUBLICATION_AGREEMENT_VERSION,
+          clientIp(req)
+        )
+        if (ledgerVersion && ledgerVersion !== product!.publicationAgreementVersion) {
+          await db.product.update({
+            where: { id: product!.id },
+            data: { publicationAgreementVersion: ledgerVersion },
+          })
+        }
       }
       return NextResponse.json(
         {

@@ -73,6 +73,8 @@ export type NotificationType =
   | 'PRODUCT_REVIEW_STATUS' // seller: listing passed/failed platform publish review
   | 'OFFER_REVIEW_STATUS' // seller: offer on a catalog product passed/failed review
   | 'SERVICE_REVIEW_STATUS' // financier: service passed/failed platform review
+  // ── Phase 9.3: admin product console (moderation with teeth) ──
+  | 'PRODUCT_ADMIN_EDIT' // seller: the platform edited/archived/restored/deleted your listing (reason included)
 
 export interface EmitInput {
   userId: string
