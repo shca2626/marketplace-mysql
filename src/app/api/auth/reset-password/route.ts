@@ -4,21 +4,32 @@ import { db } from '@/lib/db'
 import { hashPassword } from '@/lib/auth'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
-import { recordAudit } from '@/server/modules/audit/service'
-import { bumpSessionVersion, consumePasswordResetToken } from '@/lib/auth-tokens'
+import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
+import { consumePasswordResetToken } from '@/lib/auth-tokens'
 import { passwordChangedEmail } from '@/lib/emails/auth-emails'
 import { sendMail } from '@/lib/mailer'
+import { normalizeYemeniPhone } from '@/lib/phone'
+import { verifyOtpProof } from '@/server/modules/otp/service'
 
 /**
- * AUTHSEC-1 — consume a password-reset token and set the new password.
- * Side effects: single-use token burn (inside consume), sessionVersion bump
- * (kills every live session), remaining reset tokens deleted, confirmation
- * email to the account owner.
+ * AUTHSEC-1 + PHASE 3 — set a new password via one of two proofs:
+ *   EMAIL path: { token, password }            — 64-hex single-use link token
+ *   PHONE path: { phone, otpToken, password }   — WhatsApp OTP possession proof
+ *                                              (phone-optional-email accounts)
+ * Side effects: token burn / proof consumption, sessionVersion bump (kills
+ * every live session), remaining reset tokens deleted, confirmation email
+ * when the account has an email.
  */
-const resetSchema = z.object({
-  token: z.string().regex(/^[0-9a-f]{64}$/, 'Invalid reset link'),
-  password: z.string().min(8, 'Password must be at least 8 characters').max(100),
-})
+const resetSchema = z
+  .object({
+    token: z.string().regex(/^[0-9a-f]{64}$/, 'Invalid reset link').optional(),
+    phone: z.string().min(9).max(20).optional(),
+    otpToken: z.string().min(20, 'Phone verification is required').max(200).optional(),
+    password: z.string().min(8, 'Password must be at least 8 characters').max(100),
+  })
+  .refine((d) => Boolean(d.token) || Boolean(d.phone && d.otpToken), {
+    message: 'A reset token or a verified phone is required',
+  })
 
 export async function POST(req: NextRequest) {
   try {
@@ -35,36 +46,62 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       )
     }
-    const { token, password } = parsed.data
+    const { password } = parsed.data
 
-    const userId = await consumePasswordResetToken(token)
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'This reset link is invalid, already used, or expired. Request a new one.' },
-        { status: 400 }
-      )
+    // ── Resolve the account by proof ──
+    let userId: string | null = null
+    if (parsed.data.token) {
+      userId = await consumePasswordResetToken(parsed.data.token)
+      if (!userId) {
+        return NextResponse.json(
+          { error: 'This reset link is invalid, already used, or expired. Request a new one.' },
+          { status: 400 }
+        )
+      }
+    } else {
+      const phone = normalizeYemeniPhone(parsed.data.phone ?? '')
+      if (!phone || !parsed.data.otpToken || !verifyOtpProof(parsed.data.otpToken, phone, 'RESET')) {
+        return NextResponse.json(
+          { error: 'Phone verification is missing or expired — request a new code.' },
+          { status: 400 }
+        )
+      }
+      const account = await db.user.findUnique({ where: { phone }, select: { id: true } })
+      if (!account) {
+        // Uniform failure — no account enumeration
+        return NextResponse.json(
+          { error: 'This code is invalid, already used, or expired. Request a new one.' },
+          { status: 400 }
+        )
+      }
+      userId = account.id
     }
 
-    const user = await db.user.update({
-      where: { id: userId },
-      data: { password: hashPassword(password) },
+    // 6.11: reset + session-epoch bump + token cleanup + audit row commit atomically.
+    const user = await db.$transaction(async (tx) => {
+      const u = await tx.user.update({
+        where: { id: userId },
+        data: { password: hashPassword(password), sessionVersion: { increment: 1 } },
+      })
+      await tx.passwordResetToken.deleteMany({ where: { userId } })
+      await tx.otpCode.deleteMany({ where: { phone: u.phone ?? '__none__', purpose: 'RESET' } })
+      await recordAuditTx(tx, {
+        actorId: userId,
+        actorType: 'USER',
+        action: 'USER_PASSWORD_RESET',
+        entityType: 'User',
+        entityId: userId,
+        summary: `Password reset completed${u.phone ? ` via phone ${u.phone}` : ''}`,
+      })
+      return u
     })
-    await bumpSessionVersion(userId)
-    await db.passwordResetToken.deleteMany({ where: { userId } })
 
-    const mail = passwordChangedEmail({ name: user.name })
-    void sendMail({ to: user.email, ...mail }).catch((err) => {
-      console.error(`[auth] password-changed notice failed for user ${userId}:`, err)
-    })
-
-    await recordAudit({
-      actorId: userId,
-      actorType: 'USER',
-      action: 'USER_PASSWORD_RESET',
-      entityType: 'User',
-      entityId: userId,
-      summary: `Password reset completed: ${user.email}`,
-    })
+    if (user.email) {
+      const mail = passwordChangedEmail({ name: user.name })
+      void sendMail({ to: user.email, ...mail }).catch((err) => {
+        console.error(`[auth] password-changed notice failed for user ${userId}:`, err)
+      })
+    }
 
     return NextResponse.json({
       ok: true,

@@ -13,17 +13,24 @@ import {
   type LucideIcon,
   LayoutDashboard,
   Building2,
-  Coins,
+  ClipboardCheck,
+  FileBadge,
   FileText,
   FolderLock,
+  FolderTree,
+  GitMerge,
   Heart,
+  Layers,
   MessageCircle,
   Package,
   Palette,
+  Ruler,
   Scale,
   ScrollText,
+  Shield,
   ShieldCheck,
   Store,
+  Tag,
   Tags,
   Ticket,
   ShoppingBag,
@@ -34,10 +41,15 @@ import {
   Banknote,
   Landmark,
   Wallet,
+  Zap,
   Inbox,
   ListChecks,
   HandCoins,
   BadgeCheck,
+  Building,
+  Coins,
+  Boxes,
+  TrendingUp,
   UserCog,
 } from 'lucide-react'
 import type { View, ViewParams } from '@/store/marketplace'
@@ -61,6 +73,10 @@ export interface NavItem {
   /** RBACSEC-1 — any-of permission list: the section is visible when the
    *  user holds at least one of these (overrides `permission` when set). */
   anyPermissions?: string[]
+  /** Phase 5 — module activation key required for this item to show.
+   *  Undefined = always visible. Resolved against the session's module state
+   *  (personal scope for buyer items; org scope for financier items). */
+  module?: string
 }
 
 export interface NavGroup {
@@ -100,6 +116,8 @@ export const ADMIN_NAV: NavConfig = {
       items: [
         { key: 'vendors', label: 'Vendors', icon: StoreIcon, description: 'Seller directory, verification & suspension', permission: 'vendors.view' },
         { key: 'products', label: 'Products', icon: Package, description: 'Full catalog moderation & takedowns', permission: 'catalog.products.view' },
+        { key: 'spec-attributes', label: 'Spec Attributes', icon: SlidersHorizontal, description: 'Per-category specification dictionary', permission: 'catalog.products.moderate' },
+        { key: 'certifications', label: 'Product Certifications', icon: FileBadge, description: 'KYP review queue — datasheets, warranties & test reports', permission: 'financing.documents.verify' },
         { key: 'orders', label: 'Orders', icon: ShoppingBag, description: 'Every order across the marketplace', permission: 'orders.view' },
         { key: 'organizations', label: 'Organizations', icon: Building2, description: 'Companies, banks, MFIs & e-wallets', permission: 'orgs.view' },
         { key: 'pricing', label: 'Pricing & Lists', icon: Tags, description: 'Price lists & customer groups', permission: 'pricing.view' },
@@ -107,10 +125,25 @@ export const ADMIN_NAV: NavConfig = {
       ],
     },
     {
+      label: 'Catalog',
+      items: [
+        { key: 'catalog-review', label: 'Review Queue', icon: ClipboardCheck, description: 'Publish approvals — products, offers & services', permission: 'catalog.products.moderate', badge: 'New' },
+        { key: 'catalog-products', label: 'Catalog Listings', icon: Layers, description: 'Platform-curated products & CSV import', permission: 'catalog.products.view' },
+        { key: 'catalog-brands', label: 'Brands', icon: Tag, description: 'The brand directory behind listings', permission: 'catalog.products.moderate' },
+        { key: 'catalog-categories', label: 'Categories', icon: FolderTree, description: 'Storefront taxonomy & spec dictionaries', permission: 'catalog.products.moderate' },
+        { key: 'catalog-units', label: 'Units of Measure', icon: Ruler, description: 'Units used by spec attributes', permission: 'catalog.products.moderate' },
+        { key: 'catalog-org-types', label: 'Org Types', icon: Building, description: 'Organization type labels & ordering', permission: 'catalog.products.moderate' },
+        { key: 'catalog-duplicates', label: 'Duplicates', icon: GitMerge, description: 'Similarity scan & merge governance', permission: 'catalog.products.moderate' },
+        { key: 'catalog-popular', label: 'Popular Rail', icon: TrendingUp, description: 'Homepage popular products ordering', permission: 'catalog.products.moderate' },
+      ],
+    },
+    {
       label: 'Finance',
       items: [
         { key: 'payments', label: 'Payments', icon: Receipt, description: 'Money settlement & capture queue', permission: 'payments.view' },
         { key: 'payouts', label: 'Payouts', icon: Banknote, description: 'Vendor settlement & commission', permission: 'payouts.view' },
+        { key: 'fx', label: 'Currencies & FX', icon: Coins, description: 'Exchange rates & currency display', permission: 'pricing.view' },
+        { key: 'currency', label: 'Live Rates', icon: Zap, description: 'Live exchange feeds & pinned market rates', permission: 'storefront.manage', badge: 'New' },
         { key: 'financing', label: 'Financing', icon: Landmark, description: 'Verification gate, financiers & fees', permission: 'financing.gate.view' },
       ],
     },
@@ -122,18 +155,14 @@ export const ADMIN_NAV: NavConfig = {
       ],
     },
     {
-      label: 'Engagement',
-      items: [
-        { key: 'whatsapp', label: 'WhatsApp Suite', icon: MessageCircle, description: 'Templates, chatbot, campaigns & unified inbox', permission: 'storefront.manage', badge: 'New' },
-      ],
-    },
-    {
       label: 'Configuration',
       items: [
         { key: 'rbac', label: 'Roles & Access', icon: ShieldCheck, description: 'Permissions, staff & teams', anyPermissions: ['staff.view', 'rbac.roles.view', 'rbac.manage'], badge: 'New' },
+        { key: 'security', label: 'Security', icon: Shield, description: 'MFA policy & staff enforcement', permission: 'staff.manage', badge: 'New' },
+        { key: 'modules', label: 'Modules', icon: Layers, description: 'Platform capability activation matrix', permission: 'modules.manage', badge: 'New' },
+        { key: 'whatsapp', label: 'WhatsApp Channels', icon: MessageCircle, description: 'Pair sender numbers & message ledger', permission: 'whatsapp.manage', badge: 'New' },
         { key: 'rfq-settings', label: 'RFQ Settings', icon: SlidersHorizontal, description: '22 scoped behavior panels', permission: 'rfq.settings.manage' },
         { key: 'storefront', label: 'Storefront Designer', icon: Palette, description: 'Branding, theme & hero slides', permission: 'storefront.manage' },
-        { key: 'currency', label: 'Currency & Rates', icon: Coins, description: 'Live exchange rates & display currencies', permission: 'storefront.manage', badge: 'New' },
       ],
     },
     {
@@ -147,9 +176,21 @@ export const ADMIN_NAV: NavConfig = {
     overview: { title: 'Platform Overview', description: 'Live marketplace KPIs, activity and health at a glance.' },
     vendors: { title: 'Vendors', description: 'Every seller on the marketplace — verify, suspend and set commissions.' },
     products: { title: 'Product Moderation', description: 'Browse and moderate every listing on the marketplace.' },
+    'spec-attributes': { title: 'Spec Attributes', description: 'The per-category specification dictionary — define what sellers fill in the product form.' },
+    certifications: { title: 'Product Certifications', description: 'The KYP review queue — verify datasheets, warranties and test reports once, reuse everywhere.' },
+    'catalog-review': { title: 'Catalog Review Queue', description: 'Publish approvals in one place — seller listings, multi-vendor offers and financier services.' },
+    'catalog-products': { title: 'Catalog Listings', description: 'Platform-curated products owned by the Vendora Catalog account — sellers attach their offers to them.' },
+    'catalog-brands': { title: 'Brands', description: 'The brand directory that powers the “what it is” layer of every listing.' },
+    'catalog-categories': { title: 'Categories', description: 'The storefront taxonomy — names, icons, ordering and per-category spec dictionaries.' },
+    'catalog-units': { title: 'Units of Measure', description: 'Units referenced by spec attributes across every category.' },
+    'catalog-org-types': { title: 'Organization Types', description: 'Labels and descriptions users see for each organization type — behavior is code-defined.' },
+    'catalog-duplicates': { title: 'Duplicate Governance', description: 'Scan for probable duplicates and merge them — the duplicate becomes an offer on the canonical listing.' },
+    'catalog-popular': { title: 'Popular Rail', description: 'The ranked products powering the homepage Popular rail.' },
     orders: { title: 'Orders', description: 'Every order placed on the platform — buyers, sellers and money.' },
     payments: { title: 'Payments', description: 'Settlement console — bank transfers and invoices awaiting capture.' },
     payouts: { title: 'Payouts', description: 'Vendor settlement batches and commission configuration.' },
+    fx: { title: 'Currencies & FX', description: 'The currency directory and authoritative exchange rates — one rate per pair, admin-managed history.' },
+    currency: { title: 'Live Rates', description: 'Live exchange feeds (auto-refresh) and pinned market rates — nothing hardcoded, everything convertible.' },
     financing: { title: 'Financing', description: 'The platform verification gate — review queues, financier institutions, fees and the shared requirements library.' },
     organizations: { title: 'Organizations', description: 'Manage companies, banks, MFIs, e-wallets and their members.' },
     pricing: { title: 'Pricing & Lists', description: 'Price lists and customer groups that drive contract pricing.' },
@@ -158,9 +199,10 @@ export const ADMIN_NAV: NavConfig = {
     disputes: { title: 'Disputes', description: 'Resolution queue with escalation paths and outcomes.' },
     'rfq-settings': { title: 'RFQ Settings', description: 'Scoped behavior configuration with change history & rollback.' },
     rbac: { title: 'Roles & Access', description: 'The RBAC control center — permissions, platform staff, organization teams and invitations.' },
+    security: { title: 'Security', description: 'Platform MFA policy and per-staff enforcement — who is enrolled, who must be.' },
+    modules: { title: 'Modules', description: 'The capability activation matrix — switch platform modules on/off per platform, organization type and organization.' },
+    whatsapp: { title: 'WhatsApp Channels', description: 'Pair free WhatsApp sender numbers (any country), test the line and audit every outbound message.' },
     storefront: { title: 'Storefront Designer', description: 'Brand the public marketplace: name, logo, theme, hero slides.' },
-    currency: { title: 'Currency & Rates', description: 'Live exchange rates and display currencies — nothing hardcoded, everything convertible.' },
-    whatsapp: { title: 'WhatsApp Suite', description: 'Templates, chatbot auto-replies, bulk campaigns, unified inbox and the live connection.' },
     audit: { title: 'Audit Log', description: 'Immutable, signed record of critical platform actions.' },
   },
 }
@@ -181,6 +223,7 @@ export const SELLER_NAV: NavConfig = {
       label: 'Catalog',
       items: [
         { key: 'products', label: 'Products', icon: Package, description: 'Listings, stock & variants' },
+        { key: 'offers', label: 'My Offers', icon: Boxes, description: 'Your offers on other sellers’ catalog products', badge: 'New' },
       ],
     },
     {
@@ -196,6 +239,7 @@ export const SELLER_NAV: NavConfig = {
   titles: {
     overview: { title: 'Seller Dashboard', description: 'Your store performance, sales and activity.' },
     products: { title: 'Products', description: 'Manage listings, pricing, stock and variants.' },
+    offers: { title: 'My Offers', description: 'Sell other vendors’ catalog products — your price, stock and terms on their listings.' },
     orders: { title: 'Orders', description: 'Incoming orders and fulfilment status.' },
     earnings: { title: 'Earnings', description: 'Your settlement balance, commission rate and payout history.' },
     rfqs: { title: 'RFQ Inbox', description: 'Quote requests that reference your catalog — respond with winning quotes.' },
@@ -218,18 +262,18 @@ export const BUYER_NAV: NavConfig = {
     {
       label: 'Procurement',
       items: [
-        { key: 'rfqs', label: 'My RFQs', icon: FileText, description: 'Requests for quote & negotiations', view: 'rfqs' },
-        { key: 'business', label: 'Business Account', icon: Briefcase, description: 'Organization, team & contract pricing', view: 'business' },
+        { key: 'rfqs', label: 'My RFQs', icon: FileText, description: 'Requests for quote & negotiations', view: 'rfqs', module: 'rfq' },
+        { key: 'business', label: 'Business Account', icon: Briefcase, description: 'Organization, team & contract pricing', view: 'business', module: 'b2b-orgs' },
       ],
     },
     {
       label: 'Financing',
       items: [
-        { key: 'overview', label: 'Financing & Accreditation', icon: Wallet, description: 'Services, applications & agreements', view: 'financing' },
-        { key: 'services', label: 'Financing Services', icon: Banknote, description: 'Browse financing & accreditation offerings', view: 'financing' },
-        { key: 'requests', label: 'My Applications', icon: ListChecks, description: 'Requests, gate status, offers & agreements', view: 'financing' },
-        { key: 'accreditation', label: 'Accreditation', icon: BadgeCheck, description: 'Company programs, grants & renewals', view: 'financing' },
-        { key: 'agreements', label: 'Agreements', icon: ScrollText, description: 'Schedules, fees & money events', view: 'financing' },
+        { key: 'overview', label: 'Financing & Accreditation', icon: Wallet, description: 'Services, applications & agreements', view: 'financing', module: 'financing-hub' },
+        { key: 'services', label: 'Financing Services', icon: Banknote, description: 'Browse financing & accreditation offerings', view: 'financing', module: 'financing-hub' },
+        { key: 'requests', label: 'My Applications', icon: ListChecks, description: 'Requests, gate status, offers & agreements', view: 'financing', module: 'financing-hub' },
+        { key: 'accreditation', label: 'Accreditation', icon: BadgeCheck, description: 'Company programs, grants & renewals', view: 'financing', module: 'financing-hub' },
+        { key: 'agreements', label: 'Agreements', icon: ScrollText, description: 'Schedules, fees & money events', view: 'financing', module: 'financing-hub' },
       ],
     },
     {
@@ -244,6 +288,7 @@ export const BUYER_NAV: NavConfig = {
       label: 'Account',
       items: [
         { key: 'profile', label: 'Profile & Security', icon: UserCog, description: 'Name, phone, email & password', view: 'account', params: { accountTab: 'profile' } },
+        { key: 'verification', label: 'Verification', icon: ShieldCheck, description: 'KYC level, badges & trust status', view: 'account', params: { accountTab: 'verification' } },
         { key: 'documents', label: 'Document Vault', icon: FolderLock, description: 'Upload once — reuse on every application', view: 'financing', params: { financingSection: 'documents' } },
       ],
     },
@@ -251,6 +296,7 @@ export const BUYER_NAV: NavConfig = {
   titles: {
     account: { title: 'Account Dashboard', description: 'Your profile, security and everything you do on Vendora.' },
     profile: { title: 'Profile & Security', description: 'Your identity, contact details and sign-in security — editable, right here.' },
+    verification: { title: 'Verification', description: 'Your KYC level, verified evidence and what unlocks next — publishing needs level 2.' },
     rfqs: { title: 'My RFQs', description: 'Requests for quote, negotiations and recurring schedules.' },
     business: { title: 'Business Account', description: 'Your organization, team members and contract pricing.' },
     overview: { title: 'Financing & Accreditation', description: 'Apply for financing, track applications and manage your document vault.' },
@@ -300,6 +346,12 @@ export const FINANCIER_NAV: NavConfig = {
         { key: 'profile', label: 'Institution Profile', icon: Building2, description: 'Org facts & financier profile' },
       ],
     },
+    {
+      label: 'Institution',
+      items: [
+        { key: 'team', label: 'Team & Roles', icon: UserCog, description: 'Institution staff, roles & invitations', badge: 'New' },
+      ],
+    },
   ],
   titles: {
     dashboard: { title: 'Financier Dashboard', description: 'Verified applications, offers and accreditation programs at a glance.' },
@@ -310,6 +362,7 @@ export const FINANCIER_NAV: NavConfig = {
     accreditations: { title: 'Accreditations', description: 'Forwarded accreditation requests — grant, reject or revoke.' },
     agreements: { title: 'Agreements', description: 'Accepted offers — report funding progress and money events (track-only).' },
     profile: { title: 'Institution Profile', description: 'Your organization, license and contact facts on Vendora.' },
+    team: { title: 'Team & Roles', description: 'Your institution staff — underwriters, reviewers and branch officers — with scoped roles and email invitations.' },
   },
 }
 
@@ -331,6 +384,39 @@ export const DASHBOARD_VIEWS = new Set<View>([
   'financing',
   'financier',
 ])
+
+/** Phase 5 — filter a console nav by module activation. Items carrying a
+ *  `module` key are dropped when that module is resolved OFF. `enabled`
+ *  being undefined (legacy admin / missing session block) fails OPEN. */
+export function filterNavByModules(
+  nav: NavConfig,
+  enabled: string[] | undefined
+): NavConfig {
+  if (!enabled) return nav
+  const set = new Set(enabled)
+  return {
+    ...nav,
+    groups: nav.groups
+      .map((g) => ({ ...g, items: g.items.filter((i) => !i.module || set.has(i.module)) }))
+      .filter((g) => g.items.length > 0),
+  }
+}
+
+/** Phase 5 — the module set a user's console resolves through: the UNION of
+ *  their org chains when they belong to orgs (each chain already resolves
+ *  org → orgType → platform → default, so platform flips keep working while
+ *  org-type flips steer only that org's people), else the platform chain.
+ *  Mirrors `isModuleEnabledForUser` on the server — nav and APIs must agree. */
+export function userModuleSet(
+  modules?: { personal: string[]; orgs: Record<string, string[]> } | null
+): string[] | undefined {
+  if (!modules) return undefined
+  const orgSets = Object.values(modules.orgs ?? {})
+  if (orgSets.length === 0) return modules.personal
+  const set = new Set<string>()
+  for (const s of orgSets) for (const k of s) set.add(k)
+  return [...set]
+}
 
 /** Topbar "back to storefront" label per role. */
 export const STOREFRONT_LINK: Record<RoleKey, { label: string; icon: LucideIcon }> = {

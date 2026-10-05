@@ -649,12 +649,39 @@ export function moneyRange(min: number | null, max: number | null, currency = 'Y
   return `from ${money(min as number, currency)}`
 }
 
+/**
+ * Count-label pluralization (STAB-7 hygiene): "1 program", never "1 programs".
+ * Shared across the site surfaces (funding sections + financier profiles).
+ */
+const COUNT_SINGULARS: Record<string, string> = {
+  programs: 'program',
+  branches: 'branch',
+  stories: 'story',
+  days: 'day',
+  months: 'month',
+  mos: 'mo',
+  governorates: 'governorate',
+  'Sharia-compliant programs': 'Sharia-compliant program',
+  'CO₂ avoided (tonnes)': 'CO₂ avoided (tonne)',
+  'Financing programs': 'Financing program',
+  'Branches & agents': 'Branch & agent',
+  'Success stories': 'Success story',
+  'Active programs': 'Active program',
+}
+
+/** Singularize `label` when the count is exactly 1; identity otherwise. */
+export function plural(label: string, n: number): string {
+  if (n !== 1) return label
+  return COUNT_SINGULARS[label] ?? label
+}
+
 /** Tenor label "6–36 months" */
 export function tenorLabel(min: number | null, max: number | null): string | null {
   if (min == null && max == null) return null
-  if (min != null && max != null) return `${min}–${max} months`
-  if (max != null) return `up to ${max} months`
-  return `from ${min} months`
+  if (min != null && max != null)
+    return `${min}–${max} ${plural('months', min === max ? min : max)}`
+  if (max != null) return `up to ${max} ${plural('months', max)}`
+  return `from ${min} ${plural('months', min as number)}`
 }
 
 // ── Page hero (dark editorial band with layered art) ───────────────────────

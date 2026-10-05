@@ -5,9 +5,28 @@ import { getSessionUser } from '@/lib/auth'
 import { serializeOrder } from '@/lib/serialize'
 import { cancelApprovalForOrder } from '@/server/modules/approvals/service'
 import { cancelPaymentForOrder } from '@/server/modules/payments/service'
+import { advanceSellerFulfillment, cancelFulfillmentGroups } from '@/server/modules/orders/service'
+import { emitNotification, emitNotifications, type EmitInput } from '@/server/modules/notifications/service'
 import { assertSameOrigin } from '@/lib/http'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 
 const STATUS_FLOW = ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED']
+
+/** Buyer-facing copy for each seller fulfillment advance (ORDER_STATUS events). */
+const FULFILLMENT_COPY = {
+  PROCESSING: {
+    title: (n: string) => `Order ${n} is being prepared`,
+    body: 'The seller started preparing your order. Track its progress in My orders.',
+  },
+  SHIPPED: {
+    title: (n: string) => `Order ${n} has shipped`,
+    body: 'The seller marked your order as shipped. Track it in My orders.',
+  },
+  DELIVERED: {
+    title: (n: string) => `Order ${n} delivered`,
+    body: 'The seller marked your order as delivered. We hope you enjoy your purchase.',
+  },
+} as const
 
 // GET /api/orders/[id] — single order (buyer or participating seller)
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -24,7 +43,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
     const isBuyer = order.buyerId === user.id
     const isSeller = order.items.some((i) => i.sellerId === user.id)
-    const isAdmin = user.role === 'ADMIN'
+    const isAdmin = await userHasPlatformPermission(user.id, 'orders.view')
     if (!isBuyer && !isSeller && !isAdmin)
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
@@ -81,25 +100,59 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
             },
           })
         }
+        // 7.7: dimensions — fulfillment groups cancel; the payment dimension
+        // keeps its evidence-based state (a SUCCEEDED payment stays PAID until
+        // a COMPLETED refund says otherwise — refund states never assumed).
+        await cancelFulfillmentGroups(tx, id)
         return tx.order.update({
           where: { id },
-          data: { status: 'CANCELLED' },
+          data: {
+            status: 'CANCELLED',
+            fulfillmentStatus: 'CANCELLED',
+            ...(order.paymentStatus !== 'PAID' ? { paymentStatus: 'AWAITING_PAYMENT' } : {}),
+          },
           include: { items: true, payment: true, buyer: { select: { id: true, name: true, email: true } } },
         })
       })
 
+      // Best-effort fan-out to every participating seller — a notification
+      // failure must not fail the cancellation itself
+      try {
+        const number = order.poNumber ?? order.id.slice(-8).toUpperCase()
+        const notifications: EmitInput[] = [...new Set(order.items.map((i) => i.sellerId))]
+          .filter((sellerId) => sellerId !== order.buyerId)
+          .map((sellerId) => ({
+            userId: sellerId,
+            type: 'ORDER_STATUS',
+            title: `Order ${number} cancelled`,
+            body: 'The buyer cancelled this order. Stock has been returned to your inventory.',
+            linkView: 'seller',
+            linkId: order.id,
+          }))
+        await emitNotifications(notifications)
+      } catch (err) {
+        console.error('order notification error', err)
+      }
+
       return NextResponse.json({ order: serializeOrder(updated, user.id) })
     }
 
-    // ── Seller fulfillment flow ─────────────────────────────
-    const parsed = z.object({ status: z.enum(['PROCESSING', 'SHIPPED', 'DELIVERED']) }).safeParse(body)
+    // ── Seller fulfillment flow (7.7.2: the seller advances THEIR OWN group;
+    // the order's fulfillmentStatus is the derived roll-up) ─────
+    const parsed = z
+      .object({
+        status: z.enum(['PROCESSING', 'SHIPPED', 'DELIVERED']),
+        carrier: z.string().max(80).optional(),
+        trackingNumber: z.string().max(80).optional(),
+      })
+      .safeParse(body)
     if (!parsed.success) return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
 
     const order = await db.order.findUnique({ where: { id }, include: { items: true } })
     if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
 
     const isSeller = order.items.some((i) => i.sellerId === user.id)
-    const isAdmin = user.role === 'ADMIN'
+    const isAdmin = await userHasPlatformPermission(user.id, 'orders.update')
     if (!isSeller && !isAdmin) return NextResponse.json({ error: 'Only the seller can update fulfillment' }, { status: 403 })
 
     if (order.status === 'PENDING_APPROVAL')
@@ -114,20 +167,53 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         { status: 400 }
       )
 
-    const currentIdx = STATUS_FLOW.indexOf(order.status)
-    const nextIdx = STATUS_FLOW.indexOf(parsed.data.status)
-    if (nextIdx !== currentIdx + 1) {
-      return NextResponse.json(
-        { error: `Cannot move from ${order.status} to ${parsed.data.status}` },
-        { status: 400 }
-      )
+    // Admins advance ALL groups; a seller advances only their own slice.
+    const target = parsed.data.status
+    let updated
+    if (isAdmin && !isSeller) {
+      updated = await db.$transaction(async (tx) => {
+        const now = new Date()
+        await tx.orderFulfillment.updateMany({
+          where: { orderId: id, status: { in: ['UNFULFILLED', 'PROCESSING', 'SHIPPED'] } },
+          data: {
+            status: target,
+            ...(parsed.data.carrier ? { carrier: parsed.data.carrier } : {}),
+            ...(parsed.data.trackingNumber ? { trackingNumber: parsed.data.trackingNumber } : {}),
+            ...(target === 'SHIPPED' ? { shippedAt: now } : {}),
+            ...(target === 'DELIVERED' ? { deliveredAt: now } : {}),
+          },
+        })
+        const { refreshFulfillmentRollup } = await import('@/server/modules/orders/service')
+        await refreshFulfillmentRollup(tx, id)
+        return tx.order.findUnique({
+          where: { id },
+          include: { items: true, payment: true, buyer: { select: { id: true, name: true, email: true } } },
+        })
+      })
+    } else {
+      updated = await advanceSellerFulfillment(id, user.id, target, {
+        carrier: parsed.data.carrier,
+        trackingNumber: parsed.data.trackingNumber,
+      })
     }
+    if (!updated) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
 
-    const updated = await db.order.update({
-      where: { id },
-      data: { status: parsed.data.status },
-      include: { items: true, payment: true, buyer: { select: { id: true, name: true, email: true } } },
-    })
+    // Best-effort buyer notification — a notification failure must not fail
+    // the fulfillment update
+    try {
+      const copy = FULFILLMENT_COPY[parsed.data.status]
+      const number = order.poNumber ?? order.id.slice(-8).toUpperCase()
+      await emitNotification({
+        userId: order.buyerId,
+        type: 'ORDER_STATUS',
+        title: copy.title(number),
+        body: copy.body,
+        linkView: 'orders',
+        linkId: order.id,
+      })
+    } catch (err) {
+      console.error('order notification error', err)
+    }
 
     return NextResponse.json({ order: serializeOrder(updated, user.id) })
   } catch (err) {

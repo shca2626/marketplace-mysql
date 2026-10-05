@@ -3,9 +3,12 @@ import { LocalDiskStorage } from './local-disk'
 import { FtpHostingStorage } from './ftp-hosting'
 import { resolveStorageDriverName } from './env'
 import type { StorageAdapter } from './types'
+import { VAULT_KEY_ROOT, VAULT_NAMESPACE, PUBLIC_NAMESPACE, type StorageNamespace } from './namespace'
 
 export { StorageError } from './types'
-export type { StorageAdapter, StoredFile } from './types'
+export type { StorageAdapter, StoredFile, PutOptions } from './types'
+export { VAULT_KEY_ROOT, VAULT_NAMESPACE, PUBLIC_NAMESPACE, isVaultKey } from './namespace'
+export type { StorageNamespace } from './namespace'
 export { LocalDiskStorage } from './local-disk'
 export {
   FtpHostingStorage,
@@ -49,14 +52,25 @@ export function getStorage(): StorageAdapter {
 // browsability, content-prefixed for traceability, unique via random suffix.
 // Rendition files: "{base}.{role}.webp". Because keys never change content,
 // /api/media can serve them with immutable caching.
+//
+// NAMESPACES (6.6.1): two storage roots that NEVER mix —
+//   • public-media   → "2026/09/…"       served by /api/media (immutable, public)
+//   • private-vault → "vault/2026/09/…" served ONLY by the authenticated
+//     proxy route /api/vault/<documentId> (session + authorization + one-time
+//     nonce re-checked per retrieval). /api/media hard-404s the vault root, and
+//     the ftp-hosting driver never uploads vault keys to the public host.
+// Content-hash dedup never crosses namespaces: the same bytes MAY exist twice
+// with different keys and different access semantics (@@unique([namespace, sha256])).
 
-export function buildAssetKeyBase(sha256Hex: string): string {
+
+export function buildAssetKeyBase(sha256Hex: string, namespace: StorageNamespace = PUBLIC_NAMESPACE): string {
   const now = new Date()
   const yyyy = String(now.getFullYear())
   const mm = String(now.getMonth() + 1).padStart(2, '0')
   const sha8 = sha256Hex.slice(0, 8)
   const rand = randomBytes(4).toString('base64url').replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).padEnd(6, 'x')
-  return `${yyyy}/${mm}/${sha8}-${rand}`
+  const base = `${yyyy}/${mm}/${sha8}-${rand}`
+  return namespace === VAULT_NAMESPACE ? `${VAULT_KEY_ROOT}/${base}` : base
 }
 
 export function renditionKey(baseKey: string, role: string): string {

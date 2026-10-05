@@ -6,6 +6,9 @@ export const productInclude: Prisma.ProductInclude = {
   category: true,
   seller: { select: { id: true, name: true, storeName: true } },
   variants: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
+  // Phase 4 — catalog identity + multi-vendor count (cheap: 1 join + 1 grouped count)
+  brand: { select: { id: true, name: true, slug: true, isVerified: true } },
+  _count: { select: { offers: { where: { status: 'ACTIVE', seller: { status: 'ACTIVE' } } } } },
 }
 
 export type ProductVariantRaw = {
@@ -60,6 +63,35 @@ type ProductRaw = {
   moq?: number | null
   priceTiers?: string | null
   variants?: ProductVariantRaw[]
+  // Phase 3 KYP — present when the caller includes product.certifications
+  certifications?: CertificationRaw[]
+  // ── Phase 4 — unified catalog identity + multi-vendor (all optional; older callers unaffected) ──
+  brand?: { id: string; name: string; slug: string; isVerified: boolean } | null
+  gtin?: string | null
+  mpn?: string | null
+  isCurated?: boolean
+  popularRank?: number | null
+  reviewNote?: string | null
+  _count?: { offers: number }
+}
+
+/** Minimal certification shape serializeProduct needs (kyc module owns the full DTO). */
+interface CertificationRaw {
+  id: string
+  productId: string
+  kind: string
+  title: string
+  mediaId: string | null
+  url: string | null
+  issuedBy: string | null
+  issuedAt: Date | null
+  expiresAt: Date | null
+  status: string
+  verifiedById: string | null
+  verifiedAt: Date | null
+  note: string | null
+  isActive: boolean
+  createdAt: Date
 }
 
 function parseJsonArray<T>(raw: string | null | undefined, guard: (x: unknown) => x is T): T[] {
@@ -111,6 +143,23 @@ export function serializeProduct(p: ProductRaw, favorited = false): ProductDTO {
   } catch {
     images = []
   }
+  const certifications = (p.certifications ?? []).map((c) => ({
+    id: c.id,
+    productId: c.productId,
+    kind: c.kind,
+    title: c.title,
+    mediaId: c.mediaId,
+    url: c.url,
+    issuedBy: c.issuedBy,
+    issuedAt: c.issuedAt ? c.issuedAt.toISOString() : null,
+    expiresAt: c.expiresAt ? c.expiresAt.toISOString() : null,
+    status: c.status,
+    verifiedById: c.verifiedById,
+    verifiedAt: c.verifiedAt ? c.verifiedAt.toISOString() : null,
+    note: c.note,
+    isActive: c.isActive,
+    createdAt: c.createdAt.toISOString(),
+  }))
   return {
     id: p.id,
     title: p.title,
@@ -151,6 +200,19 @@ export function serializeProduct(p: ProductRaw, favorited = false): ProductDTO {
     moq: (p as { moq?: number | null }).moq ?? null,
     priceTiers: parseJsonArray((p as { priceTiers?: string | null }).priceTiers, isTier),
     variants: (p.variants ?? []).map(serializeVariant),
+    // Phase 4 — catalog identity + multi-vendor counters
+    brand: (p as { brand?: ProductRaw['brand'] }).brand ?? null,
+    gtin: (p as { gtin?: string | null }).gtin ?? null,
+    mpn: (p as { mpn?: string | null }).mpn ?? null,
+    isCurated: (p as { isCurated?: boolean }).isCurated ?? false,
+    popularRank: (p as { popularRank?: number | null }).popularRank ?? null,
+    offerCount: (p as { _count?: { offers?: number } })._count?.offers ?? 0,
+    ...(certifications.length > 0
+      ? {
+          certifications,
+          hasVerifiedSpecs: certifications.some((c) => c.status === 'VERIFIED'),
+        }
+      : {}),
   }
 }
 
@@ -179,6 +241,9 @@ export function serializeOrder(
     id: string
     total: number
     status: string
+    paymentStatus?: string | null
+    fulfillmentStatus?: string | null
+    currency?: string | null
     fullName: string
     address: string
     city: string
@@ -189,7 +254,7 @@ export function serializeOrder(
     paymentTerms?: string | null
     poNumber?: string | null
     sourceType?: string | null
-    buyer?: { id: string; name: string; email: string }
+    buyer?: { id: string; name: string; email: string | null }
     payment?: {
       method: string
       status: string
@@ -199,6 +264,7 @@ export function serializeOrder(
       paidAt?: Date | null
       amount?: unknown
     } | null
+    refunds?: Array<{ id: string; status: string; number: string; amountTotal: number | unknown; createdAt: Date }> | null
     items: {
       id: string
       productId: string
@@ -209,6 +275,7 @@ export function serializeOrder(
       quantity: number
       variantId?: string | null
       variantName?: string | null
+      offerId?: string | null
     }[]
   },
   sellerId?: string
@@ -217,6 +284,18 @@ export function serializeOrder(
     id: o.id,
     total: o.total,
     status: o.status,
+    // 7.7 dimension split — authoritative payment + fulfillment dimensions
+    paymentStatus: o.paymentStatus ?? inferPaymentStatusFromLegacy(o.status, o.payment?.status),
+    fulfillmentStatus: o.fulfillmentStatus ?? inferFulfillmentStatusFromLegacy(o.status),
+    currency: o.currency ?? 'USD',
+    hasPendingRefunds: (o.refunds ?? []).some((r) => r.status === 'REQUESTED' || r.status === 'APPROVED'),
+    refunds: (o.refunds ?? []).map((r) => ({
+      id: r.id,
+      number: r.number,
+      status: r.status,
+      amountTotal: Number(r.amountTotal),
+      createdAt: r.createdAt.toISOString(),
+    })),
     fullName: o.fullName,
     address: o.address,
     city: o.city,
@@ -261,4 +340,36 @@ export function serializeCategory(
 
 export function formatUSD(n: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
+}
+
+// ── 7.7: legacy-status inference (only for callers that pass pre-Phase-7
+// rows without the dimension columns — new reads always carry them) ──
+
+export function inferPaymentStatusFromLegacy(legacy: string, paymentRowStatus?: string | null): string {
+  switch (legacy) {
+    case 'PAID':
+    case 'PROCESSING':
+    case 'SHIPPED':
+    case 'DELIVERED':
+      return 'PAID'
+    case 'CANCELLED':
+      return paymentRowStatus === 'SUCCEEDED' ? 'PAID' : 'AWAITING_PAYMENT'
+    default:
+      return 'AWAITING_PAYMENT'
+  }
+}
+
+export function inferFulfillmentStatusFromLegacy(legacy: string): string {
+  switch (legacy) {
+    case 'PROCESSING':
+      return 'PROCESSING'
+    case 'SHIPPED':
+      return 'SHIPPED'
+    case 'DELIVERED':
+      return 'FULFILLED'
+    case 'CANCELLED':
+      return 'CANCELLED'
+    default:
+      return 'UNFULFILLED'
+  }
 }

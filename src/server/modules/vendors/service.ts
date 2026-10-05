@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { recordAudit } from '@/server/modules/audit/service'
+import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
 import { emitNotification } from '@/server/modules/notifications/service'
 
 /**
@@ -56,6 +56,15 @@ export async function listVendors(filters: VendorListFilters) {
         verifiedAt: true,
         commissionRate: true,
         createdAt: true,
+        // 7.0: the seller-org tenant + its verification state
+        sellerProfilesOwned: {
+          select: {
+            organizationId: true,
+            verificationState: true,
+            verifiedAt: true,
+            organization: { select: { id: true, name: true, status: true } },
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * limit,
@@ -119,6 +128,16 @@ export async function listVendors(filters: VendorListFilters) {
       verifiedAt: s.verifiedAt?.toISOString() ?? null,
       commissionRate: s.commissionRate,
       memberSince: s.createdAt.toISOString(),
+      // 7.0: seller-org tenant identity (three-concept model)
+      sellerOrg: s.sellerProfilesOwned[0]
+        ? {
+            organizationId: s.sellerProfilesOwned[0].organizationId,
+            organizationName: s.sellerProfilesOwned[0].organization.name,
+            organizationStatus: s.sellerProfilesOwned[0].organization.status,
+            verificationState: s.sellerProfilesOwned[0].verificationState,
+            verifiedAt: s.sellerProfilesOwned[0].verifiedAt?.toISOString() ?? null,
+          }
+        : null,
       products: countBySeller.get(s.id) ?? 0,
       unitsSold: unitsBySeller.get(s.id) ?? 0,
       gmv: Math.round((gmvMap.get(s.id) ?? 0) * 100) / 100,
@@ -230,5 +249,91 @@ export async function applyVendorAction(actorId: string, vendorId: string, input
     suspendedAt: updated.suspendedAt?.toISOString() ?? null,
     verifiedAt: updated.verifiedAt?.toISOString() ?? null,
     commissionRate: updated.commissionRate,
+  }
+}
+
+// ── Phase 7.0: seller-org verification state (lastplan 7.0 / S3) ──────────
+// Verification lives on SellerProfile.verificationState — Organization.status
+// stays the OPERATIONAL lifecycle (suspension). The legacy User.verifiedAt
+// stamp is kept in sync so RFQ routing filters and storefront badges keep
+// working during the migration window.
+
+export const SELLER_VERIFICATION_STATES = ['UNVERIFIED', 'PENDING', 'VERIFIED', 'REJECTED'] as const
+export type SellerVerificationState = (typeof SELLER_VERIFICATION_STATES)[number]
+
+export async function setSellerVerification(
+  adminId: string,
+  sellerId: string,
+  input: { state: SellerVerificationState; note?: string }
+) {
+  const seller = await db.user.findUnique({ where: { id: sellerId }, select: { id: true, name: true, storeName: true, role: true } })
+  if (!seller || seller.role !== 'SELLER') throw new VendorServiceError('Vendor not found', 404)
+
+  // The seller org + profile exist from the 7.0 backfill; create defensively
+  // if a seller appeared without one (the reconciliation gate catches drift).
+  let profile = await db.sellerProfile.findFirst({ where: { ownerUserId: sellerId } })
+  if (!profile) {
+    const org = await db.organization.findFirst({
+      where: { members: { some: { userId: sellerId, role: 'OWNER' } } },
+    })
+    let organizationId = org?.id
+    if (!organizationId) {
+      const created = await db.organization.create({
+        data: {
+          name: `${seller.storeName ?? seller.name} (Store)`,
+          slug: `store-${seller.id.slice(-8).toLowerCase()}`,
+          orgType: 'COMPANY',
+          status: 'ACTIVE',
+        },
+      })
+      organizationId = created.id
+      await db.organizationMember.create({ data: { organizationId, userId: sellerId, role: 'OWNER' } })
+    }
+    profile = await db.sellerProfile.create({ data: { organizationId, ownerUserId: sellerId } })
+  }
+
+  const now = new Date()
+  const updated = await db.$transaction(async (tx) => {
+    const row = await tx.sellerProfile.update({
+      where: { id: profile!.id },
+      data: {
+        verificationState: input.state,
+        verificationNote: input.note?.slice(0, 1000) ?? null,
+        verifiedAt: input.state === 'VERIFIED' ? now : null,
+      },
+    })
+    // Legacy stamp stays in sync (routing filters + storefront badges read it)
+    await tx.user.update({
+      where: { id: sellerId },
+      data: { verifiedAt: input.state === 'VERIFIED' ? now : null },
+    })
+    await recordAuditTx(tx, {
+      actorId: adminId,
+      actorType: 'ADMIN',
+      action: 'SELLER_VERIFICATION_SET',
+      entityType: 'SellerProfile',
+      entityId: row.id,
+      summary: `Seller org verification → ${input.state} (${seller.storeName ?? seller.name})${input.note ? ` — ${input.note.slice(0, 200)}` : ''}`,
+      metadata: { sellerId, organizationId: row.organizationId, state: input.state },
+    })
+    return row
+  })
+
+  if (input.state === 'VERIFIED') {
+    await emitNotification({
+      userId: sellerId,
+      type: 'VENDOR_STATUS',
+      title: 'Your store is verified',
+      body: 'Vendora has verified your business. Verified stores get priority in RFQ routing and buyer trust signals.',
+      linkView: 'seller',
+    }).catch(() => {})
+  }
+
+  return {
+    sellerId,
+    organizationId: updated.organizationId,
+    verificationState: updated.verificationState,
+    verificationNote: updated.verificationNote,
+    verifiedAt: updated.verifiedAt?.toISOString() ?? null,
   }
 }

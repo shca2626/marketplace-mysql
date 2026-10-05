@@ -33,7 +33,7 @@ datasource db {
 
 model User {
   id             String    @id @default(cuid())
-  email          String    @unique
+  email          String?   @unique // Phase 3: OPTIONAL — sign-in is phone-first; email stays for receipts/recovery (unique when set)
   password       String
   name           String
   image          String?
@@ -42,6 +42,7 @@ model User {
   suspendedAt    DateTime?
   storeName      String?
   storeBio       String?   @db.Text // MYSQL: vendor bio, free-form long content
+  storeCover     String? // cover id from the curated STORE_COVERS set — persisted per seller, STAB-8
   commissionRate Float? // vendor payout commission override (percent); null = platform default
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -49,6 +50,10 @@ model User {
   // ── Auth hardening (AUTHSEC-1) — mirrors prisma/schema.prisma ──
   sessionVersion  Int       @default(0)
   emailVerifiedAt DateTime?
+
+  // ── Phase 6 MFA (lastplan v5 6.7) ──
+  mfaRequired  Boolean @default(false) // admin-set per-account requirement; the user can enroll but never disable while required
+  isBreakGlass Boolean @default(false) // dedicated break-glass account — login-alerted + audited (6.2.3)
 
   passwordResetTokens     PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
@@ -72,12 +77,21 @@ model User {
   disputesResolved   Dispute[]            @relation("DisputeResolver")
   recurringSchedules RecurringRfq[]
   mediaAssets        MediaAsset[]         @relation("MediaAssets")
-  paymentsCaptured   Payment[]            @relation("PaymentsCapturedBy")
+  vaultAccessGrants  VaultAccessGrant[]    @relation("VaultAccessGrants")
+  paymentsCaptured   Payment[]             @relation("PaymentsCapturedBy")
   payouts            Payout[]             @relation("PayoutSeller")
+  payoutExecutions   Payout[]             @relation("PayoutExecutedBy")
+  sellerProfilesOwned SellerProfile[]    @relation("SellerProfileOwner")
+  refundsRequested   Refund[]             @relation("RefundRequester")
+  refundsApproved    Refund[]             @relation("RefundApprover")
+  refundsCompleted   Refund[]             @relation("RefundCompleter")
 
   // ── Applicant profile (FINANCIER_SCHEMA v5 §3.1) — additive, ALL nullable;
   //    B2C buyers unaffected until they apply for financing (DP-14) ──
-  phone             String? // contact only — login stays email-based
+  phone             String?   @unique // Phase 3: normalized E.164 (+9677XXXXXXXXX) — REQUIRED + OTP-verified for new registrations; unique when set
+  phoneVerifiedAt   DateTime? // set by OTP verification (L1 evidence)
+  kycLevel          Int       @default(0) // 0=L0 registered · 1=L1 phone verified · 2=L2 identity docs verified · 3=L3 business/org verified (computed once, read everywhere)
+  merchantType      String? // EXCLUSIVE_AGENT | AUTHORIZED_AGENT | DISTRIBUTOR | WHOLESALER | RETAILER — Merchant/Dealer designation (owner taxonomy)
   whatsappNumber    String?
   dateOfBirth       DateTime?
   gender            String? // MALE | FEMALE | OTHER
@@ -85,7 +99,7 @@ model User {
   nationality       String?
   identityType      String? // NATIONAL_ID | PASSPORT | RESIDENCE_PERMIT | OTHER
   identityNumber    String?
-  residenceStreet   String?   @db.Text // MYSQL: street address, free-form
+  residenceStreet   String? @db.Text // MYSQL: street address, free-form
   residenceCity     String?
   residenceDistrict String?
   residenceType     String? // OWNED | RENTED
@@ -110,6 +124,16 @@ model User {
 
   // ── RBAC role assignments (mergedplan.md Phase 2) ──
   roleAssignments UserRole[]
+  mfaEnrollment   MfaEnrollment?
+  authSessions    SessionRegistry[]
+
+  // ── Phase 3: KYC/KYP + notification channels ──
+  notificationPref     UserNotificationPref?
+  certificationsVerified ProductCertification[] @relation("CertificationsVerifiedBy")
+
+  // ── Phase 4: unified catalog + multi-vendor + approvals ──
+  offers           ProductOffer[] // this seller's offers on any catalog product
+  productsReviewed Product[]      @relation("ProductsReviewedBy") // admin publish-review decisions
 
   @@index([role])
 }
@@ -119,7 +143,62 @@ model Category {
   name     String
   slug     String    @unique
   icon     String?
+  description String? @db.Text // Phase 4: admin-managed category blurb (directory / SEO)
+  sortOrder   Int     @default(0) // Phase 4: admin-controlled ordering on nav + directories
   products Product[]
+  specAttributes SpecAttribute[] // Phase 3 KYP: structured attribute dictionary per category
+}
+
+// ── Phase 4: brand directory (aggregator layer — owner Q7) ────────────────────
+model Brand {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  slug          String   @unique
+  logoUrl       String?
+  description   String?  @db.Text
+  websiteUrl    String?
+  originCountry String? // e.g. "China", "Germany" — provenance signal
+  isVerified    Boolean  @default(false) // platform-verified brand (trust tier)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  products Product[]
+
+  @@index([isVerified])
+}
+
+// ── Phase 4: unit-of-measure dictionary for spec attributes (owner Q7) ──────
+model UnitOfMeasure {
+  id        String   @id @default(cuid())
+  code      String   @unique // "W", "V", "kg", "cm", "mo"
+  label     String   // "Watt", "Volt", "Kilogram"
+  dimension String   // POWER | VOLTAGE | CURRENT | WEIGHT | LENGTH | AREA | VOLUME | COUNT | TIME | OTHER
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([dimension])
+}
+
+// ── Phase 4: organization-type metadata dictionary (owner Q1) ────────────────
+// Operational layer OVER the Organization.orgType enum: keys mirror the enum
+// (COMPANY | BANK | MFI | EWALLET) so behavior switches stay code-defined,
+// while labels / descriptions / ordering / registration visibility are
+// owner-managed. merchantType taxonomy (5 Merchant/Dealer types) is presented
+// alongside COMPANY. Custom keys are allowed for display-only groupings.
+model OrganizationType {
+  id          String  @id @default(cuid())
+  key         String  @unique
+  name        String
+  description String? @db.Text
+  icon        String?
+  isActive   Boolean @default(true) // hidden from registration pickers when false
+  sortOrder   Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive])
 }
 
 model Product {
@@ -160,7 +239,23 @@ model Product {
   metaDescription String?  @db.Text // MYSQL: SEO description, can run long
   moq             Int? // minimum order quantity enforced by RFQ commercial rules (null = none)
   priceTiers      String?  @db.Text // MYSQL: JSON [{from,to,price}] quantity-break ladder applied in quotes
-  status          String   @default("ACTIVE") // ACTIVE | DRAFT | ARCHIVED
+  status          String   @default("ACTIVE") // ACTIVE | DRAFT | ARCHIVED | PENDING_REVIEW (Phase 4 publish-approval) | REJECTED
+  // ── Phase 4: unified catalog identity (the "what it is" layer) ──
+  brandId      String? // FK Brand — platform-managed brand linkage
+  brand        Brand?  @relation(fields: [brandId], references: [id])
+  gtin         String? // normalized EAN/UPC/GTIN — dedup + merge matching key
+  mpn          String? // manufacturer part number — dedup key
+  isCurated    Boolean @default(false) // platform-curated catalog listing (admin-created/adopted)
+  popularRank  Int? // homepage popular-products ordering (curated); null = not ranked
+
+  // ── Phase 4: publish-approval workflow ──
+  reviewNote     String?   @db.Text // admin reject reason shown to the seller
+  reviewedAt     DateTime?
+  reviewedById   String?
+  reviewedBy     User?     @relation("ProductsReviewedBy", fields: [reviewedById], references: [id])
+  publicationAgreedAt        DateTime? // seller accepted the Publication Agreement (audit-logged too)
+  publicationAgreementVersion String? // which agreement text version was accepted
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -171,11 +266,57 @@ model Product {
   rfqLines         RfqLine[]
   quoteLines       QuoteLine[]
   variants         ProductVariant[]
+  certifications  ProductCertification[]
+  offers           ProductOffer[] // Phase 4: multi-vendor offers on this listing
 
   @@index([categoryId])
   @@index([sellerId, status])
   @@index([status, soldCount])
   @@index([featured])
+  @@index([brandId]) // MYSQL-FK-INDEX: brandId relation needs its own leftmost index
+  @@index([gtin]) // Phase 4: dedup/merge matching lookups
+  @@index([isCurated])
+  @@index([popularRank]) // homepage popular rail ordering
+}
+
+// ── Phase 4: multi-vendor offer — the "who sells it" layer (owner Q5) ────────
+// Product keeps its single-seller listing semantics (price/stock/sellerId =
+// the primary/owning offer, so every existing cart/order/RFQ/quote flow keeps
+// working); ProductOffer rows are ADDITIONAL seller offers displayed
+// side-by-side on the product page. @@unique([productId, sellerId]) = one
+// offer per seller per product; the seller who OWNS the listing edits the
+// Product fields instead (guard enforced in the API).
+model ProductOffer {
+  id             String   @id @default(cuid())
+  productId      String
+  product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sellerId       String
+  seller         User     @relation(fields: [sellerId], references: [id])
+  sellerOrgId    String? // 7.0: authoritative seller-org tenant (backfilled; new writes always set both identifiers)
+  sellerOrg      Organization? @relation("OfferSellerOrg", fields: [sellerOrgId], references: [id])
+  price          Float // offer unit price (offer currency = product currency)
+  compareAtPrice Float?
+  stock          Int      @default(0)
+  moq            Int?
+  sku            String?
+  priceTiers    String?  @db.Text // JSON [{from,to,price}] quantity-break ladder
+  freeShipping   Boolean  @default(false)
+  shippingFee    Float?
+  processingDays Int? // handling time before dispatch
+  leadTimeNote   String? // e.g. "Ships from Sana'a central warehouse"
+  status         String   @default("ACTIVE") // PENDING_REVIEW | ACTIVE | PAUSED | REJECTED | ARCHIVED
+  soldCount      Int      @default(0) // units sold through this offer
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  rfqLines   RfqLine[] // RFQ lines may target a specific offer
+  quoteLines QuoteLine[] // 7.6: quote lines snapshot the offer actually quoted
+  offerVariants OfferVariant[] // 7.6: D9 per-offer variant rows
+
+  @@unique([productId, sellerId])
+  @@index([productId, status])
+  @@index([sellerId, status]) // seller console "My offers" listing
+  @@index([sellerOrgId]) // 7.0: org-tenant offer queries (MYSQL-FK-INDEX)
 }
 
 model Order {
@@ -191,6 +332,14 @@ model Order {
   country   String
   zip       String
   phone     String?
+
+  // ── Phase 7.7: dimension split — one status no longer serves payment and
+  // fulfillment simultaneously. Legacy `status` is retained read-only during
+  // migration (removed after 7.1b's observation discipline).──
+  paymentStatus     String @default("AWAITING_PAYMENT") // AWAITING_PAYMENT | PAID | FUNDED | PARTIALLY_REFUNDED | REFUNDED | OUTSTANDING
+  fulfillmentStatus String @default("UNFULFILLED") // UNFULFILLED | PARTIALLY_FULFILLED | FULFILLED | PARTIALLY_CANCELLED | CANCELLED
+  currency          String @default("USD") // 7.2: explicit transaction currency
+
   createdAt DateTime    @default(now())
 
   // ── B2B extensions (all optional so the B2C fast path is unchanged) ──
@@ -204,9 +353,13 @@ model Order {
   approvalRequest ApprovalRequest?
   payment         Payment?
   disputes        Dispute[]
+  fulfillments    OrderFulfillment[] // 7.7: per-seller-group fulfillment
+  refunds         Refund[] // 7.7: refund obligations + executions
 
   @@index([buyerId, createdAt])
   @@index([status])
+  @@index([paymentStatus])
+  @@index([fulfillmentStatus])
   @@index([organizationId])
 }
 
@@ -223,14 +376,25 @@ model OrderItem {
   image       String? // snapshot of first product image
   variantId   String? // purchased ProductVariant (null = base product)
   variantName String? // snapshot of variant label at purchase time
+  offerId     String? // Phase 4: purchased ProductOffer (null = primary listing offer) — loose snapshot ref; offers archive but never hard-delete
+  offerVariantId String? // 7.6: the (offer, variant) actually sold — D9 identity
+  offerVariant OfferVariant? @relation(fields: [offerVariantId], references: [id], onDelete: SetNull)
+  sellerOrgId String? // 7.0: authoritative seller-org tenant of the sale
+  sellerOrg   Organization? @relation("OrderItemSellerOrg", fields: [sellerOrgId], references: [id])
   payoutId    String? // set when this item's revenue was settled into a seller payout
   payout      Payout? @relation(fields: [payoutId], references: [id])
+  payoutLines PayoutLine[] // 7.4: settlement ledger entries covering this item
+  refundAllocations RefundAllocation[] // 7.7: refunds covering this item
+  fulfillmentItems OrderFulfillmentItem[] // 7.7: per-seller-group links
 
   @@index([orderId])
   @@index([productId])
   @@index([sellerId])
   @@index([sellerId, payoutId])
+  @@index([offerId]) // Phase 4: offer-level sales analytics
   @@index([payoutId]) // MYSQL-FK-INDEX: payoutId relation needs its own leftmost index
+  @@index([sellerOrgId]) // 7.0: org-tenant sales analytics (MYSQL-FK-INDEX)
+  @@index([offerVariantId]) // 7.6 (MYSQL-FK-INDEX)
 }
 
 model ProductVariant {
@@ -247,6 +411,8 @@ model ProductVariant {
   isActive       Boolean  @default(true)
   image          String? // uploaded-media variant image URL
   createdAt      DateTime @default(now())
+
+  offerVariants OfferVariant[] // 7.6: D9 per-offer rows pointing at this catalog variant
 
   @@index([productId, isActive])
 }
@@ -290,6 +456,8 @@ model Organization {
   name               String
   slug               String    @unique
   orgType            String    @default("COMPANY") // COMPANY | BANK | MFI | EWALLET — settings scope key
+  kycLevel           Int       @default(0) // Phase 3 KYB: 0=registered · 2=identity · 3=business docs verified
+  merchantType       String? // EXCLUSIVE_AGENT | AUTHORIZED_AGENT | DISTRIBUTOR | WHOLESALER | RETAILER — Merchant/Dealer classification of the entity
   legalName          String?
   taxId              String? // VAT / EIN
   registrationNumber String?
@@ -311,6 +479,14 @@ model Organization {
   orders           Order[]
   groups           CustomerGroupOrganization[] @relation("OrganizationCustomerGroups")
   approvalRequests ApprovalRequest[]
+
+  // ── Phase 7.0: seller-org tenant back-relations (three-concept identity) ──
+  sellerProfile            SellerProfile?     @relation("SellerProfileOrg")
+  offersAsSellerOrg        ProductOffer[]    @relation("OfferSellerOrg")
+  orderItemsAsSellerOrg    OrderItem[]       @relation("OrderItemSellerOrg")
+  payoutsAsSellerOrg       Payout[]         @relation("PayoutSellerOrg")
+  quotesAsSellerOrg        Quote[]           @relation("QuoteSellerOrg")
+  fulfillmentsAsSellerOrg  OrderFulfillment[] @relation("FulfillmentSellerOrg")
 
   // ── financing-domain back-relations (FINANCIER_SCHEMA v5) ──
   financierProfile      FinancierProfile?      @relation("FinancierProfileOrg")
@@ -340,16 +516,16 @@ model OrganizationMember {
 // Buyer segmentation that pricing and future promotions hang off. Works for
 // B2C segments (e.g. VIP retail) and B2B tiers (e.g. wholesale-tier-1).
 model CustomerGroup {
-  id                         String                      @id @default(cuid())
-  key                        String                      @unique
-  name                       String
-  description                String?                     @db.Text // MYSQL: free-form segment description
-  priority                   Int                         @default(0) // higher wins when several groups apply
-  isDefault                  Boolean                     @default(false)
-  createdAt                  DateTime                    @default(now())
+  id            String         @id @default(cuid())
+  key           String         @unique
+  name          String
+  description   String?        @db.Text // MYSQL: free-form segment description
+  priority      Int            @default(0) // higher wins when several groups apply
+  isDefault     Boolean        @default(false)
+  createdAt     DateTime       @default(now())
   customerGroupUsers         CustomerGroupUser[]         @relation("UserCustomerGroups")
   customerGroupOrganizations CustomerGroupOrganization[] @relation("OrganizationCustomerGroups")
-  priceLists                 PriceList[]
+  priceLists    PriceList[]
 
   @@index([isDefault])
 }
@@ -362,7 +538,7 @@ model CustomerGroupUser {
   customerGroupId String
   userId          String
   customerGroup   CustomerGroup @relation("UserCustomerGroups", fields: [customerGroupId], references: [id], onDelete: Cascade)
-  user            User          @relation("UserCustomerGroups", fields: [userId], references: [id], onDelete: Cascade)
+  user            User         @relation("UserCustomerGroups", fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([customerGroupId, userId])
   @@index([userId]) // MYSQL-FK-INDEX: userId relation needs its own leftmost index
@@ -464,9 +640,13 @@ model RfqLine {
   sku         String?
   variantId   String? // referenced catalog variant (optional)
   variantName String? // snapshot "Color: Black / Bundle: Duo"
+  offerId     String? // Phase 4: target a SPECIFIC vendor offer (null = the product generally / primary listing)
+  offer       ProductOffer? @relation(fields: [offerId], references: [id], onDelete: SetNull) // offer archived → line keeps product context
+  offerVariantId String? // 7.6: buyer targets a specific vendor's variant (D9 identity)
+  offerVariant  OfferVariant? @relation(fields: [offerVariantId], references: [id], onDelete: SetNull)
   quantity    Int
   targetPrice Float? // buyer's target unit price (optional)
-  notes       String?  @db.Text // MYSQL: free-form line notes
+  notes       String? @db.Text // MYSQL: free-form line notes
   rfq         Rfq      @relation(fields: [rfqId], references: [id], onDelete: Cascade)
   product     Product? @relation(fields: [productId], references: [id])
 
@@ -475,6 +655,7 @@ model RfqLine {
   @@index([rfqId])
   @@index([productId])
   @@index([variantId])
+  @@index([offerVariantId]) // 7.6 (MYSQL-FK-INDEX)
 }
 
 model Quote {
@@ -483,6 +664,8 @@ model Quote {
   rfqId         String
   createdById   String // admin or seller who issued the quote
   sellerId      String? // fulfilling seller (null = platform-facilitated)
+  sellerOrgId   String? // 7.0: authoritative seller-org tenant of the quote
+  sellerOrg     Organization? @relation("QuoteSellerOrg", fields: [sellerOrgId], references: [id])
   status        String    @default("SENT") // DRAFT | SENT | PENDING_REVIEW | ACCEPTED | DECLINED | REJECTED | EXPIRED | CONVERTED | WITHDRAWN
   currency      String    @default("USD")
   subtotal      Float
@@ -507,6 +690,7 @@ model Quote {
 
   @@index([rfqId])
   @@index([status])
+  @@index([sellerOrgId]) // 7.0 (MYSQL-FK-INDEX)
   @@index([createdById]) // MYSQL-FK-INDEX: createdById relation needs its own leftmost index
 }
 
@@ -547,6 +731,11 @@ model QuoteLine {
   productId   String
   variantId   String? // quoted variant (mirrors the RFQ line)
   variantName String? // snapshot at quote time
+  offerId     String? // 7.6: the seller offer actually quoted — H1: the snapshot is the fact, never reconstructed from a live offer
+  offer       ProductOffer? @relation(fields: [offerId], references: [id], onDelete: SetNull)
+  offerVariantId String? // 7.6: the (offer, variant) quoted — D9 identity
+  offerVariant OfferVariant? @relation(fields: [offerVariantId], references: [id], onDelete: SetNull)
+  availableStock Int? // 7.6/H1: applicable inventory at quote time (null = not inventoried)
   quantity    Int
   unitPrice   Float
   quote       Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
@@ -556,6 +745,8 @@ model QuoteLine {
   @@index([quoteId])
   @@index([productId])
   @@index([rfqLineId]) // MYSQL-FK-INDEX: rfqLineId relation needs its own leftmost index
+  @@index([offerId]) // 7.6 (MYSQL-FK-INDEX)
+  @@index([offerVariantId]) // 7.6 (MYSQL-FK-INDEX)
 }
 
 // ── Server-side notification feed (RFQ / approval / message events) ─────────
@@ -602,9 +793,9 @@ model NotificationDigest {
 
 // Per-user digest opt-in + cadence. No row (or OFF) = never included in batches.
 model UserDigestPref {
-  userId    String @id
-  frequency String @default("OFF") // OFF | DAILY | WEEKLY
-  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String  @id
+  frequency String  @default("OFF") // OFF | DAILY | WEEKLY
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // ── Auth hardening (AUTHSEC-1): single-use, hashed, expiring tokens ─────────
@@ -656,18 +847,20 @@ model RfqMessage {
 model MediaAsset {
   id               String            @id @default(cuid())
   key              String            @unique // storage base key (no extension)
+  namespace        String            @default("public-media") // public-media | private-vault — 6.6.1: separate key roots; dedup NEVER crosses namespaces
   originalName     String
   mime             String
   size             Int
   width            Int?
   height           Int?
-  sha256           String            @unique
+  sha256           String
   variants         String?           @db.Text // MYSQL: JSON {thumb,medium,large,full} storage keys
   uploadedById     String
   uploadedBy       User              @relation("MediaAssets", fields: [uploadedById], references: [id])
   accountDocuments AccountDocument[] @relation("AccountDocumentMedia")
   createdAt        DateTime          @default(now())
 
+  @@unique([namespace, sha256])
   @@index([uploadedById, createdAt])
 }
 
@@ -787,6 +980,8 @@ model Payout {
   number         String    @unique // PY-2026-000001
   sellerId       String
   seller         User      @relation("PayoutSeller", fields: [sellerId], references: [id])
+  sellerOrgId    String? // 7.0: authoritative seller-org tenant receiving payment
+  sellerOrg      Organization? @relation("PayoutSellerOrg", fields: [sellerOrgId], references: [id])
   periodStart    DateTime
   periodEnd      DateTime
   itemCount      Int       @default(0)
@@ -794,16 +989,257 @@ model Payout {
   commissionRate Float // percent actually applied (snapshot)
   commission     Float     @default(0)
   netAmount      Float     @default(0)
+  currency       String    @default("USD") // 7.2: explicit settlement currency
   status         String    @default("PENDING") // PENDING | PAID | CANCELLED
   paidAt         DateTime?
   note           String?   @db.Text // MYSQL: free-form payout note
+  // ── 7.4C: external transfer discipline (S4) ──
+  transferReference      String? // bank/manually-confirmed transfer reference — REQUIRED to mark paid
+  transferIdempotencyKey String? @unique // derived from payout number + execution attempt; retries reuse it
+  executedById  String? // actor who confirmed the transfer
+  executedBy    User?   @relation("PayoutExecutedBy", fields: [executedById], references: [id])
+  executedAt    DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   items OrderItem[]
+  lines PayoutLine[] // 7.4B: the immutable settlement ledger
 
   @@index([sellerId, status])
   @@index([status, createdAt])
+  @@index([sellerOrgId]) // 7.0 (MYSQL-FK-INDEX)
+  @@index([executedById]) // 7.4 (MYSQL-FK-INDEX)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 7 (lastplan v5) — Financial integrity & multi-currency substrate.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// 7.0 — the seller-org tenant profile: one per selling organization.
+// Verification lives HERE (verificationState, per S3: verification ≠
+// suspension); Organization.status stays the operational lifecycle.
+// Store settings (logo/banner/policies/payout account) land here in 8.3.
+model SellerProfile {
+  id                String   @id @default(cuid())
+  organizationId    String   @unique
+  organization      Organization @relation("SellerProfileOrg", fields: [organizationId], references: [id])
+  ownerUserId       String
+  owner             User     @relation("SellerProfileOwner", fields: [ownerUserId], references: [id])
+  verificationState String   @default("UNVERIFIED") // UNVERIFIED | PENDING | VERIFIED | REJECTED
+  verificationNote  String?  @db.Text // MYSQL: free-form verification note
+  verifiedAt        DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([verificationState])
+  @@index([ownerUserId]) // MYSQL-FK-INDEX: ownerUserId relation needs its own leftmost index
+}
+
+// 7.4B — the immutable settlement ledger. Amount/commission/currency/FX fields
+// are never UPDATEd after insert; only status transitions and appended entries.
+// claimKey (the DB backstop): orderItemId for claim-purpose lines
+// (SETTLEMENT/REISSUE) while PENDING/EFFECTIVE, else NULL — UNIQUE(claimKey)
+// means at most one live settlement claim per order item, ever. REVERSAL
+// lines never occupy the slot (an accounting fact, not a claim).
+model PayoutLine {
+  id               String    @id @default(cuid())
+  payoutId         String
+  orderItemId      String
+  linePurpose      String    // SETTLEMENT | REVERSAL | REISSUE
+  amount           Float
+  commission       Float
+  currency         String    @default("USD")
+  fxRate           Float? // FX snapshot on converted amounts (7.2)
+  fxRateAt         DateTime?
+  fxSource         String?
+  status           String    @default("PENDING") // PENDING | EFFECTIVE | REVERSED | CANCELLED
+  claimKey         String?   @unique
+  reversalOfLineId String?
+  effectiveAt      DateTime?
+  reversedAt       DateTime?
+  createdAt        DateTime  @default(now())
+
+  payout         Payout       @relation(fields: [payoutId], references: [id], onDelete: Cascade)
+  orderItem      OrderItem    @relation(fields: [orderItemId], references: [id])
+  reversalOf     PayoutLine? @relation("PayoutLineReversal", fields: [reversalOfLineId], references: [id])
+  reversals      PayoutLine[] @relation("PayoutLineReversal")
+
+  @@index([payoutId])
+  @@index([orderItemId])
+  @@index([status])
+  @@index([reversalOfLineId]) // MYSQL-FK-INDEX
+}
+
+// 7.5 — durable recurring-RFQ run state with a fencing token (S5): Tx 1
+// claims the unique run with a lease; Tx 2 executes CONDITIONED on the lease
+// token — a stale worker whose lease expired can never create a duplicate.
+model RecurringRfqRun {
+  id             String   @id @default(cuid())
+  scheduleId     String // loose FK to RecurringRfq.id — run history outlives the schedule
+  dueAt          DateTime
+  status         String   @default("CLAIMED") // CLAIMED | CREATED | FAILED
+  leaseToken     String // random per claim; rewritten on reclaim — Tx 2 verifies it (fencing)
+  leaseExpiresAt DateTime
+  attempt        Int      @default(1)
+  rfqId          String?
+  error          String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([scheduleId, dueAt]) // idempotency key
+  @@index([status, leaseExpiresAt])
+}
+
+// 7.2 — multi-currency substrate: admin-managed currency list + rate history.
+// Money rows carry explicit currency codes; conversions snapshot the rate.
+model Currency {
+  id        String  @id @default(cuid())
+  code      String  @unique // ISO-4217: USD, YER, SAR
+  name      String
+  symbol    String?
+  decimals  Int     @default(2)
+  isActive  Boolean @default(true)
+  createdAt DateTime @default(now())
+
+  ratesAsBase  ExchangeRate[] @relation("RateBase")
+  ratesAsQuote ExchangeRate[] @relation("RateQuote")
+
+  @@index([isActive])
+}
+
+model ExchangeRate {
+  id        String   @id @default(cuid())
+  baseCode  String
+  quoteCode String
+  rate      Float // 1 base = rate quote
+  source    String   @default("ADMIN") // ADMIN | SEED | IMPORT
+  validFrom DateTime @default(now())
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  base  Currency @relation("RateBase", fields: [baseCode], references: [code])
+  quote Currency @relation("RateQuote", fields: [quoteCode], references: [code])
+
+  @@unique([baseCode, quoteCode, validFrom]) // one authoritative rate per instant
+  @@index([quoteCode]) // MYSQL-FK-INDEX
+}
+
+// 7.7.2 — minimal per-seller-group fulfillment model (operational depth in
+// 8.1). One row per (order × sellerOrgId); Order.fulfillmentStatus is the
+// tested derivation over these groups.
+model OrderFulfillment {
+  id             String    @id @default(cuid())
+  orderId        String
+  sellerOrgId    String? // null = platform-facilitated group (items with no seller org)
+  sellerId       String? // historical seller-account identity (7.0 three-concept model)
+  status         String    @default("UNFULFILLED") // UNFULFILLED | PROCESSING | SHIPPED | DELIVERED | CANCELLED
+  carrier        String?
+  trackingNumber String?
+  shippedAt      DateTime?
+  deliveredAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  order    Order                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  sellerOrg Organization?        @relation("FulfillmentSellerOrg", fields: [sellerOrgId], references: [id])
+  items    OrderFulfillmentItem[]
+
+  @@index([orderId])
+  @@index([sellerOrgId])
+}
+
+model OrderFulfillmentItem {
+  id            String @id @default(cuid())
+  fulfillmentId String
+  orderItemId   String @unique
+  quantity      Int    @default(1)
+
+  fulfillment OrderFulfillment @relation(fields: [fulfillmentId], references: [id], onDelete: Cascade)
+  orderItem   OrderItem        @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@index([fulfillmentId]) // MYSQL-FK-INDEX
+}
+
+// 7.7.3 — refunds: obligation vs execution, item-level allocations (S7).
+// REQUESTED → APPROVED (obligation established) → COMPLETED (only with
+// execution evidence: a payment reference recorded by an authenticated
+// actor). Corrections append REVERSAL entries on the payout ledger (7.4) —
+// history is never rewritten. paymentStatus refund states derive ONLY from
+// COMPLETED refunds' allocations.
+model Refund {
+  id               String    @id @default(cuid())
+  number           String    @unique // RF-2026-000001
+  orderId          String
+  requestedById    String
+  reason           String    @db.Text
+  status           String    @default("REQUESTED") // REQUESTED | APPROVED | COMPLETED | DENIED | CANCELLED
+  decidedNote      String?   @db.Text
+  amountTotal      Float     @default(0) // sum of allocation buckets
+  currency         String    @default("USD")
+  paymentReference String? // execution evidence — REQUIRED to complete
+  approvedById     String?
+  approvedAt       DateTime?
+  completedById    String?
+  completedAt      DateTime?
+  deniedAt         DateTime?
+  cancelledAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  order       Order              @relation(fields: [orderId], references: [id])
+  requestedBy User               @relation("RefundRequester", fields: [requestedById], references: [id])
+  approvedBy  User?              @relation("RefundApprover", fields: [approvedById], references: [id])
+  completedBy User?              @relation("RefundCompleter", fields: [completedById], references: [id])
+  allocations RefundAllocation[]
+
+  @@index([orderId])
+  @@index([status])
+  @@index([requestedById]) // MYSQL-FK-INDEX
+  @@index([approvedById]) // MYSQL-FK-INDEX
+  @@index([completedById]) // MYSQL-FK-INDEX
+}
+
+model RefundAllocation {
+  id              String @id @default(cuid())
+  refundId        String
+  orderItemId     String
+  quantity        Int    @default(1)
+  amount          Float  @default(0) // items bucket for this allocation
+  bucketShipping  Float  @default(0)
+  bucketDiscounts Float  @default(0)
+  bucketTaxes     Float  @default(0)
+
+  refund    Refund    @relation(fields: [refundId], references: [id], onDelete: Cascade)
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@unique([refundId, orderItemId])
+  @@index([orderItemId]) // MYSQL-FK-INDEX
+}
+
+// 7.6 — D9 OfferVariant: per-offer variant rows. The (offer, variant) pair
+// is the purchase-time authority — price override, per-variant stock, sku,
+// isActive. Catalog-level ProductVariant price/stock remain presentation
+// defaults for the product owner's primary listing.
+model OfferVariant {
+  id        String   @id @default(cuid())
+  offerId   String
+  variantId String
+  price     Float? // null = inherit the offer price
+  stock     Int     @default(0)
+  sku       String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  offer   ProductOffer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  rfqLines   RfqLine[]
+  quoteLines QuoteLine[]
+  orderItems OrderItem[]
+
+  @@unique([offerId, variantId])
+  @@index([variantId]) // MYSQL-FK-INDEX
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -846,9 +1282,9 @@ model Sequence {
 // ═══════════════════════════════════════════════════════════════════════════
 
 model Permission {
-  key         String           @id // e.g. "financing.documents.verify"
-  domain      String // catalog | vendors | financing | org-members | ... (UI grouping key)
-  description String?          @db.Text // MYSQL: free-form help text
+  key         String            @id // e.g. "financing.documents.verify"
+  domain      String            // catalog | vendors | financing | org-members | ... (UI grouping key)
+  description String?           @db.Text // MYSQL: free-form help text
   roles       RolePermission[]
 
   @@index([domain])
@@ -859,7 +1295,7 @@ model Role {
   key         String            @unique // e.g. "platform.super-admin" | "org.admin" | "custom.platform.x"
   name        String
   description String?           @db.Text // MYSQL: free-form description
-  scope       String // PLATFORM | ORG
+  scope       String            // PLATFORM | ORG
   isSystem    Boolean           @default(false) // seeded, undeletable
   isProtected Boolean           @default(false) // RBACSEC-1: hidden & untouchable for non-super-admins (super-admin, org.owner)
   createdAt   DateTime          @default(now())
@@ -872,10 +1308,10 @@ model Role {
 }
 
 model RolePermission {
-  roleId        String
-  permissionKey String
-  role          Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission    Permission @relation(fields: [permissionKey], references: [key], onDelete: Cascade)
+  roleId         String
+  permissionKey  String
+  role           Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission     Permission @relation(fields: [permissionKey], references: [key], onDelete: Cascade)
 
   @@id([roleId, permissionKey])
 }
@@ -901,7 +1337,7 @@ model StaffInvitation {
   name           String?
   roleId         String
   organizationId String    @default("") // "" = platform staff
-  token          String    @unique
+  tokenHash      String    @unique // Phase 6 (6.5): SHA-256 of the raw token — the raw token is shown once at invite time, never stored
   status         String    @default("PENDING") // PENDING | ACCEPTED | REVOKED
   invitedBy      String // admin user id (loose FK)
   invitedByName  String?
@@ -912,6 +1348,65 @@ model StaffInvitation {
 
   @@index([email])
   @@index([organizationId, status])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Phase 6 — MFA + persistent session registry (lastplan v5 6.7)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// TOTP enrollment. secretEnc = AES-256-GCM ciphertext (key from the secret
+// store — MFA_ENCRYPTION_KEY, never the DB credential). The plaintext secret
+// exists only in memory during enrollment/verification (6.7.2).
+model MfaEnrollment {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  method      String    @default("TOTP") // TOTP (RFC 6238)
+  secretEnc   String    @db.Text // AES-256-GCM payload — never logged, never returned after confirmation
+  confirmedAt DateTime? // null = started, not yet confirmed (no challenge until confirmed)
+  lastTotpStep Int? // RFC 6238 §5.2 replay guard — a verified step is never accepted twice
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  backupCodes MfaBackupCode[]
+
+  @@index([userId])
+}
+
+// Single-use backup codes — salted scrypt hashes, each use flips usedAt and is
+// audited; replay is rejected (6.7.3). Admin re-issue invalidates the set.
+model MfaBackupCode {
+  id          String    @id @default(cuid())
+  enrollmentId String
+  codeHash    String    @unique // salt:hash — same format as passwords
+  usedAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  enrollment MfaEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@index([enrollmentId])
+}
+
+// Persistent session registry (6.7.7): every issued session token gets a row
+// (tokenHash = SHA-256 of the cookie value). Revocation supports a single
+// session (revokedAt) and all-sessions (sessionVersion bump stays the all-kill).
+// mfaSatisfiedAt carries the step-up freshness window (6.7.5).
+model SessionRegistry {
+  id           String    @id @default(cuid())
+  userId       String
+  tokenHash    String    @unique
+  userAgent    String?   @db.VarChar(400)
+  ip           String?   @db.VarChar(64)
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime  @default(now())
+  revokedAt    DateTime?
+  revokedReason String?  @db.VarChar(120) // LOGOUT | REVOKED_BY_USER | REVOKED_BY_ADMIN | ALL_SESSIONS
+  mfaSatisfiedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, revokedAt])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1010,7 +1505,7 @@ model FinancierProfile {
   organizationId String       @unique // 1:1 — the legal entity (BANK | MFI | EWALLET)
   organization   Organization @relation("FinancierProfileOrg", fields: [organizationId], references: [id], onDelete: Cascade)
 
-  about         String?  @db.Text // MYSQL: public marketing text (About tab)
+  about         String? @db.Text // MYSQL: public marketing text (About tab)
   licenseNumber String?
   regulator     String?
   logoUrl       String? // MediaAsset-backed URL (existing pattern: User.image)
@@ -1080,12 +1575,16 @@ model FinancierService {
   processingDays           Int?
   accreditationValidMonths Int? // ACCREDITATION kind: lifetime of the grant once ACCREDITED
   accreditationFeeAmount   Float? // ACCREDITATION kind: fee (invoiced externally, D-002)
-  financingLimitText       String?          @db.Text // MYSQL: rich detail — financing limit display text
-  targetAudience           String?          @db.Text // MYSQL: rich detail — who the program is for
-  termsNote                String?          @db.Text // MYSQL: rich detail — terms callout (e.g. murabaha cap)
-  guaranteeTypes           String?          @db.Text // MYSQL: rich detail — comma-separated guarantee kinds
-  financingPeriods         String?          @db.Text // MYSQL: rich detail — comma-separated periods
+  financingLimitText       String? @db.Text // MYSQL: rich detail — financing limit display text
+  targetAudience           String? @db.Text // MYSQL: rich detail — who the program is for
+  termsNote                String? @db.Text // MYSQL: rich detail — terms callout (e.g. murabaha cap)
+  guaranteeTypes            String? @db.Text // MYSQL: rich detail — comma-separated guarantee kinds
+  financingPeriods         String? @db.Text // MYSQL: rich detail — comma-separated periods
   viewCount                Int              @default(0)
+  // ── Phase 4: publish-approval workflow (same mechanism as products) ──
+  reviewNote   String?   @db.Text // admin reject reason shown to the financier
+  reviewedAt   DateTime?
+  reviewedById String?
   createdAt                DateTime         @default(now())
   updatedAt                DateTime         @updatedAt
 
@@ -1246,11 +1745,35 @@ model AccountDocument {
 
   submissions        RequirementSubmission[]
   requestAttachments RequestAttachment[]     @relation("RequestAttachmentDocument")
+  vaultAccessGrants  VaultAccessGrant[]      @relation("VaultAccessGrants")
 
   @@index([userId, documentType, status])
   @@index([organizationId])
   @@index([mediaId])
   @@index([reviewedById]) // MYSQL-FK-INDEX: reviewedById relation needs its own leftmost index
+}
+
+// ── 3.7b VaultAccessGrant — one-time, short-TTL retrieval grants for private-vault
+// documents (6.6.4). Every issued /api/vault URL carries a unique nonce backed
+// by a row here; retrieval consumes the row atomically (updateMany WHERE
+// consumedAt IS NULL — 1 row or reject). Issuance (DOCUMENT_URL_ISSUED) and
+// actual retrieval (DOCUMENT_FILE_RETRIEVED) are distinct audit events. ──
+model VaultAccessGrant {
+  id          String          @id @default(cuid())
+  documentId  String
+  document    AccountDocument @relation("VaultAccessGrants", fields: [documentId], references: [id], onDelete: Cascade)
+  userId      String // the user the URL was issued to (bound into the HMAC)
+  user        User            @relation("VaultAccessGrants", fields: [userId], references: [id], onDelete: Cascade)
+  nonce       String          @unique // random 48-hex — one-time use, atomic consume
+  basis       String           @default("OWNER") // OWNER | PLATFORM_REVIEWER | ORG_MEMBER | FINANCIER_SCOPE — 6.8 access basis at issuance
+  expiresAt   DateTime // minutes-TTL (default 5) — enforced at retrieval, not just by signature
+  consumedAt  DateTime? // set exactly once by the proxy route; replay ⇒ reject
+  issuedIp    String? // best-effort caller IP at issuance
+  createdAt   DateTime        @default(now())
+
+  @@index([userId, createdAt])
+  @@index([documentId, createdAt])
+  @@index([expiresAt]) // expired-grant reaper
 }
 
 // Free-form request attachments not tied to a specific requirement (loose-parent pattern).
@@ -1290,11 +1813,11 @@ model FinancingRequest {
   // ACTIVITY (wizard step 2)
   activityStatus        String?
   activityName          String?
-  activityDescription   String?   @db.Text // MYSQL: free-form activity description
+  activityDescription   String? @db.Text // MYSQL: free-form activity description
   activityStartDate     DateTime?
   activityCity          String?
   activityDistrict      String?
-  activityAddress       String?   @db.Text // MYSQL: street address, free-form
+  activityAddress       String? @db.Text // MYSQL: street address, free-form
   activityLocationType  String? // OWNED | RENTED
   activityCategory      String?
   activityCategoryOther String?
@@ -1304,7 +1827,7 @@ model FinancingRequest {
   ownContributionAmount      Float?
   monthlyInstallmentCapacity Float?
   previousFinancing          Boolean?
-  otherIncomeSources         String?  @db.Text // MYSQL: free-form income listing
+  otherIncomeSources         String? @db.Text // MYSQL: free-form income listing
 
   // THE ASK
   amountRequested      Float
@@ -1319,7 +1842,7 @@ model FinancingRequest {
   guaranteeStatusOther String?
 
   // CONSENT
-  applicantNotes String?   @db.Text // MYSQL: free-form applicant notes
+  applicantNotes String? @db.Text // MYSQL: free-form applicant notes
   consentAt      DateTime?
 
   // THE PLATFORM GATE (R-4, DP-23)
@@ -1364,16 +1887,16 @@ model FinancingOffer {
   ratePercent        Float?
   feeFlat            Float?
   tenorMonths        Int
-  collateralRequired String?          @db.Text // MYSQL: from the guarantee taxonomy (§3.8), free-form
-  notes              String?          @db.Text // MYSQL: free-form offer notes
+  collateralRequired String? @db.Text // MYSQL: from the guarantee taxonomy (§3.8), free-form
+  notes              String? @db.Text // MYSQL: free-form offer notes
   validUntil         DateTime?
   status             String           @default("DRAFT") // DRAFT | SENT | ACCEPTED | DECLINED | EXPIRED | WITHDRAWN
   sentAt             DateTime?
   acceptedAt         DateTime?
   declinedAt         DateTime?
   withdrawnAt        DateTime?
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
   installments FinancingOfferInstallment[]
   agreement    FinancingAgreement?
@@ -1468,7 +1991,7 @@ model AccreditationRequest {
   // MULTI-FINANCIER ROUTING (DP-25)
   multiGroupId String?
 
-  scopeNotes String?   @db.Text // MYSQL: free-form scope notes
+  scopeNotes String? @db.Text // MYSQL: free-form scope notes
   consentAt  DateTime?
 
   // THE PLATFORM GATE (R-4)
@@ -1499,11 +2022,18 @@ model AccreditationRequest {
 
   submissions RequirementSubmission[]
 
-  @@unique([serviceId, organizationId]) // one accreditation per financier-program per org; renewals after terminal states (service-enforced)
+  // ── 7.8: renewal history + DB-derived active marker ──
+  activeKey    Int? // 1 for ACTIVE_SET statuses, NULL terminal — maintained by DB triggers (scripts/sql/accreditation-constraints.sql); application code NEVER sets it
+  supersedesId String? // the ACCREDITED record this renewal replaces
+  supersedes   AccreditationRequest?  @relation("AccreditationSupersedes", fields: [supersedesId], references: [id])
+  supersededBy AccreditationRequest[] @relation("AccreditationSupersedes")
+
+  @@unique([serviceId, organizationId, activeKey]) // 7.8: at most one LIVE request per program/org; terminal rows (activeKey NULL) keep unlimited history — multiple NULLs are legal
   @@index([organizationId, status])
   @@index([status, createdAt])
   @@index([multiGroupId])
   @@index([validUntil])
+  @@index([supersedesId]) // 7.8 (MYSQL-FK-INDEX)
   @@index([submittedById]) // MYSQL-FK-INDEX: submittedById relation needs its own leftmost index
   @@index([platformReviewedById]) // MYSQL-FK-INDEX: platformReviewedById relation needs its own leftmost index
   @@index([decidedById]) // MYSQL-FK-INDEX: decidedById relation needs its own leftmost index
@@ -1530,13 +2060,13 @@ model ContactMessage {
 // ═══ REDSIGN-ERA MODELS (ported to MySQL dialect) ═══
 
 model FaqItem {
-  id       String  @id @default(cuid())
-  topic    String  @default("GENERAL") // GENERAL | FUNDING | MARKET | SELL | B2B | ACCOUNT
+  id       String   @id @default(cuid())
+  topic    String   @default("GENERAL") // GENERAL | FUNDING | MARKET | SELL | B2B | ACCOUNT
   question String
-  answer   String  @db.Text // MYSQL: long-form answer
-  position Int     @default(0)
-  featured Boolean @default(false)
-  isActive Boolean @default(true)
+  answer   String   @db.Text // MYSQL: long-form answer
+  position Int      @default(0)
+  featured Boolean  @default(false)
+  isActive Boolean  @default(true)
 
   @@index([topic, position])
 }
@@ -1568,7 +2098,7 @@ model FundingStory {
   amountFinanced     Float?
   currency           String            @default("YER")
   peopleImpacted     Int?
-  co2AvoidedTonnes   Float?
+  co2AvoidedTonnes  Float?
   featured           Boolean           @default(false)
   status             String            @default("PUBLISHED") // DRAFT | PUBLISHED | ARCHIVED
   position           Int               @default(0)
@@ -1581,22 +2111,22 @@ model FundingStory {
 }
 
 model InsightPost {
-  id          String   @id @default(cuid())
-  slug        String   @unique
-  title       String
-  excerpt     String   @db.Text // MYSQL: article teaser
-  body        String   @db.Text // MYSQL: markdown-lite
-  coverUrl    String?
-  authorName  String?
-  authorTitle String?
-  topic       String   @default("GUIDE") // GUIDE | NEWS | POLICY | FUNDING | MARKET
-  tags        String? // comma-separated
-  readMinutes Int      @default(4)
-  featured    Boolean  @default(false)
-  status      String   @default("PUBLISHED") // DRAFT | PUBLISHED | ARCHIVED
-  publishedAt DateTime @default(now())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String    @id @default(cuid())
+  slug         String    @unique
+  title        String
+  excerpt      String    @db.Text // MYSQL: article teaser
+  body         String    @db.Text // MYSQL: markdown-lite
+  coverUrl     String?
+  authorName   String?
+  authorTitle  String?
+  topic        String    @default("GUIDE") // GUIDE | NEWS | POLICY | FUNDING | MARKET
+  tags         String? // comma-separated
+  readMinutes  Int       @default(4)
+  featured     Boolean   @default(false)
+  status       String    @default("PUBLISHED") // DRAFT | PUBLISHED | ARCHIVED
+  publishedAt  DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@index([status, publishedAt])
   @@index([topic])
@@ -1606,7 +2136,7 @@ model LegalDocument {
   id          String   @id @default(cuid())
   slug        String   @unique // terms | privacy | cookies
   title       String
-  summary     String?  @db.Text // MYSQL: short lead-in
+  summary     String? @db.Text // MYSQL: short lead-in
   body        String   @db.Text // MYSQL: markdown-lite
   version     String   @default("1.0")
   effectiveAt DateTime @default(now())
@@ -1640,7 +2170,7 @@ model SiteStep {
   icon      String? // lucide icon name, mapped by the UI kit
   title     String
   subtitle  String?
-  body      String?  @db.Text // MYSQL: step explanation
+  body      String? @db.Text // MYSQL: step explanation
   stat      String? // optional micro-stat chip ("2–5 days")
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -1675,154 +2205,280 @@ model SolutionFeature {
   position   Int      @default(0)
   icon       String?
   title      String
-  body       String?  @db.Text // MYSQL: feature explanation
+  body       String? @db.Text // MYSQL: feature explanation
 
   @@index([solutionId]) // MYSQL-FK-INDEX: solutionId relation needs its own leftmost index
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 8. DYNAMIC CURRENCY ENGINE (PHASE 8 — nothing hardcoded)
-// Exchange rates are DATA, never code. All catalog prices are stored in the
-// base currency (USD); every display currency converts through CurrencyRate
-// rows that are live-fetched (multi-source fallback) or manually overridden
-// by an admin. The 1 USD → YER 535.5 style numbers change daily — the system
-// reads them from the DB and refreshes them from the open web on demand.
+// PHASE 3 — Phone-OTP auth · KYC/KYP · WhatsApp notification channel
 // ═══════════════════════════════════════════════════════════════════════════
 
-model CurrencyRate {
-  id              String    @id @default(cuid())
-  code            String    @unique // ISO 4217: USD, YER, SAR, AED, EGP, JOD, KWD, …
-  name            String // "Yemeni Rial"
-  symbol          String    @default("$") // short display symbol
-  rateToUsd       Float // 1 USD = rateToUsd CODE (the USD row itself is 1.0)
-  displayDecimals Int       @default(2) // shown decimals when converted
-  source          String    @default("seed") // seed | live | manual — provenance of current rate
-  isManual        Boolean   @default(false) // admin override — live refresh skips until reset
-  isActive        Boolean   @default(true) // visible in the currency switcher
-  sortOrder       Int       @default(0)
-  lastSyncedAt    DateTime? // when the live rate was fetched (null = never)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+// One-time passcodes for phone-first auth. Keyed by normalized E.164 phone,
+// purpose-scoped, SHA-256-hashed at rest, single-use, attempt-capped.
+model OtpCode {
+  id         String    @id @default(cuid())
+  phone      String // normalized E.164 (+9677XXXXXXXXX)
+  purpose    String // REGISTER | RESET (LOGIN reserved for future passwordless)
+  codeHash   String // sha256(code)
+  expiresAt  DateTime // 5-minute TTL
+  attempts   Int       @default(0) // max 5 verify tries then burn
+  consumedAt DateTime? // single-use burn
+  ip         String? // issuance IP (abuse forensics)
+  createdAt  DateTime  @default(now())
 
-  @@index([isActive, sortOrder])
+  @@index([phone, purpose, createdAt])
+  @@index([expiresAt])
 }
 
-// ── 9. WHATSAPP SUITE — templates, chatbot rules, bulk campaigns, messages ──
-
-model WhatsAppTemplate {
-  id          String   @id @default(cuid())
-  name        String
-  category    String   @default("MARKETING") // MARKETING | UTILITY | AUTHENTICATION
-  language    String   @default("en") // en | ar
-  body        String   @db.Text // text with {{name}} {{discount}} … placeholders
-  status      String   @default("DRAFT") // DRAFT | APPROVED
-  useCount    Int      @default(0)
-  createdById String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  campaigns BulkCampaign[]
-
-  @@index([category, status])
-}
-
-// Auto-reply / chatbot rule. Evaluated by the matching engine on every
-// incoming message (widget + WhatsApp), priority DESC, first match wins.
-model ChatbotRule {
-  id        String   @id @default(cuid())
-  name      String
-  matchType String   @default("CONTAINS") // CONTAINS | EXACT | STARTS_WITH | REGEX
-  pattern   String   @db.Text // matched against the normalized incoming text
-  reply     String   @db.Text // reply text — supports template variables
-  priority  Int      @default(0)
-  active    Boolean  @default(true)
-  hits      Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([active, priority])
-}
-
-model BulkCampaign {
-  id          String            @id @default(cuid())
-  name        String
-  templateId  String?
-  template    WhatsAppTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  body        String            @db.Text // snapshot of the chosen body (before personalization)
-  audience    String            @default("ALL_USERS") // ALL_USERS | BUYERS | SELLERS | CUSTOM
-  phones      String?           @db.Text // JSON string array — recipient phone snapshot
-  status      String            @default("DRAFT") // DRAFT | QUEUED | SENDING | PAUSED | COMPLETED | CANCELLED | FAILED
-  total       Int               @default(0)
-  sent        Int               @default(0)
-  failed      Int               @default(0)
-  startedAt   DateTime?
-  finishedAt  DateTime?
-  createdById String?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+// WhatsApp sending numbers ("senders") — the platform OWNER pairs any
+// international SIM (+967…, +966…) from the admin console via a pairing code
+// typed into WhatsApp → Linked devices. Session creds persist here so the
+// mini-service survives restarts; owner can disconnect / replace anytime.
+model WhatsAppSender {
+  id          String    @id @default(cuid())
+  label       String // display name, e.g. "Vendora main line"
+  phoneNumber String    @unique // E.164 — the number users receive messages FROM
+  status      String    @default("PENDING_PAIRING") // PENDING_PAIRING | PAIRED | DISCONNECTED | FAILED
+  credsJson   String?   @db.MediumText // Baileys session credentials (encrypted-at-rest candidate)
+  pairingCode String? // 8-char code the owner types on their phone (pairing flow)
+  codeIssuedAt DateTime? // when the CURRENT pairing code was issued (codes expire in ~2-3 min)
+  qrExpiresAt DateTime?
+  isDefault   Boolean   @default(false) // the active outbound line
+  lastUsedAt  DateTime?
+  lastError   String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   messages WhatsAppMessage[]
 
   @@index([status])
 }
 
+// Outbound WhatsApp log — every send is auditable + debuggable. Doubles as
+// the delivery ledger when the channel fans out to email/SMS twins later.
 model WhatsAppMessage {
-  id          String        @id @default(cuid())
-  campaignId  String?
-  campaign    BulkCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
-  toNumber    String
-  fromNumber  String?
-  body        String        @db.Text
-  direction   String        @default("OUT") // OUT | IN
-  status      String        @default("QUEUED") // QUEUED | SENT | FAILED | RECEIVED
-  error       String?       @db.Text
-  waMessageId String?
-  sentAt      DateTime?
-  createdAt   DateTime      @default(now())
+  id             String         @id @default(cuid())
+  senderId       String?
+  sender         WhatsAppSender? @relation(fields: [senderId], references: [id], onDelete: SetNull)
+  toPhone        String // E.164
+  template       String // OTP | NOTIFICATION | TEST | CUSTOM
+  body           String         @db.Text
+  status         String         @default("QUEUED") // QUEUED | SENT | FAILED
+  error          String?        @db.Text
+  userId         String? // recipient user (null for pre-account OTP)
+  notificationId String? // mirrored in-app Notification when applicable
+  campaignId     String? // WA-BIZ: bulk campaign this send belongs to
+  createdAt      DateTime       @default(now())
+  sentAt         DateTime?
 
+  @@index([toPhone, createdAt])
+  @@index([status, createdAt])
+  @@index([userId])
   @@index([campaignId])
-  @@index([toNumber, createdAt])
-  @@index([direction, createdAt])
 }
 
-// ── 10. CHAT — one conversation model for BOTH the marketplace widget and
-// WhatsApp inbound. Staff (admin + sellers) answer from the unified Inbox. ──
+// WA-BIZ — reusable message templates with {{placeholder}} variables.
+// Rendered at send time; usage counts feed the admin console KPIs.
+model WhatsAppTemplate {
+  id        String   @id @default(cuid())
+  name      String   @unique // slug, e.g. "order-shipped"
+  category  String   @default("MARKETING") // MARKETING | UTILITY | NOTIFICATION | CUSTOM
+  language  String   @default("ar") // ar | en — display hint for the editor
+  body      String   @db.Text // supports {{name}}-style placeholders
+  status    String   @default("DRAFT") // DRAFT | APPROVED | ARCHIVED
+  useCount  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-model ChatConversation {
-  id                 String   @id @default(cuid())
-  kind               String   @default("WIDGET") // WIDGET | WHATSAPP
-  channelRef         String? // WhatsApp JID (…@s.whatsapp.net); null for widget
-  buyerId            String? // matched user id (by phone/email) when known
-  visitorName        String?
-  visitorPhone       String?
-  visitorEmail       String?
-  sellerOrgId        String? // organization/store the visitor wants to reach
-  subject            String?
-  widgetToken        String?  @unique // secret the widget uses to poll its own thread
-  lastMessageAt      DateTime @default(now())
-  lastMessagePreview String? // first 140 chars of the newest message
-  unreadStaff        Int      @default(0)
-  unreadVisitor      Int      @default(0)
-  status             String   @default("OPEN") // OPEN | CLOSED
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  campaigns BulkCampaign[]
+}
 
-  messages ChatMessage[]
+// WA-BIZ — chatbot auto-reply rules. Evaluated by the mini-service on every
+// incoming message (priority asc, first match wins) and replied on the same
+// paired line. hits++ on every fire for the console analytics.
+model ChatbotRule {
+  id        String   @id @default(cuid())
+  name      String // human label, e.g. "Working hours"
+  matchType String   @default("CONTAINS") // CONTAINS | EXACT | STARTS_WITH | REGEX
+  pattern   String   @db.Text // keyword / regex source (case-insensitive)
+  reply     String   @db.Text // sent back when matched
+  active    Boolean  @default(true)
+  priority  Int      @default(100) // lower runs first
+  hits      Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
 
-  @@index([kind, lastMessageAt])
-  @@index([sellerOrgId])
+// WA-BIZ — bulk sending campaigns. Audience is resolved ONCE at creation into
+// a phone snapshot so later user changes never mutate a running campaign.
+model BulkCampaign {
+  id          String            @id @default(cuid())
+  name        String
+  body        String            @db.Text // body with {{placeholders}} — rendered per-recipient at send time
+  variables   String?           @db.Text // JSON key/value map for CUSTOM vars ({{discount}} etc.) authored in the dialog
+  templateId  String?
+  template    WhatsAppTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  audience    String            @default("CUSTOM") // ALL_USERS | BUYERS | SELLERS | CUSTOM
+  phones      String?           @db.Text // newline-separated E.164 snapshot
+  status      String            @default("DRAFT") // DRAFT | QUEUED | SENDING | PAUSED | COMPLETED | CANCELLED | FAILED
+  total       Int               @default(0)
+  sent        Int               @default(0)
+  failed      Int               @default(0)
+  createdBy   String? // admin user id
+  scheduledAt DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
   @@index([status])
 }
 
-model ChatMessage {
-  id             String           @id @default(cuid())
-  conversationId String
-  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  senderRole     String // VISITOR | STAFF | SYSTEM | BOT
-  senderName     String?
-  body           String           @db.Text
-  readAt         DateTime?
-  createdAt      DateTime         @default(now())
+// WA-CHAT — unified conversation inbox. Every inbound WhatsApp message opens
+// (or resumes) a thread; the public webchat widget creates WEBCHAT threads.
+// The admin "Chats" tab is a WhatsApp-Web-like console over these rows.
+model WhatsAppChatThread {
+  id              String   @id @default(cuid())
+  phone           String? // E.164 (WhatsApp threads: the contact; WEBCHAT: visitor phone when given)
+  waJid           String? // raw WhatsApp jid (@s.whatsapp.net) — unique per WA thread
+  source          String   @default("WHATSAPP") // WHATSAPP | WEBCHAT
+  name            String   @default("") // display name (pushName / visitor / user)
+  publicToken     String?   @unique // WEBCHAT only — unguessable widget session key
+  userId          String? // linked platform user when the phone matches an account
+  unreadCount     Int      @default(0)
+  lastMessageAt   DateTime @default(now())
+  lastMessageBody String?  @db.Text
+  autoReply       Boolean  @default(true) // per-thread auto-reply switch (agent mode takes over when off)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  @@index([conversationId, createdAt])
+  messages WhatsAppChatMessage[]
+
+  @@unique([waJid])
+  @@index([lastMessageAt])
+  @@index([source])
+  @@index([publicToken])
+}
+
+// WA-CHAT — one bubble per row. IN = from the contact/visitor, OUT = sent by
+// auto-reply or a human agent from the admin console.
+model WhatsAppChatMessage {
+  id        String             @id @default(cuid())
+  threadId  String
+  thread    WhatsAppChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  direction String // IN | OUT
+  body      String             @db.Text
+  author    String? // 'auto-reply' | 'agent' | 'visitor' | rule name
+  createdAt DateTime           @default(now())
+
+  @@index([threadId, createdAt])
+}
+
+// Per-user channel toggles — the in-app bell is ALWAYS on; WhatsApp / email /
+// SMS are opt-out per channel ("3 channels + system notifications" owner spec).
+model UserNotificationPref {
+  userId   String  @id
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  whatsapp Boolean @default(true)
+  email    Boolean @default(true)
+  sms      Boolean @default(false) // off until an SMS gateway is wired
+
+  updatedAt DateTime @updatedAt
+}
+
+// KYP — Know Your Product. Certification/compliance artifacts attached to the
+// product itself (shared by every future offer on it, per Phase 4 product/offer
+// split). Admin-verified → "Verified specs" badge on the storefront.
+model ProductCertification {
+  id           String    @id @default(cuid())
+  productId    String
+  product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  kind         String // DATASHEET | WARRANTY | ORIGIN | TEST_REPORT | CERTIFICATE | OTHER
+  title        String
+  mediaId      String? // vault-backed MediaAsset when uploaded
+  url          String? // external link when provided
+  issuedBy     String? // certifying body / manufacturer
+  issuedAt     DateTime?
+  expiresAt    DateTime?
+  status       String    @default("PENDING") // PENDING | VERIFIED | REJECTED
+  verifiedById String?
+  verifiedBy   User?     @relation("CertificationsVerifiedBy", fields: [verifiedById], references: [id])
+  verifiedAt   DateTime?
+  note         String?   @db.Text
+  isActive     Boolean   @default(true) // soft-delete
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([productId, kind, status])
+  @@index([verifiedById]) // MYSQL-FK-INDEX: verifiedById relation needs its own leftmost index
+}
+
+// Structured specs — companies never touch JSON. Admin defines the attribute
+// dictionary per category (null categoryId = global); sellers fill a real form;
+// Product.specs JSON stays as the storage format, now generated from this.
+model SpecAttribute {
+  id         String    @id @default(cuid())
+  categoryId String? // null = available to EVERY category
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  key        String // machine key: "wattage"
+  label      String // human label: "Rated power"
+  dataType   String    @default("TEXT") // TEXT | NUMBER | SELECT | BOOLEAN
+  unit       String? // "W", "V", "kg"
+  options    String?   @db.Text // SELECT: JSON array ["Monocrystalline","Polycrystalline"]
+  required   Boolean   @default(false)
+  position   Int       @default(0)
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([categoryId, key]) // MySQL: NULL categoryId rows not enforced — service layer dedupes global keys
+  @@index([isActive, position])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PHASE 5 — Module activation system (mergedplan.md §6 Phase 5.3)
+//
+// What can be switched on/off per scope — the substrate for subscription
+// tiers (a tier = a bundle of enabled modules + limits). Resolution chain
+// (most specific wins, Phase-2-scope-model style):
+//     ORG activation  >  ORG_TYPE activation  >  PLATFORM activation  >  default
+// `core` modules (retail marketplace itself) cannot be switched off — the
+// API refuses and the admin UI hides the switch.
+// ═══════════════════════════════════════════════════════════════════════════
+
+model ModuleDefinition {
+  id          String   @id @default(cuid())
+  key         String   @unique // "financing-hub" | "rfq" | "financier-console" | …
+  name        String // "Financing Hub"
+  description String?  @db.Text
+  // Where the module surfaces — informational for the admin matrix grouping:
+  // STOREFRONT | BUYER | SELLER | FINANCIER | PLATFORM
+  domain      String   @default("STOREFRONT")
+  core        Boolean  @default(false) // true = cannot be deactivated (marketplace core)
+  defaultOn   Boolean  @default(true) // effective when no activation row exists
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true) // admin can retire a module from the catalog
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  activations ModuleActivation[]
+}
+
+model ModuleActivation {
+  id          String            @id @default(cuid())
+  moduleKey   String
+  // PLATFORM ("") | ORG_TYPE ("BANK" | "MFI" | "EWALLET" | "COMPANY") | ORG (<org id>)
+  scopeType   String
+  scopeId     String            @default("") // "" for PLATFORM; type key or org id otherwise
+  enabled     Boolean           @default(true) // false = explicitly off at this scope
+  note        String?           @db.Text
+  changedById String? // admin user id (loose FK — audit trail in AuditLog too)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  module      ModuleDefinition   @relation(fields: [moduleKey], references: [key], onDelete: Cascade)
+
+  @@unique([moduleKey, scopeType, scopeId])
+  @@index([scopeType, scopeId])
 }

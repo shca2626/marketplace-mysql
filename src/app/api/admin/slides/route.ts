@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
-import { getSessionUser } from '@/lib/auth'
+import { requireAdmin } from '@/server/guards'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { getAllSlides, type BannerSlideDTO } from '@/lib/settings/server'
 import { invalidateTags } from '@/lib/cache'
@@ -21,13 +21,6 @@ const slideInputSchema = z.object({
   ctaCategory: z.string().trim().max(191).optional().nullable(),
   active: z.boolean().optional(),
 })
-
-async function requireAdmin() {
-  const user = await getSessionUser()
-  if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
-  if (user.role !== 'ADMIN') return { error: NextResponse.json({ error: 'Admin access required' }, { status: 403 }) }
-  return { user }
-}
 
 export async function GET() {
   const guard = await requireAdmin('storefront.manage')

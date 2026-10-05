@@ -1,15 +1,20 @@
 import { db } from '@/lib/db'
-import type { CurrencyRate as CurrencyRateRow } from '@prisma/client'
+import { recordAudit } from '@/server/modules/audit/service'
 
 /**
- * DYNAMIC CURRENCY SERVICE (Phase 8 — nothing hardcoded)
- * ────────────────────────────────────────────────────
- * Exchange rates are DATA in the CurrencyRate table, never code constants.
- * Live refresh pulls from open no-key feeds with a fallback chain:
- *   1. open.er-api.com (ExchangeRate-API open endpoint, ~160 currencies)
- *   2. jsDelivr currency-api (fawazahmed0, daily-updated dataset)
- * Manual admin overrides (isManual=true) are respected and never clobbered
- * by a live refresh until explicitly reset.
+ * DYNAMIC CURRENCY SERVICE (Phase 8 — live rates on the Phase 7.2 substrate)
+ * ────────────────────────────────────────────────────────────────────────────
+ * Everything dynamic, nothing hardcoded: exchange rates change every day
+ * (1 USD → YER 535.5 today, something else next week) so the operative rate is
+ * DATA in the Currency / ExchangeRate tables:
+ *
+ *   · Currency        — the admin-managed catalog (code, symbol, decimals…)
+ *   · ExchangeRate    — append-only history; latest row per pair = operative
+ *
+ * This engine adds the LIVE dimension on top: no-key open exchange feeds
+ * (open.er-api.com → jsDelivr currency-api fallback) write fresh ExchangeRate
+ * rows on demand; manual admin pins (source ADMIN) are respected until reset;
+ * the public GET self-heals stale data in the background.
  */
 
 const SETTING_KEY = 'currency'
@@ -25,33 +30,25 @@ const DEFAULT_SETTINGS: CurrencySettings = {
   autoRefreshMinutes: 180,
 }
 
-// ── Seed defaults — first-boot values only; live refresh replaces them ─────
-const SEED_CURRENCIES: Array<{
-  code: string
-  name: string
-  symbol: string
-  rateToUsd: number
-  displayDecimals: number
-  sortOrder: number
-  active: boolean
-}> = [
-  { code: 'USD', name: 'US Dollar', symbol: '$', rateToUsd: 1, displayDecimals: 2, sortOrder: 0, active: true },
-  { code: 'YER', name: 'Yemeni Rial', symbol: 'YER', rateToUsd: 530, displayDecimals: 0, sortOrder: 1, active: true },
-  { code: 'SAR', name: 'Saudi Riyal', symbol: 'SAR', rateToUsd: 3.75, displayDecimals: 2, sortOrder: 2, active: true },
-  { code: 'AED', name: 'UAE Dirham', symbol: 'AED', rateToUsd: 3.6725, displayDecimals: 2, sortOrder: 3, active: true },
-  { code: 'EGP', name: 'Egyptian Pound', symbol: 'EGP', rateToUsd: 48.5, displayDecimals: 2, sortOrder: 4, active: true },
-  { code: 'JOD', name: 'Jordanian Dinar', symbol: 'JOD', rateToUsd: 0.709, displayDecimals: 3, sortOrder: 5, active: true },
-  { code: 'KWD', name: 'Kuwaiti Dinar', symbol: 'KWD', rateToUsd: 0.3065, displayDecimals: 3, sortOrder: 6, active: true },
-  { code: 'QAR', name: 'Qatari Riyal', symbol: 'QAR', rateToUsd: 3.64, displayDecimals: 2, sortOrder: 7, active: true },
-  { code: 'BHD', name: 'Bahraini Dinar', symbol: 'BHD', rateToUsd: 0.376, displayDecimals: 3, sortOrder: 8, active: true },
-  { code: 'OMR', name: 'Omani Rial', symbol: 'OMR', rateToUsd: 0.3845, displayDecimals: 3, sortOrder: 9, active: true },
-  { code: 'EUR', name: 'Euro', symbol: '€', rateToUsd: 0.92, displayDecimals: 2, sortOrder: 10, active: true },
-  { code: 'GBP', name: 'British Pound', symbol: '£', rateToUsd: 0.79, displayDecimals: 2, sortOrder: 11, active: true },
-  { code: 'TRY', name: 'Turkish Lira', symbol: 'TRY', rateToUsd: 34.5, displayDecimals: 2, sortOrder: 12, active: true },
-  { code: 'CNY', name: 'Chinese Yuan', symbol: '¥', rateToUsd: 7.1, displayDecimals: 2, sortOrder: 13, active: false },
+/** First-boot catalog (rates are placeholders — live refresh replaces them). */
+const SEED_CURRENCIES: Array<{ code: string; name: string; symbol: string | null; decimals: number }> = [
+  { code: 'USD', name: 'US Dollar', symbol: '$', decimals: 2 },
+  { code: 'YER', name: 'Yemeni Rial', symbol: 'ر.ي', decimals: 0 },
+  { code: 'SAR', name: 'Saudi Riyal', symbol: 'ر.س', decimals: 2 },
+  { code: 'AED', name: 'UAE Dirham', symbol: 'د.إ', decimals: 2 },
+  { code: 'EGP', name: 'Egyptian Pound', symbol: 'ج.م', decimals: 2 },
+  { code: 'JOD', name: 'Jordanian Dinar', symbol: 'د.ا', decimals: 3 },
+  { code: 'KWD', name: 'Kuwaiti Dinar', symbol: 'د.ك', decimals: 3 },
+  { code: 'QAR', name: 'Qatari Riyal', symbol: 'ر.ق', decimals: 2 },
+  { code: 'BHD', name: 'Bahraini Dinar', symbol: 'د.ب', decimals: 3 },
+  { code: 'OMR', name: 'Omani Rial', symbol: 'ر.ع', decimals: 3 },
+  { code: 'EUR', name: 'Euro', symbol: '€', decimals: 2 },
+  { code: 'GBP', name: 'British Pound', symbol: '£', decimals: 2 },
+  { code: 'TRY', name: 'Turkish Lira', symbol: '₺', decimals: 2 },
+  { code: 'CNY', name: 'Chinese Yuan', symbol: '¥', decimals: 2 },
 ]
 
-// ── Public read cache (60s) — rates change hourly at most ─────────────────
+// ── Public payload (shape consumed by the storefront store + switcher) ──────
 let cache: { at: number; payload: PublicCurrencyPayload } | null = null
 
 export interface PublicCurrency {
@@ -77,20 +74,15 @@ export function invalidateCurrencyCache(): void {
 }
 
 async function ensureSeeded(): Promise<void> {
-  const n = await db.currencyRate.count()
-  if (n > 0) return
-  await db.currencyRate.createMany({
-    data: SEED_CURRENCIES.map((c) => ({
-      code: c.code,
-      name: c.name,
-      symbol: c.symbol,
-      rateToUsd: c.rateToUsd,
-      displayDecimals: c.displayDecimals,
-      sortOrder: c.sortOrder,
-      isActive: c.active,
-      source: 'seed',
-    })),
-  })
+  // Idempotent: adds any catalog currency that's missing (first boot seeds
+  // everything; later boots top up new entries without touching existing).
+  for (const c of SEED_CURRENCIES) {
+    await db.currency.upsert({
+      where: { code: c.code },
+      update: {},
+      create: { code: c.code, name: c.name, symbol: c.symbol, decimals: c.decimals, isActive: true },
+    })
+  }
 }
 
 export async function getCurrencySettings(): Promise<CurrencySettings> {
@@ -126,59 +118,81 @@ export async function updateCurrencySettings(patch: Partial<CurrencySettings>): 
   return next
 }
 
-function toPublic(row: CurrencyRateRow): PublicCurrency {
-  return {
-    code: row.code,
-    name: row.name,
-    symbol: row.symbol,
-    rateToUsd: row.rateToUsd,
-    displayDecimals: row.displayDecimals,
-    isManual: row.isManual,
-    source: row.source,
-    lastSyncedAt: row.lastSyncedAt ? row.lastSyncedAt.toISOString() : null,
-  }
+/** Latest ExchangeRate for a pair (the operative rate) — null when none. */
+async function latestRate(code: string): Promise<{ rate: number; source: string; validFrom: Date } | null> {
+  if (code === 'USD') return { rate: 1, source: 'base', validFrom: new Date() }
+  const row = await db.exchangeRate.findFirst({
+    where: { baseCode: 'USD', quoteCode: code },
+    orderBy: { validFrom: 'desc' },
+  })
+  if (!row) return null
+  return { rate: Number(row.rate), source: row.source, validFrom: row.validFrom }
 }
 
 /**
- * Public payload for the storefront: active currencies + settings.
- * Cheap in-process cache (60s). When the newest live sync is older than
- * `autoRefreshMinutes`, a background refresh is kicked off (fire-and-forget)
- * so rates keep themselves fresh while users browse — no cron needed.
+ * Public payload for the storefront: active currencies + their operative
+ * rates (latest history row per pair). Cheap 60s cache; self-heals stale
+ * data in the background (fire-and-forget live refresh past the window).
  */
 export async function getPublicCurrencies(): Promise<PublicCurrencyPayload> {
   await ensureSeeded()
   if (cache && Date.now() - cache.at < 60_000) return cache.payload
   const [settings, rows] = await Promise.all([
     getCurrencySettings(),
-    db.currencyRate.findMany({ where: { isActive: true }, orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }] }),
+    db.currency.findMany({ orderBy: [{ code: 'asc' }] }),
   ])
-  const syncedRows = rows.filter((r) => r.lastSyncedAt)
-  const newestSync = syncedRows.reduce<Date | null>(
-    (acc, r) => (!acc || (r.lastSyncedAt && r.lastSyncedAt > acc) ? r.lastSyncedAt : acc),
-    null
-  )
+  const active = rows.filter((r) => r.isActive)
+  const currencies: PublicCurrency[] = []
+  let newestSync: Date | null = null
+  for (const r of active) {
+    const latest = await latestRate(r.code)
+    if (latest && (!newestSync || latest.validFrom > newestSync)) newestSync = latest.validFrom
+    currencies.push({
+      code: r.code,
+      name: r.name,
+      symbol: r.symbol ?? r.code,
+      rateToUsd: r.code === 'USD' ? 1 : (latest?.rate ?? 0),
+      displayDecimals: r.decimals,
+      isManual: latest?.source === 'ADMIN',
+      source: r.code === 'USD' ? 'base' : (latest?.source ?? 'none'),
+      lastSyncedAt: latest?.validFrom.toISOString() ?? null,
+    })
+  }
+  // USD first, then alphabetical — stable switcher order
+  currencies.sort((a, b) => (a.code === 'USD' ? -1 : b.code === 'USD' ? 1 : a.code.localeCompare(b.code)))
   const payload: PublicCurrencyPayload = {
     base: settings.base,
     autoRefreshMinutes: settings.autoRefreshMinutes,
-    currencies: rows.map(toPublic),
+    currencies,
     lastRefreshedAt: newestSync ? newestSync.toISOString() : null,
   }
   cache = { at: Date.now(), payload }
-
-  // Self-healing staleness: exchange rates change daily — refresh in the
-  // background when data aged past the configured window.
-  if (
-    newestSync &&
-    Date.now() - newestSync.getTime() > settings.autoRefreshMinutes * 60_000
-  ) {
+  if (newestSync && Date.now() - newestSync.getTime() > settings.autoRefreshMinutes * 60_000) {
     void refreshLiveRates().catch(() => undefined)
   }
   return payload
 }
 
-export async function listAllCurrencyRows(): Promise<CurrencyRateRow[]> {
+export async function listAllCurrencyRows() {
   await ensureSeeded()
-  return db.currencyRate.findMany({ orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }] })
+  const rows = await db.currency.findMany({ orderBy: [{ code: 'asc' }] })
+  const out = []
+  for (const r of rows) {
+    const latest = await latestRate(r.code)
+    out.push({
+      id: r.id,
+      code: r.code,
+      name: r.name,
+      symbol: r.symbol,
+      rateToUsd: r.code === 'USD' ? 1 : (latest?.rate ?? 0),
+      displayDecimals: r.decimals,
+      source: r.code === 'USD' ? 'base' : (latest?.source ?? 'none'),
+      isManual: latest?.source === 'ADMIN',
+      isActive: r.isActive,
+      lastSyncedAt: latest?.validFrom.toISOString() ?? null,
+    })
+  }
+  return out.sort((a: { code: string }, b: { code: string }) => (a.code === 'USD' ? -1 : b.code === 'USD' ? 1 : a.code.localeCompare(b.code)))
 }
 
 // ── Live refresh ─────────────────────────────────────────────────────────────
@@ -197,7 +211,7 @@ async function fetchErApi(): Promise<LiveFeed | null> {
     if (!res.ok) return null
     const json = (await res.json()) as { result?: string; rates?: Record<string, number> }
     if (json.result !== 'success' || !json.rates) return null
-    return { source: 'live:er-api', rates: json.rates }
+    return { source: 'LIVE:er-api', rates: json.rates }
   } catch {
     return null
   }
@@ -214,7 +228,7 @@ async function fetchJsDelivr(): Promise<LiveFeed | null> {
     if (!json.usd) return null
     const rates: Record<string, number> = {}
     for (const [k, v] of Object.entries(json.usd)) rates[k.toUpperCase()] = v
-    return { source: 'live:jsdelivr', rates }
+    return { source: 'LIVE:jsdelivr', rates }
   } catch {
     return null
   }
@@ -229,17 +243,18 @@ export interface RefreshResult {
 }
 
 /**
- * Fetch fresh rates and write them into the table for every known currency.
- * Manual overrides are respected (skipped) until an admin resets them.
+ * Fetch fresh rates and append them to the ExchangeRate history (the newest
+ * row per pair becomes operative). Currencies whose latest rate is an ADMIN
+ * pin are respected and skipped until an admin resets them.
  */
 export async function refreshLiveRates(): Promise<RefreshResult> {
   await ensureSeeded()
   const feed = (await fetchErApi()) ?? (await fetchJsDelivr())
-  const rows = await db.currencyRate.findMany()
+  const rows = await db.currency.findMany()
   if (!feed) {
     return {
       updated: [],
-      skippedManual: rows.filter((r) => r.isManual).map((r) => r.code),
+      skippedManual: [],
       source: null,
       failed: true,
       message: 'All live exchange feeds are unreachable right now — existing DB rates stay in effect.',
@@ -248,17 +263,22 @@ export async function refreshLiveRates(): Promise<RefreshResult> {
   const updated: string[] = []
   const skippedManual: string[] = []
   for (const row of rows) {
-    if (row.isManual) {
+    if (row.code === 'USD') continue
+    const latest = await latestRate(row.code)
+    if (latest?.source === 'ADMIN') {
       skippedManual.push(row.code)
       continue
     }
     const live = feed.rates[row.code]
     if (typeof live !== 'number' || !Number.isFinite(live) || live <= 0) continue
-    // Keep the base pinned at exactly 1 — it defines the system.
-    const rate = row.code === 'USD' ? 1 : live
-    await db.currencyRate.update({
-      where: { code: row.code },
-      data: { rateToUsd: rate, source: row.code === 'USD' ? 'base' : feed.source, lastSyncedAt: new Date() },
+    await db.exchangeRate.create({
+      data: {
+        baseCode: 'USD',
+        quoteCode: row.code,
+        rate: live,
+        source: feed.source,
+        validFrom: new Date(),
+      },
     })
     updated.push(row.code)
   }
@@ -269,42 +289,50 @@ export async function refreshLiveRates(): Promise<RefreshResult> {
     source: feed.source,
     failed: false,
     message: `Live rates fetched from ${feed.source} — ${updated.length} currencies updated${
-      skippedManual.length ? `, ${skippedManual.length} manual override(s) kept` : ''
+      skippedManual.length ? `, ${skippedManual.length} manual pin(s) kept` : ''
     }.`,
   }
 }
 
-export async function setManualRate(code: string, rateToUsd: number): Promise<CurrencyRateRow> {
-  const row = await db.currencyRate.findUnique({ where: { code } })
+export async function setManualRate(code: string, rateToUsd: number, adminId?: string): Promise<void> {
+  const row = await db.currency.findUnique({ where: { code } })
   if (!row) throw new Error(`Unknown currency ${code}`)
   if (row.code === 'USD') throw new Error('The base currency is always 1 — pick another currency')
   if (!(rateToUsd > 0)) throw new Error('Rate must be a positive number')
-  const updated = await db.currencyRate.update({
-    where: { code },
-    data: { rateToUsd, isManual: true, source: 'manual', lastSyncedAt: new Date() },
+  await db.exchangeRate.create({
+    data: { baseCode: 'USD', quoteCode: code, rate: rateToUsd, source: 'ADMIN', validFrom: new Date(), createdBy: adminId },
   })
+  try {
+    await recordAudit({
+      actorType: 'ADMIN',
+      action: 'CURRENCY.RATE_PIN',
+      entityType: 'Currency',
+      entityId: code,
+      summary: `Pinned 1 USD = ${rateToUsd} ${code}`,
+      metadata: { rateToUsd, baseCode: 'USD' },
+    })
+  } catch {
+    // audit is best-effort here — the rate row itself already committed
+  }
   invalidateCurrencyCache()
-  return updated
 }
 
-export async function resetToLive(code: string): Promise<CurrencyRateRow> {
-  const row = await db.currencyRate.findUnique({ where: { code } })
+export async function resetToLive(code: string): Promise<void> {
+  const row = await db.currency.findUnique({ where: { code } })
   if (!row) throw new Error(`Unknown currency ${code}`)
-  const updated = await db.currencyRate.update({
-    where: { code },
-    data: { isManual: false, source: 'seed' },
-  })
-  invalidateCurrencyCache()
-  // Pull just this code from the live feed if possible
+  if (row.code === 'USD') throw new Error('The base currency is fixed at 1')
   const feed = (await fetchErApi()) ?? (await fetchJsDelivr())
   const live = feed?.rates[code]
-  if (typeof live === 'number' && live > 0) {
-    return db.currencyRate.update({
-      where: { code },
-      data: { rateToUsd: live, source: feed!.source, lastSyncedAt: new Date() },
-    })
-  }
-  return updated
+  await db.exchangeRate.create({
+    data: {
+      baseCode: 'USD',
+      quoteCode: code,
+      rate: typeof live === 'number' && live > 0 ? live : 1,
+      source: typeof live === 'number' && live > 0 ? feed!.source : 'SEED',
+      validFrom: new Date(),
+    },
+  })
+  invalidateCurrencyCache()
 }
 
 export interface CurrencyMetaPatch {
@@ -312,31 +340,27 @@ export interface CurrencyMetaPatch {
   displayDecimals?: number
   symbol?: string
   name?: string
-  sortOrder?: number
 }
 
-export async function updateCurrencyMeta(code: string, patch: CurrencyMetaPatch): Promise<CurrencyRateRow> {
-  const row = await db.currencyRate.findUnique({ where: { code } })
+export async function updateCurrencyMeta(code: string, patch: CurrencyMetaPatch) {
+  const row = await db.currency.findUnique({ where: { code } })
   if (!row) throw new Error(`Unknown currency ${code}`)
-  const updated = await db.currencyRate.update({
+  const updated = await db.currency.update({
     where: { code },
     data: {
       ...(patch.isActive !== undefined ? { isActive: patch.isActive } : {}),
-      ...(patch.displayDecimals !== undefined ? { displayDecimals: Math.max(0, Math.min(4, Math.round(patch.displayDecimals))) } : {}),
+      ...(patch.displayDecimals !== undefined ? { decimals: Math.max(0, Math.min(4, Math.round(patch.displayDecimals))) } : {}),
       ...(patch.symbol !== undefined ? { symbol: patch.symbol.slice(0, 8) } : {}),
       ...(patch.name !== undefined ? { name: patch.name.slice(0, 64) } : {}),
-      ...(patch.sortOrder !== undefined ? { sortOrder: Math.max(0, Math.round(patch.sortOrder)) } : {}),
     },
   })
   invalidateCurrencyCache()
   return updated
 }
 
-/** Cross-rate for server-side conversion needs (a=amount in `from`). */
+/** Cross-rate for server-side conversion needs (a = amount in `from`). */
 export async function serverConvert(amount: number, from: string, to: string): Promise<number> {
-  const rows = await db.currencyRate.findMany({ where: { code: { in: [from, to] } } })
-  const f = rows.find((r) => r.code === from)
-  const t = rows.find((r) => r.code === to)
+  const [f, t] = await Promise.all([latestRate(from), latestRate(to)])
   if (!f || !t) throw new Error(`Unknown currency pair ${from}→${to}`)
-  return (amount / f.rateToUsd) * t.rateToUsd
+  return (amount / f.rate) * t.rate
 }

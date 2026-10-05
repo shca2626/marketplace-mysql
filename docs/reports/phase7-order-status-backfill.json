@@ -1,0 +1,544 @@
+{
+  "generatedAt": "2026-10-05T02:21:22.178Z",
+  "task": "Phase 7.7.7 legacy order-status initialization + ambiguity report (lastplan 7.7.7 / S6)",
+  "mapping": {
+    "payment": {
+      "PENDING_PAYMENT": "AWAITING_PAYMENT",
+      "PENDING_APPROVAL": "payment SUCCEEDED ? PAID : AWAITING_PAYMENT",
+      "PAID/PROCESSING/SHIPPED/DELIVERED": "payment SUCCEEDED ? PAID : (payment row PENDING/FAILED/CANCELLED → AWAITING_PAYMENT, mixed signal recorded) : (no payment row → PAID from the legacy state machine, recorded)",
+      "CANCELLED": "payment SUCCEEDED ? PAID (retained; refund states only from COMPLETED refund-ledger evidence, 7.7.1) : AWAITING_PAYMENT"
+    },
+    "fulfillmentGroupUniformMapping": {
+      "DELIVERED": "DELIVERED",
+      "SHIPPED": "SHIPPED",
+      "PROCESSING": "PROCESSING",
+      "PAID/PENDING_PAYMENT/PENDING_APPROVAL": "UNFULFILLED",
+      "CANCELLED": "CANCELLED",
+      "_applied": "identically to every seller group on the order"
+    },
+    "rollup": "all CANCELLED→CANCELLED; CANCELLED mixed→PARTIALLY_CANCELLED; all DELIVERED→FULFILLED; all UNFULFILLED→UNFULFILLED; any non-uniform non-cancelled mix→PARTIALLY_FULFILLED; all same non-cancelled status→that status"
+  },
+  "limitation": "legacy data cannot prove per-seller partial fulfillment — a globally SHIPPED order initializes every group as SHIPPED; no historical per-seller evidence exists or is implied",
+  "counts": {
+    "ordersProcessed": 20,
+    "ordersSkippedAlreadyInitialized": 0,
+    "fulfillmentGroupsCreated": 35,
+    "fulfillmentItemLinksCreated": 35,
+    "currencyDefaultsApplied": 0
+  },
+  "thisRun": {
+    "ordersProcessed": 20,
+    "ordersSkippedAlreadyInitialized": 0,
+    "fulfillmentGroupsCreated": 35,
+    "fulfillmentItemLinksCreated": 35,
+    "currencyDefaultsApplied": 0
+  },
+  "dbStateAfter": {
+    "orders": 20,
+    "fulfillmentGroups": 35,
+    "fulfillmentItemLinks": 35,
+    "ordersWithNonDefaultPaymentStatus": 19,
+    "ordersWithNonDefaultFulfillmentStatus": 14,
+    "unlinkedOrderItems": 0
+  },
+  "orders": [
+    {
+      "orderId": "cmumx77mm00atnfeh7mvnf0il",
+      "legacyStatus": "PROCESSING",
+      "paymentStatus": "PAID",
+      "fulfillmentStatus": "PROCESSING",
+      "groups": [
+        {
+          "sellerOrgId": "cmuum8153000olwtyfq6f9bru",
+          "sellerId": "cmuimbo880003okn0no72os14",
+          "status": "PROCESSING",
+          "itemCount": 1
+        },
+        {
+          "sellerOrgId": "cmuum87c4001slwtypffivram",
+          "sellerId": "cmuimbo8a0005okn0bec6d2u4",
+          "status": "PROCESSING",
+          "itemCount": 1
+        }
+      ],
+      "skipped": false
+    },
+    {
+      "orderId": "cmumx77ml00apnfehy0s9g96x",
+      "legacyStatus": "SHIPPED",
+      "paymentStatus": "PAID",
+      "fulfillmentStatus": "SHIPPED",
+      "groups": [
+        {
+          "sellerOrgId": "cmuum8153000olwtyfq6f9bru",
+          "sellerId": "cmuimbo880003okn0no72os14",
+          "status": "SHIPPED",
+          "itemCount": 1
+        }
+      ],
+      "skipped": false
+    },
+    {
+      "orderId": "cmumx77mj00ajnfeh169mqtth",
+      "legacyStatus": "DELIVERED",
+      "paymentStatus": "PAID",
+      "fulfillmentStatus": "FULFILLED",
+      "groups": [
+        {
+          "sellerOrgId": "cmuum84lf001dlwty42aytbyw",
+          "sellerId": "cmuimbo880004okn0yx6ojy3y",
+          "status": "DELIVERED",
+          "itemCount": 1
+        },
+        {
+          "sellerOrgId": "cmuum8153000olwtyfq6f9bru",
+          "sellerId": "cmuimbo880003okn0no72os14",
+          "status": "DELIVERED",
+          "itemCount": 1
+        },
+        {
+          "sellerOrgId": "cmuum87c4001slwtypffivram",
+          "sellerId": "cmuimbo8a0005okn0bec6d2u4",
+          "status": "DELIVERED",
+          "itemCount": 1
+        }
+      ],
+      "skipped": false
+    },
+    {
+      "orderId": "cmumx77mi00aenfehbx3twikw",
+      "legacyStatus": "DELIVERED",
+      "paymentStatus": "PAID",
+      "fulfillmentStatus": "FULFILLED",
+      "groups": [
+        {
+          "sellerOrgId": "cmuum8153000olwtyfq6f9bru",
+          "sellerId": "cmuimbo880003okn0no72os14",
+          "status": "DELIVERED",
+          "itemCount": 1
+        },
+        {
+          "sellerOrgId": "cmuum84lf001dlwty42aytbyw",
+          "sellerId": "cmuimbo880004okn0yx6ojy3y",
+          "status": "DELIVERED",
+          "itemCount": 1
+        }
+      ],
+      "skipped": false
+    },
+    {
+      "orderId": "cmumx77mh00aanfehf503r9dw",
+      "legacyStatus": "PAID",
+      "paymentStatus": "PAID",
+      "fulfillmentStatus": "UNFULFILLED",
+      "groups": [
+        {
+          "sellerOrgId": "cmuum8153000olwtyfq6f9bru",
+          "sellerId": "cmuimbo880003okn0no72os14",
+          "status": "UNFULFILLED",
+          "itemCount": 1
+        }
+      ],
+      "skipped": false
+    },
+    {
+      "orderId": "cmumx77me00a4nfeh083jhvx7",
+      "legacyStatus": "PROCESSING",
+      "paymentStatus": "PAID",
+      "fulfillmentStatus": "PROCESSING",
+      "groups": [
+        {
+          "sellerOrgId": "cmuum7yxi000dlwty0cwnzoub",
+          "sellerId": "cmuimbo870002okn0pxi0ttdo",
+          "status": "PROCESSING",
+          "itemCount": 1
+        },
+        {
+          "sellerOrgId": "cmuum8153000olwtyfq6f9bru",
+          "sellerId": "cmuimbo880003okn0no72os14",
+          "status": "PROCESSING",
+          "itemCount": 1
+        },
+        {
+          "sellerOrgId": "cmuum84lf001dlwty42aytbyw",
+          "sellerId": "cmuimbo880004okn0yx6ojy3y",
+          "status": "PROCESSING",
+          "itemCount": 1
+        }
+      ],
+      "skipped": false
+    },
+    {
+      "orderId": "cmumx77md009znfehg9mm0odf",
+      "legacyStatus": "SHIPPED",
+      "paymentStatus": "PAID",
+      "fulfillmentStatus": "SHIPPED",
+      "groups": [
+        {
+          "sellerOrgId": "cmuum7v7x0000lwtykxosot4f",
+          "sellerId": "cmuimbo860001okn0wu3ei0r7",
+          "status": "SHIPPED",
+          "itemCount": 1
+        },
+        {
+          "sellerOrgId": "cmuum8153000olwtyfq6f9bru",
+          "sellerId": "cmuimbo880003okn0no72os14",
+          "status": "SHIPPED",
+          "itemCount": 1
+        }
+      ],
+      "skipped": false
+    },
+    {
+      "orderId": "cmumx77mc009vnfehg75ioa1w",
+      "legacyStatus": "DELIVERED",
+      "paymentStatus": "PAID",
+      "fulfillmentStatus": "FULFILLED",
+      "groups": [
+        {
+          "sellerOrgId": "cmuum87c4001slwtypffivram",
+          "sellerId": "cmuimbo8a0005okn0bec6d2u4",
+          "status": "DELIVERED",
+          "itemCount": 1
+        }
+      ],
+      "skipped": false
+    },
+    {
+      "orderId": "cmumx77mb009pnfeh299snm5x",
+      "legacyStatus": "DELIVERED",
+      "paymentStatus": "PAID",
+      "fulfillmentStatus": "FULFILLED",
+      "groups": [
+        {
+          "sellerOrgId": "cmuum87c4001slwtypffivram",
+          "sellerId": "cmuimbo8a0005okn0bec6d2u4",
+          "status": "DELIVERED",
+          "itemCount": 1
+        },
+        {
+          "sellerOrgId": "cmuum7v7x0000lwtykxosot4f",
+          "sellerId": "cmuimbo860001okn0wu3ei0r7",
+          "status": "DELIVERED",
+          "itemCount": 1
+        },
+        {
+          "sellerOrgId": "cmuum7yxi000dlwty0cwnzoub",
+          "sellerId": "cmuimbo870002okn0pxi0ttdo",
+          "status": "DELIVERED",
+          "itemCount": 1
+        }
+      ],
+      "skipped": false
+    },
+    {
+      "orderId": "cmumx77ma009knfehgfihff8h",
+      "legacyStatus": "PAID",
+      "paymentStatus": "PAID",
+      "fulfillmentStatus": "UNFULFILLED",
+      "groups": [
+        {
+          "sellerOrgId": "cmuum8153000olwtyfq6f9bru",
+          "sellerId": "cmuimbo880003okn0no72os14",
+          "status": "UNFULFILLED",
+          "itemCount": 1
+        },
+        {
+          "sellerOrgId": "cmuum87c4001slwtypffivram",
+          "sellerId": "cmuimbo8a0005okn0bec6d2u4",
+          "status": "UNFULFILLED",
+          "itemCount": 1
+        }
+      ],
+      "skipped": false
+    },
+    {
+      "orderId": "cmumx77m9009gnfehx16lzj0t",
+      "legacyStatus": "PROCESSING",
+      "paymentStatus": "PAID",
+      "fulfillmentStatus": "PROCESSING",
+      "groups": [
+        {
+          "sellerOrgId": "cmuum84lf001dlwty42aytbyw",
+          "sellerId": "cmuimbo880004okn0yx6ojy3y",
+          "status": "PROCESSING",
+          "itemCount": 1
+        }
+      ],
+      "skipped": false
+    },
+    {
+      "orderId": "cmumx77m8009anfehcyd5bymg",
+      "legacyStatus": "SHIPPED",
+      "paymentStatus": "PAID",
+      "fulfillmentStatus": "SHIPPED",
+      "groups": [
+        {
+          "sellerOrgId": "cmuum84lf001dlwty42aytbyw",
+          "sellerId": "cmuimbo880004okn0yx6ojy3y",
+          "status": "SHIPPED",
+          "itemCount": 1
+        },
+        {
+          "sellerOrgId": "cmuum8153000olwtyfq6f9bru",
+          "sellerId": "cmuimbo880003okn0no72os14",
+          "status": "SHIPPED",
+          "itemCount": 1
+        },
+        {
+          "sellerOrgId": "cmuum87c4001slwtypffivram",
+          "sellerId": "cmuimbo8a0005okn0bec6d2u4",
+          "status": "SHIPPED",
+          "itemCount": 1
+        }
+      ],
+      "skipped": false
+    },
+    {
+      "orderId": "cmumx77m70095nfehre42d7v3",
+      "legacyStatus": "DELIVERED",
+      "paymentStatus": "PAID",
+      "fulfillmentStatus": "FULFILLED",
+      "groups": [
+        {
+          "sellerOrgId": "cmuum8153000olwtyfq6f9bru",
+          "sellerId": "cmuimbo880003okn0no72os14",
+          "status": "DELIVERED",
+          "itemCount": 1
+        },
+        {
+          "sellerOrgId": "cmuum84lf001dlwty42aytbyw",
+          "sellerId": "cmuimbo880004okn0yx6ojy3y",
+          "status": "DELIVERED",
+          "itemCount": 1
+        }
+      ],
+      "skipped": false
+    },
+    {
+      "orderId": "cmumx77m50091nfeh4414s5jv",
+      "legacyStatus": "DELIVERED",
+      "paymentStatus": "PAID",
+      "fulfillmentStatus": "FULFILLED",
+      "groups": [
+        {
+          "sellerOrgId": "cmuum8153000olwtyfq6f9bru",
+          "sellerId": "cmuimbo880003okn0no72os14",
+          "status": "DELIVERED",
+          "itemCount": 1
+        }
+      ],
+      "skipped": false
+    },
+    {
+      "orderId": "cmupygsjo000dndxmz44s3inv",
+      "legacyStatus": "PAID",
+      "paymentStatus": "PAID",
+      "fulfillmentStatus": "UNFULFILLED",
+      "groups": [
+        {
+          "sellerOrgId": "cmuum7v7x0000lwtykxosot4f",
+          "sellerId": "cmuimbo860001okn0wu3ei0r7",
+          "status": "UNFULFILLED",
+          "itemCount": 1
+        },
+        {
+          "sellerOrgId": "cmuum8153000olwtyfq6f9bru",
+          "sellerId": "cmuimbo880003okn0no72os14",
+          "status": "UNFULFILLED",
+          "itemCount": 1
+        },
+        {
+          "sellerOrgId": "cmuum7yxi000dlwty0cwnzoub",
+          "sellerId": "cmuimbo870002okn0pxi0ttdo",
+          "status": "UNFULFILLED",
+          "itemCount": 1
+        }
+      ],
+      "skipped": false
+    },
+    {
+      "orderId": "cmupysr2y0001ndv04s02ssc9",
+      "legacyStatus": "PAID",
+      "paymentStatus": "PAID",
+      "fulfillmentStatus": "UNFULFILLED",
+      "groups": [
+        {
+          "sellerOrgId": "cmuum8153000olwtyfq6f9bru",
+          "sellerId": "cmuimbo880003okn0no72os14",
+          "status": "UNFULFILLED",
+          "itemCount": 1
+        }
+      ],
+      "skipped": false
+    },
+    {
+      "orderId": "cmuq0ew3q000knd29n13abg7v",
+      "legacyStatus": "PAID",
+      "paymentStatus": "PAID",
+      "fulfillmentStatus": "UNFULFILLED",
+      "groups": [
+        {
+          "sellerOrgId": "cmuum8153000olwtyfq6f9bru",
+          "sellerId": "cmuimbo880003okn0no72os14",
+          "status": "UNFULFILLED",
+          "itemCount": 1
+        }
+      ],
+      "skipped": false
+    },
+    {
+      "orderId": "cmuq0ojle000ynd29orll1i4r",
+      "legacyStatus": "SHIPPED",
+      "paymentStatus": "AWAITING_PAYMENT",
+      "fulfillmentStatus": "SHIPPED",
+      "groups": [
+        {
+          "sellerOrgId": "cmupyeohj0003ndxmr62q7eha",
+          "sellerId": "cmupxyoji0000ndzn6lhe7our",
+          "status": "SHIPPED",
+          "itemCount": 1
+        }
+      ],
+      "skipped": false
+    },
+    {
+      "orderId": "cmurbd4l0000bma9kw3mkv6i6",
+      "legacyStatus": "SHIPPED",
+      "paymentStatus": "PAID",
+      "fulfillmentStatus": "SHIPPED",
+      "groups": [
+        {
+          "sellerOrgId": "cmuum7v7x0000lwtykxosot4f",
+          "sellerId": "cmuimbo860001okn0wu3ei0r7",
+          "status": "SHIPPED",
+          "itemCount": 1
+        }
+      ],
+      "skipped": false
+    },
+    {
+      "orderId": "cmurv1fhc001amaro8nvkuc6s",
+      "legacyStatus": "PAID",
+      "paymentStatus": "PAID",
+      "fulfillmentStatus": "UNFULFILLED",
+      "groups": [
+        {
+          "sellerOrgId": "cmurn65pj0009ma577cvs3nz0",
+          "sellerId": "cmurn63vp0007ma57djfli0j8",
+          "status": "UNFULFILLED",
+          "itemCount": 1
+        }
+      ],
+      "skipped": false
+    }
+  ],
+  "ambiguities": [
+    {
+      "orderId": "cmumx77mm00atnfeh7mvnf0il",
+      "legacyStatus": "PROCESSING",
+      "kind": "no-payment-row",
+      "detail": "legacy status PROCESSING with NO payment row — the payment-evidence gap cannot be closed from stored records",
+      "decision": "mapped paymentStatus=PAID from the legacy state machine (STATUS_FLOW PAID→PROCESSING→SHIPPED→DELIVERED — post-payment states only; checkout settles CARD inline at order creation); the evidence gap is recorded here, not assumed away"
+    },
+    {
+      "orderId": "cmumx77ml00apnfehy0s9g96x",
+      "legacyStatus": "SHIPPED",
+      "kind": "no-payment-row",
+      "detail": "legacy status SHIPPED with NO payment row — the payment-evidence gap cannot be closed from stored records",
+      "decision": "mapped paymentStatus=PAID from the legacy state machine (STATUS_FLOW PAID→PROCESSING→SHIPPED→DELIVERED — post-payment states only; checkout settles CARD inline at order creation); the evidence gap is recorded here, not assumed away"
+    },
+    {
+      "orderId": "cmumx77mj00ajnfeh169mqtth",
+      "legacyStatus": "DELIVERED",
+      "kind": "no-payment-row",
+      "detail": "legacy status DELIVERED with NO payment row — the payment-evidence gap cannot be closed from stored records",
+      "decision": "mapped paymentStatus=PAID from the legacy state machine (STATUS_FLOW PAID→PROCESSING→SHIPPED→DELIVERED — post-payment states only; checkout settles CARD inline at order creation); the evidence gap is recorded here, not assumed away"
+    },
+    {
+      "orderId": "cmumx77mi00aenfehbx3twikw",
+      "legacyStatus": "DELIVERED",
+      "kind": "no-payment-row",
+      "detail": "legacy status DELIVERED with NO payment row — the payment-evidence gap cannot be closed from stored records",
+      "decision": "mapped paymentStatus=PAID from the legacy state machine (STATUS_FLOW PAID→PROCESSING→SHIPPED→DELIVERED — post-payment states only; checkout settles CARD inline at order creation); the evidence gap is recorded here, not assumed away"
+    },
+    {
+      "orderId": "cmumx77mh00aanfehf503r9dw",
+      "legacyStatus": "PAID",
+      "kind": "no-payment-row",
+      "detail": "legacy status PAID with NO payment row — the payment-evidence gap cannot be closed from stored records",
+      "decision": "mapped paymentStatus=PAID from the legacy state machine (STATUS_FLOW PAID→PROCESSING→SHIPPED→DELIVERED — post-payment states only; checkout settles CARD inline at order creation); the evidence gap is recorded here, not assumed away"
+    },
+    {
+      "orderId": "cmumx77me00a4nfeh083jhvx7",
+      "legacyStatus": "PROCESSING",
+      "kind": "no-payment-row",
+      "detail": "legacy status PROCESSING with NO payment row — the payment-evidence gap cannot be closed from stored records",
+      "decision": "mapped paymentStatus=PAID from the legacy state machine (STATUS_FLOW PAID→PROCESSING→SHIPPED→DELIVERED — post-payment states only; checkout settles CARD inline at order creation); the evidence gap is recorded here, not assumed away"
+    },
+    {
+      "orderId": "cmumx77md009znfehg9mm0odf",
+      "legacyStatus": "SHIPPED",
+      "kind": "no-payment-row",
+      "detail": "legacy status SHIPPED with NO payment row — the payment-evidence gap cannot be closed from stored records",
+      "decision": "mapped paymentStatus=PAID from the legacy state machine (STATUS_FLOW PAID→PROCESSING→SHIPPED→DELIVERED — post-payment states only; checkout settles CARD inline at order creation); the evidence gap is recorded here, not assumed away"
+    },
+    {
+      "orderId": "cmumx77mc009vnfehg75ioa1w",
+      "legacyStatus": "DELIVERED",
+      "kind": "no-payment-row",
+      "detail": "legacy status DELIVERED with NO payment row — the payment-evidence gap cannot be closed from stored records",
+      "decision": "mapped paymentStatus=PAID from the legacy state machine (STATUS_FLOW PAID→PROCESSING→SHIPPED→DELIVERED — post-payment states only; checkout settles CARD inline at order creation); the evidence gap is recorded here, not assumed away"
+    },
+    {
+      "orderId": "cmumx77mb009pnfeh299snm5x",
+      "legacyStatus": "DELIVERED",
+      "kind": "no-payment-row",
+      "detail": "legacy status DELIVERED with NO payment row — the payment-evidence gap cannot be closed from stored records",
+      "decision": "mapped paymentStatus=PAID from the legacy state machine (STATUS_FLOW PAID→PROCESSING→SHIPPED→DELIVERED — post-payment states only; checkout settles CARD inline at order creation); the evidence gap is recorded here, not assumed away"
+    },
+    {
+      "orderId": "cmumx77ma009knfehgfihff8h",
+      "legacyStatus": "PAID",
+      "kind": "no-payment-row",
+      "detail": "legacy status PAID with NO payment row — the payment-evidence gap cannot be closed from stored records",
+      "decision": "mapped paymentStatus=PAID from the legacy state machine (STATUS_FLOW PAID→PROCESSING→SHIPPED→DELIVERED — post-payment states only; checkout settles CARD inline at order creation); the evidence gap is recorded here, not assumed away"
+    },
+    {
+      "orderId": "cmumx77m9009gnfehx16lzj0t",
+      "legacyStatus": "PROCESSING",
+      "kind": "no-payment-row",
+      "detail": "legacy status PROCESSING with NO payment row — the payment-evidence gap cannot be closed from stored records",
+      "decision": "mapped paymentStatus=PAID from the legacy state machine (STATUS_FLOW PAID→PROCESSING→SHIPPED→DELIVERED — post-payment states only; checkout settles CARD inline at order creation); the evidence gap is recorded here, not assumed away"
+    },
+    {
+      "orderId": "cmumx77m8009anfehcyd5bymg",
+      "legacyStatus": "SHIPPED",
+      "kind": "no-payment-row",
+      "detail": "legacy status SHIPPED with NO payment row — the payment-evidence gap cannot be closed from stored records",
+      "decision": "mapped paymentStatus=PAID from the legacy state machine (STATUS_FLOW PAID→PROCESSING→SHIPPED→DELIVERED — post-payment states only; checkout settles CARD inline at order creation); the evidence gap is recorded here, not assumed away"
+    },
+    {
+      "orderId": "cmumx77m70095nfehre42d7v3",
+      "legacyStatus": "DELIVERED",
+      "kind": "no-payment-row",
+      "detail": "legacy status DELIVERED with NO payment row — the payment-evidence gap cannot be closed from stored records",
+      "decision": "mapped paymentStatus=PAID from the legacy state machine (STATUS_FLOW PAID→PROCESSING→SHIPPED→DELIVERED — post-payment states only; checkout settles CARD inline at order creation); the evidence gap is recorded here, not assumed away"
+    },
+    {
+      "orderId": "cmumx77m50091nfeh4414s5jv",
+      "legacyStatus": "DELIVERED",
+      "kind": "no-payment-row",
+      "detail": "legacy status DELIVERED with NO payment row — the payment-evidence gap cannot be closed from stored records",
+      "decision": "mapped paymentStatus=PAID from the legacy state machine (STATUS_FLOW PAID→PROCESSING→SHIPPED→DELIVERED — post-payment states only; checkout settles CARD inline at order creation); the evidence gap is recorded here, not assumed away"
+    },
+    {
+      "orderId": "cmuq0ojle000ynd29orll1i4r",
+      "legacyStatus": "SHIPPED",
+      "kind": "mixed-signal-payment-not-succeeded",
+      "detail": "legacy status SHIPPED is post-payment, but the payment row is PENDING (INVOICE) — the financial ledger contradicts the legacy global status",
+      "decision": "payment ledger wins: paymentStatus=AWAITING_PAYMENT — the Payment row is the financial fact; the legacy global status is treated as fulfillment-only evidence for this order"
+    }
+  ],
+  "gate": "PASS — zero ambiguity rows without a recorded decision; every order has fulfillment groups and every item is linked"
+}

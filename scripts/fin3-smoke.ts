@@ -57,6 +57,7 @@ import {
 } from '../src/server/modules/financing/accreditation'
 import { GateBlockedError, FinancingError } from '../src/server/modules/financing/shared'
 import { resolvePanel } from '../src/server/modules/settings/service'
+import { assertNotProd } from './lib/assert-not-prod'
 
 const db = new PrismaClient()
 let failures = 0
@@ -121,6 +122,7 @@ function buildAnswers(
 }
 
 async function main() {
+assertNotProd() // Phase 6 (6.0b.8/B1): fail-closed — no production mode, ever
   // ── fixtures ──
   const admin = await db.user.findFirst({ where: { role: 'ADMIN' } })
   const demo = await db.user.findUnique({ where: { email: 'demo@vendora.com' } })

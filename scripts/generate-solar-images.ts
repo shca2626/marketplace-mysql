@@ -8,6 +8,7 @@
  */
 import ZAI from 'z-ai-web-dev-sdk'
 import { mkdirSync, existsSync, writeFileSync, readFileSync } from 'node:fs'
+import { assertNotProd } from './lib/assert-not-prod'
 
 const OUT_DIR = 'db/solar-images'
 const STATE_FILE = 'db/solar-images/state.json'
@@ -64,6 +65,7 @@ const ITEMS: Item[] = [
 ]
 
 async function main() {
+assertNotProd() // Phase 6 (6.0b.8/B1): fail-closed — no production mode, ever
   mkdirSync(OUT_DIR, { recursive: true })
   let state: Record<string, string> = {}
   if (existsSync(STATE_FILE)) state = JSON.parse(readFileSync(STATE_FILE, 'utf8'))

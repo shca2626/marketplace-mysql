@@ -29,8 +29,11 @@ const nextConfig: NextConfig = {
   // parallel route compiles. Cap Turbopack's in-memory cache so it evicts
   // instead of growing unbounded; the dev server is also started with
   // NODE_OPTIONS=--max-old-space-size to constrain the V8 heap.
+  // (Task 4-c: lowered 2048 → 1024 — parallel-agent browser QA tripled the
+  // baseline Chrome load and the kernel OOM-killer kept reaping next-server
+  // at ~2GB RSS; 1024 keeps compile + serve cycles inside the remaining RAM.)
   experimental: {
-    turbopackMemoryLimit: 2048,
+    turbopackMemoryLimit: 1024,
   },
 
   // Security headers (09-security-threat-model §12 roadmap P1-5).

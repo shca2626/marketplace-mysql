@@ -1,6 +1,6 @@
 import { mkdir, readFile, unlink, access, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, resolve, sep } from 'node:path'
-import { StorageError, type StorageAdapter, type StoredFile } from './types'
+import { StorageError, type StorageAdapter, type StoredFile, type PutOptions } from './types'
 
 // Local-disk storage adapter (the default driver).
 // ────────────────────────────────────────────────
@@ -43,7 +43,9 @@ export class LocalDiskStorage implements StorageAdapter {
     return join(this.root, validateKey(key))
   }
 
-  async put(key: string, data: Buffer): Promise<StoredFile> {
+  async put(key: string, data: Buffer, _opts?: PutOptions): Promise<StoredFile> {
+    // local-disk serves nothing directly — /api/media is the only reader and
+    // it hard-404s vault keys, so public/private writes are identical here.
     const target = this.path(key)
     try {
       await mkdir(resolve(target, '..'), { recursive: true })

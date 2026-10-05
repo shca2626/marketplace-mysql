@@ -7,10 +7,12 @@
  * Run: bun scripts/seed-b2b.ts (MySQL via .env DATABASE_URL)
  */
 import { PrismaClient } from '@prisma/client'
+import { assertNotProd } from './lib/assert-not-prod'
 
 const db = new PrismaClient()
 
 async function main() {
+assertNotProd() // Phase 6 (6.0b.8/B1): fail-closed — no production mode, ever
   // 1. Default customer group
   const retail = await db.customerGroup.upsert({
     where: { key: 'retail' },

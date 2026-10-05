@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireAdminAny } from '@/server/guards'
+import { requireAdminAny, requireStepUpMfa } from '@/server/guards'
 import { assertSameOrigin } from '@/lib/http'
 import { deleteRole, RbacServiceError, updateRole } from '@/server/modules/rbac/service'
 
@@ -18,6 +18,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   const { user, error } = await requireAdminAny(['rbac.roles.update', 'rbac.manage'])
   if (error) return error
+  // Phase 6 (6.7.5): sensitive action — requires a fresh MFA confirmation.
+  const su = await requireStepUpMfa()
+  if (su.error) return su.error
   try {
     const { id } = await ctx.params
     const parsed = updateSchema.safeParse(await req.json())
@@ -47,6 +50,9 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
 
   const { user, error } = await requireAdminAny(['rbac.roles.delete', 'rbac.manage'])
   if (error) return error
+  // Phase 6 (6.7.5): sensitive action — requires a fresh MFA confirmation.
+  const su = await requireStepUpMfa()
+  if (su.error) return su.error
   try {
     const { id } = await ctx.params
     const force = new URL(req.url).searchParams.get('force') === '1'

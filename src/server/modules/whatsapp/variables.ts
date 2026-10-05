@@ -1,181 +1,142 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// WHATSAPP SUITE · Template variables (agent 8-a)
+// WA-CHAT — the {{variable}} system (canonical, wa-chat-0 contract).
 //
-// This module stays intentionally dependency-free at its core (pure functions
-// + a plain registry) so the admin UI can import TEMPLATE_VARIABLES and
-// renderTemplateBody directly on the client. buildUserVars additionally hits
-// the database — it therefore imports the Prisma client lazily INSIDE the
-// function so a client import of this file never pulls Prisma into the
-// browser bundle.
+// ONE rendering rule everywhere (Next side here + the local copy inside the
+// Baileys mini-service, which cannot import src/):
+//   • SYSTEM variables auto-resolve per recipient from the DB user record by
+//     phone (name/first_name/store_name/phone/email/role) or at send time
+//     (date/time/app).
+//   • CUSTOM variables come from the campaign's variables JSON map — any
+//     {{token}} NOT in the system list resolves from it.
+//   • Unknown variables are REMOVED (a raw {{placeholder}} must NEVER reach a
+//     customer — that was the original bug), then doubled spaces collapse.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface TemplateVars {
-  [key: string]: string | number | null | undefined
-}
-
-/**
- * Replace every `{{key}}` token in a template body with the matching value.
- * Matching is case-insensitive ({{Name}} and {{name}} both resolve to vars.name).
- * Unknown or null/undefined keys keep their original token so typos stay
- * visible in previews instead of silently vanishing. Result is trimmed.
- */
-export function renderTemplateBody(body: string, vars: TemplateVars): string {
-  const lookup = new Map<string, string>()
-  for (const [key, value] of Object.entries(vars)) {
-    if (value !== null && value !== undefined) lookup.set(key.toLowerCase(), String(value))
-  }
-  const rendered = body.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (token, key: string) => {
-    const value = lookup.get(key.toLowerCase())
-    return value === undefined ? token : value
-  })
-  return rendered.trim()
-}
-
-/**
- * Registry of every variable the suite understands. Shared by the admin
- * template editor chips, the live preview and the docs shown to staff.
- * Labels are bilingual (EN · AR) for the Yemen solar marketplace audience.
- */
-export const TEMPLATE_VARIABLES: Array<{
+export interface SystemVariable {
   key: string
   label: string
-  example: string
   description: string
-}> = [
+}
+
+/** The 9 auto-resolved variables — labels/descriptions feed the admin editor pickers. */
+export const SYSTEM_VARIABLES: SystemVariable[] = [
   {
     key: 'name',
-    label: 'Customer name · اسم العميل',
-    example: 'أحمد محمد',
-    description: 'Full name of the recipient (falls back to "customer" when unknown).',
+    label: 'الاسم الكامل',
+    description: "Recipient's full account name (falls back to عميلنا العزيز when there is no account)",
+  },
+  {
+    key: 'first_name',
+    label: 'الاسم الأول',
+    description: 'First word of the account name (same fallback as name)',
+  },
+  {
+    key: 'store_name',
+    label: 'اسم المتجر',
+    description: 'Store name for sellers — falls back to the account name',
   },
   {
     key: 'phone',
-    label: 'Phone · رقم الجوال',
-    example: '+967 77 123 4567',
-    description: 'WhatsApp number the message is delivered to.',
+    label: 'رقم الهاتف',
+    description: "Recipient's phone in E.164 (+967…)",
   },
   {
     key: 'email',
-    label: 'Email · البريد الإلكتروني',
-    example: 'ahmed@example.com',
-    description: 'Account email when the recipient is a registered user.',
+    label: 'البريد الإلكتروني',
+    description: "Recipient's email (— when the account has none)",
   },
   {
-    key: 'store',
-    label: 'Store name · اسم المتجر',
-    example: 'Sun Solar Store',
-    description: 'Seller store name — personalizes seller-facing broadcasts.',
-  },
-  {
-    key: 'product',
-    label: 'Product · المنتج',
-    example: '5kW Hybrid Solar Inverter',
-    description: 'Title of the product from their latest order or interests.',
-  },
-  {
-    key: 'order',
-    label: 'Order # · رقم الطلب',
-    example: 'ORD-10231',
-    description: 'Id of the recipient’s most recent order, when one exists.',
-  },
-  {
-    key: 'total',
-    label: 'Order total · إجمالي الطلب',
-    example: '$1,250.00',
-    description: 'Total (USD) of the most recent order.',
-  },
-  {
-    key: 'code',
-    label: 'Promo code · كود الخصم',
-    example: 'SUN15',
-    description: 'Discount code included in marketing messages.',
-  },
-  {
-    key: 'discount',
-    label: 'Discount % · نسبة الخصم',
-    example: '15',
-    description: 'Percentage discount advertised in the campaign.',
+    key: 'role',
+    label: 'الدور',
+    description: 'Buyer / Seller / Admin',
   },
   {
     key: 'date',
-    label: 'Date · التاريخ',
-    example: '05/10/2025',
-    description: "Today's date (en-GB) at send time.",
+    label: 'التاريخ',
+    description: "Send-time date, e.g. '5 Oct 2026' (en-GB)",
   },
   {
     key: 'time',
-    label: 'Time · الوقت',
-    example: '14:05',
-    description: 'Local time at send time (24h).',
+    label: 'الوقت',
+    description: "Send-time time, e.g. '10:30 PM'",
   },
   {
-    key: 'link',
-    label: 'Link · الرابط',
-    example: 'https://vendora.market',
-    description: 'Marketplace link to include in the message.',
+    key: 'app',
+    label: 'اسم المنصة',
+    description: "Always 'Vendora'",
   },
 ]
 
-/** Example values for every registry key — used by the admin live preview. */
-export function exampleVars(): TemplateVars {
-  const vars: TemplateVars = {}
-  for (const v of TEMPLATE_VARIABLES) vars[v.key] = v.example
-  return vars
+export const SYSTEM_VARIABLE_KEYS: ReadonlySet<string> = new Set(SYSTEM_VARIABLES.map((v) => v.key))
+
+/** The minimal user shape buildUserContext needs — decoupled from Prisma types. */
+export interface VariableUser {
+  name: string
+  email: string | null
+  phone: string | null
+  role: string
+  storeName: string | null
+}
+
+/** Values for every {{system variable}}, resolved for one recipient. */
+export type VariableContext = Record<string, string>
+
+const ROLE_LABELS: Record<string, string> = {
+  BUYER: 'Buyer',
+  SELLER: 'Seller',
+  ADMIN: 'Admin',
+}
+
+const GUEST_NAME = 'عميلنا العزيز'
+
+/**
+ * Builds the system-variable context for a recipient. `user` is the DB account
+ * found by phone (null for non-account numbers); `phone` is the E.164 the
+ * message goes to (used when the account has no phone on file — it always
+ * does in practice, but the parameter makes the fallback explicit).
+ * date/time are evaluated NOW — this function runs at send time only.
+ */
+export function buildUserContext(user: VariableUser | null, phone: string): VariableContext {
+  const now = new Date()
+  const name = user?.name?.trim() || GUEST_NAME
+  return {
+    name,
+    first_name: name.split(/\s+/)[0] ?? GUEST_NAME,
+    store_name: user?.storeName?.trim() || name,
+    phone: user?.phone?.trim() || phone,
+    email: user?.email?.trim() || '—',
+    role: ROLE_LABELS[user?.role ?? ''] ?? 'Customer',
+    date: now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+    time: now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+    app: 'Vendora',
+  }
 }
 
 /**
- * Build the personalization variables for a recipient. Loads the user, their
- * latest order (id + USD total + first product title) and fills date/time,
- * a demo promo code and the marketplace link. Kept deliberately simple.
+ * Renders {{variables}} in a message body:
+ *   • system variables from `ctx`
+ *   • anything else from `custom` (campaign variables map)
+ *   • unknown variables are REMOVED — never sent raw
+ * Doubled spaces collapse afterwards, and stray edges are trimmed.
  */
-export async function buildUserVars(userId: string): Promise<TemplateVars> {
-  // Lazy import: keeps this module import-safe from client components.
-  const { db } = await import('@/lib/db')
-  const now = new Date()
-  const base: TemplateVars = {
-    name: 'customer',
-    phone: '',
-    email: '',
-    store: '',
-    product: '',
-    order: '',
-    total: '',
-    code: 'SUN15',
-    discount: 15,
-    date: now.toLocaleDateString('en-GB'),
-    time: now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-    link: 'https://vendora.market',
+export function renderBody(
+  body: string,
+  ctx: VariableContext,
+  custom?: Record<string, string> | null
+): string {
+  const rendered = body.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (_raw, key: string) => {
+    if (SYSTEM_VARIABLE_KEYS.has(key)) return ctx[key] ?? ''
+    if (custom && Object.prototype.hasOwnProperty.call(custom, key)) return custom[key] ?? ''
+    return '' // unknown variable → removed, never raw
+  })
+  return rendered.replace(/ {2,}/g, ' ').trim()
+}
+
+/** Every {{token}} in the body that is NOT a system variable (the custom set). */
+export function extractVars(body: string): string[] {
+  const seen = new Set<string>()
+  for (const match of body.matchAll(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g)) {
+    if (!SYSTEM_VARIABLE_KEYS.has(match[1])) seen.add(match[1])
   }
-
-  try {
-    const user = await db.user.findUnique({
-      where: { id: userId },
-      select: { name: true, phone: true, email: true, storeName: true },
-    })
-    if (!user) return base
-
-    const lastOrder = await db.order.findFirst({
-      where: { buyerId: userId },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        total: true,
-        items: { take: 1, select: { title: true } },
-      },
-    })
-
-    return {
-      ...base,
-      name: user.name || base.name,
-      phone: user.phone ?? '',
-      email: user.email ?? '',
-      store: user.storeName ?? '',
-      product: lastOrder?.items[0]?.title ?? '',
-      order: lastOrder?.id ?? '',
-      total: lastOrder ? `$${lastOrder.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '',
-    }
-  } catch (err) {
-    console.error('[whatsapp/variables] buildUserVars failed', err)
-    return base
-  }
+  return [...seen]
 }

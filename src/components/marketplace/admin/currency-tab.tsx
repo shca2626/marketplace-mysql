@@ -45,13 +45,12 @@ interface CurrencyRow {
   id: string
   code: string
   name: string
-  symbol: string
+  symbol: string | null
   rateToUsd: number
   displayDecimals: number
   source: string
   isManual: boolean
   isActive: boolean
-  sortOrder: number
   lastSyncedAt: string | null
 }
 

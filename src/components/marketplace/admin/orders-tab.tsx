@@ -32,7 +32,6 @@ import {
   AdminEmptyState,
   FilterChips,
   SearchInput,
-  StatusBadge,
   useDebounced,
 } from './shared'
 
@@ -50,6 +49,10 @@ interface AdminOrderRow {
   id: string
   total: number
   status: string
+  // Phase 7.7 — the two order dimensions (financial / fulfillment)
+  paymentStatus: string
+  fulfillmentStatus: string
+  currency: string
   fullName: string
   city: string | null
   country: string | null
@@ -68,7 +71,13 @@ interface AdminOrdersResponse {
   total: number
   page: number
   pages: number
-  totals: { revenue: number; aov: number; statusCounts: Record<string, number> }
+  totals: {
+    revenue: number
+    aov: number
+    statusCounts: Record<string, number>
+    paymentCounts: Record<string, number>
+    fulfillmentCounts: Record<string, number>
+  }
   orders: AdminOrderRow[]
 }
 
@@ -107,11 +116,71 @@ const PAYMENT_METHOD_ICON: Record<string, typeof CreditCard> = {
   INVOICE: FileText,
 }
 
-const PAYMENT_STATUS_FILTERS = [
+// Phase 7.7 — order-level payment dimension (financial state of the ORDER,
+// not the payment-record status).
+const PAYMENT_DIMENSION_STYLE: Record<string, { label: string; badge: string }> = {
+  PAID: { label: 'Paid', badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' },
+  AWAITING_PAYMENT: {
+    label: 'Awaiting pay',
+    badge: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+  },
+  PARTIALLY_REFUNDED: {
+    label: 'Part. refunded',
+    badge: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
+  },
+  REFUNDED: {
+    label: 'Refunded',
+    badge: 'border border-rose-300 bg-background text-rose-700 dark:border-rose-900 dark:text-rose-300',
+  },
+  FUNDED: {
+    label: 'Funded',
+    badge: 'bg-stone-100 text-violet-700 dark:bg-stone-800 dark:text-violet-300',
+  },
+  OUTSTANDING: {
+    label: 'Outstanding',
+    badge: 'border border-amber-300 bg-background text-amber-800 dark:border-amber-900 dark:text-amber-300',
+  },
+}
+
+// Phase 7.7 — fulfillment dimension (derived roll-up over OrderFulfillment).
+const FULFILLMENT_DIMENSION_STYLE: Record<string, { label: string; badge: string }> = {
+  FULFILLED: { label: 'Fulfilled', badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' },
+  SHIPPED: { label: 'Shipped', badge: 'bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300' },
+  PROCESSING: { label: 'Processing', badge: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' },
+  PARTIALLY_FULFILLED: {
+    label: 'Part. fulfilled',
+    badge: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
+  },
+  PARTIALLY_CANCELLED: {
+    label: 'Part. cancelled',
+    badge: 'border border-rose-300 bg-background text-rose-700 dark:border-rose-900 dark:text-rose-300',
+  },
+  CANCELLED: {
+    label: 'Cancelled',
+    badge: 'bg-stone-200 text-stone-600 dark:bg-stone-800 dark:text-stone-400',
+  },
+  UNFULFILLED: {
+    label: 'Unfulfilled',
+    badge: 'border border-dashed bg-background text-muted-foreground',
+  },
+}
+
+const PAYMENT_DIMENSION_FILTERS = [
   { value: '', label: 'Any payment' },
-  { value: 'PENDING', label: 'Pending' },
-  { value: 'SUCCEEDED', label: 'Succeeded' },
-  { value: 'FAILED', label: 'Failed' },
+  { value: 'AWAITING_PAYMENT', label: 'Awaiting payment' },
+  { value: 'PAID', label: 'Paid' },
+  { value: 'FUNDED', label: 'Funded (financed)' },
+  { value: 'PARTIALLY_REFUNDED', label: 'Partially refunded' },
+  { value: 'REFUNDED', label: 'Refunded' },
+  { value: 'OUTSTANDING', label: 'Outstanding' },
+]
+
+const FULFILLMENT_DIMENSION_FILTERS = [
+  { value: '', label: 'Any fulfillment' },
+  { value: 'UNFULFILLED', label: 'Unfulfilled' },
+  { value: 'PARTIALLY_FULFILLED', label: 'Partially fulfilled' },
+  { value: 'FULFILLED', label: 'Fulfilled' },
+  { value: 'PARTIALLY_CANCELLED', label: 'Partially cancelled' },
   { value: 'CANCELLED', label: 'Cancelled' },
 ]
 
@@ -127,10 +196,11 @@ export function AdminOrdersTab() {
   const debouncedSearch = useDebounced(search)
   const [statusFilter, setStatusFilter] = useState('')
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('')
+  const [fulfillmentStatusFilter, setFulfillmentStatusFilter] = useState('')
   const [page, setPage] = useState(1)
 
   // Render-time keyed sync: jump back to page 1 whenever filters change
-  const filterKey = `${debouncedSearch}|${statusFilter}|${paymentStatusFilter}`
+  const filterKey = `${debouncedSearch}|${statusFilter}|${paymentStatusFilter}|${fulfillmentStatusFilter}`
   const [appliedKey, setAppliedKey] = useState<string | null>(null)
   if (appliedKey !== filterKey) {
     setAppliedKey(filterKey)
@@ -141,6 +211,7 @@ export function AdminOrdersTab() {
   if (debouncedSearch.trim()) query.set('q', debouncedSearch.trim())
   if (statusFilter) query.set('status', statusFilter)
   if (paymentStatusFilter) query.set('paymentStatus', paymentStatusFilter)
+  if (fulfillmentStatusFilter) query.set('fulfillmentStatus', fulfillmentStatusFilter)
   query.set('page', String(page))
   query.set('limit', String(PAGE_SIZE))
   const {
@@ -218,12 +289,27 @@ export function AdminOrdersTab() {
             value={paymentStatusFilter || 'any-payment'}
             onValueChange={(v) => setPaymentStatusFilter(v === 'any-payment' ? '' : v)}
           >
-            <SelectTrigger className="h-10 w-full rounded-xl sm:w-44" aria-label="Filter by payment status">
+            <SelectTrigger className="h-10 w-full rounded-xl sm:w-44" aria-label="Filter by order payment status">
               <SelectValue placeholder="Any payment" />
             </SelectTrigger>
             <SelectContent>
-              {PAYMENT_STATUS_FILTERS.map((f) => (
+              {PAYMENT_DIMENSION_FILTERS.map((f) => (
                 <SelectItem key={f.value || 'any-payment'} value={f.value || 'any-payment'}>
+                  {f.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={fulfillmentStatusFilter || 'any-fulfillment'}
+            onValueChange={(v) => setFulfillmentStatusFilter(v === 'any-fulfillment' ? '' : v)}
+          >
+            <SelectTrigger className="h-10 w-full rounded-xl sm:w-44" aria-label="Filter by fulfillment status">
+              <SelectValue placeholder="Any fulfillment" />
+            </SelectTrigger>
+            <SelectContent>
+              {FULFILLMENT_DIMENSION_FILTERS.map((f) => (
+                <SelectItem key={f.value || 'any-fulfillment'} value={f.value || 'any-fulfillment'}>
                   {f.label}
                 </SelectItem>
               ))}
@@ -258,9 +344,9 @@ export function AdminOrdersTab() {
       {!loading && !error && orders.length === 0 && (
         <AdminEmptyState
           icon={SearchX}
-          title={debouncedSearch.trim() || statusFilter || paymentStatusFilter ? 'No orders match' : 'No orders yet'}
+          title={debouncedSearch.trim() || statusFilter || paymentStatusFilter || fulfillmentStatusFilter ? 'No orders match' : 'No orders yet'}
           description={
-            debouncedSearch.trim() || statusFilter || paymentStatusFilter
+            debouncedSearch.trim() || statusFilter || paymentStatusFilter || fulfillmentStatusFilter
               ? 'Try clearing the search or switching the filters.'
               : 'Every order placed on the platform will appear here.'
           }
@@ -279,7 +365,7 @@ export function AdminOrdersTab() {
                 <th scope="col" className="px-4 py-3 font-medium">Items</th>
                 <th scope="col" className="px-4 py-3 font-medium">Total</th>
                 <th scope="col" className="px-4 py-3 font-medium">Payment</th>
-                <th scope="col" className="px-4 py-3 font-medium">Status</th>
+                <th scope="col" className="px-4 py-3 font-medium">Payment · Fulfillment</th>
               </tr>
             </thead>
             <tbody>
@@ -323,7 +409,7 @@ export function AdminOrdersTab() {
                     <PaymentCell payment={order.payment} paymentTerms={order.paymentTerms} />
                   </td>
                   <td className="px-4 py-3.5">
-                    <StatusBadge status={order.status} map={ORDER_STATUS_MAP} />
+                    <DimensionBadges paymentStatus={order.paymentStatus} fulfillmentStatus={order.fulfillmentStatus} />
                   </td>
                 </tr>
               ))}
@@ -347,7 +433,7 @@ export function AdminOrdersTab() {
                       {order.sourceType === 'RFQ' ? ' · RFQ' : ''}
                     </p>
                   </div>
-                  <StatusBadge status={order.status} map={ORDER_STATUS_MAP} />
+                  <DimensionBadges paymentStatus={order.paymentStatus} fulfillmentStatus={order.fulfillmentStatus} />
                 </div>
                 <div className="text-sm">
                   <p className="font-semibold">{order.fullName || order.buyer.name}</p>
@@ -410,6 +496,29 @@ export function AdminOrdersTab() {
 }
 
 // ── Row pieces ────────────────────────────────────────────────────────────────
+
+// Phase 7.7 — the two order dimensions as compact side-by-side pills
+// (payment: financial state · fulfillment: derived roll-up).
+function DimensionBadges({ paymentStatus, fulfillmentStatus }: { paymentStatus: string; fulfillmentStatus: string }) {
+  const p = PAYMENT_DIMENSION_STYLE[paymentStatus]
+  const f = FULFILLMENT_DIMENSION_STYLE[fulfillmentStatus]
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      <span
+        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${p?.badge ?? 'bg-muted text-muted-foreground'}`}
+        title={`Payment dimension — ${paymentStatus}`}
+      >
+        {p?.label ?? paymentStatus}
+      </span>
+      <span
+        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${f?.badge ?? 'bg-muted text-muted-foreground'}`}
+        title={`Fulfillment dimension — ${fulfillmentStatus}`}
+      >
+        {f?.label ?? fulfillmentStatus}
+      </span>
+    </div>
+  )
+}
 
 function SellerChips({ names }: { names: string[] }) {
   if (names.length === 0) return <span className="text-xs text-muted-foreground">—</span>

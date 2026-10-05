@@ -17,6 +17,7 @@
  */
 import { db } from '../src/lib/db'
 import { attributesForCategory, slugifyTitle } from '../src/lib/catalog/definitions'
+import { assertNotProd } from './lib/assert-not-prod'
 
 // ── types ─────────────────────────────────────────────────────────────
 
@@ -634,6 +635,7 @@ function assertValidAttributes(categorySlug: string, title: string, attrs: Attrs
 // ── main ─────────────────────────────────────────────────────────────
 
 async function main() {
+assertNotProd() // Phase 6 (6.0b.8/B1): fail-closed — no production mode, ever
   const products = await db.product.findMany({
     orderBy: { title: 'asc' }, // deterministic: drives sku + barcode assignment
     select: {

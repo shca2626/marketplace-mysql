@@ -27,6 +27,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'This email is already verified.' }, { status: 400 })
     }
 
+    // Phase 3: phone-first accounts have no email to verify — their phone is
+    // already OTP-verified at registration.
+    if (!user.email) {
+      return NextResponse.json(
+        { error: 'This account has no email on file — your phone number is already verified.' },
+        { status: 400 }
+      )
+    }
+
     const { raw } = await issueEmailVerificationToken(user.id)
     const verifyUrl = `${appBaseUrl()}/?view=verify-email&token=${raw}`
     const mail = emailVerificationEmail({ name: user.name, verifyUrl })

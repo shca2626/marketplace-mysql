@@ -95,6 +95,7 @@ const FAMILY_BY_TYPE: Record<string, string> = {
   VENDOR_STATUS: 'platform',
   PAYMENT_STATUS: 'platform',
   PAYOUT_STATUS: 'platform',
+  REFUND_STATUS: 'platform', // Phase 7.7: refund obligation/execution events
 }
 
 function familyOf(type: string): { key: string; meta: DigestFamilyMeta } {
@@ -132,7 +133,7 @@ function formatPeriodBound(date: Date): string {
 
 export interface BuiltDigest {
   userId: string
-  recipientEmail: string
+  recipientEmail: string | null // Phase 3: phone-first accounts may have no email — digests are skipped for them
   kind: DigestKind
   periodStart: Date
   periodEnd: Date
@@ -337,6 +338,8 @@ import { storeDigestProviderId } from '@/lib/notifications/digest-provider-store
 export interface DigestDeliveryInfo {
   /** Provider message id when the transport got one back (Resend email id). */
   providerMessageId?: string
+  /** Phase 3: phone-first accounts without an email — why the digest was skipped. */
+  skipped?: string
 }
 
 export interface DigestTransport {
@@ -433,11 +436,17 @@ export async function persistAndDeliverDigest(digest: BuiltDigest): Promise<Dige
   let status = 'SENT'
   let deliveryInfo: DigestDeliveryInfo = {}
   try {
-    deliveryInfo = await activeTransport.deliver({
-      to: digest.recipientEmail,
-      subject: digest.subject,
-      html: digest.html,
-    })
+    if (!digest.recipientEmail) {
+      // Phone-first account without an email — store as SKIPPED, never throw.
+      status = 'SKIPPED_NO_EMAIL'
+      deliveryInfo = { skipped: 'no email on account' }
+    } else {
+      deliveryInfo = await activeTransport.deliver({
+        to: digest.recipientEmail,
+        subject: digest.subject,
+        html: digest.html,
+      })
+    }
   } catch (err) {
     status = 'FAILED'
     console.error(

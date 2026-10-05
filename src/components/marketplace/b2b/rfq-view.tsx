@@ -35,7 +35,7 @@ import {
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
-import type { ApprovalRequestDTO, OrganizationDTO, QuoteDTO, RfqDTO } from '@/lib/types'
+import type { ApprovalRequestDTO, OrganizationDTO, ProductOfferDTO, QuoteDTO, RfqDTO } from '@/lib/types'
 import { formatDate, formatUSD, timeAgo } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -98,6 +98,8 @@ interface DraftLine {
   kind: 'catalog' | 'open'
   product: PickedProduct | null
   variantId: string | null
+  /** Phase 4 — target a specific vendor offer (null = primary listing). */
+  offerId: string | null
   productName: string
   quantity: string
   targetPrice: string
@@ -110,6 +112,7 @@ const newDraftLine = (): DraftLine => ({
   kind: 'catalog',
   product: null,
   variantId: null,
+  offerId: null,
   productName: '',
   quantity: '1',
   targetPrice: '',
@@ -140,11 +143,18 @@ export function RfqView() {
 
   // Deep link: / with params.rfqId (notification bell, handoffs) opens the
   // detail directly. Consumed once — navigating back shows the list.
+  // SELLERS are redirected to their console's RFQ inbox detail instead — the
+  // buyer detail page (cancel action, owner copy) is never the right surface
+  // for a seller who followed an "open request" or quote notification.
   const deepLinkConsumed = useRef<string | null>(null)
   useEffect(() => {
     const target = viewParams.rfqId
     if (!user || !target || deepLinkConsumed.current === target) return
     deepLinkConsumed.current = target
+    if (user.role === 'SELLER') {
+      navigate('seller', { sellerTab: 'rfqs', rfqId: target })
+      return
+    }
     setMode({ type: 'detail', id: target })
     navigate('rfqs', {})
   }, [user, viewParams.rfqId, navigate])
@@ -186,6 +196,7 @@ export function RfqView() {
         kind: 'catalog',
         product: { id: prefill.productId, title: prefill.title, price: prefill.price, image: null },
         variantId: null,
+        offerId: prefill.offerId ?? null,
         productName: '',
         quantity: '1',
         targetPrice: '',
@@ -1608,6 +1619,91 @@ function QuotePrintDialog({ quote }: { quote: QuoteDTO }) {
 
 // ── Create ──────────────────────────────────────────────────────────────────
 
+// ── Phase 4: vendor-offer targeting on a catalog line ─────────────────────
+
+/** Session cache — productId → its ACTIVE vendor offers (one fetch per product). */
+const lineOffersCache = new Map<string, ProductOfferDTO[]>()
+
+/**
+ * "From: [seller ▾]" — lets the buyer target a SPECIFIC vendor offer on the
+ * line's product. Lazily fetches /api/products/[id]/offers the first time a
+ * product is picked; renders nothing while there are no other sellers.
+ */
+function LineOfferSelect({
+  product,
+  lineKey,
+  value,
+  onChange,
+}: {
+  product: PickedProduct
+  lineKey: number
+  value: string | null
+  onChange: (offerId: string | null) => void
+}) {
+  // Keyed fetch state — during render we derive the CURRENT product's offers
+  // from the fetched state (same product) or the session cache (covers
+  // re-picking a previously fetched product without a refetch flash).
+  const [fetched, setFetched] = useState<{ id: string; offers: ProductOfferDTO[] } | null>(null)
+  const offers =
+    fetched?.id === product.id ? fetched.offers : (lineOffersCache.get(product.id) ?? null)
+
+  useEffect(() => {
+    if (lineOffersCache.has(product.id)) return
+    let cancelled = false
+    fetch(`/api/products/${product.id}/offers`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json: { offers?: ProductOfferDTO[] } | null) => {
+        if (cancelled || !json?.offers) return
+        lineOffersCache.set(product.id, json.offers)
+        setFetched({ id: product.id, offers: json.offers })
+      })
+      .catch(() => {
+        /* offline — keep the primary listing */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [product.id])
+
+  if (!offers || offers.length === 0) return null
+
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={`offer-${lineKey}`}>
+        From{' '}
+        <span className="font-normal text-muted-foreground">
+          (vendor offer — leave on the primary listing to let anyone quote)
+        </span>
+      </Label>
+      <Select value={value ?? 'primary'} onValueChange={(v) => onChange(v === 'primary' ? null : v)}>
+        <SelectTrigger
+          id={`offer-${lineKey}`}
+          className="h-9 rounded-xl"
+          aria-label={`Vendor offer for ${product.title}`}
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="primary">
+            Primary listing{product.sellerName ? ` — ${product.sellerName}` : ''} · {formatUSD(product.price)}/unit
+          </SelectItem>
+          {offers.map((o) => (
+            <SelectItem key={o.id} value={o.id}>
+              {o.seller.storeName ?? o.seller.name} · {formatUSD(o.price)}/unit
+              <span className="ml-1.5 text-xs text-muted-foreground">{o.stock} in stock</span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {value && (
+        <p className="text-[11px] text-muted-foreground">
+          This line targets that seller&apos;s offer — only they will quote it.
+        </p>
+      )}
+    </div>
+  )
+}
+
 function RfqCreateView({
   title,
   setTitle,
@@ -1679,7 +1775,9 @@ function RfqCreateView({
       lines: lines.map((l) => ({
         productId: l.kind === 'catalog' ? l.product!.id : null,
         productName: l.kind === 'open' ? l.productName.trim() : null,
-        variantId: l.kind === 'catalog' ? l.variantId : null,
+        variantId: l.kind === 'catalog' && !l.offerId ? l.variantId : null,
+        // Phase 4 — target a specific vendor offer on this product (optional)
+        offerId: l.kind === 'catalog' ? (l.offerId ?? null) : null,
         quantity: Number(l.quantity),
         targetPrice: l.targetPrice.trim() ? Number(l.targetPrice) : null,
         notes: l.notes.trim() || null,
@@ -1932,7 +2030,7 @@ function RfqCreateView({
                             variant="ghost"
                             size="sm"
                             className="h-8 rounded-lg text-xs text-muted-foreground"
-                            onClick={() => updateLine(l.key, { product: null, variantId: null })}
+                            onClick={() => updateLine(l.key, { product: null, variantId: null, offerId: null })}
                           >
                             Change
                           </Button>
@@ -1953,6 +2051,7 @@ function RfqCreateView({
                             <Select
                               value={l.variantId ?? 'any'}
                               onValueChange={(v) => updateLine(l.key, { variantId: v === 'any' ? null : v })}
+                              disabled={!!l.offerId}
                             >
                               <SelectTrigger
                                 id={`variant-${l.key}`}
@@ -1977,12 +2076,23 @@ function RfqCreateView({
                             </Select>
                           </div>
                         )}
+
+                        {/* Phase 4 — target a specific vendor offer on this
+                            product; only rendered when other sellers sell it. */}
+                        <LineOfferSelect
+                          product={l.product}
+                          lineKey={l.key}
+                          value={l.offerId}
+                          onChange={(offerId) =>
+                            updateLine(l.key, { offerId, variantId: offerId ? null : l.variantId })
+                          }
+                        />
                       </div>
                     ) : (
                       <div className="mt-3">
                         <ProductPicker
                           label={`Product search for line ${i + 1}`}
-                          onPick={(p) => updateLine(l.key, { product: p })}
+                          onPick={(p) => updateLine(l.key, { product: p, offerId: null })}
                         />
                       </div>
                     )

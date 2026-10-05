@@ -88,7 +88,21 @@ export interface FinancingRequestSummaryDTO {
   createdAt: string
   submissionStats?: { total: number; verified: number; missing: number }
   offerCount?: number
-  bestOffer?: { id: string; amount: number; status: string } | null
+  /** Phase 5 — the latest SENT offer with full comparison facts (the
+   *  multi-financier side-by-side view renders from this). */
+  bestOffer?: {
+    id: string
+    amount: number
+    status: string
+    rateType?: string | null
+    ratePercent?: number | null
+    feeFlat?: number | null
+    tenorMonths?: number | null
+    validUntil?: string | null
+    notes?: string | null
+    installmentCount?: number
+    installmentTotal?: number
+  } | null
 }
 
 export interface FinancingRequestDetailDTO extends FinancingRequestSummaryDTO {
@@ -133,7 +147,7 @@ function serializeRequest(r: RequestRaw & Parameters<typeof serializeSummaryInne
 function serializeSummaryInner(
   r: RequestRaw & {
     organization: { name: string } | null
-    createdBy: { id: string; name: string; email: string }
+    createdBy: { id: string; name: string; email: string | null }
     service: {
       id: string
       name: string
@@ -141,7 +155,18 @@ function serializeSummaryInner(
       financierProfile: { id: string; organizationId: string; organization: { name: string } }
     }
     _count?: { offers: number; submissions: number }
-    offers?: { id: string; amount: number; status: string }[]
+    offers?: {
+      id: string
+      amount: number
+      status: string
+      rateType?: string | null
+      ratePercent?: number | null
+      feeFlat?: number | null
+      tenorMonths?: number | null
+      validUntil?: Date | null
+      notes?: string | null
+      installments?: { amount: number }[]
+    }[]
   }
 ): FinancingRequestSummaryDTO {
   return {
@@ -173,7 +198,22 @@ function serializeSummaryInner(
     closedAt: iso(r.closedAt),
     createdAt: r.createdAt.toISOString(),
     offerCount: r._count?.offers,
-    bestOffer: r.offers && r.offers.length > 0 ? r.offers[0] : null,
+    bestOffer:
+      r.offers && r.offers.length > 0
+        ? {
+            id: r.offers[0].id,
+            amount: r.offers[0].amount,
+            status: r.offers[0].status,
+            rateType: r.offers[0].rateType ?? null,
+            ratePercent: r.offers[0].ratePercent ?? null,
+            feeFlat: r.offers[0].feeFlat ?? null,
+            tenorMonths: r.offers[0].tenorMonths ?? null,
+            validUntil: r.offers[0].validUntil ? r.offers[0].validUntil.toISOString() : null,
+            notes: r.offers[0].notes ?? null,
+            installmentCount: r.offers[0].installments?.length ?? 0,
+            installmentTotal: r.offers[0].installments?.reduce((s, i) => s + i.amount, 0) ?? null,
+          }
+        : null,
   }
 }
 
@@ -724,7 +764,23 @@ export async function listMyFinancingRequests(
     },
     include: {
       ...requestInclude,
-      offers: { where: { status: 'SENT' }, orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, amount: true, status: true } },
+      offers: {
+        where: { status: 'SENT' },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+        select: {
+          id: true,
+          amount: true,
+          status: true,
+          rateType: true,
+          ratePercent: true,
+          feeFlat: true,
+          tenorMonths: true,
+          validUntil: true,
+          notes: true,
+          installments: { select: { amount: true }, orderBy: { installmentNo: 'asc' } },
+        },
+      },
     },
     orderBy: { createdAt: 'desc' },
     take: 200,

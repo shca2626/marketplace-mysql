@@ -6,6 +6,7 @@
  */
 import { PrismaClient } from '@prisma/client'
 import { scryptSync, randomBytes } from 'crypto'
+import { assertNotProd } from './lib/assert-not-prod'
 
 const db = new PrismaClient()
 
@@ -16,6 +17,7 @@ function hashPassword(password: string): string {
 }
 
 async function main() {
+assertNotProd() // Phase 6 (6.0b.8/B1): fail-closed — no production mode, ever
   const email = 'admin@vendora.com'
   const existing = await db.user.findUnique({ where: { email } })
   if (existing) {

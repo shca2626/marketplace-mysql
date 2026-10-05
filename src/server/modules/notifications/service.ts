@@ -1,16 +1,24 @@
 import { db } from '@/lib/db'
+import { sendWhatsAppText } from '@/lib/whatsapp'
 
 /**
  * NOTIFICATIONS — server-side event feed for the bell.
  *
- * Order events remain client-derived (NotificationsBell reads /api/orders);
- * this service covers everything the order list can't see: RFQ lifecycle
- * events (quotes received/accepted/declined/withdrawn/converted, status
- * changes), negotiation messages, and B2B approval queue events.
+ * Order fulfillment events are emitted server-side (ORDER_STATUS — paid /
+ * processing / shipped / delivered / cancelled); the bell additionally derives
+ * a lightweight buyer-side order timeline from /api/orders. This service also
+ * covers everything the order list can't see: RFQ lifecycle events (quotes
+ * received/accepted/declined/withdrawn/converted, status changes), negotiation
+ * messages, and B2B approval queue events.
  *
  * Emission is best-effort: a notification failure must NEVER break the
  * business action that triggered it (create/accept/convert…), so every
  * emit helper swallows errors and logs.
+ *
+ * WHATSAPP MIRROR (Phase 3): user-facing types are additionally delivered to
+ * the recipient's WhatsApp when they have a phone + the channel not opted out
+ * (UserNotificationPref.whatsapp, default ON). The mirror is fire-and-forget —
+ * it runs detached after the row lands and can never fail the emit.
  */
 
 export type NotificationType =
@@ -32,8 +40,10 @@ export type NotificationType =
   | 'RECURRING_PUBLISHED' // buyer: a recurring run was published
   | 'RECURRING_PAUSED' // buyer: schedule auto-paused (empty cycles) or skipped
   | 'VENDOR_STATUS' // seller: platform verified / suspended / reactivated your account
+  | 'ORDER_STATUS' // buyer: fulfillment advanced / order cancelled; seller: order paid / cancelled
   | 'PAYMENT_STATUS' // buyer: payment captured, failed or awaiting confirmation
   | 'PAYOUT_STATUS' // seller: a payout was created or marked paid
+  | 'REFUND_STATUS' // buyer: refund requested / approved / completed / denied (Phase 7.7)
   // ── financier module (FINANCIER_SCHEMA v5 §6) ──
   | 'PLATFORM_RETURNED_REQUEST' // applicant: gate returned the request for completion
   | 'PLATFORM_FORWARDED_REQUEST' // applicant: gate passed, financier will review
@@ -54,20 +64,29 @@ export type NotificationType =
   | 'FEE_ACCRUED' // admin: success fee accrued on an accepted offer
   | 'AGREEMENT_STATUS_CHANGED' // applicant+financier: agreement funding status moved
   | 'FINANCING_STATUS_CHANGED' // applicant: request lifecycle moved
+  | 'APPLICATION_RECEIVED' // Phase 3 registration doors: merchant/financier application accepted for review
+  // ── KYC/KYP (Phase 3 — task 3-d) ──
+  | 'KYC_LEVEL_UP' // user: verification level increased (L2/L3 unlocked)
+  | 'DOCUMENT_EXPIRING' // owner: a verified vault document nears/passes expiry
+  | 'CERTIFICATION_STATUS' // seller: a product certification was verified/rejected
+  // ── Phase 4: unified catalog + multi-vendor + approvals ──
+  | 'PRODUCT_REVIEW_STATUS' // seller: listing passed/failed platform publish review
+  | 'OFFER_REVIEW_STATUS' // seller: offer on a catalog product passed/failed review
+  | 'SERVICE_REVIEW_STATUS' // financier: service passed/failed platform review
 
 export interface EmitInput {
   userId: string
   type: NotificationType
   title: string
   body?: string | null
-  linkView: 'rfq' | 'orders' | 'business' | 'seller' | 'disputes' | 'admin' | 'financing' | 'financier'
+  linkView: 'rfq' | 'orders' | 'business' | 'seller' | 'disputes' | 'admin' | 'financing' | 'financier' | 'account'
   linkId?: string | null
 }
 
 /** Fire-and-forget create — never throws to the caller. */
 export async function emitNotification(input: EmitInput): Promise<void> {
   try {
-    await db.notification.create({
+    const row = await db.notification.create({
       data: {
         userId: input.userId,
         type: input.type,
@@ -76,7 +95,9 @@ export async function emitNotification(input: EmitInput): Promise<void> {
         linkView: input.linkView,
         linkId: input.linkId?.slice(0, 64) || null,
       },
+      select: { id: true },
     })
+    void mirrorWhatsAppNotification(input, row.id)
   } catch (err) {
     console.error('[notifications] emit failed:', input.type, err instanceof Error ? err.message : err)
   }
@@ -88,7 +109,7 @@ export async function emitNotificationTx(
   input: EmitInput
 ): Promise<void> {
   try {
-    await tx.notification.create({
+    const row = (await tx.notification.create({
       data: {
         userId: input.userId,
         type: input.type,
@@ -97,7 +118,8 @@ export async function emitNotificationTx(
         linkView: input.linkView,
         linkId: input.linkId?.slice(0, 64) || null,
       },
-    })
+    })) as { id?: string } | null
+    if (row?.id) void mirrorWhatsAppNotification(input, row.id)
   } catch (err) {
     console.error('[notifications] emit(tx) failed:', input.type, err instanceof Error ? err.message : err)
   }
@@ -106,6 +128,83 @@ export async function emitNotificationTx(
 /** Fan out to many recipients (callers dedupe ids). */
 export async function emitNotifications(inputs: EmitInput[]): Promise<void> {
   await Promise.all(inputs.map((i) => emitNotification(i)))
+}
+
+// ── WhatsApp mirror (Phase 3) ─────────────────────────────────────────────────
+//
+// Types worth waking someone for on the go. Deliberately EXCLUDED:
+//   • admin/staff-console noise — RFQ_QUOTE_REVIEW, FINANCING_REQUEST_RECEIVED,
+//     ACCREDITATION_RECEIVED, FEE_ACCRUED, OFFER_ACCEPTED/OFFER_DECLINED
+//     (financier-side back-office events),
+//   • APPROVAL_REQUESTED/APPROVAL_DECIDED (org approvers act inside the app).
+const WHATSAPP_MIRROR_TYPES = new Set<NotificationType>([
+  // commerce core
+  'ORDER_STATUS',
+  'PAYMENT_STATUS',
+  'PAYOUT_STATUS',
+  'VENDOR_STATUS',
+  // RFQ lifecycle (buyer + seller facing)
+  'RFQ_SUBMITTED_SELLER',
+  'RFQ_QUOTE_RECEIVED',
+  'RFQ_QUOTE_ACCEPTED',
+  'RFQ_QUOTE_DECLINED',
+  'RFQ_QUOTE_WITHDRAWN',
+  'RFQ_QUOTE_CONVERTED',
+  'RFQ_QUOTE_REJECTED',
+  'RFQ_STATUS',
+  'RFQ_MESSAGE',
+  'RFQ_DISPUTE',
+  'RFQ_DISPUTE_STATUS',
+  'RECURRING_PREVIEW',
+  'RECURRING_PUBLISHED',
+  'RECURRING_PAUSED',
+  // financing applicant journey
+  'PLATFORM_RETURNED_REQUEST',
+  'PLATFORM_FORWARDED_REQUEST',
+  'REQUIREMENT_VERIFIED',
+  'REQUIREMENT_REJECTED',
+  'DOCUMENT_VERIFIED',
+  'DOCUMENT_REJECTED',
+  'FINANCING_STATUS_CHANGED',
+  'OFFER_RECEIVED',
+  'OFFER_WITHDRAWN',
+  'AGREEMENT_STATUS_CHANGED',
+  'ACCREDITATION_GRANTED',
+  'ACCREDITATION_REJECTED',
+  'ACCREDITATION_EXPIRING',
+])
+
+/**
+ * Detached WhatsApp twin of an in-app notification. One user lookup, then a
+ * send through the shared dispatch client (which itself falls back to DEV
+ * delivery when no line is paired — the ledger always gets a row). Never
+ * throws, never blocks the emit.
+ */
+async function mirrorWhatsAppNotification(input: EmitInput, notificationId: string): Promise<void> {
+  try {
+    if (!WHATSAPP_MIRROR_TYPES.has(input.type)) return
+    const user = await db.user.findUnique({
+      where: { id: input.userId },
+      select: { phone: true, notificationPref: { select: { whatsapp: true } } },
+    })
+    if (!user?.phone) return // phone-first accounts have one; legacy emails don't
+    if (user.notificationPref && user.notificationPref.whatsapp === false) return
+
+    const body = input.body ? `${input.title}\n${input.body}` : input.title
+    await sendWhatsAppText({
+      toPhone: user.phone,
+      body: body.slice(0, 400),
+      template: 'NOTIFICATION',
+      userId: input.userId,
+      notificationId,
+    })
+  } catch (err) {
+    console.error(
+      '[notifications] whatsapp mirror failed:',
+      input.type,
+      err instanceof Error ? err.message : err
+    )
+  }
 }
 
 export interface NotificationDTO {

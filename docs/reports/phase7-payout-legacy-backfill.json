@@ -1,0 +1,30 @@
+{
+  "generatedAt": "2026-10-05T02:15:01.980Z",
+  "task": "Phase 7.4D.8 legacy payout backfill — PayoutLine ledger projection of OrderItem.payoutId links (lastplan 7.4.8)",
+  "roundingRule": "per-line commission rounding: round(price × qty × commissionRate/100 × 100)/100; reconciliation tolerance = 0.005 × lineCount",
+  "counts": {
+    "payoutsProcessed": 0,
+    "linesCreated": 0,
+    "linesAlreadyPresent": 0,
+    "payoutsBrokenLink": 0
+  },
+  "thisRun": {
+    "payoutsProcessed": 0,
+    "linesCreated": 0,
+    "linesAlreadyPresent": 0,
+    "payoutsBrokenLink": 0
+  },
+  "dbStateAfter": {
+    "payouts": 0,
+    "payoutLines": 0,
+    "claimKeysHeld": 0
+  },
+  "reconciliation": {
+    "payoutsReconciled": 0,
+    "amountExact": 0,
+    "commissionWithinTolerance": 0,
+    "perPayout": []
+  },
+  "ambiguities": [],
+  "gate": "PASS — zero unresolved ambiguity cases"
+}

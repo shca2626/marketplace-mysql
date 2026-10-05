@@ -2,8 +2,15 @@ import { db } from '@/lib/db'
 import { recordAudit } from '@/server/modules/audit/service'
 import { emitNotification, emitNotifications, type EmitInput } from '@/server/modules/notifications/service'
 import { resolvePanel } from '@/server/modules/settings/service'
+import { nextNumber } from '@/server/modules/sequences/service'
 import { createRfq, computeEligibleSellers, rfqSettingsCtx, RfqServiceError } from './service'
 import type { RecurringScheduleDTO } from '@/lib/types'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
+import { randomUUID } from 'crypto'
+
+/** 7.5 fencing tokens — random per claim so a stale lease can never act
+ * after a reclaim rewrites the token (S5). */
+const crypto = { randomUUID }
 
 /**
  * RECURRING RFQs — runtime enforcement of the "Recurring RFQs" settings panel.
@@ -253,7 +260,7 @@ export async function listMySchedules(userId: string): Promise<RecurringSchedule
 }
 
 export async function pauseSchedule(id: string, actor: { id: string; role: string }): Promise<RecurringScheduleDTO> {
-  const s = await ownedSchedule(id, actor.id, actor.role === 'ADMIN')
+  const s = await ownedSchedule(id, actor.id, await userHasPlatformPermission(actor.id, 'rfq.pipeline.view'))
   const updated = await db.recurringRfq.update({ where: { id }, data: { active: false } })
   await recordAudit({
     actorId: actor.id,
@@ -267,7 +274,7 @@ export async function pauseSchedule(id: string, actor: { id: string; role: strin
 }
 
 export async function resumeSchedule(id: string, actor: { id: string; role: string }): Promise<RecurringScheduleDTO> {
-  const s = await ownedSchedule(id, actor.id, actor.role === 'ADMIN')
+  const s = await ownedSchedule(id, actor.id, await userHasPlatformPermission(actor.id, 'rfq.pipeline.view'))
   // Don't resurrect auto-cancelled (empty-cycle) schedules without a reset
   const updated = await db.recurringRfq.update({
     where: { id },
@@ -291,7 +298,7 @@ export async function resumeSchedule(id: string, actor: { id: string; role: stri
 }
 
 export async function skipCycle(id: string, actor: { id: string; role: string }): Promise<RecurringScheduleDTO> {
-  const s = await ownedSchedule(id, actor.id, actor.role === 'ADMIN')
+  const s = await ownedSchedule(id, actor.id, await userHasPlatformPermission(actor.id, 'rfq.pipeline.view'))
   const settings = await resolvePanel('recurring', await rfqSettingsCtx(s.organizationId))
   if (!settings.buyerSkipCycle) {
     throw new RecurringServiceError('Skipping a cycle is not allowed by the platform', 403)
@@ -320,7 +327,7 @@ export async function skipCycle(id: string, actor: { id: string; role: string })
 }
 
 export async function deleteSchedule(id: string, actor: { id: string; role: string }): Promise<{ ok: true }> {
-  await ownedSchedule(id, actor.id, actor.role === 'ADMIN')
+  await ownedSchedule(id, actor.id, await userHasPlatformPermission(actor.id, 'rfq.pipeline.view'))
   await db.recurringRfq.delete({ where: { id } })
   await recordAudit({
     actorId: actor.id,
@@ -341,8 +348,80 @@ export async function deleteSchedule(id: string, actor: { id: string; role: stri
  *  2. spawns due runs (pausedUntil respected)
  *  3. auto-cancels after N consecutive empty cycles
  */
+// 7.5 fencing constants: the lease must comfortably outlive one sweep's work;
+// retries are bounded so a poison schedule cannot retry forever.
+const FENCED_LEASE_MS = 10 * 60_000
+const FENCED_MAX_ATTEMPTS = 3
+
+/** Thrown when a worker's fencing token no longer matches the run row (the
+ * A/B/A case: the lease expired, another worker reclaimed with a fresh
+ * token — this worker must abort and create nothing). */
+class FencedOutError extends Error {}
+
 export async function processDueSchedules(): Promise<void> {
   const now = new Date()
+
+  // ── 7.5a: stale-lease reclaims + bounded retries of FAILED runs ──
+  // A crash between claim and execute leaves a CLAIMED run whose lease
+  // expired — reclaim it (new fencing token) and re-run the spawn against
+  // the ORIGINAL dueAt idempotency key. FAILED runs retry up to the bound.
+  const reclaimable = await db.recurringRfqRun.findMany({
+    where: {
+      OR: [
+        { status: 'CLAIMED', leaseExpiresAt: { lt: now } },
+        { status: 'FAILED', attempt: { lt: FENCED_MAX_ATTEMPTS } },
+      ],
+    },
+    orderBy: { createdAt: 'asc' },
+    take: 10,
+  })
+  for (const stale of reclaimable) {
+    const schedule = await db.recurringRfq.findUnique({ where: { id: stale.scheduleId } })
+    if (!schedule || !schedule.active) {
+      await db.recurringRfqRun.update({
+        where: { id: stale.id },
+        data: { status: 'FAILED', attempt: FENCED_MAX_ATTEMPTS, error: 'schedule no longer active' },
+      })
+      continue
+    }
+    const freshToken = crypto.randomUUID()
+    const reclaimed = await db.recurringRfqRun.updateMany({
+      where: { id: stale.id },
+      data: { status: 'CLAIMED', leaseToken: freshToken, leaseExpiresAt: new Date(now.getTime() + FENCED_LEASE_MS), attempt: { increment: 1 }, error: null },
+    })
+    if (reclaimed.count === 0) continue
+    try {
+      const reclaimNumber = await nextNumber('RFQ')
+      await db.$transaction(async (tx) => {
+        const fence = await tx.recurringRfqRun.updateMany({
+          where: { id: stale.id, leaseToken: freshToken, status: 'CLAIMED' },
+          data: { status: 'CREATED' },
+        })
+        if (fence.count !== 1) throw new FencedOutError('reclaimed run was re-fenced')
+        const created = await createRfq(
+          schedule.userId,
+          {
+            title: schedule.title,
+            description: schedule.description,
+            organizationId: schedule.organizationId,
+            lines: parseLines(schedule.lines),
+          },
+          { tx, status: 'SUBMITTED', number: reclaimNumber }
+        )
+        await tx.rfq.update({ where: { id: created.id }, data: { sourceRecurringId: schedule.id } })
+        await tx.recurringRfqRun.update({ where: { id: stale.id }, data: { rfqId: created.id } })
+      })
+      await db.recurringRfq.update({
+        where: { id: schedule.id },
+        data: { lastRunAt: now, lastRfqId: null, runCount: { increment: 1 } },
+      })
+    } catch (err) {
+      await db.recurringRfqRun.updateMany({
+        where: { id: stale.id, status: 'CLAIMED' },
+        data: { status: 'FAILED', error: (err instanceof Error ? err.message : 'unexpected error').slice(0, 500) },
+      })
+    }
+  }
 
   // ── 1. Preview heads-ups ──
   const previewPanel = await resolvePanel('recurring')
@@ -423,10 +502,54 @@ export async function processDueSchedules(): Promise<void> {
       continue
     }
 
-    // ── Atomic claim (compare-and-set on nextRunAt) ──
+    // ── 7.5: durable run-state with fencing (S5) ──
+    // Tx 1 claims the unique run row (idempotency key scheduleId:dueAt) with
+    // a lease + a random fencing token. Tx 2 (below) executes the spawn
+    // CONDITIONED on that token — a stale worker whose lease expired (and
+    // whose run was reclaimed with a fresh token) fails the conditional
+    // update, aborts, and creates NOTHING (the A/B/A fence).
+    const dueAt = s.nextRunAt
+    const leaseToken = crypto.randomUUID()
+    let run: { id: string; leaseToken: string } | null = null
+    try {
+      const created = await db.recurringRfqRun.create({
+        data: {
+          scheduleId: s.id,
+          dueAt,
+          status: 'CLAIMED',
+          leaseToken,
+          leaseExpiresAt: new Date(now.getTime() + FENCED_LEASE_MS),
+        },
+      })
+      run = { id: created.id, leaseToken }
+    } catch {
+      // Unique (scheduleId, dueAt) conflict — a run row already exists.
+      const existing = await db.recurringRfqRun.findUnique({
+        where: { scheduleId_dueAt: { scheduleId: s.id, dueAt } },
+      })
+      if (!existing || existing.status === 'CREATED') continue // done exactly once
+      if (existing.status === 'CLAIMED' && existing.leaseExpiresAt.getTime() > now.getTime()) continue // live worker owns it
+      if (existing.status === 'FAILED' && existing.attempt >= FENCED_MAX_ATTEMPTS) continue // bounded retries exhausted
+      // Reclaim: rewrite the fencing token (any stale worker is fenced out).
+      const reclaimed = await db.recurringRfqRun.updateMany({
+        where: { id: existing.id },
+        data: {
+          status: 'CLAIMED',
+          leaseToken,
+          leaseExpiresAt: new Date(now.getTime() + FENCED_LEASE_MS),
+          attempt: { increment: 1 },
+          error: null,
+        },
+      })
+      if (reclaimed.count === 0) continue
+      run = { id: existing.id, leaseToken }
+    }
+
+    // ── Atomic schedule advance (compare-and-set on nextRunAt) ──
     // Two concurrent sweeps (RFQ list read + schedules read) can both see
     // this row as due; only the one that pushes nextRunAt forward first
     // wins the spawn — the loser's updateMany matches 0 rows and skips.
+    // (Crash-safety is the run row's job above, not this one's.)
     const claimed = await db.recurringRfq.updateMany({
       where: { id: s.id, active: true, nextRunAt: s.nextRunAt },
       data: {
@@ -434,25 +557,54 @@ export async function processDueSchedules(): Promise<void> {
         previewNotifiedAt: null,
       },
     })
-    if (claimed.count === 0) continue
+    if (claimed.count === 0) {
+      // Another sweep advanced it — but if OUR run claim survived, mark the
+      // run CREATED-less so the stale-run sweep re-evaluates it later.
+      if (run) {
+        await db.recurringRfqRun.updateMany({
+          where: { id: run.id, status: 'CLAIMED', leaseToken: run.leaseToken },
+          data: { status: 'FAILED', error: 'schedule advanced by a concurrent sweep', attempt: FENCED_MAX_ATTEMPTS },
+        })
+      }
+      continue
+    }
 
     // Spawn the run through the normal creation rules (MOQ, caps, variants)
     try {
-      const dto = await createRfq(s.userId, {
-        title: s.title,
-        description: s.description,
-        organizationId: s.organizationId,
-        lines: parseLines(s.lines),
-      })
-      await db.rfq.update({ where: { id: dto.id }, data: { sourceRecurringId: s.id } })
-
-      // autoPublish → submit + route now; otherwise leave as a draft for the
-      // buyer to review (buyerEditBeforeSend) before submitting manually
-      if (panel.autoPublish) {
-        await db.rfq.update({
-          where: { id: dto.id },
-          data: { status: 'SUBMITTED', submittedAt: now },
+      // ── Tx 2 — fenced execute: the RFQ creation transaction ALSO performs
+      // the conditional update of the run row (token-verified). A stale
+      // worker aborts HERE, before anything is created. Success is durable
+      // at this transaction's commit even if the worker dies right after.
+      // (Number pre-generated OUTSIDE the tx — nested nextNumber inside a
+      // transaction callback is unsupported.)
+      const rfqNumber = await nextNumber('RFQ')
+      const dto = await db.$transaction(async (tx) => {
+        const fence = await tx.recurringRfqRun.updateMany({
+          where: { id: run!.id, leaseToken: run!.leaseToken, status: 'CLAIMED' },
+          data: { status: 'CREATED' },
         })
+        if (fence.count !== 1) {
+          throw new FencedOutError('run lease was reclaimed by another worker — aborting before creation')
+        }
+        const created = await createRfq(
+          s.userId,
+          {
+            title: s.title,
+            description: s.description,
+            organizationId: s.organizationId,
+            lines: parseLines(s.lines),
+          },
+          { tx, status: panel.autoPublish ? 'SUBMITTED' : 'DRAFT', number: rfqNumber }
+        )
+        await tx.rfq.update({ where: { id: created.id }, data: { sourceRecurringId: s.id } })
+        await tx.recurringRfqRun.update({ where: { id: run!.id }, data: { rfqId: created.id } })
+        return created
+      })
+
+      // autoPublish → the fenced Tx 2 already submitted; route + notify now
+      // (post-commit fan-out only — a crash here leaves the RFQ published
+      // but unannounced, never duplicated).
+      if (panel.autoPublish) {
 
         // Recipients: distribution filter, then keepSameRecipients restriction
         const { eligible, titlesBySeller } = await computeEligibleSellers(dto.id, s.organizationId)
@@ -526,20 +678,36 @@ export async function processDueSchedules(): Promise<void> {
         metadata: { scheduleId: s.id },
       })
     } catch (err) {
-      // Blocked by live rules (e.g. daily RFQ cap, archived products) — pause
-      // the schedule and tell the buyer instead of retrying forever.
-      await db.recurringRfq.update({
-        where: { id: s.id },
-        data: { active: false },
-      })
-      await emitNotification({
-        userId: s.userId,
-        type: 'RECURRING_PAUSED',
-        title: 'Recurring schedule paused',
-        body: `The latest run could not be published: ${err instanceof Error ? err.message : 'unexpected error'}. Edit the schedule and resume it.`,
-        linkView: 'rfq',
-        linkId: null,
-      })
+      // 7.5 failure path: the run is preserved as FAILED (retry-counted,
+      // bounded) with the error; retries reuse the same idempotency key
+      // (scheduleId:dueAt row). Rule-level blocks (daily cap, archived
+      // products…) are TERMINAL — pause the schedule and tell the buyer
+      // instead of retrying forever.
+      const isRuleBlock = err instanceof RfqServiceError || err instanceof FencedOutError
+      if (run) {
+        await db.recurringRfqRun.updateMany({
+          where: { id: run.id, status: 'CLAIMED' },
+          data: {
+            status: 'FAILED',
+            error: (err instanceof Error ? err.message : 'unexpected error').slice(0, 500),
+            ...(isRuleBlock ? { attempt: FENCED_MAX_ATTEMPTS } : {}),
+          },
+        })
+      }
+      if (isRuleBlock) {
+        await db.recurringRfq.update({
+          where: { id: s.id },
+          data: { active: false },
+        })
+        await emitNotification({
+          userId: s.userId,
+          type: 'RECURRING_PAUSED',
+          title: 'Recurring schedule paused',
+          body: `The latest run could not be published: ${err instanceof Error ? err.message : 'unexpected error'}. Edit the schedule and resume it.`,
+          linkView: 'rfq',
+          linkId: null,
+        })
+      }
     }
   }
 }

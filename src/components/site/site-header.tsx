@@ -5,9 +5,11 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import {
+  Briefcase,
   Building2,
   ChevronDown,
   Heart,
+  Landmark,
   LayoutDashboard,
   LogIn,
   LogOut,
@@ -21,6 +23,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import { useMarketplace, markStoreHydrated } from '@/store/marketplace'
+import { userModuleSet } from '@/components/dashboards/nav-config'
 import { initials } from '@/lib/format'
 import { AuthModal } from '@/components/marketplace/auth-modal'
 import { SolarIcon } from './solar-icon'
@@ -66,6 +69,22 @@ const NAV = [
   { href: '/funding', label: 'Funding' },
   { href: '/about', label: 'About' },
   { href: '/contact', label: 'Contact' },
+]
+
+/** Phase 3 registration doors — business audiences (header + mobile sheet). */
+const BUSINESS_LINKS = [
+  {
+    href: '/market?view=register-company',
+    label: 'Join as Merchant',
+    description: 'Company signup — agents, distributors, wholesalers, retailers',
+    icon: Building2,
+  },
+  {
+    href: '/market?view=register-financier',
+    label: 'Join as Financier',
+    description: 'Bank, MFI or e-wallet application',
+    icon: Landmark,
+  },
 ]
 
 const DEFAULT_ANNOUNCEMENT =
@@ -130,12 +149,24 @@ export function SiteHeader() {
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`)
 
+  // Phase 5 — org-aware module gates for the site account links (mirrors the
+  // market header + buyer console): an org-type flip removes the entries for
+  // those users here too. Admins / unresolved sessions fail open.
+  const moduleOn = (key: string) => {
+    if (user?.role === 'ADMIN' || !user?.modules) return true
+    const set = userModuleSet(user.modules)
+    return !set || set.includes(key)
+  }
   const accountLinks = [
     { href: '/market?view=account', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/market?view=orders', label: 'My orders', icon: Package },
     { href: '/market?view=favorites', label: 'Favorites', icon: Heart },
-    { href: '/market?view=financing', label: 'My funding requests', icon: Wallet },
-    { href: '/market?view=rfqs', label: 'RFQ inbox (B2B)', icon: Building2 },
+    ...(moduleOn('financing-hub')
+      ? [{ href: '/market?view=financing', label: 'My funding requests', icon: Wallet }]
+      : []),
+    ...(moduleOn('rfq')
+      ? [{ href: '/market?view=rfqs', label: 'RFQ inbox (B2B)', icon: Building2 }]
+      : []),
     ...(user?.role === 'SELLER'
       ? [{ href: '/market?view=seller', label: 'Seller console', icon: Settings }]
       : []),
@@ -146,8 +177,10 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/85 backdrop-blur-md">
-      {/* Announcement bar — admin-controlled (Platform Settings → Branding) */}
-      {announcement?.enabled !== false && (
+      {/* Announcement bar — admin-controlled (Platform Settings → Branding).
+          Financing surfaces are YER-primary — the retail USD announcement
+          stays off them (Phase 1 currency policy). */}
+      {!pathname.startsWith('/funding') && announcement?.enabled !== false && (
         <div className="bg-primary text-primary-foreground">
           <p className="mx-auto max-w-7xl px-4 py-1.5 text-center text-xs font-medium tracking-wide sm:text-[13px]">
             {announcement?.text || DEFAULT_ANNOUNCEMENT}
@@ -185,6 +218,24 @@ export function SiteHeader() {
                   )}
                 >
                   {item.label}
+                </Link>
+              ))}
+              <div className="my-3 border-t" />
+              <p className="px-3 pb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                For business
+              </p>
+              {BUSINESS_LINKS.map((l) => (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  onClick={() => setMobileOpen(false)}
+                  className="flex min-h-11 items-start gap-3 rounded-xl px-3 py-2 text-sm transition-colors hover:bg-muted"
+                >
+                  <l.icon size={16} className="mt-0.5 shrink-0 text-primary" />
+                  <span className="min-w-0">
+                    <span className="block font-medium">{l.label}</span>
+                    <span className="block text-xs text-muted-foreground">{l.description}</span>
+                  </span>
                 </Link>
               ))}
               <div className="my-3 border-t" />
@@ -266,6 +317,33 @@ export function SiteHeader() {
           >
             {mounted && theme === 'dark' ? <Sun size={19} /> : <Moon size={19} />}
           </Button>
+
+          {/* For business — registration doors (Phase 3) */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="hidden rounded-full sm:inline-flex" aria-label="For business — join as merchant or financier">
+                <Briefcase size={17} className="mr-1.5" />
+                For business
+                <ChevronDown size={13} className="ml-0.5 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuLabel className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                Join Vendora as a business
+              </DropdownMenuLabel>
+              {BUSINESS_LINKS.map((l) => (
+                <DropdownMenuItem key={l.href} asChild>
+                  <Link href={l.href} className="flex items-start gap-3">
+                    <l.icon size={16} className="mt-0.5 shrink-0 text-primary" />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium">{l.label}</span>
+                      <span className="block text-xs text-muted-foreground">{l.description}</span>
+                    </span>
+                  </Link>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Cross-page cart — same persisted store as the market SPA */}
           <Button variant="ghost" size="icon" asChild className="relative" aria-label={`Cart, ${cartCount} items`}>

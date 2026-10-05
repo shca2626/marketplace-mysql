@@ -471,7 +471,7 @@ async function main() {
     },
   ]
 
-  const createdProducts = []
+  const createdProducts: Awaited<ReturnType<typeof db.product.create>>[] = []
   for (const p of products) {
     const { category, seller, ...rest } = p
     createdProducts.push(

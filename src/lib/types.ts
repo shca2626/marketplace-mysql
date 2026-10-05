@@ -3,11 +3,24 @@ export type Role = 'BUYER' | 'SELLER' | 'ADMIN'
 export interface SessionUser {
   id: string
   name: string
-  email: string
+  /** Phase 3: optional — phone-first accounts may have no email. */
+  email: string | null
+  /** Phase 3: normalized E.164 (+967XXXXXXXXX) — the primary identifier. */
+  phone?: string | null
+  /** Phase 3: set by OTP verification (L1 evidence). */
+  phoneVerifiedAt?: string | null
+  /** Phase 3: 0=L0 · 1=L1 phone · 2=L2 identity · 3=L3 business. */
+  kycLevel?: number
+  /** Phase 3: EXCLUSIVE_AGENT | AUTHORIZED_AGENT | DISTRIBUTOR | WHOLESALER | RETAILER. */
+  merchantType?: string | null
+  /** Phase 3: email when present, else the phone — safe for header display. */
+  displayContact: string
   role: Role
   image?: string | null
   storeName?: string | null
   storeBio?: string | null
+  /** STAB-8: curated storefront cover id (see src/lib/store-covers.ts). */
+  storeCover?: string | null
   createdAt?: string
   /** AUTHSEC-1: null until the user confirms their email via the emailed link. */
   emailVerifiedAt?: string | null
@@ -16,6 +29,14 @@ export interface SessionUser {
   permissions?: string[]
   /** True when the user may enter the admin console (legacy ADMIN or platform role holder). */
   isPlatformStaff?: boolean
+  /** Phase 5 — module activation state for this session. Undefined for legacy
+   *  admins (bypass). `personal` = enabled keys at platform scope (storefront
+   *  + buyer surfaces); `orgs` = orgId → enabled keys through the ORG >
+   *  ORG_TYPE > PLATFORM chain (financier console etc.). */
+  modules?: {
+    personal: string[]
+    orgs: Record<string, string[]>
+  }
 }
 
 // ── RBAC DTOs (Roles & Access console) ──────────────────────────────────────
@@ -38,7 +59,7 @@ export interface RbacAssignmentDTO {
   id: string
   userId: string
   userName: string
-  userEmail: string
+  userEmail: string | null
   userRole: string
   roleId: string
   roleKey: string
@@ -52,7 +73,7 @@ export interface RbacAssignmentDTO {
 export interface RbacStaffDTO {
   userId: string
   name: string
-  email: string
+  email: string | null
   userRole: string
   isSuperAdmin: boolean
   permissions: string[]
@@ -62,7 +83,7 @@ export interface RbacStaffDTO {
 export interface RbacStaffUserDTO {
   id: string
   name: string
-  email: string
+  email: string | null
   role: string
 }
 
@@ -143,6 +164,96 @@ export interface ProductDTO {
   metaTitle?: string | null
   metaDescription?: string | null
   variants?: ProductVariantDTO[]
+  /** Phase 3 KYP — certifications attached to the listing (detail view). */
+  certifications?: ProductCertificationDTO[]
+  /** True when ≥1 VERIFIED certification — powers the "Verified specs" badge. */
+  hasVerifiedSpecs?: boolean
+
+  // ── Phase 4 — unified catalog + multi-vendor ──
+  /** Platform-managed brand linkage ("what it is" layer). */
+  brand?: { id: string; name: string; slug: string; isVerified: boolean } | null
+  /** Normalized EAN/UPC/GTIN — dedup/merge key. */
+  gtin?: string | null
+  /** Manufacturer part number — dedup key. */
+  mpn?: string | null
+  /** Platform-curated listing (admin-created/adopted). */
+  isCurated?: boolean
+  /** Homepage popular-products ordering; null = unranked. */
+  popularRank?: number | null
+  /** ACTIVE offers from additional sellers (excludes the listing owner). */
+  offerCount?: number
+  /** Phase 4 review — admin's reject reason (owner/admin, detail GET only). */
+  reviewNote?: string | null
+  /** Phase 4 — can the current viewer attach an offer to this listing? */
+  viewerCanOffer?: boolean
+}
+
+/** Phase 4 — a vendor offer on a catalog product (the "who sells it" layer). */
+export interface ProductOfferDTO {
+  id: string
+  productId: string
+  sellerId: string
+  seller: { id: string; name: string; storeName: string | null }
+  price: number
+  compareAtPrice: number | null
+  stock: number
+  moq: number | null
+  sku: string | null
+  priceTiers?: { from: number; to: number | null; price: number }[] | null
+  freeShipping: boolean
+  shippingFee: number | null
+  processingDays: number | null
+  leadTimeNote: string | null
+  status: string
+  soldCount: number
+  createdAt: string
+  product?: { id: string; title: string; status: string; slug: string | null; category: string; image: string | null }
+}
+
+/** Phase 3 KYP — a certification/compliance artifact on a product. */
+export interface ProductCertificationDTO {
+  id: string
+  productId: string
+  productTitle?: string
+  sellerId?: string
+  sellerName?: string | null
+  kind: string
+  title: string
+  mediaId: string | null
+  url: string | null
+  issuedBy: string | null
+  issuedAt: string | null
+  expiresAt: string | null
+  status: string
+  verifiedById: string | null
+  verifiedAt: string | null
+  note: string | null
+  isActive: boolean
+  createdAt: string
+}
+
+/** Phase 3 — admin spec-attribute dictionary entry. */
+export interface SpecAttributeDTO {
+  id: string
+  categoryId: string | null
+  categoryName?: string | null
+  key: string
+  label: string
+  dataType: string
+  unit: string | null
+  options: string[]
+  required: boolean
+  position: number
+  isActive: boolean
+  createdAt: string
+}
+
+/** Phase 3 — /api/kyc/status payload (account console Verification card). */
+export interface KycStatusDTO {
+  kycLevel: number
+  levelLabel: string
+  missingForNext: string[]
+  verifiedBadges: string[]
 }
 
 export interface ReviewDTO {
@@ -166,6 +277,8 @@ export interface OrderItemDTO {
   mine?: boolean
   variantId?: string | null
   variantName?: string | null
+  /** Phase 4: set when this item purchased a vendor ProductOffer (variant is null). */
+  offerId?: string | null
 }
 
 export interface OrderPaymentDTO {
@@ -181,6 +294,12 @@ export interface OrderDTO {
   id: string
   total: number
   status: string
+  // ── Phase 7.7 dimension split (authoritative) ──
+  paymentStatus: string // AWAITING_PAYMENT | PAID | FUNDED | PARTIALLY_REFUNDED | REFUNDED | OUTSTANDING
+  fulfillmentStatus: string // UNFULFILLED | PARTIALLY_FULFILLED | FULFILLED | PARTIALLY_CANCELLED | CANCELLED | PROCESSING | SHIPPED
+  currency: string
+  hasPendingRefunds: boolean
+  refunds: Array<{ id: string; number: string; status: string; amountTotal: number; createdAt: string }>
   fullName: string
   address: string
   city: string
@@ -192,7 +311,7 @@ export interface OrderDTO {
   poNumber?: string | null
   sourceType?: string | null
   payment?: OrderPaymentDTO | null
-  buyer?: { id: string; name: string; email: string }
+  buyer?: { id: string; name: string; email: string | null }
   items: OrderItemDTO[]
 }
 
@@ -208,6 +327,13 @@ export interface CartItem {
   variantId?: string | null
   variantLabel?: string | null
   sku?: string | null
+  // ── Phase 4 multi-vendor: set when this line buys a SPECIFIC vendor offer
+  // (not the listing owner). price above already equals the offer price.
+  offerId?: string | null
+  /** Offer price at add-to-cart time (display snapshot; price mirrors it). */
+  offerPrice?: number | null
+  /** The offering vendor's store name for "via <store>" sub-labels. */
+  offerSellerName?: string | null
 }
 
 export interface StoreDTO {
@@ -215,6 +341,14 @@ export interface StoreDTO {
   name: string
   storeName: string | null
   storeBio: string | null
+  /** STAB-8: curated cover id (STORE_COVERS) — null = default gradient. */
+  storeCover: string | null
+  /** Resolved server-side (id → url) so clients don't need the cover map. */
+  storeCoverUrl: string | null
+  /** Cover label for alt text (resolved alongside storeCoverUrl). */
+  storeCoverLabel: string | null
+  /** Phase 3 KYC: 0=L0 · 1=L1 phone · 2=L2 identity · 3=L3 business. */
+  kycLevel?: number
   memberSince: string
   activeListings: number
   totalSold: number
@@ -252,7 +386,7 @@ export interface SellerStats {
     total: number
     status: string
     createdAt: string
-    buyer: { id: string; name: string; email: string }
+    buyer: { id: string; name: string; email: string | null }
     itemCount: number
   }[]
   salesByDay: { date: string; revenue: number; orders: number }[]
@@ -276,7 +410,7 @@ export interface OrganizationMemberDTO {
   id: string
   role: OrgRole
   jobTitle?: string | null
-  user: { id: string; name: string; email: string }
+  user: { id: string; name: string; email: string | null }
   createdAt: string
 }
 
@@ -291,8 +425,8 @@ export interface ApprovalRequestDTO {
   decisionNote?: string | null
   createdAt: string
   decidedAt?: string | null
-  requester?: { id: string; name: string; email: string } | null
-  decidedBy?: { id: string; name: string; email: string } | null
+  requester?: { id: string; name: string; email: string | null } | null
+  decidedBy?: { id: string; name: string; email: string | null } | null
   order?: {
     id: string
     status: string
@@ -451,7 +585,7 @@ export interface RfqDTO {
   description?: string | null
   organizationId?: string | null
   organizationName?: string | null
-  requester: { id: string; name: string; email: string }
+  requester: { id: string; name: string; email: string | null }
   submittedAt?: string | null
   respondedAt?: string | null
   closedAt?: string | null
@@ -477,6 +611,39 @@ export interface RfqMessageDTO {
   createdAt: string
 }
 
+// ── Open Requests directory (seller console, STAB-6) ────────────────────────
+
+/** One free-form ("open item") line of an RFQ — productId is null. */
+export interface OpenRfqLineDTO {
+  id: string
+  productName: string
+  sku?: string | null
+  quantity: number
+  targetPrice?: number | null
+  notes?: string | null
+}
+
+/**
+ * Open Requests directory entry — a live, quotable RFQ that carries at least
+ * one free-form line (productId = null), surfaced to sellers by keyword match
+ * against their ACTIVE catalog. Buyer identity is limited to name + org
+ * (no contact details — negotiation stays on the RFQ thread).
+ */
+export interface OpenRfqDTO {
+  id: string
+  number: string
+  title?: string | null
+  description?: string | null
+  createdAt: string
+  expiresAt?: string | null
+  buyer: { id?: string; name: string; orgName?: string | null }
+  openLines: OpenRfqLineDTO[]
+  /** Catalog keywords this request matched (top ~6, most frequent first). */
+  matchedKeywords: string[]
+  /** Always 0 by construction (the query excludes RFQs I already quoted). */
+  myQuoteCount: number
+}
+
 // ── Media library (uploads) ──
 export interface MediaAssetDTO {
   id: string
@@ -487,6 +654,10 @@ export interface MediaAssetDTO {
   height?: number | null
   url: string
   urls: { thumb: string; medium: string; large: string; full: string }
+  /** 6.6 — 'public-media' assets carry ready public URLs; 'private-vault'
+   *  assets have EMPTY url fields (no public path exists) and are fetched
+   *  through the authenticated proxy via POST /api/documents/:id/access. */
+  namespace?: 'public-media' | 'private-vault'
   createdAt: string
 }
 
@@ -792,7 +963,7 @@ export interface FinancingRequestSummaryDTO {
   status: string
   organizationId: string | null
   organizationName: string | null
-  applicant: { id: string; name: string; email: string }
+  applicant: { id: string; name: string; email: string | null }
   serviceId: string
   serviceName: string
   serviceKind: string
@@ -817,7 +988,21 @@ export interface FinancingRequestSummaryDTO {
   createdAt: string
   submissionStats?: { total: number; verified: number; missing: number }
   offerCount?: number
-  bestOffer?: { id: string; amount: number; status: string } | null
+  /** Phase 5 — the latest SENT offer with full comparison facts (the
+   *  multi-financier side-by-side view renders from this). */
+  bestOffer?: {
+    id: string
+    amount: number
+    status: string
+    rateType?: string | null
+    ratePercent?: number | null
+    feeFlat?: number | null
+    tenorMonths?: number | null
+    validUntil?: string | null
+    notes?: string | null
+    installmentCount?: number
+    installmentTotal?: number
+  } | null
 }
 
 export interface FinancingRequestDetailDTO extends FinancingRequestSummaryDTO {
@@ -921,7 +1106,7 @@ export interface AccreditationRequestSummaryDTO {
   status: string
   organizationId: string
   organizationName: string
-  submittedBy: { id: string; name: string; email: string }
+  submittedBy: { id: string; name: string; email: string | null }
   serviceId: string
   serviceName: string
   financierOrgId: string
@@ -981,6 +1166,8 @@ export interface AccountDocumentDTO {
   reviewedAt: string | null
   note: string | null
   isActive: boolean
+  /** 6.8 sensitivity class — derived server-side from documentType by the ONE matrix. */
+  sensitivity?: 'PUBLIC' | 'ORG_INTERNAL' | 'SENSITIVE_IDENTITY' | 'SENSITIVE_FINANCIAL'
   media: MediaAssetDTO | null
   createdAt: string
 }

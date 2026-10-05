@@ -7,6 +7,7 @@
 import { Client } from 'basic-ftp'
 import { readdirSync, statSync, readFileSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
+import { assertNotProd } from './lib/assert-not-prod'
 
 function envFromFile(key: string): string | undefined {
   // NOTE: empty string counts as unset (the host shell injects empty vars).
@@ -38,6 +39,7 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 async function main() {
+assertNotProd() // Phase 6 (6.0b.8/B1): fail-closed — no production mode, ever
   const files = walk('uploads')
   console.log(`Mirroring ${files.length} local file(s) → ${REMOTE_DIR}`)
   if (!PASS) { console.error('✗ no FTP password resolved'); process.exit(1) }

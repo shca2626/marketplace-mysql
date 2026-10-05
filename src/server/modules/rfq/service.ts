@@ -1,12 +1,15 @@
 import { db } from '@/lib/db'
-import { recordAudit } from '@/server/modules/audit/service'
+import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
 import { nextNumber } from '@/server/modules/sequences/service'
 import { needsApproval, createQuoteAcceptApprovalRequest } from '@/server/modules/approvals/service'
 import { emitNotification, emitNotifications, type EmitInput } from '@/server/modules/notifications/service'
 import { resolvePanel } from '@/server/modules/settings/service'
 import { ensurePayment } from '@/server/modules/payments/service'
 import { openDisputeCountBySeller, lostDisputeCountBySeller } from './disputes'
-import type { RfqDTO, QuoteDTO, RfqLineDTO, QuoteLineDTO, RfqMessageDTO } from '@/lib/types'
+import type { RfqDTO, QuoteDTO, RfqLineDTO, QuoteLineDTO, RfqMessageDTO, OpenRfqDTO } from '@/lib/types'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
+import type { Prisma } from '@prisma/client'
+import { createFulfillmentGroups } from '@/server/modules/orders/service'
 
 /**
  * RFQ / QUOTE — the B2B negotiation primitive.
@@ -436,6 +439,8 @@ export interface RfqLineInput {
   productName?: string | null
   sku?: string | null
   variantId?: string | null
+  offerId?: string | null
+  offerVariantId?: string | null // 7.6: buyer targets a specific vendor's (offer, variant) pair (D9)
   quantity: number
   targetPrice?: number | null
   notes?: string | null
@@ -443,7 +448,10 @@ export interface RfqLineInput {
 
 export async function createRfq(
   userId: string,
-  input: { title?: string | null; description?: string | null; organizationId?: string | null; lines: RfqLineInput[]; expiresInDays?: number | null }
+  input: { title?: string | null; description?: string | null; organizationId?: string | null; lines: RfqLineInput[]; expiresInDays?: number | null },
+  // 7.5 (fenced recurring runs): pass a transaction client so the RFQ INSERT
+  // lands inside the caller's fencing transaction, plus an initial status.
+  opts?: { tx?: Prisma.TransactionClient; status?: 'DRAFT' | 'SUBMITTED'; number?: string }
 ): Promise<RfqDTO> {
   if (!input.lines?.length) throw new RfqServiceError('An RFQ needs at least one line item')
 
@@ -513,6 +521,19 @@ export async function createRfq(
       if (!variant) throw new RfqServiceError('The selected variant does not exist for that product')
       if (!variant.isActive) throw new RfqServiceError('The selected variant is not available')
     }
+    // 7.6.3: wherever an (offer, variant) pair is consumed the pair must
+    // exist, be active, and belong to the same product — fail closed.
+    if (line.offerVariantId) {
+      if (!line.offerId) throw new RfqServiceError('An offer option requires its parent offer')
+      const ov = await db.offerVariant.findUnique({
+        where: { id: line.offerVariantId },
+        include: { offer: { select: { id: true, productId: true, status: true } } },
+      })
+      if (!ov || ov.offer.id !== line.offerId || !ov.isActive || ov.offer.status !== 'ACTIVE')
+        throw new RfqServiceError('The selected offer option is no longer available')
+      if (line.productId && ov.offer.productId !== line.productId)
+        throw new RfqServiceError('The selected offer option belongs to a different product')
+    }
     // Minimum order quantity (product.moq × commercial rules)
     if (line.productId) {
       const p = productMap.get(line.productId)
@@ -539,15 +560,20 @@ export async function createRfq(
     expiresAt = new Date(Date.now() + days * 86_400_000)
   }
 
-  const number = await nextNumber('RFQ')
-  const rfq = await db.rfq.create({
+  // In fenced-tx mode the caller pre-generates the number (a nested
+  // nextNumber inside another transaction's callback is unsupported and
+  // deadlocks); in normal mode it is generated here.
+  const number = opts?.number ?? (await nextNumber('RFQ'))
+  const dbc = opts?.tx ?? db
+  const rfq = await dbc.rfq.create({
     data: {
       number,
       userId,
       organizationId,
       title: input.title?.trim() || null,
       description: input.description?.trim() || null,
-      status: 'DRAFT',
+      status: opts?.status ?? 'DRAFT',
+      ...(opts?.status === 'SUBMITTED' ? { submittedAt: new Date() } : {}),
       expiresAt,
       lines: {
         create: input.lines.map((l) => {
@@ -564,6 +590,8 @@ export async function createRfq(
             sku: l.sku ?? null,
             variantId: l.variantId ?? null,
             variantName,
+            offerId: l.offerId ?? null,
+            offerVariantId: l.offerVariantId ?? null,
             quantity: l.quantity,
             targetPrice: l.targetPrice ?? null,
             notes: l.notes ?? null,
@@ -574,15 +602,27 @@ export async function createRfq(
     include: { ...rfqInclude, _count: { select: { quotes: true } } },
   })
 
-  await recordAudit({
-    actorId: userId,
-    actorType: 'USER',
-    action: 'RFQ_CREATED',
-    entityType: 'Rfq',
-    entityId: rfq.id,
-    summary: `RFQ ${number} drafted (${input.lines.length} lines)`,
-    metadata: { organizationId },
-  })
+  if (opts?.tx) {
+    await recordAuditTx(opts.tx, {
+      actorId: userId,
+      actorType: 'USER',
+      action: 'RFQ_CREATED',
+      entityType: 'Rfq',
+      entityId: rfq.id,
+      summary: `RFQ ${number} drafted (${input.lines.length} lines)`,
+      metadata: { organizationId },
+    })
+  } else {
+    await recordAudit({
+      actorId: userId,
+      actorType: 'USER',
+      action: 'RFQ_CREATED',
+      entityType: 'Rfq',
+      entityId: rfq.id,
+      summary: `RFQ ${number} drafted (${input.lines.length} lines)`,
+      metadata: { organizationId },
+    })
+  }
 
   return serializeRfq(rfq as never, false)
 }
@@ -621,12 +661,19 @@ export async function getRfq(rfqId: string, viewer: { id: string; role: string }
   if (!rfq) throw new RfqServiceError('RFQ not found', 404)
 
   const isOwner = rfq.userId === viewer.id
-  const isAdmin = viewer.role === 'ADMIN'
+  const isAdmin = await userHasPlatformPermission(viewer.id, 'rfq.pipeline.view')
   // Sellers whose catalog products are referenced by RFQ lines may view the RFQ
   // (they need this to discover requests and respond with quotes).
   const isLineSeller = rfq.lines.some((l) => l.product && l.product.sellerId === viewer.id)
   const isInvolvedSeller = rfq.quotes.some((q) => q.sellerId === viewer.id)
-  if (!isOwner && !isAdmin && !isLineSeller && !isInvolvedSeller) {
+  // STAB-6: open-item RFQs (free-form lines with productId=null) are a public
+  // RFQ board — any seller can discover live ones via the Open Requests
+  // directory, so viewing is allowed without a catalog reference too.
+  const isOpenBoardViewer =
+    viewer.role === 'SELLER' &&
+    ['SUBMITTED', 'UNDER_REVIEW', 'QUOTED'].includes(rfq.status) &&
+    rfq.lines.some((l) => l.productId === null)
+  if (!isOwner && !isAdmin && !isLineSeller && !isInvolvedSeller && !isOpenBoardViewer) {
     throw new RfqServiceError('Access denied', 403)
   }
 
@@ -693,7 +740,7 @@ export async function rfqTransition(
   if (!rfq) throw new RfqServiceError('RFQ not found', 404)
 
   const isOwner = rfq.userId === actor.id
-  const isAdmin = actor.role === 'ADMIN'
+  const isAdmin = await userHasPlatformPermission(actor.id, 'rfq.pipeline.view')
 
   // Authorization per action
   if ((action === 'SUBMIT' || action === 'CANCEL') && !isOwner && !isAdmin) {
@@ -742,6 +789,54 @@ export async function rfqTransition(
         linkId: rfqId,
       }
     })
+
+    // ── STAB-6: open-item routing ──
+    // Free-form lines (productId=null) reference no catalog product, so
+    // computeEligibleSellers can't see them. Extend the fan-out: also notify
+    // sellers whose ACTIVE catalog keyword-matches the open-line text — they'll
+    // find the request in their "Open requests" directory too.
+    const openLines = await db.rfqLine.findMany({
+      where: { rfqId, productId: null },
+      select: { productName: true, notes: true },
+    })
+    if (openLines.length > 0) {
+      const openTokens = new Set(
+        tokenizeKeywords(...openLines.flatMap((l) => [l.productName, l.notes]))
+      )
+      if (openTokens.size > 0) {
+        // Exclude the buyer's own seller account + sellers already notified
+        const excluded = new Set<string>([...eligible, rfq.userId])
+        const products = await db.product.findMany({
+          where: { status: 'ACTIVE', sellerId: { notIn: [...excluded] } },
+          select: { sellerId: true, title: true, category: { select: { name: true } } },
+          orderBy: { createdAt: 'desc' },
+          take: 2000,
+        })
+        const keywordsBySeller = new Map<string, Set<string>>()
+        for (const p of products) {
+          const kw = keywordsBySeller.get(p.sellerId) ?? new Set<string>()
+          for (const t of tokenizeKeywords(p.title, p.category?.name)) kw.add(t)
+          keywordsBySeller.set(p.sellerId, kw)
+        }
+        const matchedSellers = [...keywordsBySeller.entries()]
+          .map(([sellerId, kw]) => ({ sellerId, hits: [...openTokens].filter((t) => kw.has(t)) }))
+          .filter((m) => m.hits.length > 0)
+          .sort((a, b) => b.hits.length - a.hits.length)
+          .slice(0, 20)
+
+        const firstOpenLine = (openLines[0]?.productName ?? 'open item').slice(0, 80)
+        emits.push(
+          ...matchedSellers.map((m) => ({
+            userId: m.sellerId,
+            type: 'RFQ_SUBMITTED_SELLER' as const,
+            title: `Open request ${rfq.number}: ${firstOpenLine}`,
+            body: `Open request matches your catalog: ${m.hits.slice(0, 5).join(', ')}`,
+            linkView: 'rfq' as const,
+            linkId: rfqId,
+          }))
+        )
+      }
+    }
     await emitNotifications(emits)
   } else if (action === 'REVIEW' || action === 'REJECT') {
     await emitNotification({
@@ -803,7 +898,7 @@ export async function createQuote(
     throw new RfqServiceError(`RFQ is ${rfq.status} — quotes are closed`, 409)
   }
 
-  const isAdmin = actor.role === 'ADMIN'
+  const isAdmin = await userHasPlatformPermission(actor.id, 'rfq.pipeline.view')
   const products = await db.product.findMany({
     where: { id: { in: input.lines.map((l) => l.productId) } },
   })
@@ -932,6 +1027,54 @@ export async function createQuote(
   // Variant snapshot: mirror the referenced RFQ line's variant (server truth)
   const variantByLine = new Map(rfq.lines.map((l) => [l.id, { variantId: l.variantId ?? null, variantName: l.variantName ?? null }]))
 
+  // ── 7.6: (offer, variant) identity + inventory snapshot at quote time (H1).
+  // The quote line records the seller-specific terms ACTUALLY quoted — offer
+  // ref, variant ref, applicable inventory — and that snapshot is the fact:
+  // pricing changes to the live offer afterward never alter an issued quote.
+  // Pair validation (7.6.3): the pair must exist, be active, and belong to the
+  // same product — fail closed.
+  const rfqLineById = new Map(rfq.lines.map((l) => [l.id, l]))
+  const offerSnapshotByLine = new Map<string, { offerId: string | null; offerVariantId: string | null; availableStock: number | null }>()
+  {
+    const wantedOfferIds = [
+      ...new Set(
+        input.lines
+          .map((l) => (l.rfqLineId ? rfqLineById.get(l.rfqLineId)?.offerId : undefined))
+          .filter((x): x is string => !!x)
+      ),
+    ]
+    const offerRows = wantedOfferIds.length
+      ? await db.productOffer.findMany({ where: { id: { in: wantedOfferIds } }, include: { offerVariants: true } })
+      : []
+    const offerRowById = new Map(offerRows.map((o) => [o.id, o]))
+    for (const l of input.lines) {
+      const rfqLine = l.rfqLineId ? rfqLineById.get(l.rfqLineId) : undefined
+      if (!rfqLine?.offerId) {
+        offerSnapshotByLine.set(`${l.rfqLineId}:${l.productId}`, { offerId: null, offerVariantId: null, availableStock: null })
+        continue
+      }
+      const offer = offerRowById.get(rfqLine.offerId)
+      if (!offer || offer.productId !== l.productId || offer.status !== 'ACTIVE')
+        throw new RfqServiceError('The offer this line targets is no longer available — refresh and re-quote')
+      if (rfqLine.offerVariantId) {
+        const ov = offer.offerVariants.find((x) => x.id === rfqLine.offerVariantId)
+        if (!ov || !ov.isActive)
+          throw new RfqServiceError('The offer option this line targets is no longer available — refresh and re-quote')
+        offerSnapshotByLine.set(`${l.rfqLineId}:${l.productId}`, {
+          offerId: offer.id,
+          offerVariantId: ov.id,
+          availableStock: ov.stock,
+        })
+      } else {
+        offerSnapshotByLine.set(`${l.rfqLineId}:${l.productId}`, {
+          offerId: offer.id,
+          offerVariantId: null,
+          availableStock: offer.stock,
+        })
+      }
+    }
+  }
+
   const quote = await db.$transaction(async (tx) => {
     const created = await tx.quote.create({
       data: {
@@ -950,18 +1093,25 @@ export async function createQuote(
         notes: input.notes?.trim() || null,
         sentAt: quoteStatus === 'SENT' ? new Date() : null,
         lines: {
-          create: input.lines.map((l) => ({
-            rfqLineId: l.rfqLineId && rfqLineIds.has(l.rfqLineId) ? l.rfqLineId : null,
-            productId: l.productId,
-            variantId: l.rfqLineId && rfqLineIds.has(l.rfqLineId)
-              ? variantByLine.get(l.rfqLineId)!.variantId
-              : null,
-            variantName: l.rfqLineId && rfqLineIds.has(l.rfqLineId)
-              ? variantByLine.get(l.rfqLineId)!.variantName
-              : null,
-            quantity: l.quantity,
-            unitPrice: l.unitPrice,
-          })),
+          create: input.lines.map((l) => {
+            const snap = offerSnapshotByLine.get(`${l.rfqLineId}:${l.productId}`) ?? { offerId: null, offerVariantId: null, availableStock: null }
+            return {
+              rfqLineId: l.rfqLineId && rfqLineIds.has(l.rfqLineId) ? l.rfqLineId : null,
+              productId: l.productId,
+              variantId: l.rfqLineId && rfqLineIds.has(l.rfqLineId)
+                ? variantByLine.get(l.rfqLineId)!.variantId
+                : null,
+              variantName: l.rfqLineId && rfqLineIds.has(l.rfqLineId)
+                ? variantByLine.get(l.rfqLineId)!.variantName
+                : null,
+              // 7.6/H1: the seller-specific terms actually quoted — snapshotted
+              offerId: snap.offerId,
+              offerVariantId: snap.offerVariantId,
+              availableStock: snap.availableStock,
+              quantity: l.quantity,
+              unitPrice: l.unitPrice,
+            }
+          }),
         },
       },
       include: {
@@ -1035,7 +1185,7 @@ export async function reviewQuote(
   decision: 'APPROVE' | 'REJECT',
   note?: string
 ): Promise<QuoteDTO> {
-  if (actor.role !== 'ADMIN') throw new RfqServiceError('Only platform admins can review quotes', 403)
+  if (!(await userHasPlatformPermission(actor.id, 'rfq.quotes.review'))) throw new RfqServiceError('Only platform staff with the "rfq.quotes.review" permission can review quotes', 403)
   const quote = await db.quote.findUnique({
     where: { id: quoteId },
     include: {
@@ -1305,6 +1455,120 @@ export async function sellerRfqInbox(sellerId: string): Promise<RfqDTO[]> {
   })
 }
 
+// ── Open Requests directory (STAB-6: open-item RFQ routing) ─────────────────
+
+/** Lowercase word tokens of ≥3 chars (latin + digits) — shared keyword matcher. */
+function tokenizeKeywords(...texts: (string | null | undefined)[]): string[] {
+  const tokens: string[] = []
+  for (const t of texts) {
+    if (!t) continue
+    tokens.push(...(t.toLowerCase().match(/[a-z0-9]{3,}/g) ?? []))
+  }
+  return tokens
+}
+
+/**
+ * Keyword set for a seller's ACTIVE catalog — product titles plus category
+ * names (categories match directly so a "Solar Panels" seller surfaces a
+ * "photovoltaic" request that names the category).
+ */
+async function sellerKeywordSet(sellerId: string): Promise<Set<string>> {
+  const products = await db.product.findMany({
+    where: { sellerId, status: 'ACTIVE' },
+    select: { title: true, category: { select: { name: true } } },
+    take: 500,
+  })
+  return new Set(products.flatMap((p) => tokenizeKeywords(p.title, p.category?.name)))
+}
+
+/** Distinct rfqTokens present in the seller's keyword set, most frequent first. */
+function matchKeywords(
+  rfqTokens: string[],
+  sellerKeywords: Set<string>
+): { keyword: string; count: number }[] {
+  const counts = new Map<string, number>()
+  for (const t of rfqTokens) {
+    if (sellerKeywords.has(t)) counts.set(t, (counts.get(t) ?? 0) + 1)
+  }
+  return [...counts.entries()]
+    .map(([keyword, count]) => ({ keyword, count }))
+    .sort((a, b) => b.count - a.count || a.keyword.localeCompare(b.keyword))
+}
+
+/**
+ * Open Requests directory — live, quotable RFQs that carry at least one
+ * free-form line (productId=null). Sellers reach these by keyword match
+ * against their ACTIVE catalog; matched requests rank first, then newest.
+ * The buyer's identity is limited to name + org (negotiation happens on the
+ * RFQ thread, not via contact details).
+ */
+export async function openRfqDirectory(sellerId: string): Promise<OpenRfqDTO[]> {
+  await expireStaleQuotes()
+  await nudgeBackgroundSweeps()
+
+  const keywords = await sellerKeywordSet(sellerId)
+
+  const rfqs = await db.rfq.findMany({
+    where: {
+      status: { in: ['SUBMITTED', 'UNDER_REVIEW', 'QUOTED'] },
+      // at least one open/free-form line — that's what makes it "open"
+      lines: { some: { productId: null } },
+      // requests I already quoted stay in my main inbox, not the directory
+      quotes: { none: { sellerId } },
+      // deadline not passed (null expiresAt = no deadline)
+      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      // a seller doesn't see their own buyer-side requests
+      userId: { not: sellerId },
+    },
+    include: {
+      user: { select: { id: true, name: true } },
+      organization: { select: { name: true } },
+      lines: { where: { productId: null } },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+  })
+
+  const entries = rfqs.map((r) => {
+    const rfqTokens = tokenizeKeywords(
+      r.title,
+      r.description,
+      ...r.lines.flatMap((l) => [l.productName, l.notes]),
+    )
+    const matched = matchKeywords(rfqTokens, keywords)
+    const dto: OpenRfqDTO = {
+      id: r.id,
+      number: r.number,
+      title: r.title,
+      description: r.description,
+      createdAt: r.createdAt.toISOString(),
+      expiresAt: r.expiresAt?.toISOString() ?? null,
+      buyer: {
+        id: r.user.id,
+        name: r.user.name,
+        orgName: r.organization?.name ?? null,
+      },
+      openLines: r.lines.map((l) => ({
+        id: l.id,
+        productName: l.productName,
+        sku: l.sku,
+        quantity: l.quantity,
+        targetPrice: l.targetPrice ?? null,
+        notes: l.notes,
+      })),
+      matchedKeywords: matched.slice(0, 6).map((m) => m.keyword),
+      // 0 by construction (query excludes RFQs with my quote) — kept for
+      // symmetry with the inbox DTO so consumers can rely on it.
+      myQuoteCount: 0,
+    }
+    return { dto, matchCount: matched.length, createdAtMs: r.createdAt.getTime() }
+  })
+
+  // Keyword matches first (strongest signal), then newest; cap the board at 60.
+  entries.sort((a, b) => b.matchCount - a.matchCount || b.createdAtMs - a.createdAtMs)
+  return entries.slice(0, 60).map((e) => e.dto)
+}
+
 // ── Negotiation thread ──────────────────────────────────────────────────────
 
 async function assertRfqThreadAccess(
@@ -1315,16 +1579,24 @@ async function assertRfqThreadAccess(
     where: { id: rfqId },
     select: {
       userId: true,
-      lines: { select: { product: { select: { sellerId: true } } } },
+      status: true,
+      lines: { select: { productId: true, product: { select: { sellerId: true } } } },
       quotes: { select: { sellerId: true } },
     },
   })
   if (!rfq) throw new RfqServiceError('RFQ not found', 404)
   const isOwner = rfq.userId === viewer.id
-  const isAdmin = viewer.role === 'ADMIN'
+  const isAdmin = await userHasPlatformPermission(viewer.id, 'rfq.pipeline.view')
   const isLineSeller = rfq.lines.some((l) => l.product && l.product.sellerId === viewer.id)
   const isInvolvedSeller = rfq.quotes.some((q) => q.sellerId === viewer.id)
-  if (!isOwner && !isAdmin && !isLineSeller && !isInvolvedSeller) {
+  // STAB-6: open-item RFQs are a public RFQ board — sellers arriving via the
+  // Open Requests directory may negotiate on the thread without a catalog
+  // reference (same live statuses as the directory itself).
+  const isOpenBoardViewer =
+    viewer.role === 'SELLER' &&
+    ['SUBMITTED', 'UNDER_REVIEW', 'QUOTED'].includes(rfq.status) &&
+    rfq.lines.some((l) => l.productId === null)
+  if (!isOwner && !isAdmin && !isLineSeller && !isInvolvedSeller && !isOpenBoardViewer) {
     throw new RfqServiceError('Access denied', 403)
   }
 }
@@ -1432,7 +1704,7 @@ export async function withdrawQuote(
 ): Promise<QuoteDTO> {
   const quote = await db.quote.findUnique({ where: { id: quoteId }, include: { rfq: true } })
   if (!quote) throw new RfqServiceError('Quote not found', 404)
-  const isAdmin = actor.role === 'ADMIN'
+  const isAdmin = await userHasPlatformPermission(actor.id, 'rfq.pipeline.view')
   const isOwnSellerQuote = quote.sellerId === actor.id
   if (!isAdmin && !isOwnSellerQuote) throw new RfqServiceError('Access denied', 403)
   if (quote.status !== 'SENT') {
@@ -1523,7 +1795,7 @@ export async function convertQuoteToOrder(
   if (!quote) throw new RfqServiceError('Quote not found', 404)
 
   const isOwner = quote.rfq.userId === viewer.id
-  const isAdmin = viewer.role === 'ADMIN'
+  const isAdmin = await userHasPlatformPermission(viewer.id, 'rfq.pipeline.view')
   if (!isOwner && !isAdmin) throw new RfqServiceError('Only the requester can convert this quote', 403)
   if (quote.status !== 'ACCEPTED') {
     throw new RfqServiceError(
@@ -1567,6 +1839,21 @@ export async function convertQuoteToOrder(
       }
     }
   }
+
+  // ── 7.6: offer attribution — resolve the (offer, variant) rows quoted so
+  // conversion can stamp the ACTUAL seller identity + D9 pair on the order
+  // items. H1: the quote line's snapshot IS the fact; the live offer is only
+  // consulted for identity + stock authority, never to re-derive terms.
+  const quotedOfferIds = [...new Set(quote.lines.map((l) => l.offerId).filter((x): x is string => !!x))]
+  const quotedOffers = quotedOfferIds.length
+    ? await db.productOffer.findMany({ where: { id: { in: quotedOfferIds } } })
+    : []
+  const offerById = new Map(quotedOffers.map((o) => [o.id, o]))
+  const sellerOrgRows = await db.sellerProfile.findMany({
+    where: { ownerUserId: { in: [...new Set(quotedOffers.map((o) => o.sellerId))] } },
+    select: { ownerUserId: true, organizationId: true },
+  })
+  const offerSellerOrg = new Map(sellerOrgRows.map((sp) => [sp.ownerUserId, sp.organizationId]))
 
   // Shipping details: explicit input → buyer's latest order → org billing → fallbacks
   const lastOrder = await db.order.findFirst({
@@ -1620,6 +1907,11 @@ export async function convertQuoteToOrder(
         buyerId: quote.rfq.userId,
         total: quote.total,
         status: 'PROCESSING', // B2B invoiced order — payment on terms, not prepaid
+        // 7.7 dimensions: an invoiced NET-terms order has money outstanding,
+        // fulfillment starts unfulfilled (groups created below)
+        paymentStatus: 'AWAITING_PAYMENT',
+        fulfillmentStatus: 'UNFULFILLED',
+        currency: quote.currency ?? 'USD',
         fullName: shipping.fullName,
         address: shipping.address,
         city: shipping.city,
@@ -1632,21 +1924,80 @@ export async function convertQuoteToOrder(
         sourceType: 'RFQ',
         sourceQuoteId: quote.id,
         items: {
-          create: quote.lines.map((l) => ({
-            productId: l.productId,
-            sellerId: l.product.sellerId,
-            variantId: l.variantId ?? null,
-            variantName: l.variantName ?? null,
-            quantity: l.quantity,
-            price: l.unitPrice,
-            title: l.variantName ? `${l.product.title} — ${l.variantName}` : l.product.title,
-            image: firstImage(l.product.images),
-          })),
+          // 7.6: conversion sets sellerId/sellerOrgId from the OFFER's seller
+          // when the line quoted one — the offer layer is the single
+          // authoritative source of seller attribution for commerce.
+          create: quote.lines.map((l) => {
+            const offer = l.offerId ? offerById.get(l.offerId) : undefined
+            const effectiveSellerId = offer ? offer.sellerId : l.product.sellerId
+            return {
+              productId: l.productId,
+              sellerId: effectiveSellerId,
+              sellerOrgId: offer ? (offerSellerOrg.get(offer.sellerId) ?? offer.sellerOrgId ?? null) : null,
+              variantId: l.variantId ?? null,
+              variantName: l.variantName ?? null,
+              offerId: l.offerId ?? null,
+              offerVariantId: l.offerVariantId ?? null,
+              quantity: l.quantity,
+              price: l.unitPrice,
+              title: l.variantName ? `${l.product.title} — ${l.variantName}` : l.product.title,
+              image: firstImage(l.product.images),
+            }
+          }),
         },
       },
       include: { items: true },
     })
 
+    // 7.7.2: per-seller-group fulfillment substrate for the converted order
+    await createFulfillmentGroups(
+      tx,
+      created.id,
+      created.items.map((it) => ({
+        id: it.id,
+        quantity: it.quantity,
+        sellerId: it.sellerId,
+        sellerOrgId: it.sellerOrgId,
+      }))
+    )
+
+    // 7.3.1: conditional atomic decrements, count-verified — the whole
+    // conversion rolls back if any authority ran out between the re-check
+    // above and now (acceptance may predate stock changes).
+    for (const l of quote.lines) {
+      const offer = l.offerId ? offerById.get(l.offerId) : undefined
+      if (l.offerVariantId) {
+        const res = await tx.offerVariant.updateMany({
+          where: { id: l.offerVariantId, stock: { gte: l.quantity } },
+          data: { stock: { decrement: l.quantity } },
+        })
+        if (res.count !== 1)
+          throw new RfqServiceError(
+            `Not enough stock for the quoted option of "${l.product.title}" — request a revised quote.`,
+            409
+          )
+      } else if (offer) {
+        const res = await tx.productOffer.updateMany({
+          where: { id: offer.id, stock: { gte: l.quantity } },
+          data: { stock: { decrement: l.quantity }, soldCount: { increment: l.quantity } },
+        })
+        if (res.count !== 1)
+          throw new RfqServiceError(
+            `Not enough stock for "${l.product.title}" (quoted offer) — request a revised quote.`,
+            409
+          )
+      } else if (l.variantId) {
+        const res = await tx.productVariant.updateMany({
+          where: { id: l.variantId, stock: { gte: l.quantity } },
+          data: { stock: { decrement: l.quantity } },
+        })
+        if (res.count !== 1)
+          throw new RfqServiceError(
+            `Not enough stock for "${l.product.title}" (${l.variantName ?? 'option'}) — request a revised quote.`,
+            409
+          )
+      }
+    }
     for (const [productId, qty] of needed) {
       await tx.product.update({
         where: { id: productId },

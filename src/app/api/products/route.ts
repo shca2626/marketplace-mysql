@@ -3,9 +3,13 @@ import type { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/auth'
 import { favoriteIdsFor, productInclude, serializeProduct } from '@/lib/serialize'
-import { ensureUniqueSlug, productFormSchema, slugify, createProduct } from '@/server/modules/products/service'
+import { ensureUniqueSlug, productFormSchema, slugify, createProduct, PUBLICATION_AGREEMENT_VERSION } from '@/server/modules/products/service'
+import { assertSellerCanPublish } from '@/server/modules/kyc/service'
+import { sellerNeedsPublishReview } from '@/server/modules/catalog/settings'
+import { recordPublicationConsent } from '@/server/modules/catalog/review'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 
 // GET /api/products — list with filters/search/sort/pagination.
 // All filtering, search, sorting and pagination happen in SQL (TD-03 resolved);
@@ -36,7 +40,7 @@ export async function GET(req: NextRequest) {
     let sessionUserId: string | null = null
     let isAdmin = false
     const user = await getSessionUser()
-    if (user) isAdmin = user.role === 'ADMIN'
+    if (user) isAdmin = await userHasPlatformPermission(user.id, 'catalog.products.view')
     if (mine) {
       if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       sessionUserId = user.id
@@ -49,7 +53,8 @@ export async function GET(req: NextRequest) {
       where.sellerId = sessionUserId
     } else if (allScope) {
       // Admin catalog browser — every row, any seller status, optional status filter
-      if (statusFilter && ['ACTIVE', 'DRAFT', 'ARCHIVED'].includes(statusFilter)) where.status = statusFilter
+      if (statusFilter && ['ACTIVE', 'DRAFT', 'ARCHIVED', 'PENDING_REVIEW', 'REJECTED'].includes(statusFilter))
+        where.status = statusFilter
     } else {
       // Public storefront: only live products from vendors in good standing
       where.status = 'ACTIVE'
@@ -138,7 +143,7 @@ export async function POST(req: NextRequest) {
 
     const user = await getSessionUser()
     if (!user) return NextResponse.json({ error: 'Please sign in first' }, { status: 401 })
-    if (user.role !== 'SELLER' && user.role !== 'ADMIN')
+    if (user.role !== 'SELLER' && !(await userHasPlatformPermission(user.id, 'catalog.products.create')))
       return NextResponse.json({ error: 'Only sellers can create products' }, { status: 403 })
     if (user.role === 'SELLER' && user.status === 'SUSPENDED')
       return NextResponse.json(
@@ -161,9 +166,55 @@ export async function POST(req: NextRequest) {
     const category = await db.category.findUnique({ where: { id: parsed.data.categoryId } })
     if (!category) return NextResponse.json({ error: 'Category not found' }, { status: 400 })
 
+    // KYC enforcement gate (Phase 3): publishing requires identity verification
+    // (L2). Drafts stay open to every seller — the gate only guards visibility.
+    // Admins are exempt (platform moderation).
+    const wantsPublish = (parsed.data.status ?? 'ACTIVE') === 'ACTIVE'
+    const isAdmin = await userHasPlatformPermission(user.id, 'catalog.products.moderate')
+    if (wantsPublish && !isAdmin) {
+      try {
+        await assertSellerCanPublish(user)
+      } catch (err) {
+        const status = (err as { status?: number }).status
+        if (status) return NextResponse.json({ error: (err as Error).message }, { status })
+        throw err
+      }
+    }
+
+    // Phase 4 — Publication Agreement (owner Q6): first publish of a listing
+    // requires explicit seller consent, stamped on the row + audit-logged.
+    if (wantsPublish && !isAdmin && !parsed.data.publicationAgreed) {
+      return NextResponse.json(
+        { error: 'Accept the Vendora Publication Agreement to publish (required once per listing)' },
+        { status: 400 }
+      )
+    }
+
+    // Phase 4 — publish-review routing: new/unestablished sellers land in the
+    // admin queue (status PENDING_REVIEW) instead of the public catalog.
+    let effectiveStatus: 'ACTIVE' | 'DRAFT' | 'PENDING_REVIEW' = parsed.data.status ?? 'ACTIVE'
+    let reviewQueued = false
+    if (wantsPublish && !isAdmin) {
+      if (await sellerNeedsPublishReview(user.id)) {
+        effectiveStatus = 'PENDING_REVIEW'
+        reviewQueued = true
+      }
+    }
+
     try {
-      const product = await createProduct(user.id, parsed.data)
-      return NextResponse.json({ product: serializeProduct(product!) }, { status: 201 })
+      const product = await createProduct(user.id, { ...parsed.data, status: effectiveStatus })
+      if (parsed.data.publicationAgreed && wantsPublish) {
+        await recordPublicationConsent(user.id, product!.id, product!.title, PUBLICATION_AGREEMENT_VERSION)
+      }
+      return NextResponse.json(
+        {
+          product: serializeProduct(product!),
+          ...(reviewQueued
+            ? { reviewQueued: true, message: 'Your listing was submitted for platform review — it goes live once approved. You can track the status in My Products.' }
+            : {}),
+        },
+        { status: 201 }
+      )
     } catch (err) {
       const status = (err as { status?: number }).status
       if (status) return NextResponse.json({ error: (err as Error).message }, { status })

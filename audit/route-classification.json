@@ -1,0 +1,2634 @@
+{
+  "generatedAt": "2026-10-05T02:47:40.160Z",
+  "routes": [
+    {
+      "route": "/api",
+      "bucket": "PUBLIC",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/accreditation/requests",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/accreditation/requests/[id]",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/accreditation/requests/[id]/cancel",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/accreditation/requests/[id]/resubmit",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/accreditation/requests/[id]/submit",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/accreditation/valid",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/audit-logs",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "audit.view"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/catalog",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "PATCH"
+      ],
+      "permissionKeys": [
+        "catalog.products.moderate"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/catalog/brands",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "catalog.products.moderate"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/catalog/brands/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "PATCH",
+        "DELETE"
+      ],
+      "permissionKeys": [
+        "catalog.products.moderate"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/catalog/duplicates",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "catalog.products.moderate"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/catalog/import",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "catalog.products.moderate"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/catalog/merge",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "catalog.products.moderate"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/catalog/org-types",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "catalog.products.moderate"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/catalog/org-types/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "PATCH"
+      ],
+      "permissionKeys": [
+        "catalog.products.moderate"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/catalog/popular",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "catalog.products.moderate"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/catalog/products",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "catalog.products.moderate"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/catalog/products/[id]/clone",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "catalog.products.moderate"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/catalog/review",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "catalog.products.moderate"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/catalog/units",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "catalog.products.moderate"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/catalog/units/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "PATCH",
+        "DELETE"
+      ],
+      "permissionKeys": [
+        "catalog.products.moderate"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/categories",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "catalog.products.moderate"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/categories/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "PATCH",
+        "DELETE"
+      ],
+      "permissionKeys": [
+        "catalog.products.moderate"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/certifications",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "financing.documents.verify"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/certifications/[id]/verify",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "financing.documents.verify"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/coupons",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "coupons.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/coupons/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "PATCH",
+        "DELETE"
+      ],
+      "permissionKeys": [
+        "coupons.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/customer-groups",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "pricing.view"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/customer-groups/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "PATCH",
+        "DELETE"
+      ],
+      "permissionKeys": [
+        "pricing.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/disputes",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "disputes.view"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/disputes/[id]/resolve",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "disputes.resolve"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/financing/conditions",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "financing.requirements.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/financing/conditions/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "PATCH"
+      ],
+      "permissionKeys": [
+        "financing.requirements.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/financing/documents",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "financing.documents.verify"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/financing/documents/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "financing.documents.verify"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/financing/fees",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "financing.fees.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/financing/fees/[id]/mark-invoiced",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "financing.fees.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/financing/fees/[id]/mark-paid",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "financing.fees.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/financing/gate",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "financing.gate.view"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/financing/gate/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "financing.gate.review"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/financing/institutions",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "financing.institutions.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/financing/institutions/[orgId]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "PATCH"
+      ],
+      "permissionKeys": [
+        "financing.institutions.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/financing/institutions/[orgId]/suspend",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "financing.institutions.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/financing/institutions/[orgId]/verify",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "financing.institutions.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/financing/requests/[id]/forward",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "financing.gate.review"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/financing/requests/[id]/return",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "financing.gate.review"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/financing/requests/[id]/start-review",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "financing.gate.review"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/financing/submissions/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "financing.documents.verify"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/fx",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "pricing.view"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/fx/currencies",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST",
+        "PATCH"
+      ],
+      "permissionKeys": [
+        "pricing.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/fx/rates",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "pricing.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/kyc/expiry-scan",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "financing.documents.verify"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/modules",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "modules.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/notifications/digest/run",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Digest trigger — internal endpoint guarded by header secret + optional session; runs the digest job (see service). Ops-only."
+    },
+    {
+      "route": "/api/admin/orders",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "orders.view"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/organizations",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "orgs.view"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/organizations/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "PATCH",
+        "DELETE"
+      ],
+      "permissionKeys": [
+        "orgs.update"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/payments",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "payments.view"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/payments/[id]/capture",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "payments.capture"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/payments/[id]/fail",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "payments.capture"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/payments/config",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "PUT"
+      ],
+      "permissionKeys": [
+        "payments.capture"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/payouts",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "payouts.view"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/payouts/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "payouts.view"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/payouts/[id]/cancel",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "payouts.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/payouts/[id]/mark-paid",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "payouts.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/payouts/[id]/reverse",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "payouts.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/payouts/config",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "PUT"
+      ],
+      "permissionKeys": [
+        "payouts.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/payouts/generate",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "payouts.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/payouts/preview",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "payouts.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/price-lists",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "pricing.view"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/price-lists/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "PATCH",
+        "DELETE"
+      ],
+      "permissionKeys": [
+        "pricing.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/price-lists/[id]/entries",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "PUT"
+      ],
+      "permissionKeys": [
+        "pricing.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/quotes",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "rfq.pipeline.view"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/rbac/assignments",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "staff.view",
+        "staff.manage",
+        "rbac.roles.view",
+        "rbac.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/rbac/assignments/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "DELETE"
+      ],
+      "permissionKeys": [
+        "staff.manage",
+        "rbac.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/rbac/invitations",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "staff.view",
+        "staff.invite",
+        "rbac.roles.view",
+        "rbac.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/rbac/invitations/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "DELETE"
+      ],
+      "permissionKeys": [
+        "staff.invite",
+        "rbac.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/rbac/permissions",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "staff.view",
+        "rbac.roles.view",
+        "rbac.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/rbac/roles",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "staff.view",
+        "rbac.roles.view",
+        "rbac.manage",
+        "rbac.roles.create"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/rbac/roles/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "PATCH",
+        "DELETE"
+      ],
+      "permissionKeys": [
+        "rbac.roles.update",
+        "rbac.manage",
+        "rbac.roles.delete"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/rbac/staff",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "staff.view",
+        "staff.manage",
+        "rbac.roles.view",
+        "rbac.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/rbac/users",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "staff.view",
+        "staff.manage",
+        "rbac.roles.view",
+        "rbac.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/refunds",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "payments.view"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/refunds/[id]/approve",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "payments.capture"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/refunds/[id]/complete",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "payments.capture"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/refunds/[id]/deny",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "payments.capture"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/rfq-settings",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "PUT",
+        "DELETE"
+      ],
+      "permissionKeys": [
+        "rfq.settings.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/rfq-settings/history",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "rfq.settings.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/rfq-settings/history/rollback",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "rfq.settings.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/rfqs",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "rfq.pipeline.view"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/security",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST",
+        "PUT"
+      ],
+      "permissionKeys": [
+        "staff.manage"
+      ],
+      "moduleKeys": [],
+      "notes": "requireAdmin('staff.manage'); PUT/POST additionally require step-up MFA (6.7.5)."
+    },
+    {
+      "route": "/api/admin/settings",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "PUT"
+      ],
+      "permissionKeys": [
+        "storefront.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/slides",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "storefront.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/slides/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "PUT",
+        "DELETE"
+      ],
+      "permissionKeys": [
+        "storefront.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/spec-attributes",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "catalog.products.moderate"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/spec-attributes/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "PATCH",
+        "DELETE"
+      ],
+      "permissionKeys": [
+        "catalog.products.moderate"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/stats",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Inline RBAC check userHasPlatformPermission('platform.overview.view') on getSessionUser."
+    },
+    {
+      "route": "/api/admin/vendors",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "vendors.view"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/vendors/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "PATCH"
+      ],
+      "permissionKeys": [
+        "vendors.verify"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/vendors/[id]/verification",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "PATCH"
+      ],
+      "permissionKeys": [
+        "vendors.verify"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/whatsapp/campaigns",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "whatsapp.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/whatsapp/campaigns/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "PATCH",
+        "DELETE"
+      ],
+      "permissionKeys": [
+        "whatsapp.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/whatsapp/campaigns/[id]/control",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "whatsapp.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/whatsapp/campaigns/[id]/start",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "whatsapp.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/whatsapp/chatbot",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "whatsapp.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/whatsapp/chatbot/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "PATCH",
+        "DELETE"
+      ],
+      "permissionKeys": [
+        "whatsapp.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/whatsapp/chats",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "whatsapp.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/whatsapp/chats/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "PATCH",
+        "DELETE"
+      ],
+      "permissionKeys": [
+        "whatsapp.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/whatsapp/chats/[id]/reply",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "whatsapp.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/whatsapp/messages",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "whatsapp.view"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/whatsapp/senders",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "whatsapp.view",
+        "whatsapp.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/whatsapp/senders/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "DELETE"
+      ],
+      "permissionKeys": [
+        "whatsapp.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/whatsapp/senders/[id]/check",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "whatsapp.view"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/whatsapp/senders/[id]/default",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "whatsapp.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/whatsapp/senders/[id]/disconnect",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "whatsapp.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/whatsapp/senders/[id]/retry-pairing",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "whatsapp.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/whatsapp/templates",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "whatsapp.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/whatsapp/templates/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "PATCH",
+        "DELETE"
+      ],
+      "permissionKeys": [
+        "whatsapp.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/approvals",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/approvals/[id]/decide",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/auth/become-seller",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Self-service account upgrade; blocks platform-staff accounts (reviewed in audit/admin-bypass-sweep.md)."
+    },
+    {
+      "route": "/api/auth/change-password",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Self-service — verifies current password; bumps sessionVersion."
+    },
+    {
+      "route": "/api/auth/forgot-password",
+      "bucket": "PUBLIC",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/auth/login",
+      "bucket": "PUBLIC",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/auth/logout",
+      "bucket": "PUBLIC",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/auth/me",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "GET",
+        "PATCH"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Returns the caller's session user (401 when signed out)."
+    },
+    {
+      "route": "/api/auth/mfa",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Self-service MFA: status/enroll/confirm/disable/backup-codes/step-up. Own account only (session-derived userId)."
+    },
+    {
+      "route": "/api/auth/otp/request",
+      "bucket": "PUBLIC",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/auth/otp/verify",
+      "bucket": "PUBLIC",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/auth/register",
+      "bucket": "PUBLIC",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/auth/register/company",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Registration door (B2B company self-signup) — creates account + org."
+    },
+    {
+      "route": "/api/auth/register/financier",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Financier door — creates account via email-bound invitation token (hashed, 6.5)."
+    },
+    {
+      "route": "/api/auth/reset-password",
+      "bucket": "PUBLIC",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/auth/sessions",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "GET",
+        "DELETE"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Self-service session registry: list/revoke OWN sessions; sign-out-everywhere stays the all-kill."
+    },
+    {
+      "route": "/api/auth/sign-out-everywhere",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Self-service all-session kill (sessionVersion bump + registry revoke)."
+    },
+    {
+      "route": "/api/auth/verify-email/confirm",
+      "bucket": "PUBLIC",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/auth/verify-email/request",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Self-service email verification resend (rate-limited)."
+    },
+    {
+      "route": "/api/catalog",
+      "bucket": "PUBLIC",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/categories",
+      "bucket": "PUBLIC",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/certifications/[id]",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "PATCH"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Seller-scoped certification CRUD — ownership checked in service (seller profile owner)."
+    },
+    {
+      "route": "/api/chat/widget/messages",
+      "bucket": "PUBLIC",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/chat/widget/send",
+      "bucket": "PUBLIC",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/chat/widget/session",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Public webchat widget (WA-CHAT) — anonymous by design; the session cookie is read only to prefill the visitor name/phone and link an existing account (guard-lint scans MANUAL_REVIEW because of the optional getSessionUser call, reviewed as PUBLIC)."
+    },
+    {
+      "route": "/api/contact",
+      "bucket": "PUBLIC",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/coupons/validate",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Cart-time coupon validation for the signed-in buyer; code read-only."
+    },
+    {
+      "route": "/api/disputes",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/disputes/[id]/cancel",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/disputes/[id]/respond",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/documents",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/documents/[id]",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "PATCH",
+        "DELETE"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/documents/[id]/access",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Issues one-time retrieval URLs for vault documents (6.6.4): requireUser + same-origin CSRF + per-user rate limit; authorization via canAccessAccountDocument (6.8 matrix) inside issueVaultUrl; audited DOCUMENT_URL_ISSUED."
+    },
+    {
+      "route": "/api/favorites",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Buyer self-service favorites (own rows only)."
+    },
+    {
+      "route": "/api/financier/accreditations",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/accreditations/[id]",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/accreditations/[id]/grant",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/accreditations/[id]/open",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/accreditations/[id]/reject",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/accreditations/[id]/revoke",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/agreements",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/agreements/[id]",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/agreements/[id]/events",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/agreements/[id]/funding-status",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/conditions",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/conditions/[id]",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "PATCH"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/conditions/[id]/options",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST",
+        "DELETE"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/context",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/offers",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/offers/[id]/withdraw",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/profile",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/requests",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/requests/[id]",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/requests/[id]/decline",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/requests/[id]/open",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/requirements",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/requirements/[id]",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "PATCH",
+        "DELETE"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/services",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/services/[id]",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "PATCH",
+        "DELETE"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/services/[id]/attributes",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/services/[id]/coverage",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financier/team",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "POST",
+        "PATCH",
+        "DELETE"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financing/agreements",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [
+        "financing-hub"
+      ]
+    },
+    {
+      "route": "/api/financing/agreements/[id]",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financing/requests",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [
+        "financing-hub"
+      ]
+    },
+    {
+      "route": "/api/financing/requests/[id]",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financing/requests/[id]/cancel",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financing/requests/[id]/offers/[offerId]/accept",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financing/requests/[id]/offers/[offerId]/decline",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financing/requests/[id]/resubmit",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financing/requests/[id]/submit",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/financing/services",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Public financing hub listing (GET). POST (apply) requires session — inline auth in handler."
+    },
+    {
+      "route": "/api/financing/services/[id]",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Public service detail (GET)."
+    },
+    {
+      "route": "/api/fx",
+      "bucket": "PUBLIC",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/home",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Public storefront home payload; optional session personalization."
+    },
+    {
+      "route": "/api/kyc/status",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/media/[...key]",
+      "bucket": "PUBLIC",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/modules",
+      "bucket": "PUBLIC",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/notifications",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Own notifications only (userId-scoped where clauses)."
+    },
+    {
+      "route": "/api/notifications/digest",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Own digest preferences/history."
+    },
+    {
+      "route": "/api/notifications/read",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Marks OWN notifications read (userId filter)."
+    },
+    {
+      "route": "/api/offers/mine",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Seller's own product offers (sellerId = caller)."
+    },
+    {
+      "route": "/api/orders",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Buyer order list (own orders) + seller fulfillment views via service ownership checks; admin view uses orders.view permission (Phase 6 sweep)."
+    },
+    {
+      "route": "/api/orders/[id]",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "GET",
+        "PATCH"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Per-resource: buyer or item-seller or orders.view/orders.update permission (Phase 6 sweep)."
+    },
+    {
+      "route": "/api/orders/[id]/pay",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Buyer payment attempt — ownership checked in payment service."
+    },
+    {
+      "route": "/api/orders/[id]/refund",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Session buyer (getSessionUser + ownership check inside requestRefund: only the order buyer may request; refundable only when money actually moved — paidStates guard). Rate-limited like checkout."
+    },
+    {
+      "route": "/api/organizations",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/organizations/[id]",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "PATCH"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/organizations/[id]/members",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/payments/methods",
+      "bucket": "PUBLIC",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/pricing/resolve",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/products",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "GET is public catalog (auth optional for drafts-visibility/owned filters); POST requires SELLER or catalog.products.create (Phase 6 sweep)."
+    },
+    {
+      "route": "/api/products/[id]",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "GET",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "GET public product detail (suspended-seller hidden except owner/catalog.products.view); PATCH/DELETE owner or catalog permission (Phase 6 sweep)."
+    },
+    {
+      "route": "/api/products/[id]/certifications",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Seller-owned certification attachment; inline ownership checks."
+    },
+    {
+      "route": "/api/products/[id]/offers",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "GET public-offer visibility for a product; POST = vendor offer creation (seller auth + verification rules in service)."
+    },
+    {
+      "route": "/api/products/[id]/offers/[offerId]",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "PATCH",
+        "DELETE"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Offer update/delete — offer seller ownership checked in service."
+    },
+    {
+      "route": "/api/products/bulk",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Seller bulk operations on OWN products (service-side ownership)."
+    },
+    {
+      "route": "/api/products/export",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Seller export (own) or catalog.products.view for scope=all (Phase 6 sweep)."
+    },
+    {
+      "route": "/api/quotes/[id]/accept",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [
+        "rfq"
+      ]
+    },
+    {
+      "route": "/api/quotes/[id]/convert",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/quotes/[id]/decline",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/quotes/[id]/pdf",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Per-resource: requester / issuing seller / rfq.pipeline.view (Phase 6 sweep)."
+    },
+    {
+      "route": "/api/quotes/[id]/review",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "rfq.quotes.review"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/quotes/[id]/withdraw",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/recurring-rfqs",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [
+        "rfq"
+      ]
+    },
+    {
+      "route": "/api/recurring-rfqs/[id]",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "PATCH",
+        "DELETE"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/recurring-rfqs/[id]/skip",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/refunds",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Session user (getSessionUser): returns only the caller’s own refunds (buyerRefunds scopes by order.buyerId = userId)."
+    },
+    {
+      "route": "/api/refunds/[id]/cancel",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Session user (getSessionUser): cancelRefund verifies the refund’s order belongs to the caller before any transition; only REQUESTED/APPROVED are cancellable."
+    },
+    {
+      "route": "/api/reviews",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Buyer reviews on own orders; product-visible reads public."
+    },
+    {
+      "route": "/api/rfq-config",
+      "bucket": "PUBLIC",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/rfqs",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [
+        "rfq"
+      ]
+    },
+    {
+      "route": "/api/rfqs/[id]",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "PATCH"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [
+        "rfq"
+      ]
+    },
+    {
+      "route": "/api/rfqs/[id]/messages",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/rfqs/[id]/quotes",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/rfqs/inbox",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [
+        "rfq"
+      ]
+    },
+    {
+      "route": "/api/rfqs/open-directory",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [
+        "rfq"
+      ]
+    },
+    {
+      "route": "/api/seller/earnings",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Seller self-service earnings (sellerId = caller)."
+    },
+    {
+      "route": "/api/seller/orders",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Seller fulfillment queue — items where sellerId = caller."
+    },
+    {
+      "route": "/api/seller/profile",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "PATCH"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Seller self-service profile."
+    },
+    {
+      "route": "/api/seller/stats",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Seller self-service stats (sellerId = caller)."
+    },
+    {
+      "route": "/api/sellers/[id]",
+      "bucket": "PUBLIC",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/settings",
+      "bucket": "PUBLIC",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/spec-attributes",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/uploads",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Media upload: SELLER or catalog.products.update; library scoped by ownership or catalog.products.view (Phase 6 sweep)."
+    },
+    {
+      "route": "/api/uploads/[id]",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "DELETE"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Media asset delete — ownership checked (uploadedById = caller) or catalog permission."
+    },
+    {
+      "route": "/api/vault/[documentId]",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Private-vault authenticated proxy (6.6.4): session re-authenticated per retrieval; HMAC-signed one-time nonce (VaultAccessGrant) verified + atomically consumed; access RE-authorized against the 6.8 matrix (owner / financing.documents.verify / org member per class / financier review scope) inside consumeVaultUrl — not a static permission key. Cache-Control: no-store; never redirects to storage/CDN."
+    },
+    {
+      "route": "/api/settings/currency",
+      "bucket": "PUBLIC",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/currency",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST",
+        "PATCH"
+      ],
+      "permissionKeys": [
+        "storefront.manage"
+      ],
+      "moduleKeys": []
+    }
+  ]
+}

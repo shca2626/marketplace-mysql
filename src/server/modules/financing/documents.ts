@@ -1,9 +1,13 @@
 import { db } from '@/lib/db'
-import { recordAudit } from '@/server/modules/audit/service'
+import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
 import { emitNotification } from '@/server/modules/notifications/service'
+import { recomputeUserKycLevel, recomputeOrgKycLevel } from '@/server/modules/kyc/service'
 import { resolvePanel } from '@/server/modules/settings/service'
 import { UPLOAD_LIMITS, processImageUpload } from '@/lib/storage/image-pipeline'
+import { VAULT_NAMESPACE } from '@/lib/storage/namespace'
 import { serializeMediaAsset } from '@/lib/serialize-media'
+import { canAccessAccountDocument } from '@/server/modules/documents/access'
+import { documentSensitivity, type DocumentSensitivity } from '@/server/modules/documents/sensitivity'
 import { FinancingError, DOCUMENT_TYPES, assertOrgMember, iso } from './shared'
 
 /**
@@ -37,6 +41,7 @@ export interface AccountDocumentDTO {
   reviewedAt: string | null
   note: string | null
   isActive: boolean
+  sensitivity: DocumentSensitivity // 6.8 — derived from documentType by the ONE matrix
   media: ReturnType<typeof serializeMediaAsset>
   createdAt: string
 }
@@ -67,6 +72,7 @@ function serializeDoc(
     reviewedAt: iso(d.reviewedAt),
     note: d.note,
     isActive: d.isActive,
+    sensitivity: documentSensitivity(d.documentType),
     media: serializeMediaAsset(d.media),
     createdAt: d.createdAt.toISOString(),
   }
@@ -153,9 +159,12 @@ export async function createAccountDocument(
   }
 
   // The REAL pipeline: magic-sniff, size-cap, webp renditions, sha256.
+  // 6.6.2 — vault documents ingest into the PRIVATE-VAULT namespace (fail-
+  // safe: there is no public ingest path for documents at all; unknown types
+  // default to the vault by construction of this route).
   // PDFs and other non-image files fail the sniff — translate to a clear
   // 415 instead of the opaque 500 (BUY-206 family).
-  const processed = await processImageUpload(input.file.buffer).catch((err: unknown) => {
+  const processed = await processImageUpload(input.file.buffer, { namespace: VAULT_NAMESPACE }).catch((err: unknown) => {
     if (err instanceof FinancingError) throw err
     const msg = err instanceof Error ? err.message : String(err)
     if (/magic|format|type|image|unsupported|not an image/i.test(msg)) {
@@ -168,12 +177,17 @@ export async function createAccountDocument(
   })
 
   const doc = await db.$transaction(async (tx) => {
-    // Dedupe by content hash — same bytes never stored twice
-    let asset = await tx.mediaAsset.findUnique({ where: { sha256: processed.sha256 } })
+    // 6.6.1 — dedupe by content hash WITHIN the vault namespace only: the
+    // same bytes may exist in public-media too (a product photo), with a
+    // different key and different access semantics.
+    let asset = await tx.mediaAsset.findUnique({
+      where: { namespace_sha256: { namespace: VAULT_NAMESPACE, sha256: processed.sha256 } },
+    })
     if (!asset) {
       asset = await tx.mediaAsset.create({
         data: {
           key: processed.baseKey,
+          namespace: VAULT_NAMESPACE,
           originalName: (input.file.originalName || 'document').replace(/[\r\n\0]/g, '').slice(0, 255),
           mime: processed.mime,
           size: processed.originalBytes,
@@ -279,14 +293,14 @@ export async function getAccountDocument(
   documentId: string,
   actorRole = 'USER'
 ): Promise<AccountDocumentDTO> {
+  void actorRole // retained for call-site compatibility — access is RBAC-resolved below
   const doc = await db.accountDocument.findUnique({ where: { id: documentId }, include: docInclude })
   if (!doc || !doc.isActive) throw new FinancingError('Document not found', 404)
-  const isOwner = doc.userId === userId
-  const isAdmin = actorRole === 'ADMIN'
-  const isOrgMember = doc.organizationId
-    ? !!(await db.organizationMember.findFirst({ where: { userId, organizationId: doc.organizationId } }))
-    : false
-  if (!isOwner && !isAdmin && !isOrgMember) throw new FinancingError('Access denied', 403)
+  // 6.6.3/6.8 — the ONE access resolver (owner / platform reviewer /
+  // org member per class / financier review scope). Replaces the old
+  // owner-or-ADMIN-or-any-org-member triad.
+  const decision = await canAccessAccountDocument(userId, doc)
+  if (!decision.allowed) throw new FinancingError('Access denied', 403)
   return serializeDoc(doc as never)
 }
 
@@ -344,15 +358,18 @@ export async function softDeleteAccountDocument(
   if (doc.userId !== userId && actorRole !== 'ADMIN') {
     throw new FinancingError('Only the uploader can remove this document', 403)
   }
-  await db.accountDocument.update({ where: { id: documentId }, data: { isActive: false } })
-  await recordAudit({
-    actorId: userId,
-    actorType: actorRole === 'ADMIN' ? 'ADMIN' : 'USER',
-    action: 'ACCOUNT_DOCUMENT_DELETED',
-    entityType: 'AccountDocument',
-    entityId: documentId,
-    summary: `${doc.documentType} removed from the vault (soft delete)`,
-    metadata: { documentType: doc.documentType },
+  // 6.11: soft delete + audit row commit atomically.
+  await db.$transaction(async (tx) => {
+    await tx.accountDocument.update({ where: { id: documentId }, data: { isActive: false } })
+    await recordAuditTx(tx, {
+      actorId: userId,
+      actorType: actorRole === 'ADMIN' ? 'ADMIN' : 'USER',
+      action: 'ACCOUNT_DOCUMENT_DELETED',
+      entityType: 'AccountDocument',
+      entityId: documentId,
+      summary: `${doc.documentType} removed from the vault (soft delete)`,
+      metadata: { documentType: doc.documentType },
+    })
   })
   return { ok: true }
 }
@@ -369,19 +386,23 @@ export async function verifyAccountDocument(
   if (doc.status !== 'PENDING') {
     throw new FinancingError(`Document is already ${doc.status.toLowerCase()} — it is verified once and reused`, 409)
   }
-  const updated = await db.accountDocument.update({
-    where: { id: documentId },
-    data: { status: 'VERIFIED', reviewedById: adminId, reviewedAt: new Date(), note: note?.trim() || null },
-    include: docInclude,
-  })
-  await recordAudit({
-    actorId: adminId,
-    actorType: 'ADMIN',
-    action: 'DOCUMENT_VERIFIED',
-    entityType: 'AccountDocument',
-    entityId: documentId,
-    summary: `${doc.documentType}${doc.title ? ` “${doc.title}”` : ''} verified`,
-    metadata: { note: note ?? null },
+  // 6.11: verification + audit row commit atomically.
+  const updated = await db.$transaction(async (tx) => {
+    const row = await tx.accountDocument.update({
+      where: { id: documentId },
+      data: { status: 'VERIFIED', reviewedById: adminId, reviewedAt: new Date(), note: note?.trim() || null },
+      include: docInclude,
+    })
+    await recordAuditTx(tx, {
+      actorId: adminId,
+      actorType: 'ADMIN',
+      action: 'DOCUMENT_VERIFIED',
+      entityType: 'AccountDocument',
+      entityId: documentId,
+      summary: `${doc.documentType}${doc.title ? ` “${doc.title}”` : ''} verified`,
+      metadata: { note: note ?? null },
+    })
+    return row
   })
   await emitNotification({
     userId: doc.userId,
@@ -391,6 +412,12 @@ export async function verifyAccountDocument(
     linkView: 'financing',
     linkId: documentId,
   })
+  // KYC engine hook (Phase 3): a verification can raise the owner's level —
+  // identity docs unlock L2, business docs can complete L3 — and org-scoped
+  // business docs can flip the org to KYB 3. Fire-and-forget style: failures
+  // inside the recompute are swallowed there, so the verify result stays safe.
+  await recomputeUserKycLevel(doc.userId)
+  if (doc.organizationId) await recomputeOrgKycLevel(doc.organizationId)
   return serializeDoc(updated as never)
 }
 
@@ -406,19 +433,23 @@ export async function rejectAccountDocument(
   if (doc.status !== 'PENDING') {
     throw new FinancingError(`Document is already ${doc.status.toLowerCase()}`, 409)
   }
-  const updated = await db.accountDocument.update({
-    where: { id: documentId },
-    data: { status: 'REJECTED', reviewedById: adminId, reviewedAt: new Date(), note: clean },
-    include: docInclude,
-  })
-  await recordAudit({
-    actorId: adminId,
-    actorType: 'ADMIN',
-    action: 'DOCUMENT_REJECTED',
-    entityType: 'AccountDocument',
-    entityId: documentId,
-    summary: `${doc.documentType}${doc.title ? ` “${doc.title}”` : ''} rejected`,
-    metadata: { note: clean },
+  // 6.11: rejection + audit row commit atomically.
+  const updated = await db.$transaction(async (tx) => {
+    const row = await tx.accountDocument.update({
+      where: { id: documentId },
+      data: { status: 'REJECTED', reviewedById: adminId, reviewedAt: new Date(), note: clean },
+      include: docInclude,
+    })
+    await recordAuditTx(tx, {
+      actorId: adminId,
+      actorType: 'ADMIN',
+      action: 'DOCUMENT_REJECTED',
+      entityType: 'AccountDocument',
+      entityId: documentId,
+      summary: `${doc.documentType}${doc.title ? ` “${doc.title}”` : ''} rejected`,
+      metadata: { note: clean },
+    })
+    return row
   })
   await emitNotification({
     userId: doc.userId,
@@ -428,6 +459,10 @@ export async function rejectAccountDocument(
     linkView: 'financing',
     linkId: documentId,
   })
+  // KYC engine hook: rejection can also *lower* a previously-derived level
+  // (the doc no longer counts as evidence) — recompute keeps levels truthful.
+  await recomputeUserKycLevel(doc.userId)
+  if (doc.organizationId) await recomputeOrgKycLevel(doc.organizationId)
   return serializeDoc(updated as never)
 }
 

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import sharp from 'sharp'
-import { getStorage, renditionKey, MEDIA_ROLES, type MediaRole } from './index'
+import { getStorage, renditionKey, MEDIA_ROLES, buildAssetKeyBase, VAULT_NAMESPACE, type MediaRole, type StorageNamespace } from './index'
 
 // Image processing pipeline (day-1 core).
 // ───────────────────────────────────────
@@ -54,7 +54,12 @@ export interface ProcessedImage {
   renditionSizes: Record<MediaRole, number>
 }
 
-export async function processImageUpload(input: Buffer): Promise<ProcessedImage> {
+export interface ProcessImageOptions {
+  /** Storage namespace — 'public-media' (default) or 'private-vault' (6.6.2: document ingest is ALWAYS vault; unknown types fail to the vault too). */
+  namespace?: StorageNamespace
+}
+
+export async function processImageUpload(input: Buffer, options: ProcessImageOptions = {}): Promise<ProcessedImage> {
   const sniffed = sniffImageMime(input)
   if (!sniffed) {
     throw Object.assign(new Error('Unsupported image format — use JPEG, PNG, WebP or GIF'), { status: 415 })
@@ -71,7 +76,7 @@ export async function processImageUpload(input: Buffer): Promise<ProcessedImage>
   const width = meta.width ?? null
   const height = meta.height ?? null
 
-  const baseKey = `${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${sha256.slice(0, 8)}-${randomSuffix()}`
+  const baseKey = buildAssetKeyBase(sha256, options.namespace ?? 'public-media')
   const storage = getStorage()
 
   const variants = {} as Record<MediaRole, string>
@@ -87,7 +92,8 @@ export async function processImageUpload(input: Buffer): Promise<ProcessedImage>
       .png({ compressionLevel: 9 })
       .toBuffer()
     const key = renditionKey(baseKey, role)
-    await storage.put(key, out)
+    // 6.6.1 — vault-namespace renditions are written private (ftp-hosting: never uploaded to the public host)
+    await storage.put(key, out, { private: (options.namespace ?? 'public-media') === VAULT_NAMESPACE })
     variants[role] = key
     renditionSizes[role] = out.byteLength
   }
@@ -99,10 +105,4 @@ export async function deleteRenditions(variants: Record<string, string> | null |
   if (!variants) return
   const storage = getStorage()
   await Promise.all(Object.values(variants).map((k) => storage.delete(k)))
-}
-
-function randomSuffix(): string {
-  const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789'
-  const bytes = Buffer.from(crypto.getRandomValues(new Uint8Array(6)))
-  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('')
 }

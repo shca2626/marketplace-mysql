@@ -50,7 +50,7 @@ export function CartView() {
             </CardHeader>
             <CardContent className="space-y-3">
               {savedForLater.map((item) => (
-                <div key={item.productId} className="flex items-center gap-3">
+                <div key={cartLineKey(item.productId, item.variantId, item.offerId)} className="flex items-center gap-3">
                   <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg border bg-muted">
                     {item.image ? (
                       <img src={item.image} alt={item.title} className="h-full w-full object-cover" />
@@ -65,8 +65,13 @@ export function CartView() {
                         {item.variantLabel}
                       </span>
                     )}
+                    {item.offerId && (
+                      <span className="mt-0.5 inline-block rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                        via {item.offerSellerName ?? item.sellerName}
+                      </span>
+                    )}
                     <p className="text-xs text-muted-foreground">
-                      {formatUSD(item.price)} · qty {item.quantity}
+                      {formatUSD(item.offerPrice ?? item.price)} · qty {item.quantity}
                     </p>
                   </div>
                   <Button
@@ -74,7 +79,7 @@ export function CartView() {
                     size="sm"
                     className="h-8 rounded-full px-3 text-xs"
                     onClick={() => {
-                      const res = moveToCart(cartLineKey(item.productId, item.variantId))
+                      const res = moveToCart(cartLineKey(item.productId, item.variantId, item.offerId))
                       if (res.ok) toast({ title: 'Moved to cart', description: item.title })
                       else
                         toast({
@@ -90,7 +95,7 @@ export function CartView() {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                    onClick={() => removeFromSaved(cartLineKey(item.productId, item.variantId))}
+                    onClick={() => removeFromSaved(cartLineKey(item.productId, item.variantId, item.offerId))}
                     aria-label={`Remove ${item.title} from saved items`}
                   >
                     <Trash2 size={14} />
@@ -120,7 +125,7 @@ export function CartView() {
             </CardHeader>
             <CardContent className="divide-y">
               {cart.map((item) => (
-                <div key={item.productId} className="flex gap-4 py-4 first:pt-0 last:pb-0">
+                <div key={cartLineKey(item.productId, item.variantId, item.offerId)} className="flex gap-4 py-4 first:pt-0 last:pb-0">
                   <button
                     className="h-24 w-24 shrink-0 overflow-hidden rounded-xl border bg-muted"
                     onClick={() => navigate('product', { productId: item.productId })}
@@ -143,7 +148,13 @@ export function CartView() {
                             {item.variantLabel}
                           </span>
                         )}
-                        {item.sellerName && (
+                        {/* Phase 4 — this line buys a specific vendor offer */}
+                        {item.offerId && (
+                          <span className="mt-1 inline-block rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                            via {item.offerSellerName ?? item.sellerName}
+                          </span>
+                        )}
+                        {item.sellerName ? (
                           <button
                             className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-primary"
                             onClick={() => navigate('store', { sellerId: item.sellerId })}
@@ -151,15 +162,17 @@ export function CartView() {
                           >
                             Sold by {item.sellerName}
                           </button>
-                        )}
-                        <p className="mt-1 text-sm text-muted-foreground">{formatUSD(item.price)} each</p>
+                        ) : null}
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {formatUSD(item.offerPrice ?? item.price)} each
+                        </p>
                       </div>
                       <div className="flex shrink-0 items-center gap-0.5">
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-muted-foreground hover:text-primary"
-                          onClick={() => saveForLater(cartLineKey(item.productId, item.variantId))}
+                          onClick={() => saveForLater(cartLineKey(item.productId, item.variantId, item.offerId))}
                           aria-label={`Save ${item.title} for later`}
                         >
                           <BookmarkPlus size={15} />
@@ -168,7 +181,7 @@ export function CartView() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          onClick={() => removeFromCart(cartLineKey(item.productId, item.variantId))}
+                          onClick={() => removeFromCart(cartLineKey(item.productId, item.variantId, item.offerId))}
                           aria-label={`Remove ${item.title}`}
                         >
                           <Trash2 size={15} />
@@ -182,7 +195,7 @@ export function CartView() {
                           size="icon"
                           className="h-8 w-8 rounded-lg"
                           disabled={item.quantity <= 1}
-                          onClick={() => updateQuantity(cartLineKey(item.productId, item.variantId), item.quantity - 1)}
+                          onClick={() => updateQuantity(cartLineKey(item.productId, item.variantId, item.offerId), item.quantity - 1)}
                           aria-label="Decrease quantity"
                         >
                           <Minus size={13} />
@@ -195,7 +208,7 @@ export function CartView() {
                           size="icon"
                           className="h-8 w-8 rounded-lg"
                           disabled={item.quantity >= item.stock}
-                          onClick={() => updateQuantity(cartLineKey(item.productId, item.variantId), item.quantity + 1)}
+                          onClick={() => updateQuantity(cartLineKey(item.productId, item.variantId, item.offerId), item.quantity + 1)}
                           aria-label="Increase quantity"
                         >
                           <Plus size={13} />
@@ -222,7 +235,7 @@ export function CartView() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {savedForLater.map((item) => (
-                  <div key={item.productId} className="flex items-center gap-3">
+                  <div key={cartLineKey(item.productId, item.variantId, item.offerId)} className="flex items-center gap-3">
                     <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg border bg-muted">
                       {item.image ? (
                         <img src={item.image} alt={item.title} className="h-full w-full object-cover" />
@@ -232,13 +245,18 @@ export function CartView() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="line-clamp-1 text-sm font-medium">{item.title}</p>
-                    {item.variantLabel && (
-                      <span className="mt-0.5 inline-block rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                        {item.variantLabel}
-                      </span>
-                    )}
+                      {item.variantLabel && (
+                        <span className="mt-0.5 inline-block rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                          {item.variantLabel}
+                        </span>
+                      )}
+                      {item.offerId && (
+                        <span className="mt-0.5 inline-block rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                          via {item.offerSellerName ?? item.sellerName}
+                        </span>
+                      )}
                       <p className="text-xs text-muted-foreground">
-                        {formatUSD(item.price)} · qty {item.quantity}
+                        {formatUSD(item.offerPrice ?? item.price)} · qty {item.quantity}
                       </p>
                     </div>
                     <Button
@@ -246,7 +264,7 @@ export function CartView() {
                       size="sm"
                       className="h-8 rounded-full px-3 text-xs"
                       onClick={() => {
-                        const res = moveToCart(cartLineKey(item.productId, item.variantId))
+                        const res = moveToCart(cartLineKey(item.productId, item.variantId, item.offerId))
                         if (res.ok) toast({ title: 'Moved to cart', description: item.title })
                         else
                           toast({
@@ -262,7 +280,7 @@ export function CartView() {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                      onClick={() => removeFromSaved(cartLineKey(item.productId, item.variantId))}
+                      onClick={() => removeFromSaved(cartLineKey(item.productId, item.variantId, item.offerId))}
                       aria-label={`Remove ${item.title} from saved items`}
                     >
                       <Trash2 size={14} />

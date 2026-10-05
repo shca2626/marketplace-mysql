@@ -146,6 +146,7 @@ export const PERMISSION_DOMAINS: PermissionDomain[] = [
     description: 'RFQ pipeline, negotiations and scoped settings.',
     permissions: [
       { key: 'rfq.pipeline.view', label: 'View RFQ pipeline', description: 'Browse every RFQ, quote and negotiation.' },
+      { key: 'rfq.quotes.review', label: 'Review & route quotes', description: 'Approve or reject seller quotes queued for platform review (Phase 6: explicit key for the quote-routing review route).' },
       { key: 'rfq.settings.manage', label: 'Manage RFQ settings', description: 'Edit scoped behavior panels and roll back changes.' },
     ],
   },
@@ -166,6 +167,16 @@ export const PERMISSION_DOMAINS: PermissionDomain[] = [
     description: 'Public marketplace branding.',
     permissions: [
       { key: 'storefront.manage', label: 'Manage storefront', description: 'Edit site name, theme, hero slides and announcements.' },
+    ],
+  },
+  {
+    key: 'whatsapp',
+    label: 'WhatsApp Channels',
+    scope: 'PLATFORM',
+    description: 'The free WhatsApp sending lines (Baileys).',
+    permissions: [
+      { key: 'whatsapp.view', label: 'View WhatsApp channels', description: 'See sender numbers, pairing state and the outbound message ledger.' },
+      { key: 'whatsapp.manage', label: 'Manage WhatsApp channels', description: 'Pair new sender numbers, set the default line, disconnect, remove and send test messages.' },
     ],
   },
   {
@@ -191,6 +202,7 @@ export const PERMISSION_DOMAINS: PermissionDomain[] = [
       { key: 'rbac.roles.update', label: 'Update roles', description: 'Rename and re-permission custom roles — never beyond your own access.' },
       { key: 'rbac.roles.delete', label: 'Delete roles', description: 'Delete custom roles and un-assign their members.' },
       { key: 'rbac.manage', label: 'Manage roles (full)', description: 'Umbrella: create, update and delete roles. Grant the granular keys above to delegate partial control instead.' },
+      { key: 'modules.manage', label: 'Manage module activation', description: 'Switch platform modules on/off per platform, organization-type and organization scope (Phase 5).' },
     ],
   },
 
@@ -450,6 +462,13 @@ export const SYSTEM_ROLES: RoleTemplate[] = [
     description: 'Screens forwarded financing requests in the inbox.',
     scope: 'ORG',
     permissions: ['org.profile.view', 'financier.requests.view'],
+  },
+  {
+    key: 'financier.branch-officer',
+    name: 'Branch Officer',
+    description: 'Front-desk institution staff — screens requests and manages accreditation programs for their branch.',
+    scope: 'ORG',
+    permissions: ['org.profile.view', 'financier.requests.view', 'financier.accreditations.manage'],
   },
 ]
 

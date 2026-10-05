@@ -6,6 +6,10 @@ import {
   Calendar,
   CheckCircle2,
   ChevronRight,
+  File,
+  FileText,
+  FlaskConical,
+  Globe,
   Package,
   Ruler,
   ShieldCheck,
@@ -19,9 +23,9 @@ import { ProductGallery } from '@/components/market/pages/product-gallery'
 import { ProductBuyPanel } from '@/components/market/pages/product-buy-panel'
 import { ProductCard } from '@/components/marketplace/product-card'
 import { StarRating } from '@/components/marketplace/star-rating'
-import { getPublicProduct, getRelatedProducts, toProductDTO } from '@/app/market/(public)/queries'
+import { getPublicProduct, getRelatedProducts, toProductDTO, type PublicOfferRow } from '@/app/market/(public)/queries'
 import { siteBaseUrl, toAbsoluteUrl } from '@/lib/site-url'
-import { formatDate, formatNumber, initials } from '@/lib/format'
+import { formatDate, formatNumber, formatUSD, initials } from '@/lib/format'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 
@@ -72,6 +76,14 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const product = toProductDTO(row)
   const variants = (product.variants ?? []).filter((v) => v.isActive)
   const reviews = row.reviews
+  // Phase 4 — additional vendors selling this exact listing (server-rendered;
+  // the buyer transacts on the marketplace SPA).
+  const otherSellers: PublicOfferRow[] = row.offers ?? []
+  // Phase 3 KYP — public trust surface: VERIFIED rows earn the compliance
+  // block (PENDING shows as "In review"); rejected/inactive rows stay hidden.
+  const visibleCertifications = (product.certifications ?? []).filter(
+    (c) => c.status === 'VERIFIED' || c.status === 'PENDING'
+  )
   const related = await getRelatedProducts(product.id, product.categoryId)
   const base = await siteBaseUrl()
   const productUrl = toAbsoluteUrl(base, `/market/product/${product.id}`)
@@ -295,8 +307,13 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                 className="rounded-2xl border border-bh-border bg-bh-card p-6 shadow-card"
                 aria-labelledby="specs-heading"
               >
-                <h2 id="specs-heading" className="h2-practical mb-4 flex items-center gap-2 text-bh-navy">
+                <h2 id="specs-heading" className="h2-practical mb-4 flex flex-wrap items-center gap-2 text-bh-navy">
                   <Ruler size={17} className="text-bh-gold-dark" /> Specifications
+                  {product.hasVerifiedSpecs && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                      <BadgeCheck size={12} aria-hidden /> Verified specs
+                    </span>
+                  )}
                 </h2>
                 <dl className="divide-y divide-bh-border">
                   {product.specs.map((s, i) => (
@@ -325,6 +342,122 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                     </>
                   )}
                 </dl>
+              </section>
+            )}
+
+            {/* Other sellers (Phase 4 multi-vendor) — additional vendors on
+                this listing; server-rendered and static — comparing and buying
+                happens in the marketplace SPA at /market?view=product&id=. */}
+            {otherSellers.length > 0 && (
+              <section
+                className="rounded-2xl border border-bh-border bg-bh-card p-6 shadow-card"
+                aria-labelledby="offers-heading"
+              >
+                <h2 id="offers-heading" className="h2-practical mb-1 text-bh-navy">
+                  Other sellers
+                </h2>
+                <p className="mb-4 text-xs text-bh-muted">
+                  {otherSellers.length} more vendor {otherSellers.length === 1 ? 'offer' : 'offers'} on this listing —
+                  compare every seller in the marketplace.
+                </p>
+                <ul className="space-y-2">
+                  {otherSellers.map((offer) => (
+                    <li
+                      key={offer.id}
+                      className="flex flex-wrap items-center gap-3 rounded-lg border border-bh-border bg-bh-soft-blue/40 px-4 py-3"
+                    >
+                      <Store size={16} className="shrink-0 text-bh-gold-dark" aria-hidden />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-bh-ink">
+                          {offer.seller.storeName || offer.seller.name}
+                        </p>
+                        <p className="mt-0.5 text-xs text-bh-muted">
+                          {formatUSD(offer.price)}
+                          <span aria-hidden> · </span>
+                          {offer.stock > 0 ? `${formatNumber(offer.stock)} in stock` : 'Out of stock'}
+                          {offer.moq != null && offer.moq > 1 ? ` · min. ${formatNumber(offer.moq)} units` : ''}
+                        </p>
+                      </div>
+                      <a
+                        href={`/market?view=product&id=${product.id}&spa=1`}
+                        className="inline-flex shrink-0 items-center gap-1 rounded-full border border-bh-border px-3 py-1 text-xs font-semibold text-bh-ink transition-colors hover:border-bh-action hover:text-bh-action"
+                      >
+                        Compare on Vendora <ChevronRight size={12} aria-hidden />
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {/* Certifications & compliance (Phase 3 KYP) — a VERIFIED
+                datasheet/warranty/test report earns the trust block */}
+            {visibleCertifications.length > 0 && (
+              <section
+                className="rounded-2xl border border-bh-border bg-bh-card p-6 shadow-card"
+                aria-labelledby="certs-heading"
+              >
+                <h2 id="certs-heading" className="h2-practical mb-4 text-bh-navy">
+                  Certifications &amp; compliance
+                </h2>
+                <ul className="space-y-2">
+                  {visibleCertifications.map((cert) => {
+                    const KindIcon =
+                      cert.kind === 'DATASHEET'
+                        ? FileText
+                        : cert.kind === 'WARRANTY'
+                          ? ShieldCheck
+                          : cert.kind === 'ORIGIN'
+                            ? Globe
+                            : cert.kind === 'TEST_REPORT'
+                              ? FlaskConical
+                              : cert.kind === 'CERTIFICATE'
+                                ? BadgeCheck
+                                : File
+                    return (
+                      <li
+                        key={cert.id}
+                        className="flex flex-wrap items-center gap-3 rounded-lg border border-bh-border bg-bh-soft-blue/40 px-4 py-3"
+                      >
+                        <KindIcon size={16} className="shrink-0 text-bh-gold-dark" aria-hidden />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-bh-ink">{cert.title}</p>
+                          <p className="mt-0.5 text-xs text-bh-muted">
+                            {[
+                              cert.issuedBy,
+                              cert.issuedAt ? `Issued ${formatDate(cert.issuedAt)}` : null,
+                              cert.expiresAt ? `Valid until ${formatDate(cert.expiresAt)}` : null,
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </p>
+                        </div>
+                        {cert.url && (
+                          <a
+                            href={cert.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-bh-border px-3 py-1 text-xs font-semibold text-bh-ink transition-colors hover:border-bh-action hover:text-bh-action"
+                          >
+                            View <ChevronRight size={12} aria-hidden />
+                          </a>
+                        )}
+                        {cert.status === 'VERIFIED' ? (
+                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                            <BadgeCheck size={11} aria-hidden /> Verified
+                          </span>
+                        ) : (
+                          <span className="inline-flex shrink-0 items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                            In review
+                          </span>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
+                <p className="mt-3 text-[11px] text-bh-muted">
+                  Documentation on this listing is reviewed by Vendora.
+                </p>
               </section>
             )}
 

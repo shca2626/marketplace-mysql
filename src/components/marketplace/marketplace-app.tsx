@@ -43,9 +43,12 @@ import { FinancierView } from './financier-view'
 import { CartDrawer } from './cart-drawer'
 import { AuthModal } from './auth-modal'
 import { ForgotPasswordView, ResetPasswordView, VerifyEmailView } from './auth-views'
+import { RegisterCompanyView } from './register/register-company-view'
+import { RegisterFinancierView } from './register/register-financier-view'
 import { BackToTop } from './back-to-top'
-import { ChatWidget } from './chat-widget'
 import { StorefrontTheme } from './storefront-theme'
+import { SupportWidget } from './support-widget'
+// Phase 7.2 — multi-currency display substrate (USD pricing + YER/SAR display)
 
 /** Public shopping surfaces. */
 const STOREFRONT_VIEWS: Record<string, () => React.ReactNode> = {
@@ -58,6 +61,8 @@ const STOREFRONT_VIEWS: Record<string, () => React.ReactNode> = {
   'forgot-password': () => <ForgotPasswordView />,
   'reset-password': () => <ResetPasswordView />,
   'verify-email': () => <VerifyEmailView />,
+  'register-company': () => <RegisterCompanyView />,
+  'register-financier': () => <RegisterFinancierView />,
 }
 
 /** Internal consoles — every one mounts its own DashboardLayout. */
@@ -80,13 +85,6 @@ export function MarketplaceApp() {
   const applyLocation = useMarketplace((s) => s.applyLocation)
   const applySettings = useMarketplace((s) => s.applySettings)
   const setSpaActive = useMarketplace((s) => s.setSpaActive)
-  const initCurrency = useMarketplace((s) => s.initCurrency)
-
-  // Phase 8 — dynamic currency: subscribing here re-renders the WHOLE view
-  // tree (factories below create fresh JSX) so every price re-formats
-  // through the live rate the moment the visitor switches currency.
-  const activeCurrencyCode = useMarketplace((s) => s.activeCurrency.code)
-  const currencyListVersion = useMarketplace((s) => s.currencyList.length)
 
   // Mark the SPA as mounted — navigate() from marketplace components reused
   // on platform pages (homepage product cards, etc.) then falls back to a
@@ -101,7 +99,7 @@ export function MarketplaceApp() {
   // and keep state in sync when the user navigates with back/forward.
   useEffect(() => {
     let cancelled = false
-    void useMarketplace.persist.rehydrate().then(() => {
+    void Promise.resolve(useMarketplace.persist.rehydrate()).then(() => {
       markStoreHydrated()
       // Phase 8 — dynamic display currency: boot AFTER rehydrate so the
       // persisted preference is known, then pull live rates from the server.
@@ -166,29 +164,13 @@ export function MarketplaceApp() {
           default-mode onto the document root for BOTH storefront and
           dashboards the moment settings load or change. */}
       <StorefrontTheme />
-      {/* Currency re-render anchor (Phase 8) — see subscription above. */}
-      <span hidden data-currency={activeCurrencyCode} data-currencies={currencyListVersion} />
-      {isConsole ? (
-        /* ── Internal console — dedicated dashboard shell ── */
-        <div className="min-h-screen bg-muted/40 text-foreground">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={view}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2, ease: 'easeOut' }}
-            >
-              {active?.()}
-            </motion.div>
-          </AnimatePresence>
-          <AuthModal />
-        </div>
-      ) : (
-        /* ── Public storefront — marketing chrome ── */
-        <div className="flex min-h-screen flex-col bg-background text-foreground">
-          <Header />
-          <main className="flex-1">
+      {/* Currency re-render anchor (Phase 8) — the subscription below re-renders
+          the whole view tree so every price re-formats through the live rate
+          the moment the visitor switches currency. */}
+      <span hidden data-currency={activeCurrencyCode} />
+        {isConsole ? (
+          /* ── Internal console — dedicated dashboard shell ── */
+          <div className="min-h-screen bg-muted/40 text-foreground">
             <AnimatePresence mode="wait">
               <motion.div
                 key={view}
@@ -200,13 +182,31 @@ export function MarketplaceApp() {
                 {active?.()}
               </motion.div>
             </AnimatePresence>
-          </main>
-          <Footer />
-          <CartDrawer />
-          <AuthModal />
-          <BackToTop />
-          <ChatWidget />
-        </div>
+            <AuthModal />
+          </div>
+        ) : (
+          /* ── Public storefront — marketing chrome ── */
+          <div className="flex min-h-screen flex-col bg-background text-foreground">
+            <Header />
+            <main className="flex-1">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={view}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                >
+                  {active?.()}
+                </motion.div>
+              </AnimatePresence>
+            </main>
+            <Footer />
+            <SupportWidget />
+            <CartDrawer />
+            <AuthModal />
+            <BackToTop />
+          </div>
       )}
     </ThemeProvider>
   )

@@ -102,7 +102,7 @@ else works.
 
 ```bash
 cd /home/z/my-project
-( setsid env DATABASE_URL="mysql://vendora:<password>@127.0.0.1:3306/vendora" \
+( setsid env DATABASE_URL="mysql://USER:PASSWORD@127.0.0.1:3306/DBNAME" \
     bun run dev < /dev/null > /dev/null 2>&1 & )
 ```
 

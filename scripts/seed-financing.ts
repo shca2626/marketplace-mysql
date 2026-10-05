@@ -19,6 +19,7 @@ import { randomBytes, scryptSync } from 'crypto'
 import sharp from 'sharp'
 import { processImageUpload } from '../src/lib/storage/image-pipeline'
 import { nextNumber } from '../src/server/modules/sequences/service'
+import { assertNotProd } from './lib/assert-not-prod'
 
 const db = new PrismaClient()
 
@@ -64,6 +65,7 @@ async function uploadDoc(label: string, hex: string, uploadedById: string) {
 }
 
 async function main() {
+assertNotProd() // Phase 6 (6.0b.8/B1): fail-closed — no production mode, ever
   console.log('🧹 Wiping financier domain (FK-safe order)…')
   // children → parents; all financier-domain tables only
   await db.financingFee.deleteMany({})

@@ -33,10 +33,23 @@ import { AdminProductsTab } from './admin/products-tab'
 import { AdminOrdersTab } from './admin/orders-tab'
 import { PaymentsTab } from './admin/payments-tab'
 import { PayoutsTab } from './admin/payouts-tab'
+import { FxTab } from './admin/fx-tab'
 import { FinancingTab } from './admin/financing-tab'
 import { RbacTab } from './admin/rbac-tab'
-import { CurrencyTab } from './admin/currency-tab'
+import { SecurityTab } from './admin/security-tab'
+import { ModulesTab } from './admin/modules-tab'
 import { WhatsAppTab } from './admin/whatsapp-tab'
+import { CurrencyTab } from './admin/currency-tab'
+import { SpecAttributesTab } from './admin/spec-attributes-tab'
+import { CertificationsTab } from './admin/certifications-tab'
+import { CatalogReviewQueueTab } from './admin/catalog/review-queue-tab'
+import { CatalogProductsTab } from './admin/catalog/catalog-products-tab'
+import { CatalogBrandsTab } from './admin/catalog/brands-tab'
+import { CatalogCategoriesTab } from './admin/catalog/categories-tab'
+import { CatalogUnitsTab } from './admin/catalog/units-tab'
+import { CatalogOrgTypesTab } from './admin/catalog/org-types-tab'
+import { CatalogDuplicatesTab } from './admin/catalog/duplicates-tab'
+import { CatalogPopularTab } from './admin/catalog/popular-tab'
 import { AdminSettings } from './admin-settings'
 import { RfqSettings } from './admin/settings/rfq-settings'
 
@@ -99,9 +112,21 @@ function AdminDashboard({ user }: { user: SessionUser | null }) {
       {activeSection === 'overview' && <OverviewTab />}
       {activeSection === 'vendors' && <VendorsTab />}
       {activeSection === 'products' && <AdminProductsTab />}
+      {activeSection === 'spec-attributes' && <SpecAttributesTab />}
+      {activeSection === 'certifications' && <CertificationsTab />}
+      {activeSection === 'catalog-review' && <CatalogReviewQueueTab />}
+      {activeSection === 'catalog-products' && <CatalogProductsTab />}
+      {activeSection === 'catalog-brands' && <CatalogBrandsTab />}
+      {activeSection === 'catalog-categories' && <CatalogCategoriesTab />}
+      {activeSection === 'catalog-units' && <CatalogUnitsTab />}
+      {activeSection === 'catalog-org-types' && <CatalogOrgTypesTab />}
+      {activeSection === 'catalog-duplicates' && <CatalogDuplicatesTab />}
+      {activeSection === 'catalog-popular' && <CatalogPopularTab />}
       {activeSection === 'orders' && <AdminOrdersTab />}
       {activeSection === 'payments' && <PaymentsTab />}
       {activeSection === 'payouts' && <PayoutsTab />}
+      {activeSection === 'fx' && <FxTab />}
+      {activeSection === 'currency' && <CurrencyTab />}
       {activeSection === 'financing' && <FinancingTab />}
       {activeSection === 'organizations' && <OrganizationsTab />}
       {activeSection === 'pricing' && <PricingTab />}
@@ -109,10 +134,11 @@ function AdminDashboard({ user }: { user: SessionUser | null }) {
       {activeSection === 'rfqs' && <RfqsTab />}
       {activeSection === 'disputes' && <DisputesTab />}
       {activeSection === 'rbac' && <RbacTab user={user} />}
+      {activeSection === 'security' && <SecurityTab user={user} />}
+      {activeSection === 'modules' && <ModulesTab />}
+      {activeSection === 'whatsapp' && <WhatsAppTab />}
       {activeSection === 'rfq-settings' && <RfqSettings />}
       {activeSection === 'storefront' && <AdminSettings />}
-      {activeSection === 'currency' && <CurrencyTab />}
-      {activeSection === 'whatsapp' && <WhatsAppTab />}
       {activeSection === 'audit' && <AuditTab />}
     </DashboardLayout>
   )

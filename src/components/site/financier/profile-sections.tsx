@@ -55,6 +55,7 @@ import {
   SECTOR_LABELS,
   money,
   moneyRange,
+  plural,
   tenorLabel,
 } from '@/components/site/kit'
 
@@ -340,17 +341,17 @@ function EntityHero({ data }: { data: EntityPageData }) {
         {/* live stat band — white/10 glass chips (dark StatTile variant) */}
         <RevealGroup className="mt-14 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <RevealItem className="h-full">
-            <HeroStatTile icon={Coins} label="Financing programs">
+            <HeroStatTile icon={Coins} label={plural('Financing programs', data.programs.length)}>
               <CountUp value={data.programs.length} />
             </HeroStatTile>
           </RevealItem>
           <RevealItem className="h-full">
-            <HeroStatTile icon={MapPin} label="Branches & agents">
+            <HeroStatTile icon={MapPin} label={plural('Branches & agents', data.branches.length)}>
               <CountUp value={data.branches.length} />
             </HeroStatTile>
           </RevealItem>
           <RevealItem className="h-full">
-            <HeroStatTile icon={Sun} label="Success stories">
+            <HeroStatTile icon={Sun} label={plural('Success stories', data.stories.length)}>
               <CountUp value={data.stories.length} />
             </HeroStatTile>
           </RevealItem>
@@ -403,11 +404,11 @@ function SnapshotPanel({ data }: { data: EntityPageData }) {
           </div>
         </div>
         <div className="relative mt-5">
-          <SnapshotRow icon={Coins} label="Active programs">
+          <SnapshotRow icon={Coins} label={plural('Active programs', data.programs.length)}>
             <CountUp value={data.programs.length} />
           </SnapshotRow>
           <SnapshotRow icon={MapPin} label="Coverage">
-            {regions > 0 ? `${regions} governorates` : 'Nationwide'}
+            {regions > 0 ? `${regions} ${plural('governorates', regions)}` : 'Nationwide'}
           </SnapshotRow>
           {fastest != null && (
             <SnapshotRow icon={Zap} label="Fastest decision">
@@ -547,6 +548,7 @@ function OverviewSection({ data }: { data: EntityPageData }) {
     .split(/\n{2,}/)
     .map((t) => t.trim())
     .filter(Boolean)
+  const coverageGovernorates = new Set(data.programs.flatMap((p) => p.coverage)).size
 
   return (
     <Section id="overview" tone="light">
@@ -587,7 +589,7 @@ function OverviewSection({ data }: { data: EntityPageData }) {
                 <DossierRow icon={Globe} label="Website" value={data.website} href={data.website ?? undefined} external />
                 <DossierRow icon={Mail} label="Email" value={data.contactEmail} href={data.contactEmail ? `mailto:${data.contactEmail}` : undefined} />
                 <DossierRow icon={Phone} label="Phone" value={data.contactPhone} href={data.contactPhone ? telHref(data.contactPhone) : undefined} />
-                <DossierRow icon={MapPin} label="Program coverage" value={`${new Set(data.programs.flatMap((p) => p.coverage)).size} governorates`} />
+                <DossierRow icon={MapPin} label="Program coverage" value={`${coverageGovernorates} ${plural('governorates', coverageGovernorates)}`} />
               </ul>
             </div>
           </Reveal>

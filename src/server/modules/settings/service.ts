@@ -14,7 +14,7 @@
 
 import { db } from '@/lib/db'
 import { cached, invalidateTags } from '@/lib/cache'
-import { recordAudit } from '@/server/modules/audit/service'
+import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
 import {
   RFQ_SETTINGS_SECTIONS,
   RFQ_SETTING_PANELS,
@@ -292,6 +292,8 @@ export async function savePanel(input: SavePanelInput): Promise<PanelValue> {
   const changes = diffPanelValue(key, before, next)
   if (changes.length === 0) return before // no-op save
 
+  // 6.11: panel change + change-history + audit row commit atomically.
+  const scopeLabel = await scopeLabelFor(scope.scopeType, scope.scopeId)
   await db.$transaction(async (tx) => {
     await tx.rfqSetting.upsert({
       where: { key_scopeType_scopeId: { key, scopeType: scope.scopeType, scopeId: scope.scopeId } },
@@ -309,18 +311,18 @@ export async function savePanel(input: SavePanelInput): Promise<PanelValue> {
         userId,
       })),
     })
+    await recordAuditTx(tx, {
+      actorId: userId,
+      actorType: 'ADMIN',
+      action: 'SETTINGS_UPDATED',
+      entityType: 'RfqSetting',
+      entityId: `${key}:${scope.scopeType}:${scope.scopeId}`,
+      summary: `${panel.title} updated at ${scopeLabel} — ${changes.length} field${changes.length === 1 ? '' : 's'} changed`,
+      metadata: { fields: changes.map((c) => c.field) },
+    })
   })
 
   invalidateTags(CACHE_TAG)
-  await recordAudit({
-    actorId: userId,
-    actorType: 'ADMIN',
-    action: 'SETTINGS_UPDATED',
-    entityType: 'RfqSetting',
-    entityId: `${key}:${scope.scopeType}:${scope.scopeId}`,
-    summary: `${panel.title} updated at ${await scopeLabelFor(scope.scopeType, scope.scopeId)} — ${changes.length} field${changes.length === 1 ? '' : 's'} changed`,
-    metadata: { fields: changes.map((c) => c.field) },
-  })
   return next
 }
 
@@ -336,16 +338,20 @@ export async function deleteOverride(key: string, scope: ScopeRef, userId: strin
   })
   if (!existing) return
 
-  await db.rfqSetting.delete({ where: { id: existing.id } })
-  invalidateTags(CACHE_TAG)
-  await recordAudit({
-    actorId: userId,
-    actorType: 'ADMIN',
-    action: 'SETTINGS_OVERRIDE_DELETED',
-    entityType: 'RfqSetting',
-    entityId: `${key}:${scope.scopeType}:${scope.scopeId}`,
-    summary: `Override removed — ${panel.title} at ${await scopeLabelFor(scope.scopeType, scope.scopeId)} falls back to the broader scope`,
+  // 6.11: override removal + audit row commit atomically.
+  const scopeLabel = await scopeLabelFor(scope.scopeType, scope.scopeId)
+  await db.$transaction(async (tx) => {
+    await tx.rfqSetting.delete({ where: { id: existing.id } })
+    await recordAuditTx(tx, {
+      actorId: userId,
+      actorType: 'ADMIN',
+      action: 'SETTINGS_OVERRIDE_DELETED',
+      entityType: 'RfqSetting',
+      entityId: `${key}:${scope.scopeType}:${scope.scopeId}`,
+      summary: `Override removed — ${panel.title} at ${scopeLabel} falls back to the broader scope`,
+    })
   })
+  invalidateTags(CACHE_TAG)
 }
 
 // ── History + rollback ──────────────────────────────────────────────────────
@@ -363,7 +369,7 @@ export interface HistoryRow {
   newValue: string | null
   rollbackOfId: string | null
   userName: string
-  userEmail: string
+  userEmail: string | null
   createdAt: string
 }
 
@@ -441,6 +447,7 @@ export async function rollbackChange(changeId: string, userId: string): Promise<
     throw new SettingsServiceError('This change can no longer be rolled back — the stored value predates the current schema')
   }
 
+  // 6.11: rollback + change-history + audit row commit atomically.
   await db.$transaction(async (tx) => {
     await tx.rfqSetting.upsert({
       where: { key_scopeType_scopeId: { key: change.settingKey, scopeType: scope.scopeType, scopeId: scope.scopeId } },
@@ -462,17 +469,17 @@ export async function rollbackChange(changeId: string, userId: string): Promise<
         rollbackOfId: change.id,
       },
     })
+    await recordAuditTx(tx, {
+      actorId: userId,
+      actorType: 'ADMIN',
+      action: 'SETTINGS_ROLLBACK',
+      entityType: 'RfqSetting',
+      entityId: `${change.settingKey}:${scope.scopeType}:${scope.scopeId}`,
+      summary: `Rolled back “${panel.title} → ${change.field}” to its previous value`,
+    })
   })
 
   invalidateTags(CACHE_TAG)
-  await recordAudit({
-    actorId: userId,
-    actorType: 'ADMIN',
-    action: 'SETTINGS_ROLLBACK',
-    entityType: 'RfqSetting',
-    entityId: `${change.settingKey}:${scope.scopeType}:${scope.scopeId}`,
-    summary: `Rolled back “${panel.title} → ${change.field}” to its previous value`,
-  })
 
   const rows = await listHistory({ key: change.settingKey, scope, limit: 1 })
   return rows[0]

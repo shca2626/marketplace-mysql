@@ -1,8 +1,11 @@
 /**
- * Storefront cover images — curated picks + client-side persistence.
+ * Storefront cover images — curated picks + persistence helpers.
  *
- * The Prisma schema is frozen this phase (PLAN-1 pending), so the chosen
- * cover is persisted in localStorage per seller. Zero API / schema changes.
+ * STAB-8: the seller's choice is persisted server-side on the seller profile
+ * (User.storeCover, an id from the curated set below). localStorage remains
+ * as an instant optimistic cache on the seller's own device and as the
+ * migration fallback for pre-STAB-8 choices — but buyers always read the
+ * server value via /api/sellers/[id] (storeCoverUrl).
  */
 
 export interface StoreCover {
@@ -61,6 +64,12 @@ export const STORE_COVERS: StoreCover[] = [
 ]
 
 const coverKey = (sellerId: string) => `vendora-store-cover:${sellerId}`
+
+/** Look up a curated cover by id — SSR-safe (no localStorage involved). */
+export function findStoreCover(id: string | null | undefined): StoreCover | null {
+  if (!id) return null
+  return STORE_COVERS.find((c) => c.id === id) ?? null
+}
 
 /** Read this seller's chosen cover (null → use the default gradient). SSR-safe. */
 export function getStoreCover(sellerId: string): StoreCover | null {

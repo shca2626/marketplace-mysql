@@ -13,6 +13,7 @@ import { writeFile } from 'node:fs/promises'
 import { PrismaClient } from '@prisma/client'
 import { processImageUpload } from '../src/lib/storage/image-pipeline'
 import { mediaUrl } from '../src/lib/storage/url'
+import { assertNotProd } from './lib/assert-not-prod'
 
 const prisma = new PrismaClient()
 
@@ -47,6 +48,7 @@ const TITLE_TO_FILE: [string, string][] = [
 ]
 
 async function main() {
+assertNotProd() // Phase 6 (6.0b.8/B1): fail-closed — no production mode, ever
   const admin = await prisma.user.findFirst({ where: { email: 'admin@vendora.com' } })
   if (!admin) throw new Error('admin@vendora.com not found')
 

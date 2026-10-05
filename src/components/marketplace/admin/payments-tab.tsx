@@ -33,11 +33,13 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import {
   AdminEmptyState,
+  FilterChips,
   SearchInput,
   apiRequest,
   toastApiError,
   useDebounced,
 } from './shared'
+import { RefundsSection } from './refunds-section'
 
 // ── Types (contracts of /api/admin/payments) ──────────────────────────────────
 
@@ -49,7 +51,7 @@ interface PaymentRow {
   method: PaymentMethod
   status: PaymentStatus
   amount: number
-  reference: string
+  reference: string | null // bank-transfer references arrive with the buyer's wire; card/invoice rows may carry none
   dueAt: string | null
   paidAt: string | null
   note: string | null
@@ -122,6 +124,10 @@ const isOverdue = (iso: string | null) => !!iso && new Date(iso).getTime() < Dat
 // ── Payments tab ──────────────────────────────────────────────────────────────
 
 export function PaymentsTab() {
+  // Phase 7.7 — the console hosts both money-out queues: payment capture
+  // (buyer money in) and the refund queue (buyer money back).
+  const [section, setSection] = useState<'payments' | 'refunds'>('payments')
+
   // Bank-transfer config
   const {
     data: configData,
@@ -200,6 +206,21 @@ export function PaymentsTab() {
 
   return (
     <div className="space-y-5">
+      {/* Phase 7.7 — Payments | Refunds switch */}
+      <FilterChips
+        options={[
+          { value: 'payments', label: 'Payments' },
+          { value: 'refunds', label: 'Refunds' },
+        ]}
+        value={section}
+        onChange={(v) => setSection(v === 'refunds' ? 'refunds' : 'payments')}
+        ariaLabel="Payments console section"
+      />
+
+      {section === 'refunds' ? (
+        <RefundsSection />
+      ) : (
+        <>
       {/* (a) Bank-transfer details shown to buyers */}
       <BankConfigCard
         configData={configData}
@@ -411,10 +432,14 @@ export function PaymentsTab() {
                   <p className="shrink-0 text-sm font-bold tabular-nums">{formatUSD(payment.amount)}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                  <span className="font-mono" title={payment.reference}>
-                    ref {payment.reference.slice(0, 14)}
-                    {payment.reference.length > 14 ? '…' : ''}
-                  </span>
+                  {payment.reference ? (
+                    <span className="font-mono" title={payment.reference}>
+                      ref {payment.reference.slice(0, 14)}
+                      {payment.reference.length > 14 ? '…' : ''}
+                    </span>
+                  ) : (
+                    <span className="italic opacity-70">no reference yet</span>
+                  )}
                   <span title={new Date(payment.createdAt).toLocaleString()}>{timeAgo(payment.createdAt)}</span>
                   {payment.dueAt && (
                     <DueCell dueAt={payment.dueAt} overdue={payment.status === 'PENDING' && isOverdue(payment.dueAt)} />
@@ -530,6 +555,8 @@ export function PaymentsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </>
+      )}
     </div>
   )
 }

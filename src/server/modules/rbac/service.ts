@@ -1,12 +1,13 @@
 import { randomBytes } from 'crypto'
 import { db } from '@/lib/db'
+import { sha256Hex } from '@/lib/secret-box'
 import {
   ALL_ORG_PERMISSIONS,
   ALL_PLATFORM_PERMISSIONS,
   type PermissionDomain,
   PERMISSION_DOMAINS,
 } from '@/lib/rbac-catalog'
-import { recordAudit } from '@/server/modules/audit/service'
+import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RBAC SERVICE — roles, permissions, assignments & staff invitations.
@@ -66,7 +67,7 @@ export interface RbacActor {
   id: string
   role: string
   name: string
-  email: string
+  email: string | null // Phase 3: phone-first accounts may have no email
 }
 
 export interface ActorContext {
@@ -77,9 +78,9 @@ export interface ActorContext {
 }
 
 export async function getActorContext(user: { id: string; role: string }): Promise<ActorContext> {
-  if (user.role === 'ADMIN') {
-    return { isSuperAdmin: true, permissions: new Set(ALL_PLATFORM_PERMISSIONS) }
-  }
+  // Phase 6 (6.2): RBAC-only. The legacy User.role === 'ADMIN' shortcut is
+  // GONE — the platform owner operates through the protected
+  // platform.super-admin assignment (seeded by scripts/seed-rbac.ts step 3).
   const assignments = await db.userRole.findMany({
     where: { userId: user.id, organizationId: '' },
     select: { role: { select: { key: true, permissions: { select: { permissionKey: true } } } } },
@@ -123,12 +124,18 @@ function assertCanSeeRole(actor: ActorContext, role: { key: string; isProtected:
 export interface SessionRbac {
   permissions: string[]
   isPlatformStaff: boolean
+  /** Phase 5 — module activation state for this session. */
+  modules?: {
+    /** Enabled module keys at personal/storefront scope (platform resolution). */
+    personal: string[]
+    /** orgId → enabled module keys (ORG > ORG_TYPE > PLATFORM chain). */
+    orgs: Record<string, string[]>
+  }
 }
 
 export async function buildSessionRbac(user: { id: string; role: string }): Promise<SessionRbac> {
-  if (user.role === 'ADMIN') {
-    return { permissions: [...ALL_PLATFORM_PERMISSIONS], isPlatformStaff: true }
-  }
+  // Phase 6 (6.2): RBAC-only — every account (legacy ADMIN included) derives
+  // its permissions from actual assignments.
   const assignments = await db.userRole.findMany({
     where: { userId: user.id, organizationId: '' },
     include: { role: { include: { permissions: { select: { permissionKey: true } } } } },
@@ -138,7 +145,34 @@ export async function buildSessionRbac(user: { id: string; role: string }): Prom
   for (const a of assignments) {
     for (const p of a.role.permissions) set.add(p.permissionKey)
   }
-  return { permissions: [...set], isPlatformStaff: assignments.length > 0 }
+
+  // Phase 5 — module state. Personal scope resolves PLATFORM; every org the
+  // user belongs to resolves its own chain (so an admin can flip e.g. the
+  // financier console off for BANK orgs and it disappears from those users).
+  let modules: SessionRbac['modules'] | undefined
+  try {
+    const { resolveModuleState } = await import('@/server/modules/modules/service')
+    const memberships = await db.organizationMember.findMany({
+      where: { userId: user.id },
+      select: { organizationId: true, organization: { select: { orgType: true } } },
+      take: 10,
+    })
+    const personal = await resolveModuleState({})
+    const orgs: Record<string, string[]> = {}
+    for (const m of memberships) {
+      const state = await resolveModuleState({ orgId: m.organizationId, orgType: m.organization.orgType })
+      orgs[m.organizationId] = Object.keys(state).filter((k) => state[k])
+    }
+    modules = {
+      personal: Object.keys(personal).filter((k) => personal[k]),
+      orgs,
+    }
+  } catch (err) {
+    // Module resolution must never break sign-in — fail open (all on).
+    console.error('[rbac] module resolution failed for session:', err)
+  }
+
+  return { permissions: [...set], isPlatformStaff: assignments.length > 0, modules }
 }
 
 /** True when the user holds the permission through any platform-scope role. */
@@ -252,27 +286,31 @@ export async function createRole(
     key = `${base}-${++n}`
   }
 
-  const role = await db.role.create({
-    data: {
-      key,
-      name,
-      description: input.description?.trim() || null,
-      scope: input.scope,
-      isSystem: false,
-      permissions: { create: keys.map((permissionKey) => ({ permissionKey })) },
-    },
-    include: roleInclude,
+  // 6.11: role + audit row commit atomically.
+  const role = await db.$transaction(async (tx) => {
+    const created = await tx.role.create({
+      data: {
+        key,
+        name,
+        description: input.description?.trim() || null,
+        scope: input.scope,
+        isSystem: false,
+        permissions: { create: keys.map((permissionKey) => ({ permissionKey })) },
+      },
+      include: roleInclude,
+    })
+    await recordAuditTx(tx, {
+      actorId: actor.id,
+      actorType: 'ADMIN',
+      action: 'ROLE_CREATED',
+      entityType: 'Role',
+      entityId: created.id,
+      summary: `Role "${created.name}" created (${keys.length} permissions, ${input.scope} scope)`,
+      metadata: { key: created.key, scope: input.scope, permissions: keys },
+    })
+    return created
   })
 
-  await recordAudit({
-    actorId: actor.id,
-    actorType: 'ADMIN',
-    action: 'ROLE_CREATED',
-    entityType: 'Role',
-    entityId: role.id,
-    summary: `Role "${role.name}" created (${keys.length} permissions, ${input.scope} scope)`,
-    metadata: { key: role.key, scope: input.scope, permissions: keys },
-  })
   return toRoleDTO(role)
 }
 
@@ -335,18 +373,20 @@ export async function updateRole(
         await tx.rolePermission.createMany({ data: toAdd.map((permissionKey) => ({ roleId: id, permissionKey })) })
       }
     }
-    return tx.role.update({ where: { id }, data, include: roleInclude })
+    const role = await tx.role.update({ where: { id }, data, include: roleInclude })
+    // 6.11: the audit row commits with the permission change — or neither does.
+    await recordAuditTx(tx, {
+      actorId: actor.id,
+      actorType: 'ADMIN',
+      action: 'ROLE_UPDATED',
+      entityType: 'Role',
+      entityId: id,
+      summary: `Role "${role.name}" updated`,
+      metadata: { name: data.name, permissionChanges },
+    })
+    return role
   })
 
-  await recordAudit({
-    actorId: actor.id,
-    actorType: 'ADMIN',
-    action: 'ROLE_UPDATED',
-    entityType: 'Role',
-    entityId: id,
-    summary: `Role "${updated.name}" updated`,
-    metadata: { name: data.name, permissionChanges },
-  })
   return toRoleDTO(updated)
 }
 
@@ -404,21 +444,22 @@ export async function deleteRole(actor: RbacActor, id: string, force = false): P
     // Drop invitation rows referencing this role (FK constraint; audit keeps history).
     await tx.staffInvitation.deleteMany({ where: { roleId: id } })
     await tx.role.delete({ where: { id } })
+    // 6.11: the audit row commits with the deletion — or neither does.
+    await recordAuditTx(tx, {
+      actorId: actor.id,
+      actorType: 'ADMIN',
+      action: 'ROLE_DELETED',
+      entityType: 'Role',
+      entityId: id,
+      summary:
+        n > 0
+          ? `Role "${role.name}" force-deleted — ${n} member assignment(s) revoked`
+          : `Role "${role.name}" deleted`,
+      metadata: { key: role.key, scope: role.scope, force: n > 0, revoked: n },
+    })
     return n
   })
 
-  await recordAudit({
-    actorId: actor.id,
-    actorType: 'ADMIN',
-    action: 'ROLE_DELETED',
-    entityType: 'Role',
-    entityId: id,
-    summary:
-      revoked > 0
-        ? `Role "${role.name}" force-deleted — ${revoked} member assignment(s) revoked`
-        : `Role "${role.name}" deleted`,
-    metadata: { key: role.key, scope: role.scope, force: revoked > 0, revoked },
-  })
   return { revoked }
 }
 
@@ -428,7 +469,7 @@ export interface AssignmentDTO {
   id: string
   userId: string
   userName: string
-  userEmail: string
+  userEmail: string | null
   userRole: string
   roleId: string
   roleKey: string
@@ -451,7 +492,7 @@ type AssignmentWithRelations = {
   organizationId: string
   assignedAt: Date
   assignedBy: string | null
-  user: { id: string; name: string; email: string; role: string }
+  user: { id: string; name: string; email: string | null; role: string }
   role: { id: string; key: string; name: string; scope: string; isProtected: boolean }
 }
 
@@ -529,8 +570,8 @@ export async function assignRole(
   })
   if (!user) throw new RbacServiceError('User not found', 404)
   if (user.status === 'SUSPENDED') throw new RbacServiceError('This account is suspended', 403)
-  // RBACSEC-1: legacy ADMIN accounts are implicit super-admins — only
-  // super admins may attach further roles to them.
+  // Phase 6: legacy ADMIN accounts are protected — only super administrators
+  // may attach further roles to them (their power is the super-admin role).
   if (user.role === 'ADMIN' && !ctx.isSuperAdmin) {
     throw new RbacServiceError('Access denied — this account is a super administrator', 403)
   }
@@ -544,6 +585,15 @@ export async function assignRole(
     if (!org) throw new RbacServiceError('Organization not found', 404)
     organizationId = org.id
     organizationName = org.name
+    // Phase 6 (6.4 / M2): org-scoped assignment requires an ACTIVE membership
+    // — the canonical resolver, the only interpretation in the codebase.
+    const { requireActiveMembership, MembershipError } = await import('@/server/membership')
+    try {
+      await requireActiveMembership(user.id, organizationId)
+    } catch (err) {
+      if (err instanceof MembershipError) throw new RbacServiceError(err.message, err.status)
+      throw err
+    }
   }
 
   const existing = await db.userRole.findUnique({
@@ -556,22 +606,26 @@ export async function assignRole(
     )
   }
 
-  const assignment = await db.userRole.create({
-    data: { userId: user.id, roleId: role.id, organizationId, assignedBy: actor.id },
-    include: assignmentInclude,
+  // 6.11: assignment + session invalidation + audit row commit atomically.
+  const assignment = await db.$transaction(async (tx) => {
+    const created = await tx.userRole.create({
+      data: { userId: user.id, roleId: role.id, organizationId, assignedBy: actor.id },
+      include: assignmentInclude,
+    })
+    // The user may have gained console access — invalidate their session payload.
+    await tx.user.update({ where: { id: user.id }, data: { sessionVersion: { increment: 1 } } })
+    await recordAuditTx(tx, {
+      actorId: actor.id,
+      actorType: 'ADMIN',
+      action: 'ROLE_ASSIGNED',
+      entityType: 'User',
+      entityId: user.id,
+      summary: `Role "${role.name}" assigned to ${user.email}${organizationName ? ` at ${organizationName}` : ''}`,
+      metadata: { roleId: role.id, roleKey: role.key, scope: role.scope, organizationId },
+    })
+    return created
   })
-  // The user may have gained console access — invalidate their session payload.
-  await db.user.update({ where: { id: user.id }, data: { sessionVersion: { increment: 1 } } })
 
-  await recordAudit({
-    actorId: actor.id,
-    actorType: 'ADMIN',
-    action: 'ROLE_ASSIGNED',
-    entityType: 'User',
-    entityId: user.id,
-    summary: `Role "${role.name}" assigned to ${user.email}${organizationName ? ` at ${organizationName}` : ''}`,
-    metadata: { roleId: role.id, roleKey: role.key, scope: role.scope, organizationId },
-  })
   return toAssignmentDTO(assignment, organizationName)
 }
 
@@ -585,6 +639,17 @@ export async function revokeAssignment(actor: RbacActor, id: string): Promise<vo
     },
   })
   if (!assignment) throw new RbacServiceError('Assignment not found', 404)
+  // Phase 6 (6.4 / H2): revoking the org.owner seat of the last active owner
+  // fails closed — grant the new owner FIRST, then revoke (atomic-swap order).
+  if (assignment.role.key === 'org.owner' && assignment.organizationId) {
+    const { assertNotLastActiveOwner, MembershipError } = await import('@/server/membership')
+    try {
+      await assertNotLastActiveOwner(assignment.organizationId, { excludingUserId: assignment.userId })
+    } catch (err) {
+      if (err instanceof MembershipError) throw new RbacServiceError(err.message, err.status)
+      throw err
+    }
+  }
   // RBACSEC-1: protected-role seats (super-admin, org.owner) can only be
   // revoked by super admins — and never your own super-admin seat.
   if (assignment.role.isProtected) {
@@ -601,18 +666,20 @@ export async function revokeAssignment(actor: RbacActor, id: string): Promise<vo
     )
   }
 
-  await db.userRole.delete({ where: { id } })
-  // Refresh the affected user's session payload (permissions may have shrunk).
-  await db.user.update({ where: { id: assignment.userId }, data: { sessionVersion: { increment: 1 } } })
-
-  await recordAudit({
-    actorId: actor.id,
-    actorType: 'ADMIN',
-    action: 'ROLE_REVOKED',
-    entityType: 'User',
-    entityId: assignment.userId,
-    summary: `Role "${assignment.role.name}" revoked from ${assignment.user.email}`,
-    metadata: { roleId: assignment.roleId, roleKey: assignment.role.key, organizationId: assignment.organizationId },
+  // 6.11: revocation + session refresh + audit row commit atomically.
+  await db.$transaction(async (tx) => {
+    await tx.userRole.delete({ where: { id } })
+    // Refresh the affected user's session payload (permissions may have shrunk).
+    await tx.user.update({ where: { id: assignment.userId }, data: { sessionVersion: { increment: 1 } } })
+    await recordAuditTx(tx, {
+      actorId: actor.id,
+      actorType: 'ADMIN',
+      action: 'ROLE_REVOKED',
+      entityType: 'User',
+      entityId: assignment.userId,
+      summary: `Role "${assignment.role.name}" revoked from ${assignment.user.email}`,
+      metadata: { roleId: assignment.roleId, roleKey: assignment.role.key, organizationId: assignment.organizationId },
+    })
   })
 }
 
@@ -621,7 +688,7 @@ export async function revokeAssignment(actor: RbacActor, id: string): Promise<vo
 export interface StaffDTO {
   userId: string
   name: string
-  email: string
+  email: string | null
   userRole: string
   isSuperAdmin: boolean
   permissions: string[]
@@ -652,7 +719,7 @@ export async function listPlatformStaff(actor: RbacActor): Promise<StaffDTO[]> {
       : []
 
   const byUser = new Map<string, StaffDTO>()
-  const ensure = (id: string, name: string, email: string, userRole: string): StaffDTO => {
+  const ensure = (id: string, name: string, email: string | null, userRole: string): StaffDTO => {
     let entry = byUser.get(id)
     if (!entry) {
       entry = { userId: id, name, email, userRole, isSuperAdmin: false, permissions: [], roles: [] }
@@ -687,7 +754,7 @@ export async function listPlatformStaff(actor: RbacActor): Promise<StaffDTO[]> {
 export interface StaffUserDTO {
   id: string
   name: string
-  email: string
+  email: string | null
   role: string
 }
 
@@ -721,14 +788,17 @@ export interface InvitationDTO {
   invitedByName: string | null
   expiresAt: string
   createdAt: string
-  token: string
+  /** Phase 6 (6.5): the RAW token is returned ONCE at creation time only —
+   * never persisted, never included in list views (only its SHA-256 hash is
+   * stored). */
+  token?: string
 }
 
 type InvitationRow = {
   id: string
   email: string
   name: string | null
-  token: string
+  tokenHash: string
   status: string
   invitedByName: string | null
   expiresAt: Date
@@ -749,7 +819,7 @@ function toInvitationDTO(inv: InvitationRow): InvitationDTO {
     invitedByName: inv.invitedByName,
     expiresAt: inv.expiresAt.toISOString(),
     createdAt: inv.createdAt.toISOString(),
-    token: inv.token,
+    // token deliberately NOT included — hashed at rest (6.5)
   }
 }
 
@@ -791,31 +861,36 @@ export async function createInvitation(
   })
   if (openInvite) throw new RbacServiceError('An open invitation for this email already exists', 409)
 
-  const invitation = await db.staffInvitation.create({
-    data: {
-      email,
-      name: input.name?.trim() || null,
-      roleId: role.id,
-      organizationId: '',
-      token: randomBytes(24).toString('hex'),
-      status: 'PENDING',
-      invitedBy: actor.id,
-      invitedByName: actor.name,
-      expiresAt: new Date(Date.now() + INVITE_TTL_MS),
-    },
-    include: { role: { select: { id: true, key: true, name: true, isProtected: true } } },
+  const rawToken = randomBytes(24).toString('hex')
+  // 6.11: invitation + audit row commit atomically.
+  const invitation = await db.$transaction(async (tx) => {
+    const created = await tx.staffInvitation.create({
+      data: {
+        email,
+        name: input.name?.trim() || null,
+        roleId: role.id,
+        organizationId: '',
+        tokenHash: sha256Hex(rawToken), // Phase 6 (6.5): hash at rest — raw shown once below
+        status: 'PENDING',
+        invitedBy: actor.id,
+        invitedByName: actor.name,
+        expiresAt: new Date(Date.now() + INVITE_TTL_MS),
+      },
+      include: { role: { select: { id: true, key: true, name: true, isProtected: true } } },
+    })
+    await recordAuditTx(tx, {
+      actorId: actor.id,
+      actorType: 'ADMIN',
+      action: 'STAFF_INVITED',
+      entityType: 'StaffInvitation',
+      entityId: created.id,
+      summary: `Staff invitation sent to ${email} for role "${role.name}"`,
+      metadata: { email, roleKey: role.key, expiresAt: created.expiresAt.toISOString() },
+    })
+    return created
   })
 
-  await recordAudit({
-    actorId: actor.id,
-    actorType: 'ADMIN',
-    action: 'STAFF_INVITED',
-    entityType: 'StaffInvitation',
-    entityId: invitation.id,
-    summary: `Staff invitation sent to ${email} for role "${role.name}"`,
-    metadata: { email, roleKey: role.key, expiresAt: invitation.expiresAt.toISOString() },
-  })
-  return toInvitationDTO(invitation)
+  return { ...toInvitationDTO(invitation), token: rawToken }
 }
 
 export async function revokeInvitation(actor: RbacActor, id: string): Promise<void> {
@@ -825,39 +900,50 @@ export async function revokeInvitation(actor: RbacActor, id: string): Promise<vo
   })
   if (!invitation) throw new RbacServiceError('Invitation not found', 404)
   if (invitation.status !== 'PENDING') throw new RbacServiceError('Only pending invitations can be revoked', 409)
-  await db.staffInvitation.update({ where: { id }, data: { status: 'REVOKED' } })
-  await recordAudit({
-    actorId: actor.id,
-    actorType: 'ADMIN',
-    action: 'STAFF_INVITATION_REVOKED',
-    entityType: 'StaffInvitation',
-    entityId: id,
-    summary: `Staff invitation to ${invitation.email} revoked`,
-    metadata: { email: invitation.email },
+  // 6.11: revocation + audit row commit atomically.
+  await db.$transaction(async (tx) => {
+    await tx.staffInvitation.update({ where: { id }, data: { status: 'REVOKED' } })
+    await recordAuditTx(tx, {
+      actorId: actor.id,
+      actorType: 'ADMIN',
+      action: 'STAFF_INVITATION_REVOKED',
+      entityType: 'StaffInvitation',
+      entityId: id,
+      summary: `Staff invitation to ${invitation.email} revoked`,
+      metadata: { email: invitation.email },
+    })
   })
 }
 
 /**
- * Consume a pending invitation at registration time. Returns the platform
- * role to assign when the token is valid + matches the registering email.
+ * Consume a pending invitation at registration time. Returns the role to
+ * assign when the token is valid + matches the registering email. Phase 5:
+ * ORG-scoped invitations (institution staff) carry the organizationId — the
+ * register route also creates the VIEWER membership for those.
  */
 export async function consumeInvitation(
   email: string,
   token: string
-): Promise<{ roleId: string; roleName: string } | null> {
+): Promise<{ roleId: string; roleName: string; organizationId: string } | null> {
+  // Phase 6 (6.5): lookup by SHA-256 hash — the raw token exists only in the
+  // invitation email/link.
   const invitation = await db.staffInvitation.findUnique({
-    where: { token },
+    where: { tokenHash: sha256Hex(token) },
     include: { role: { select: { id: true, name: true, scope: true } } },
   })
-  if (
-    !invitation ||
-    invitation.status !== 'PENDING' ||
-    invitation.role.scope !== 'PLATFORM' ||
-    invitation.email !== email.toLowerCase() ||
-    invitation.expiresAt < new Date()
-  ) {
+  const valid =
+    !!invitation &&
+    invitation.status === 'PENDING' &&
+    invitation.email === email.toLowerCase() &&
+    invitation.expiresAt >= new Date() &&
+    (invitation.role.scope === 'PLATFORM' || invitation.role.scope === 'ORG')
+  if (!invitation || !valid) {
     return null
   }
   await db.staffInvitation.update({ where: { id: invitation.id }, data: { status: 'ACCEPTED', acceptedAt: new Date() } })
-  return { roleId: invitation.roleId, roleName: invitation.role.name }
+  return {
+    roleId: invitation.roleId,
+    roleName: invitation.role.name,
+    organizationId: invitation.organizationId,
+  }
 }

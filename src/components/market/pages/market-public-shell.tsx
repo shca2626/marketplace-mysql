@@ -11,8 +11,9 @@ import { Footer } from '@/components/marketplace/footer'
 import { CartDrawer } from '@/components/marketplace/cart-drawer'
 import { AuthModal } from '@/components/marketplace/auth-modal'
 import { BackToTop } from '@/components/marketplace/back-to-top'
-import { ChatWidget } from '@/components/marketplace/chat-widget'
+import { SupportWidget } from '@/components/marketplace/support-widget'
 import { StorefrontTheme } from '@/components/marketplace/storefront-theme'
+// Phase 7.2 — same FX display substrate as the /market SPA
 
 /**
  * Market public chrome for the real (server-rendered) market routes
@@ -97,10 +98,10 @@ export function MarketPublicShell({ children }: { children: React.ReactNode }) {
         <Header />
         <main className="flex-1">{children}</main>
         <Footer />
+        <SupportWidget />
         <CartDrawer />
         <AuthModal />
         <BackToTop />
-        <ChatWidget />
       </div>
     </ThemeProvider>
   )

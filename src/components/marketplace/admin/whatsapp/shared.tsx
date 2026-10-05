@@ -1,21 +1,21 @@
 'use client'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ADMIN · WHATSAPP SUITE — shared types, badge palettes and editor helpers
-// (agent 8-a). Local shapes mirror the API responses; nothing here is global.
+// WHATSAPP BUSINESS SUITE · shared kit (wa-biz-2).
+// DTOs + badge palettes + tiny UI atoms shared by the Templates / Chatbot /
+// Campaigns managers. Visual language: warm stone/orange — NO blue/indigo.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import type { LucideIcon } from 'lucide-react'
+import { CheckCheck } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { Card, CardContent } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
-import {
-  TEMPLATE_VARIABLES,
-  exampleVars,
-  renderTemplateBody,
-} from '@/server/modules/whatsapp/variables'
 
-// ── API response shapes ──────────────────────────────────────────────────────
+// ── DTOs (exact wa-biz-0 contract shapes) ───────────────────────────────────
 
-export interface WTemplate {
+export interface TemplateDTO {
   id: string
   name: string
   category: string
@@ -23,277 +23,420 @@ export interface WTemplate {
   body: string
   status: string
   useCount: number
-  campaignCount: number
   createdAt: string
   updatedAt: string
 }
 
-export interface WRule {
+export interface RuleDTO {
   id: string
   name: string
   matchType: string
   pattern: string
   reply: string
-  priority: number
   active: boolean
+  priority: number
   hits: number
   createdAt: string
   updatedAt: string
 }
 
-export interface WCampaign {
+export interface CampaignDTO {
   id: string
   name: string
-  templateId: string | null
-  templateName: string | null
   body: string
   audience: string
   status: string
   total: number
   sent: number
   failed: number
+  createdAt: string
   startedAt: string | null
-  finishedAt: string | null
-  createdAt: string
+  completedAt: string | null
+  templateId: string | null
+  templateName?: string | null
+  /** wa-chat-0: custom variable map stored as JSON on the campaign. */
+  variables: Record<string, string> | null
 }
 
-export interface WCampaignMessage {
+// ── Chat console DTOs (wa-chat-0 admin contract) ─────────────────────────────
+
+export interface ChatThreadDTO {
   id: string
-  toNumber: string
-  body: string
-  direction: string
-  status: string
-  error: string | null
-  sentAt: string | null
-  createdAt: string
-}
-
-export interface WLogMessage {
-  id: string
-  campaignId: string | null
-  toNumber: string
-  fromNumber: string | null
-  body: string
-  direction: string
-  status: string
-  error: string | null
-  waMessageId: string | null
-  sentAt: string | null
-  createdAt: string
-}
-
-export interface WSession {
-  up: boolean
-  connected: boolean
+  name: string
   phone: string | null
-  since: string | null
-  qr: string | null
+  source: string // WHATSAPP | WEBCHAT
+  unreadCount: number
+  lastMessageAt: string | null
+  lastMessageBody: string | null
+  autoReply: boolean
 }
 
-export interface InboxRow {
+export interface ChatMessageDTO {
   id: string
-  kind: string
-  channelRef: string | null
-  visitorName: string | null
-  visitorPhone: string | null
-  visitorEmail: string | null
-  sellerStoreName: string | null
-  subject: string | null
-  lastMessageAt: string
-  lastMessagePreview: string | null
-  unreadStaff: number
-  status: string
-  messageCount: number
-}
-
-export interface ChatMsg {
-  id: string
-  senderRole: string
-  senderName: string | null
+  direction: string // IN (visitor) | OUT (agent / auto-reply)
   body: string
-  readAt?: string | null
+  author: string | null
   createdAt: string
 }
 
-export interface InboxConversation {
-  id: string
-  kind: string
-  channelRef: string | null
-  buyerId: string | null
-  visitorName: string | null
-  visitorPhone: string | null
-  visitorEmail: string | null
-  sellerOrgId: string | null
-  subject: string | null
-  lastMessageAt: string
-  lastMessagePreview: string | null
-  unreadStaff: number
-  status: string
-  createdAt: string
+export interface ChatsListDTO {
+  threads: ChatThreadDTO[]
+  totalUnread: number
 }
 
-export interface InboxDetail {
-  conversation: InboxConversation
-  messages: ChatMsg[]
-  sellerStoreName: string | null
+export interface ThreadDetailDTO {
+  thread: ChatThreadDTO
+  messages: ChatMessageDTO[]
 }
 
-// ── Badge palettes (warm theme — navy/gold/stone, no blue/indigo) ─────────────
-
-type BadgeMap = Record<string, { label: string; badge: string }>
-
-export const TEMPLATE_CATEGORY_MAP: BadgeMap = {
-  MARKETING: { label: 'Marketing', badge: 'bg-bh-bg-gold text-bh-gold-dark' },
-  UTILITY: { label: 'Utility', badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' },
-  AUTHENTICATION: { label: 'Auth', badge: 'bg-stone-200 text-stone-700 dark:bg-stone-800 dark:text-stone-300' },
+/** Uniform loader props every manager receives from the tab shell — the shell
+ *  owns the GET so the KPI strip and the tab body never drift apart. */
+export interface ManagerLoaderProps<T> {
+  data: T | null
+  loading: boolean
+  error: string | null
+  refetch: (opts?: { silent?: boolean }) => Promise<void>
 }
 
-export const TEMPLATE_STATUS_MAP: BadgeMap = {
-  DRAFT: { label: 'Draft', badge: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' },
-  APPROVED: { label: 'Approved', badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' },
+// ── Badge palettes ───────────────────────────────────────────────────────────
+
+export const TEMPLATE_CATEGORY_MAP: Record<string, { label: string; badge: string }> = {
+  MARKETING: {
+    label: 'Marketing',
+    badge: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
+  },
+  UTILITY: {
+    label: 'Utility',
+    badge: 'bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300',
+  },
+  NOTIFICATION: {
+    label: 'Notification',
+    badge: 'bg-stone-200 text-stone-600 dark:bg-stone-800 dark:text-stone-400',
+  },
+  CUSTOM: {
+    label: 'Custom',
+    badge: 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300',
+  },
 }
 
-export const LANGUAGE_MAP: BadgeMap = {
-  en: { label: 'EN', badge: 'bg-bh-navy text-bh-gold' },
-  ar: { label: 'عربي', badge: 'bg-bh-navy text-white' },
+export const TEMPLATE_STATUS_MAP: Record<string, { label: string; badge: string }> = {
+  APPROVED: {
+    label: 'Approved',
+    badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+  },
+  DRAFT: {
+    label: 'Draft',
+    badge: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+  },
+  ARCHIVED: {
+    label: 'Archived',
+    badge: 'bg-stone-200 text-stone-600 dark:bg-stone-800 dark:text-stone-400',
+  },
 }
 
-export const MATCH_TYPE_MAP: BadgeMap = {
-  CONTAINS: { label: 'Contains', badge: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' },
-  EXACT: { label: 'Exact', badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' },
-  STARTS_WITH: { label: 'Starts with', badge: 'bg-stone-200 text-stone-700 dark:bg-stone-800 dark:text-stone-300' },
-  REGEX: { label: 'Regex', badge: 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300' },
+export const RULE_MATCH_MAP: Record<string, { label: string; badge: string }> = {
+  CONTAINS: {
+    label: 'Contains',
+    badge: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
+  },
+  EXACT: {
+    label: 'Exact',
+    badge: 'bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300',
+  },
+  STARTS_WITH: {
+    label: 'Starts with',
+    badge: 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300',
+  },
+  REGEX: {
+    label: 'Regex',
+    badge: 'bg-stone-200 text-stone-600 dark:bg-stone-800 dark:text-stone-400',
+  },
 }
 
-export const AUDIENCE_MAP: BadgeMap = {
-  ALL_USERS: { label: 'All users', badge: 'bg-bh-navy text-bh-gold' },
-  BUYERS: { label: 'Buyers', badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' },
-  SELLERS: { label: 'Sellers', badge: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300' },
-  CUSTOM: { label: 'Custom list', badge: 'bg-stone-200 text-stone-700 dark:bg-stone-800 dark:text-stone-300' },
+export const CAMPAIGN_STATUS_MAP: Record<string, { label: string; badge: string }> = {
+  DRAFT: {
+    label: 'Draft',
+    badge: 'bg-stone-200 text-stone-600 dark:bg-stone-800 dark:text-stone-400',
+  },
+  QUEUED: {
+    label: 'Queued',
+    badge: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+  },
+  SENDING: {
+    label: 'Sending',
+    badge: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+  },
+  PAUSED: {
+    label: 'Paused',
+    badge: 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300',
+  },
+  COMPLETED: {
+    label: 'Completed',
+    badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+  },
+  CANCELLED: {
+    label: 'Cancelled',
+    badge: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300',
+  },
+  FAILED: {
+    label: 'Failed',
+    badge: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300',
+  },
 }
 
-export const CAMPAIGN_STATUS_MAP: BadgeMap = {
-  DRAFT: { label: 'Draft', badge: 'bg-stone-200 text-stone-700 dark:bg-stone-800 dark:text-stone-300' },
-  QUEUED: { label: 'Queued', badge: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' },
-  SENDING: { label: 'Sending', badge: 'bg-bh-bg-gold text-bh-gold-dark' },
-  PAUSED: { label: 'Paused', badge: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' },
-  COMPLETED: { label: 'Completed', badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' },
-  CANCELLED: { label: 'Cancelled', badge: 'bg-stone-200 text-stone-600 dark:bg-stone-800 dark:text-stone-400' },
-  FAILED: { label: 'Failed', badge: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' },
+export const CAMPAIGN_AUDIENCE_MAP: Record<string, string> = {
+  ALL_USERS: 'All users',
+  BUYERS: 'Buyers',
+  SELLERS: 'Sellers',
+  CUSTOM: 'Custom list',
 }
 
-export const MSG_STATUS_MAP: BadgeMap = {
-  QUEUED: { label: 'Queued', badge: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' },
-  SENT: { label: 'Sent', badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' },
-  FAILED: { label: 'Failed', badge: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' },
-  RECEIVED: { label: 'Received', badge: 'bg-bh-navy text-bh-gold' },
-}
+/** Statuses during which the campaigns list keeps live-refreshing (5s). */
+export const CAMPAIGN_LIVE_STATUSES = ['QUEUED', 'SENDING', 'PAUSED']
 
-export const CONVERSATION_KIND_MAP: BadgeMap = {
-  WHATSAPP: { label: 'WhatsApp', badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' },
-  WIDGET: { label: 'Widget', badge: 'bg-stone-200 text-stone-700 dark:bg-stone-800 dark:text-stone-300' },
-}
-
-export const CONVERSATION_STATUS_MAP: BadgeMap = {
-  OPEN: { label: 'Open', badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' },
-  CLOSED: { label: 'Closed', badge: 'bg-stone-200 text-stone-600 dark:bg-stone-800 dark:text-stone-400' },
-}
-
+/** Compact warm badge used across the suite (same shape as admin/shared's). */
 export function WaBadge({
-  value,
-  map,
+  children,
   className,
 }: {
-  value: string
-  map: BadgeMap
+  children: React.ReactNode
   className?: string
 }) {
-  const entry = map[value]
   return (
-    <Badge
-      className={cn(
-        'shrink-0 rounded-full border-0 text-[11px] font-semibold',
-        entry?.badge ?? 'bg-muted text-muted-foreground',
-        className
-      )}
-    >
-      {entry?.label ?? value}
+    <Badge className={cn('shrink-0 rounded-full border-0 text-[11px] font-semibold', className)}>
+      {children}
     </Badge>
   )
 }
 
-// ── Template editor helpers ───────────────────────────────────────────────────
-
-/** Render `body` with the registry example values (admin live preview). */
-export function previewBody(body: string): string {
-  return renderTemplateBody(body, exampleVars())
+/** Amber pulsing dot for QUEUED/SENDING campaign states. */
+export function PulsingDot({ className }: { className?: string }) {
+  return (
+    <span className={cn('relative flex h-1.5 w-1.5 shrink-0', className)} aria-hidden>
+      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-current opacity-60" />
+      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-current" />
+    </span>
+  )
 }
 
-/**
- * Row of variable chips. Clicking inserts `{{key}}` at the cursor of the
- * focused Textarea (falls back to appending at the end).
- */
-export function VariableChips({
-  textareaRef,
-  value,
-  onChange,
-}: {
-  textareaRef: React.RefObject<HTMLTextAreaElement | null>
-  value: string
-  onChange: (next: string) => void
-}) {
-  const insert = (key: string) => {
-    const token = `{{${key}}}`
-    const el = textareaRef.current
-    if (!el) {
-      onChange(value + token)
-      return
-    }
-    const start = el.selectionStart ?? value.length
-    const end = el.selectionEnd ?? start
-    const next = value.slice(0, start) + token + value.slice(end)
-    onChange(next)
-    requestAnimationFrame(() => {
-      el.focus()
-      const pos = start + token.length
-      el.setSelectionRange(pos, pos)
-    })
+// ── {{variable}} parsing + WhatsApp-style preview bubble ─────────────────────
+
+const VAR_TOKEN_RE = /\{\{[^{}]+\}\}/g
+
+/** All distinct {{token}}s in a template body, order preserved. */
+export function extractTemplateVars(body: string): string[] {
+  return [...new Set(body.match(VAR_TOKEN_RE)?.map((s) => s.trim()) ?? [])]
+}
+
+// ── Variable system (wa-chat-0 — mirrors src/server/modules/whatsapp/variables.ts)
+
+export interface SystemVariable {
+  /** Literal token including braces, e.g. "{{name}}". */
+  key: string
+  label: string
+  description: string
+}
+
+/** The 9 auto-resolved variables — filled per recipient at send time. */
+export const SYSTEM_VARIABLES: SystemVariable[] = [
+  {
+    key: '{{name}}',
+    label: 'Full name',
+    description: "Recipient's full name — guests get عميلنا العزيز.",
+  },
+  {
+    key: '{{first_name}}',
+    label: 'First name',
+    description: 'First word of the name — the friendly opener (الاسم الأول).',
+  },
+  {
+    key: '{{store_name}}',
+    label: 'Store name',
+    description: 'Seller storefront name, or the account name for buyers.',
+  },
+  {
+    key: '{{phone}}',
+    label: 'Phone',
+    description: 'Recipient WhatsApp number in E.164 format (+967…).',
+  },
+  {
+    key: '{{email}}',
+    label: 'Email',
+    description: "Account email — shows — when the account has none.",
+  },
+  {
+    key: '{{role}}',
+    label: 'Role',
+    description: 'Buyer, Seller or Admin.',
+  },
+  {
+    key: '{{date}}',
+    label: 'Date',
+    description: "Send date, e.g. 5 Oct 2026.",
+  },
+  {
+    key: '{{time}}',
+    label: 'Time',
+    description: 'Send time, e.g. 10:30 PM.',
+  },
+  {
+    key: '{{app}}',
+    label: 'App',
+    description: 'Always Vendora.',
+  },
+]
+
+const SYSTEM_VAR_KEYS = new Set(SYSTEM_VARIABLES.map((v) => v.key))
+
+/** {{tokens}} in a body that are NOT system variables (campaign custom vars). */
+export function extractCustomVars(body: string): string[] {
+  return extractTemplateVars(body).filter((v) => !SYSTEM_VAR_KEYS.has(v))
+}
+
+/** Mock recipient used by live previews (per wa-chat-0). */
+const PREVIEW_CONTEXT: Record<string, string> = {
+  '{{name}}': 'أحمد محمد',
+  '{{first_name}}': 'أحمد',
+  '{{store_name}}': 'متجر أحمد',
+  '{{phone}}': '+967771234567',
+  '{{email}}': 'ahmed@example.com',
+  '{{role}}': 'Buyer',
+  '{{app}}': 'Vendora',
+}
+
+/** Renders a body the way the backend renderBody() will deliver it: system
+ *  vars resolved against a mock recipient, custom vars from the map, and
+ *  anything unresolved shown as a highlighted "missing" chip. */
+export function renderPreview(body: string, custom: Record<string, string> = {}): React.ReactNode {
+  const now = new Date()
+  const ctx: Record<string, string> = {
+    ...PREVIEW_CONTEXT,
+    '{{date}}': now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+    '{{time}}': now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
   }
+  return body.split(/(\{\{[^{}]+\}\})/g).map((part, i) => {
+    if (!/^\{\{[^{}]+\}\}$/.test(part)) return <span key={i}>{part}</span>
+    const token = part.trim()
+    if (ctx[token] !== undefined) return <span key={i}>{ctx[token]}</span>
+    const value = custom[token.slice(2, -2).trim()] ?? custom[token]
+    if (value !== undefined && value !== '') return <span key={i}>{value}</span>
+    return (
+      <mark
+        key={i}
+        title="Missing value — define it in the campaign dialog"
+        className="mx-0.5 inline-flex items-center gap-1 rounded-md border border-dashed border-amber-400 bg-amber-50 px-1.5 py-0.5 align-middle font-mono text-[0.8em] font-semibold text-amber-800 dark:border-amber-500/60 dark:bg-amber-950 dark:text-amber-300"
+      >
+        {part} · missing
+      </mark>
+    )
+  })
+}
+
+/** Renders text with {{tokens}} visually highlighted (used in live previews). */
+export function HighlightVars({ text }: { text: string }) {
+  const parts = text.split(/(\{\{[^{}]+\}\})/g)
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {TEMPLATE_VARIABLES.map((v) => (
-        <button
-          key={v.key}
-          type="button"
-          title={v.description}
-          aria-label={`Insert variable ${v.key} at the cursor`}
-          onClick={() => insert(v.key)}
-          className="rounded-full border border-bh-gold/40 bg-bh-bg-gold px-2.5 py-1 font-mono text-[11px] font-semibold text-bh-gold-dark transition-colors hover:border-bh-gold hover:bg-bh-gold/25"
-        >
-          {`{{${v.key}}}`}
-        </button>
-      ))}
+    <>
+      {parts.map((part, i) =>
+        /^\{\{[^{}]+\}\}$/.test(part) ? (
+          <mark
+            key={i}
+            className="rounded bg-emerald-300/60 px-0.5 font-mono text-[0.85em] font-semibold text-emerald-900 dark:bg-emerald-700/60 dark:text-emerald-50"
+          >
+            {part}
+          </mark>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </>
+  )
+}
+
+/** WhatsApp-style chat bubble: outgoing = green (right vibe), incoming = muted.
+ *  dir="auto" so Arabic bodies align correctly; variables get highlighted. */
+export function ChatBubble({
+  body,
+  incoming = false,
+  showTime = true,
+  className,
+}: {
+  /** Plain string (vars highlighted) or pre-rendered nodes (e.g. renderPreview). */
+  body: React.ReactNode
+  incoming?: boolean
+  showTime?: boolean
+  className?: string
+}) {
+  const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+  return (
+    <div
+      dir="auto"
+      className={cn(
+        'w-fit max-w-full whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed shadow-sm',
+        incoming
+          ? 'rounded-tl-md bg-muted text-foreground'
+          : 'rounded-tr-md bg-emerald-100 text-emerald-950 dark:bg-emerald-900/60 dark:text-emerald-50',
+        className
+      )}
+    >
+      {typeof body === 'string' ? <HighlightVars text={body} /> : body}
+      {showTime && (
+        <span className="mt-1 flex items-center justify-end gap-1 text-[10px] leading-none text-muted-foreground">
+          {time}
+          {!incoming && <CheckCheck size={12} className="text-emerald-500" aria-hidden />}
+        </span>
+      )}
     </div>
   )
 }
 
-/** Small header used by the five section tabs. */
-export function SectionHeader({
-  title,
-  description,
-  children,
+// ── KPI strip card ────────────────────────────────────────────────────────────
+
+const KPI_TONES: Record<string, string> = {
+  emerald: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+  amber: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+  violet: 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300',
+  orange: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
+  rose: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300',
+}
+
+export function KpiCard({
+  icon: Icon,
+  label,
+  value,
+  hint,
+  loading = false,
+  tone = 'orange',
 }: {
-  title: string
-  description: string
-  children?: React.ReactNode
+  icon: LucideIcon
+  label: string
+  value: string | number
+  hint?: string
+  loading?: boolean
+  tone?: 'emerald' | 'amber' | 'violet' | 'orange' | 'rose'
 }) {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-      <div>
-        <h3 className="text-base font-bold text-bh-navy">{title}</h3>
-        <p className="mt-0.5 max-w-2xl text-sm text-bh-muted">{description}</p>
-      </div>
-      {children && <div className="flex shrink-0 flex-wrap items-center gap-2">{children}</div>}
-    </div>
+    <Card className="rounded-xl">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+          <span
+            className={cn(
+              'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+              KPI_TONES[tone] ?? KPI_TONES.orange
+            )}
+            aria-hidden
+          >
+            <Icon size={15} />
+          </span>
+        </div>
+        {loading ? (
+          <Skeleton className="mt-2.5 h-7 w-14" />
+        ) : (
+          <p className="mt-1.5 text-2xl font-bold tabular-nums leading-7">{value}</p>
+        )}
+        {hint && <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{hint}</p>}
+      </CardContent>
+    </Card>
   )
 }

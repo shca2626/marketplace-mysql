@@ -26,6 +26,7 @@ import { PrismaClient, Prisma } from '@prisma/client'
 import { randomBytes, scryptSync } from 'crypto'
 import { readFileSync } from 'fs'
 import { join } from 'path'
+import { assertNotProd } from './lib/assert-not-prod'
 
 const db = new PrismaClient()
 
@@ -60,8 +61,15 @@ function daysFromNow(n: number, hour = 18): Date {
 }
 
 async function main() {
+assertNotProd() // Phase 6 (6.0b.8/B1): fail-closed — no production mode, ever
   console.log('🧹 Clearing existing data (FK-safe order)...')
-  await db.auditLog.deleteMany()
+  // 6.11.3: AuditLog is append-only at the DB level — a seed reset is a
+  // legitimate maintenance operation, so it runs with the per-connection
+  // maintenance var (same connection via the interactive transaction).
+  await db.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe('SET @vendora_audit_maintenance = 1')
+    await tx.auditLog.deleteMany()
+  })
   await db.approvalRequest.deleteMany()
   await db.quoteLine.deleteMany()
   await db.quote.deleteMany()

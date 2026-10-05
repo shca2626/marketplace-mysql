@@ -6,6 +6,7 @@ import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
 import type { CategoryDTO, ProductDTO } from '@/lib/types'
 import { ProductCard, ProductCardSkeleton } from './product-card'
+// Phase 7.2 — mobile display-currency chips (desktop copy lives in the header)
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -335,6 +336,8 @@ export function CatalogView() {
             )}
 
             <div className="ml-auto flex min-w-0 items-center gap-2">
+              {/* Phase 7.2 — display currency on mobile (the header copy is
+                  hidden below sm to keep the compact top bar uncluttered). */}
               <span className="hidden text-xs text-bh-muted sm:block">Sort by</span>
               <Select value={sort} onValueChange={(v) => { setSort(v); setPage(1) }}>
                 <SelectTrigger

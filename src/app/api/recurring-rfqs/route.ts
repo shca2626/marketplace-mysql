@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireUser } from '@/server/guards'
+import { requireModule } from '@/server/guards'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import {
   createSchedule,
@@ -11,7 +11,7 @@ import {
 
 // GET /api/recurring-rfqs — my schedules (nudges the lazy spawn engine too)
 export async function GET() {
-  const { user, error } = await requireUser()
+  const { user, error } = await requireModule('rfq')
   if (error) return error
   try {
     const schedules = await listMySchedules(user!.id)
@@ -48,7 +48,7 @@ const createSchema = z
 
 // POST /api/recurring-rfqs — create a schedule from a line snapshot
 export async function POST(req: NextRequest) {
-  const { user, error } = await requireUser()
+  const { user, error } = await requireModule('rfq')
   if (error) return error
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf

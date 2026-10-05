@@ -4,6 +4,7 @@ import { nextNumber } from '@/server/modules/sequences/service'
 import { emitNotification, emitNotifications, type EmitInput } from '@/server/modules/notifications/service'
 import { resolvePanel } from '@/server/modules/settings/service'
 import type { DisputeDTO } from '@/lib/types'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 
 /**
  * DISPUTE RESOLUTION — runtime enforcement of the "Dispute Resolution" settings
@@ -147,7 +148,7 @@ export async function createDispute(
     },
   })
   if (!order) throw new DisputeServiceError('Order not found', 404)
-  if (order.buyerId !== actor.id && actor.role !== 'ADMIN') {
+  if (order.buyerId !== actor.id && !(await userHasPlatformPermission(actor.id, 'disputes.view'))) {
     throw new DisputeServiceError('Only the buyer can dispute this order', 403)
   }
   if (order.status === 'CANCELLED') {
@@ -265,7 +266,7 @@ export async function respondToDispute(
 ): Promise<DisputeDTO> {
   const dispute = await db.dispute.findUnique({ where: { id: disputeId }, include: DISPUTE_INCLUDE })
   if (!dispute) throw new DisputeServiceError('Dispute not found', 404)
-  if (dispute.sellerId !== actor.id && actor.role !== 'ADMIN') {
+  if (dispute.sellerId !== actor.id && !(await userHasPlatformPermission(actor.id, 'disputes.view'))) {
     throw new DisputeServiceError('Only the disputed seller can respond', 403)
   }
   if (!OPEN_LIKE.includes(dispute.status as DisputeStatus)) {
@@ -322,7 +323,7 @@ export async function cancelDispute(
 
   const settings = await resolvePanel('disputes', await orgCtxForOrder(dispute.orderId))
   const isBuyer = dispute.raisedById === actor.id
-  const isAdmin = actor.role === 'ADMIN'
+  const isAdmin = await userHasPlatformPermission(actor.id, 'disputes.view')
   if (!isBuyer && !isAdmin) throw new DisputeServiceError('Not your dispute', 403)
   if (isBuyer && !isAdmin && !settings.buyerCancelOwn) {
     throw new DisputeServiceError('Buyers cannot withdraw disputes on this platform', 403)
@@ -372,7 +373,7 @@ export async function resolveDispute(
   actor: { id: string; role: string },
   input: ResolveDisputeInput
 ): Promise<DisputeDTO> {
-  if (actor.role !== 'ADMIN') throw new DisputeServiceError('Only platform admins resolve disputes', 403)
+  if (!(await userHasPlatformPermission(actor.id, 'disputes.resolve'))) throw new DisputeServiceError('Only platform staff with the "disputes.resolve" permission can resolve disputes', 403)
   const dispute = await db.dispute.findUnique({ where: { id: disputeId }, include: DISPUTE_INCLUDE })
   if (!dispute) throw new DisputeServiceError('Dispute not found', 404)
   if (!OPEN_LIKE.includes(dispute.status as DisputeStatus)) {
@@ -590,7 +591,7 @@ export async function listMyDisputes(
       orderBy: { createdAt: 'desc' },
       include: DISPUTE_INCLUDE,
     }),
-    role === 'SELLER' || role === 'ADMIN'
+    role === 'SELLER' || (await userHasPlatformPermission(userId, 'disputes.view'))
       ? db.dispute.findMany({
           where: { sellerId: userId },
           orderBy: { createdAt: 'desc' },
@@ -621,7 +622,7 @@ export async function getDispute(
   const d = await db.dispute.findUnique({ where: { id: disputeId }, include: DISPUTE_INCLUDE })
   if (!d) throw new DisputeServiceError('Dispute not found', 404)
   const allowed =
-    viewer.role === 'ADMIN' || d.raisedById === viewer.id || d.sellerId === viewer.id
+    (await userHasPlatformPermission(viewer.id, 'disputes.view')) || d.raisedById === viewer.id || d.sellerId === viewer.id
   if (!allowed) throw new DisputeServiceError('Not your dispute', 403)
   return serializeDispute(d as unknown as DisputeRow)
 }
@@ -633,7 +634,7 @@ export async function disputesForOrder(
 ): Promise<DisputeDTO[]> {
   const order = await db.order.findUnique({ where: { id: orderId }, select: { buyerId: true } })
   if (!order) throw new DisputeServiceError('Order not found', 404)
-  if (order.buyerId !== viewer.id && viewer.role !== 'ADMIN') {
+  if (order.buyerId !== viewer.id && !(await userHasPlatformPermission(viewer.id, 'disputes.view'))) {
     throw new DisputeServiceError('Not your order', 403)
   }
   const rows = await db.dispute.findMany({

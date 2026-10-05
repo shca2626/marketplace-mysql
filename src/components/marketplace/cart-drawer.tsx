@@ -72,7 +72,9 @@ export function CartDrawer() {
               <Button
                 className="rounded-full"
                 onClick={() => {
-                  const res = moveToCart(cartLineKey(savedForLater[0].productId, savedForLater[0].variantId))
+                  const res = moveToCart(
+                    cartLineKey(savedForLater[0].productId, savedForLater[0].variantId, savedForLater[0].offerId)
+                  )
                   if (res.ok) toast({ title: 'Moved to cart', description: savedForLater[0].title })
                   else
                     toast({
@@ -124,7 +126,7 @@ export function CartDrawer() {
             <div className="scrollbar-thin flex-1 overflow-y-auto p-4">
               <ul className="space-y-4">
                 {cart.map((item) => (
-                  <li key={item.productId} className="flex gap-3">
+                  <li key={cartLineKey(item.productId, item.variantId, item.offerId)} className="flex gap-3">
                     <button
                       className="h-20 w-20 shrink-0 overflow-hidden rounded-xl border bg-muted"
                       onClick={() => {
@@ -146,16 +148,22 @@ export function CartDrawer() {
                           {item.variantLabel}
                         </span>
                       )}
-                      {item.sellerName && (
+                      {/* Phase 4 — this line buys a specific vendor offer */}
+                      {item.offerId && (
+                        <span className="mt-0.5 inline-block rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                          via {item.offerSellerName ?? item.sellerName}
+                        </span>
+                      )}
+                      {(item.offerId ? item.offerSellerName : item.sellerName) && (
                         <button
                           className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-primary"
                           onClick={() => {
                             setCartOpen(false)
                             navigate('store', { sellerId: item.sellerId })
                           }}
-                          aria-label={`Visit ${item.sellerName} store`}
+                          aria-label={`Visit ${(item.offerSellerName ?? item.sellerName) ?? ''} store`}
                         >
-                          by {item.sellerName}
+                          {item.offerId ? 'via' : 'by'} {item.offerSellerName ?? item.sellerName}
                         </button>
                       )}
                       <div className="mt-2 flex items-center justify-between">
@@ -165,7 +173,7 @@ export function CartDrawer() {
                             size="icon"
                             className="h-7 w-7 rounded-lg"
                             disabled={item.quantity <= 1}
-                            onClick={() => updateQuantity(cartLineKey(item.productId, item.variantId), item.quantity - 1)}
+                            onClick={() => updateQuantity(cartLineKey(item.productId, item.variantId, item.offerId), item.quantity - 1)}
                             aria-label="Decrease quantity"
                           >
                             <Minus size={12} />
@@ -178,7 +186,7 @@ export function CartDrawer() {
                             size="icon"
                             className="h-7 w-7 rounded-lg"
                             disabled={item.quantity >= item.stock}
-                            onClick={() => updateQuantity(cartLineKey(item.productId, item.variantId), item.quantity + 1)}
+                            onClick={() => updateQuantity(cartLineKey(item.productId, item.variantId, item.offerId), item.quantity + 1)}
                             aria-label="Increase quantity"
                           >
                             <Plus size={12} />
@@ -192,7 +200,7 @@ export function CartDrawer() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-muted-foreground hover:text-primary"
-                            onClick={() => saveForLater(cartLineKey(item.productId, item.variantId))}
+                            onClick={() => saveForLater(cartLineKey(item.productId, item.variantId, item.offerId))}
                             aria-label={`Save ${item.title} for later`}
                           >
                             <BookmarkPlus size={14} />
@@ -201,7 +209,7 @@ export function CartDrawer() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                            onClick={() => removeFromCart(cartLineKey(item.productId, item.variantId))}
+                            onClick={() => removeFromCart(cartLineKey(item.productId, item.variantId, item.offerId))}
                             aria-label={`Remove ${item.title} from cart`}
                           >
                             <Trash2 size={14} />
@@ -221,7 +229,7 @@ export function CartDrawer() {
                   </p>
                   <ul className="mt-3 space-y-3">
                     {savedForLater.map((item) => (
-                      <li key={item.productId} className="flex items-center gap-3">
+                      <li key={cartLineKey(item.productId, item.variantId, item.offerId)} className="flex items-center gap-3">
                         <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg border bg-muted">
                           {item.image ? (
                             <img src={item.image} alt={item.title} className="h-full w-full object-cover" />
@@ -238,8 +246,13 @@ export function CartDrawer() {
                               {item.variantLabel}
                             </span>
                           )}
+                          {item.offerId && (
+                            <span className="mt-0.5 inline-block rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                              via {item.offerSellerName ?? item.sellerName}
+                            </span>
+                          )}
                           <p className="mt-0.5 text-xs text-muted-foreground">
-                            {formatUSD(item.price)} · qty {item.quantity}
+                            {formatUSD(item.offerPrice ?? item.price)} · qty {item.quantity}
                           </p>
                         </div>
                         <Button
@@ -247,7 +260,7 @@ export function CartDrawer() {
                           size="icon"
                           className="h-7 w-7 rounded-lg"
                           onClick={() => {
-                            const res = moveToCart(cartLineKey(item.productId, item.variantId))
+                            const res = moveToCart(cartLineKey(item.productId, item.variantId, item.offerId))
                             if (!res.ok) {
                               toast({
                                 title: 'Cannot move to cart',
@@ -264,7 +277,7 @@ export function CartDrawer() {
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                          onClick={() => removeFromSaved(cartLineKey(item.productId, item.variantId))}
+                          onClick={() => removeFromSaved(cartLineKey(item.productId, item.variantId, item.offerId))}
                           aria-label={`Remove ${item.title} from saved items`}
                         >
                           <Trash2 size={13} />

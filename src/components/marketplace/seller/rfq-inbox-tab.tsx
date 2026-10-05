@@ -1,9 +1,10 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowRight,
   Clock3,
+  Compass,
   FileDown,
   FileText,
   Inbox,
@@ -12,13 +13,15 @@ import {
   PackageSearch,
   Send,
   ShieldQuestion,
+  Sparkles,
   Store,
   Undo2,
   User,
+  X,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useApi } from '@/hooks/use-api'
-import type { ProductDTO, QuoteDTO, RfqDTO } from '@/lib/types'
+import type { OpenRfqDTO, ProductDTO, QuoteDTO, RfqDTO } from '@/lib/types'
 import { formatDate, formatUSD, timeAgo } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -66,17 +69,35 @@ import {
 /**
  * Seller "Quote requests" tab — the seller-facing half of the RFQ module.
  *
- * Shows open RFQs that reference MY catalog products (from /api/rfqs/inbox),
- * lets me study the full request (buyer, org, all lines — mine highlighted),
- * negotiate on the shared message thread, and respond with a quote for my
- * own products only (competitor lines and open items stay read-only context).
+ * Two views (segmented toggle at the top):
+ *  • "For my products" — open RFQs that reference MY catalog products
+ *    (from /api/rfqs/inbox): study the full request, negotiate on the shared
+ *    thread, and quote my own lines.
+ *  • "Open requests" — the public RFQ board (STAB-6): live RFQs carrying
+ *    free-form lines (productId=null), ranked by keyword match against my
+ *    ACTIVE catalog (from /api/rfqs/open-directory). Open any of them and
+ *    attach my own products to the buyer's open items in the quote composer.
  */
-export function SellerRfqInboxTab({ myProducts }: { myProducts: ProductDTO[] }) {
+export function SellerRfqInboxTab({
+  myProducts,
+  focusRfqId,
+}: {
+  myProducts: ProductDTO[]
+  focusRfqId?: string | null
+}) {
+  const [view, setView] = useState<'mine' | 'open'>('mine')
   const {
     data,
     loading,
     refetch: refetchInbox,
   } = useApi<{ rfqs: RfqDTO[] }>('/api/rfqs/inbox')
+  // Open Requests board (STAB-6) — fetched lazily, only when the tab is shown.
+  const {
+    data: openData,
+    loading: openLoading,
+    error: openError,
+    refetch: refetchOpenDir,
+  } = useApi<{ rfqs: OpenRfqDTO[] }>(view === 'open' ? '/api/rfqs/open-directory' : null)
 
   const [detailId, setDetailId] = useState<string | null>(null)
   const [detail, setDetail] = useState<RfqDTO | null>(null)
@@ -84,10 +105,15 @@ export function SellerRfqInboxTab({ myProducts }: { myProducts: ProductDTO[] }) 
   const [quoteOpen, setQuoteOpen] = useState(false)
 
   const rfqs = data?.rfqs ?? []
+  const openRfqs = openData?.rfqs ?? []
   const myStockById = useMemo(
     () => new Map(myProducts.map((p) => [p.id, p])),
     [myProducts]
   )
+
+  useEffect(() => {
+    if (openError) toastApiError(openError, 'Could not load open requests')
+  }, [openError])
 
   const openDetail = async (id: string, quote?: boolean) => {
     setDetailId(id)
@@ -102,6 +128,18 @@ export function SellerRfqInboxTab({ myProducts }: { myProducts: ProductDTO[] }) 
     setDetail(res.data.rfq)
   }
 
+  // Bell deep-link (params.rfqId → ?view=seller&tab=rfqs&rfq=…): open the
+  // request detail directly. Consumed once — the tab then behaves normally.
+  // (Deferred a tick so the effect never triggers synchronous cascading
+  // renders — openDetail sets loading + detail state immediately.)
+  const focusConsumed = useRef<string | null>(null)
+  useEffect(() => {
+    if (!focusRfqId || focusConsumed.current === focusRfqId) return
+    focusConsumed.current = focusRfqId
+    const t = setTimeout(() => void openDetail(focusRfqId), 0)
+    return () => clearTimeout(t)
+  }, [focusRfqId])
+
   const closeDetail = () => {
     setDetailId(null)
     setDetail(null)
@@ -110,14 +148,49 @@ export function SellerRfqInboxTab({ myProducts }: { myProducts: ProductDTO[] }) 
 
   const refreshAll = () => {
     void refetchInbox()
+    void refetchOpenDir()
     if (detailId) void openDetail(detailId)
   }
 
   const awaitingMyQuote = rfqs.filter((r) => (r.myQuoteCount ?? 0) === 0).length
   const alreadyQuoted = rfqs.filter((r) => (r.myQuoteCount ?? 0) > 0).length
+  const openMatching = openRfqs.filter((r) => r.matchedKeywords.length > 0).length
 
   return (
     <div className="space-y-5">
+      {/* View toggle — my-product inbox vs the open-requests board */}
+      <div
+        role="tablist"
+        aria-label="Quote request views"
+        className="flex w-full gap-1 self-start rounded-xl border bg-muted/50 p-1 sm:w-fit"
+      >
+        {(
+          [
+            { key: 'mine', label: 'For my products', icon: PackageSearch },
+            { key: 'open', label: 'Open requests', icon: Sparkles },
+          ] as const
+        ).map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={view === t.key}
+            onClick={() => setView(t.key)}
+            className={cn(
+              'flex min-h-11 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-4 text-sm font-medium transition-colors',
+              view === t.key
+                ? 'bg-card text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <t.icon size={14} aria-hidden />
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'mine' && (
+      <>
       {/* Summary strip */}
       <div className="grid gap-3 sm:grid-cols-3">
         <CardStat icon={Inbox} label="Open requests" value={rfqs.length} sub="reference your products" />
@@ -206,6 +279,137 @@ export function SellerRfqInboxTab({ myProducts }: { myProducts: ProductDTO[] }) 
           })}
         </ul>
       )}
+      </>
+      )}
+
+      {view === 'open' && (
+      <>
+        {/* Open board summary strip */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <CardStat
+            icon={Compass}
+            label="Open marketplace requests"
+            value={openRfqs.length}
+            sub="free-form buyer requests live now"
+          />
+          <CardStat
+            icon={Sparkles}
+            label="Matching your catalog"
+            value={openMatching}
+            sub="keyword hits against your products"
+            highlight={openMatching > 0}
+          />
+        </div>
+
+        {/* Open requests list */}
+        {openLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-28 rounded-xl" />
+            ))}
+          </div>
+        ) : openRfqs.length === 0 ? (
+          <EmptyState
+            icon={Compass}
+            title="No open requests yet"
+            description="No open requests match your catalog yet — buyers' free-form requests appear here."
+          />
+        ) : (
+          <ul className="space-y-2.5" aria-label="Open marketplace requests">
+            {openRfqs.map((rfq) => {
+              const shownLines = rfq.openLines.slice(0, 2)
+              const moreLines = rfq.openLines.length - shownLines.length
+              return (
+                <li
+                  key={rfq.id}
+                  className="group rounded-xl border bg-card p-4 transition-colors hover:border-primary/50"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openDetail(rfq.id)}
+                          className="font-mono text-sm font-bold tracking-tight text-primary hover:underline"
+                        >
+                          {rfq.number}
+                        </button>
+                        <Badge
+                          variant="outline"
+                          className="shrink-0 rounded-full border-amber-300/60 bg-amber-50 px-2 text-[10px] font-semibold text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                        >
+                          Open request
+                        </Badge>
+                        <ExpiryHint expiresAt={rfq.expiresAt ?? null} />
+                      </div>
+                      <p className="mt-1 truncate text-sm font-medium">
+                        {rfq.title || rfq.openLines[0]?.productName || 'Untitled request'}
+                      </p>
+                      <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1">
+                          <User size={11} aria-hidden /> {rfq.buyer.name}
+                        </span>
+                        {rfq.buyer.orgName && (
+                          <span className="inline-flex items-center gap-1">
+                            <Store size={11} aria-hidden /> {rfq.buyer.orgName}
+                          </span>
+                        )}
+                        <span className="inline-flex items-center gap-1">
+                          <Clock3 size={11} aria-hidden /> {timeAgo(rfq.createdAt)}
+                        </span>
+                      </p>
+                      {/* What the buyer is looking for (open lines) */}
+                      <div className="mt-2 space-y-1">
+                        {shownLines.map((l) => (
+                          <p key={l.id} className="truncate text-xs text-muted-foreground">
+                            <span className="font-medium text-foreground">{l.productName}</span>
+                            {' × '}
+                            {l.quantity}
+                            {l.targetPrice != null && <> · target {formatUSD(l.targetPrice)}/unit</>}
+                            {l.notes && <span className="italic"> · {l.notes}</span>}
+                          </p>
+                        ))}
+                        {moreLines > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            +{moreLines} more item{moreLines === 1 ? '' : 's'}
+                          </p>
+                        )}
+                      </div>
+                      {/* Keyword match chips */}
+                      {rfq.matchedKeywords.length > 0 && (
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+                            <Sparkles size={11} aria-hidden /> Matches your catalog:
+                          </span>
+                          {rfq.matchedKeywords.map((k) => (
+                            <Badge
+                              key={k}
+                              variant="outline"
+                              className="rounded-full border-primary/40 px-2 text-[10px] font-medium text-primary"
+                            >
+                              {k}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex shrink-0">
+                      <Button
+                        type="button"
+                        className="min-h-11 rounded-lg"
+                        onClick={() => openDetail(rfq.id, true)}
+                      >
+                        <Send size={13} className="mr-1" /> View &amp; quote
+                      </Button>
+                    </div>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </>
+      )}
 
       {/* Detail dialog */}
       {detailId && (
@@ -214,6 +418,7 @@ export function SellerRfqInboxTab({ myProducts }: { myProducts: ProductDTO[] }) 
           rfq={detail}
           loading={detailLoading}
           myStockById={myStockById}
+          myProducts={myProducts}
           onClose={closeDetail}
           onChanged={refreshAll}
           quoteOpen={quoteOpen}
@@ -221,6 +426,21 @@ export function SellerRfqInboxTab({ myProducts }: { myProducts: ProductDTO[] }) 
         />
       )}
     </div>
+  )
+}
+
+/** "Closes in …" hint for open-directory cards (deadline-aware). */
+function ExpiryHint({ expiresAt }: { expiresAt: string | null }) {
+  if (!expiresAt) return null
+  const msLeft = new Date(expiresAt).getTime() - Date.now()
+  if (!Number.isFinite(msLeft) || msLeft <= 0) return null
+  const days = Math.round(msLeft / 86_400_000)
+  const hours = Math.round(msLeft / 3_600_000)
+  const label = days >= 1 ? `${days}d left` : `${Math.max(1, hours)}h left`
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 text-[10px] font-medium text-muted-foreground">
+      <Clock3 size={10} aria-hidden /> {label}
+    </span>
   )
 }
 
@@ -263,6 +483,7 @@ function SellerRfqDetailDialog({
   rfq,
   loading,
   myStockById,
+  myProducts,
   onClose,
   onChanged,
   quoteOpen,
@@ -272,6 +493,7 @@ function SellerRfqDetailDialog({
   rfq: RfqDTO | null
   loading: boolean
   myStockById: Map<string, ProductDTO>
+  myProducts: ProductDTO[]
   onClose: () => void
   onChanged: () => void
   quoteOpen: boolean
@@ -415,6 +637,7 @@ function SellerRfqDetailDialog({
           <SellerQuoteDialog
             rfq={rfq}
             myStockById={myStockById}
+            myProducts={myProducts}
             onClose={() => onQuoteOpenChange(false)}
             onIssued={() => {
               onQuoteOpenChange(false)
@@ -461,7 +684,7 @@ function SellerQuoteCard({ quote, onChanged }: { quote: QuoteDTO; onChanged: () 
             {validity && quote.status === 'SENT' && (
               <span className={validity.urgent ? ' font-semibold text-destructive' : ''}>
                 {' '}
-                · {validity.label}
+                · {validity.text}
               </span>
             )}
           </p>
@@ -526,7 +749,7 @@ function SellerQuoteCard({ quote, onChanged }: { quote: QuoteDTO; onChanged: () 
   )
 }
 
-// ── Quote composer (seller: own products only) ───────────────────────────────
+// ── Quote composer (seller: own products — referenced lines + open items) ──
 
 interface EditableLine {
   key: string
@@ -539,6 +762,8 @@ interface EditableLine {
   unitPrice: string
   stock?: number | null
   targetPrice?: number | null
+  /** true when the seller attached this line to a free-form (open) item — removable. */
+  removable?: boolean
 }
 
 const PAYMENT_TERMS = ['Prepaid', 'NET-15', 'NET-30', 'NET-45', 'NET-60']
@@ -557,11 +782,13 @@ function matchingTierPrice(
 function SellerQuoteDialog({
   rfq,
   myStockById,
+  myProducts,
   onClose,
   onIssued,
 }: {
   rfq: RfqDTO
   myStockById: Map<string, ProductDTO>
+  myProducts: ProductDTO[]
   onClose: () => void
   onIssued: () => void
 }) {
@@ -588,6 +815,8 @@ function SellerQuoteDialog({
         targetPrice: l.targetPrice ?? null,
       }))
   )
+  // Open-item picker selections (per open line) — reset to '' after attaching.
+  const [pickerValue, setPickerValue] = useState<Record<string, string>>({})
   const [extras, setExtras] = useState({
     validUntil: '',
     paymentTerms: 'NET-30',
@@ -597,6 +826,48 @@ function SellerQuoteDialog({
     taxTotal: '',
   })
   const [saving, setSaving] = useState(false)
+
+  // Free-form lines: the buyer describes what they want without a catalog
+  // reference — sellers attach one of their own ACTIVE products to quote it.
+  const openLines = useMemo(
+    () => rfq.lines.filter((l) => !l.productId),
+    [rfq.lines]
+  )
+  const activeProducts = useMemo(
+    () => myProducts.filter((p) => p.status === 'ACTIVE'),
+    [myProducts]
+  )
+
+  /** Products not yet attached to a given open line. */
+  const pickableFor = (openLineId: string): ProductDTO[] => {
+    const attached = new Set(
+      lines.filter((l) => l.rfqLineId === openLineId).map((l) => l.productId)
+    )
+    return activeProducts.filter((p) => !attached.has(p.id))
+  }
+
+  /** Attach one of my products to a buyer's open (free-form) line. */
+  const attachToOpenLine = (openLine: (typeof openLines)[number], productId: string) => {
+    const p = myStockById.get(productId)
+    if (!p) return
+    setLines((prev) => [
+      ...prev,
+      {
+        key: `${openLine.id}:${p.id}:${prev.length}`,
+        rfqLineId: openLine.id,
+        productId: p.id,
+        productTitle: p.title,
+        variantName: null,
+        image: p.images?.[0] ?? null,
+        quantity: String(openLine.quantity),
+        // Quantity-break ladder first (bands: from ≤ qty ≤ to|null), base price otherwise
+        unitPrice: (matchingTierPrice(p.priceTiers, openLine.quantity) ?? p.price).toFixed(2),
+        stock: p.stock ?? null,
+        targetPrice: openLine.targetPrice ?? null,
+        removable: true,
+      },
+    ])
+  }
 
   const subtotal = useMemo(
     () => lines.reduce((s, l) => s + (Number(l.quantity) || 0) * (Number(l.unitPrice) || 0), 0),
@@ -612,7 +883,8 @@ function SellerQuoteDialog({
     if (lines.length === 0) {
       toast({
         title: 'Nothing to quote',
-        description: 'None of your products are referenced in this request.',
+        description:
+          'Add at least one line — pick one of your products for an open item, or a request that references your catalog.',
         variant: 'destructive',
       })
       return
@@ -673,8 +945,10 @@ function SellerQuoteDialog({
     onIssued()
   }
 
+  // Read-only context is limited to COMPETITOR catalog lines — open items
+  // get their own attach-a-product section below.
   const contextLines = rfq.lines.filter(
-    (l) => !l.productId || !myStockById.has(l.productId)
+    (l) => !!l.productId && !myStockById.has(l.productId)
   )
 
   return (
@@ -683,15 +957,86 @@ function SellerQuoteDialog({
         <DialogHeader>
           <DialogTitle>Quote {rfq.number}</DialogTitle>
           <DialogDescription>
-            Only your products from the request are quoted. The buyer sees your offer next to their
-            other quotes.
+            Your products from the request are pre-filled — and you can attach your own products to
+            the buyer&apos;s open items. The buyer sees your offer next to their other quotes.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
-          {/* Read-only context: what the buyer asked for beyond my catalog */}
+          {/* Open items: free-form lines the seller can fulfil with own products */}
+          {openLines.length > 0 && (
+            <section
+              aria-label="Open items — offer your products"
+              className="rounded-xl border border-dashed bg-amber-50/40 p-3 dark:bg-amber-950/20"
+            >
+              <p className="text-xs font-semibold">Open items — offer your product</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                The buyer described these without a catalog reference. Attach one of your active
+                listings to include it in this quote.
+              </p>
+              <div className="mt-2 space-y-2">
+                {openLines.map((l) => {
+                  const pickable = pickableFor(l.id)
+                  return (
+                    <div key={l.id} className="rounded-lg bg-muted/50 p-2.5">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">{l.productName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Qty {l.quantity}
+                            {l.targetPrice != null && <> · target {formatUSD(l.targetPrice)}/unit</>}
+                            {l.notes && <> · <span className="italic">{l.notes}</span></>}
+                          </p>
+                        </div>
+                        {activeProducts.length > 0 ? (
+                          <div className="w-full sm:w-64">
+                            <Select
+                              value={pickerValue[l.id] ?? ''}
+                              onValueChange={(v) => {
+                                setPickerValue((prev) => ({ ...prev, [l.id]: '' }))
+                                attachToOpenLine(l, v)
+                              }}
+                            >
+                              <SelectTrigger
+                                className="h-9 w-full rounded-lg text-sm"
+                                aria-label={`Offer one of your products for ${l.productName}`}
+                              >
+                                <SelectValue placeholder="Offer your product…" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {pickable.length === 0 ? (
+                                  <p className="px-3 py-2 text-xs text-muted-foreground">
+                                    All your active products are attached to this item.
+                                  </p>
+                                ) : (
+                                  pickable.map((p) => (
+                                    <SelectItem key={p.id} value={p.id}>
+                                      <span className="max-w-56 truncate">{p.title}</span>
+                                      <span className="ml-1.5 text-muted-foreground">
+                                        · {formatUSD(p.price)}
+                                      </span>
+                                    </SelectItem>
+                                  ))
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">
+                            You need an active listing to quote open items.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* Read-only context: competitor catalog lines */}
           {contextLines.length > 0 && (
             <div className="rounded-xl bg-muted/50 p-3 text-xs text-muted-foreground">
-              <p className="mb-1 font-semibold">Also requested (not quotable by you):</p>
+              <p className="mb-1 font-semibold">Other sellers&apos; catalog items (not quotable):</p>
               <ul className="list-inside list-disc space-y-0.5">
                 {contextLines.map((l) => (
                   <li key={l.id} className="truncate">
@@ -725,6 +1070,14 @@ function SellerQuoteDialog({
                           {l.variantName}
                         </Badge>
                       )}
+                      {l.removable && (
+                        <Badge
+                          variant="outline"
+                          className="shrink-0 rounded-full border-amber-300/60 bg-amber-50 px-1.5 text-[10px] font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                        >
+                          Open item offer
+                        </Badge>
+                      )}
                     </p>
                     <p className="text-[11px] text-muted-foreground">
                       {formatUSD(Number(l.unitPrice) || 0)} × {l.quantity || 0} ={' '}
@@ -738,6 +1091,20 @@ function SellerQuoteDialog({
                       )}
                     </p>
                   </div>
+                  {l.removable && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9 shrink-0 rounded-lg text-muted-foreground hover:text-destructive"
+                      onClick={() =>
+                        setLines((prev) => prev.filter((x) => x.key !== l.key))
+                      }
+                      aria-label={`Remove ${l.productTitle} from the quote`}
+                    >
+                      <X size={14} />
+                    </Button>
+                  )}
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-2 pl-[46px]">
                   <div className="space-y-1">

@@ -79,6 +79,7 @@ import {
   toastApiError,
   useDebounced,
 } from './shared'
+import { useStepUp } from './step-up-guard'
 
 // ── Shared bits ─────────────────────────────────────────────────────────────
 
@@ -204,6 +205,11 @@ export function RbacTab({ user }: { user: SessionUser | null }) {
   const [subView, setSubView] = useState<SubView>('roles')
   const [scopeFilter, setScopeFilter] = useState<'' | 'PLATFORM' | 'ORG'>('')
 
+  // Phase 6 (6.7.5) — sensitive RBAC mutations can be blocked with
+  // MFA_STEP_UP_REQUIRED / MFA_ENROLLMENT_REQUIRED; the guard opens the
+  // step-up dialog and retries the original mutation once on success.
+  const { guard: guardStepUp, node: stepUpDialog } = useStepUp()
+
   // RBACSEC-1 — button-level permission gating (the API is the security
   // boundary; this is UX so staff don't see buttons that would 403).
   const isSuperAdmin = user?.role === 'ADMIN'
@@ -318,16 +324,18 @@ export function RbacTab({ user }: { user: SessionUser | null }) {
         ...(dialog.mode === 'create' ? { scope: dialog.scope, permissionKeys: [...dialog.selected] } : {}),
         ...(dialog.mode === 'edit' && !dialog.locked ? { permissionKeys: [...dialog.selected] } : {}),
       }
-      const res =
+      const res = await guardStepUp(() =>
         dialog.mode === 'create'
-          ? await apiRequest<{ role: RbacRoleDTO }>('/api/admin/rbac/roles', {
+          ? apiRequest<{ role: RbacRoleDTO }>('/api/admin/rbac/roles', {
               method: 'POST',
               body: JSON.stringify(body),
             })
-          : await apiRequest<{ role: RbacRoleDTO }>(`/api/admin/rbac/roles/${dialog.roleId}`, {
+          : apiRequest<{ role: RbacRoleDTO }>(`/api/admin/rbac/roles/${dialog.roleId}`, {
               method: 'PATCH',
               body: JSON.stringify(body),
             })
+      )
+      if (!res) return // step-up cancelled / enrollment required
       if (!res.ok || !res.data) {
         toastApiError(res.error)
         return
@@ -358,10 +366,12 @@ export function RbacTab({ user }: { user: SessionUser | null }) {
     } else {
       if (!confirm(`Delete the role "${role.name}"? This cannot be undone.${systemWarning}`)) return
     }
-    const res = await apiRequest<{ revoked: number }>(
-      `/api/admin/rbac/roles/${role.id}${force ? '?force=1' : ''}`,
-      { method: 'DELETE' }
+    const res = await guardStepUp(() =>
+      apiRequest<{ revoked: number }>(`/api/admin/rbac/roles/${role.id}${force ? '?force=1' : ''}`, {
+        method: 'DELETE',
+      })
     )
+    if (!res) return // step-up cancelled / enrollment required
     if (!res.ok) {
       toastApiError(res.error)
       return
@@ -396,10 +406,13 @@ export function RbacTab({ user }: { user: SessionUser | null }) {
     if (!grantUser || !grantRoleId) return
     setGranting(true)
     try {
-      const res = await apiRequest<{ assignment: RbacAssignmentDTO }>('/api/admin/rbac/assignments', {
-        method: 'POST',
-        body: JSON.stringify({ userId: grantUser.id, roleId: grantRoleId }),
-      })
+      const res = await guardStepUp(() =>
+        apiRequest<{ assignment: RbacAssignmentDTO }>('/api/admin/rbac/assignments', {
+          method: 'POST',
+          body: JSON.stringify({ userId: grantUser.id, roleId: grantRoleId }),
+        })
+      )
+      if (!res) return // step-up cancelled / enrollment required
       if (!res.ok || !res.data) {
         toastApiError(res.error)
         return
@@ -420,7 +433,10 @@ export function RbacTab({ user }: { user: SessionUser | null }) {
 
   const revoke = async (assignmentId: string, who: string, role: string) => {
     if (!confirm(`Revoke "${role}" from ${who}?`)) return
-    const res = await apiRequest(`/api/admin/rbac/assignments/${assignmentId}`, { method: 'DELETE' })
+    const res = await guardStepUp(() =>
+      apiRequest(`/api/admin/rbac/assignments/${assignmentId}`, { method: 'DELETE' })
+    )
+    if (!res) return // step-up cancelled / enrollment required
     if (!res.ok) {
       toastApiError(res.error)
       return
@@ -440,10 +456,13 @@ export function RbacTab({ user }: { user: SessionUser | null }) {
     if (!inviteEmail || !inviteRoleId) return
     setInviting(true)
     try {
-      const res = await apiRequest<{ invitation: RbacInvitationDTO }>('/api/admin/rbac/invitations', {
-        method: 'POST',
-        body: JSON.stringify({ email: inviteEmail, name: inviteName || null, roleId: inviteRoleId }),
-      })
+      const res = await guardStepUp(() =>
+        apiRequest<{ invitation: RbacInvitationDTO }>('/api/admin/rbac/invitations', {
+          method: 'POST',
+          body: JSON.stringify({ email: inviteEmail, name: inviteName || null, roleId: inviteRoleId }),
+        })
+      )
+      if (!res) return // step-up cancelled / enrollment required
       if (!res.ok || !res.data) {
         toastApiError(res.error)
         return
@@ -464,7 +483,10 @@ export function RbacTab({ user }: { user: SessionUser | null }) {
 
   const revokeInvitation = async (inv: RbacInvitationDTO) => {
     if (!confirm(`Revoke the invitation to ${inv.email}?`)) return
-    const res = await apiRequest(`/api/admin/rbac/invitations/${inv.id}`, { method: 'DELETE' })
+    const res = await guardStepUp(() =>
+      apiRequest(`/api/admin/rbac/invitations/${inv.id}`, { method: 'DELETE' })
+    )
+    if (!res) return // step-up cancelled / enrollment required
     if (!res.ok) {
       toastApiError(res.error)
       return
@@ -1201,6 +1223,9 @@ export function RbacTab({ user }: { user: SessionUser | null }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Phase 6 — step-up MFA dialog (shared retry guard) */}
+      {stepUpDialog}
     </div>
   )
 }

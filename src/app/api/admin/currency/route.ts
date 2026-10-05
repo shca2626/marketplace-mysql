@@ -48,13 +48,13 @@ export async function POST(req: NextRequest) {
         if (!body.code || typeof body.rateToUsd !== 'number') {
           return NextResponse.json({ error: 'code and rateToUsd are required' }, { status: 400 })
         }
-        const row = await setManualRate(body.code, body.rateToUsd)
-        return NextResponse.json({ currency: row })
+        await setManualRate(body.code, body.rateToUsd)
+        return NextResponse.json({ ok: true })
       }
       case 'reset-live': {
         if (!body.code) return NextResponse.json({ error: 'code is required' }, { status: 400 })
-        const row = await resetToLive(body.code)
-        return NextResponse.json({ currency: row })
+        await resetToLive(body.code)
+        return NextResponse.json({ ok: true })
       }
       default:
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 })

@@ -18,6 +18,7 @@ import {
   ChevronLeft,
   CircleDollarSign,
   Clock3,
+  Crown,
   Eye,
   FileText,
   HandCoins,
@@ -105,6 +106,8 @@ export function RequestsSection({ initialRequestId }: { initialRequestId?: strin
     groups: { multiGroupId: string; requests: FinancingRequestSummaryDTO[] }[]
   }>('/api/financing/requests')
   const [openId, setOpenId] = useState<string | null>(initialRequestId ?? null)
+  // Phase 5 — side-by-side sibling comparison (W-MULTI-COMPARE for real)
+  const [compareGroup, setCompareGroup] = useState<string | null>(null)
 
   // Deep link / parent handoff: follow the initialRequestId prop (React's
   // documented adjust-state-when-props-change pattern — no effect needed).
@@ -152,6 +155,8 @@ export function RequestsSection({ initialRequestId }: { initialRequestId?: strin
 
   const requests = data?.requests ?? []
   const groups = data?.groups ?? []
+  const compareGroupData = compareGroup ? groups.find((g) => g.multiGroupId === compareGroup) : null
+
   const active = requests.filter((r) => !['ACCEPTED', 'DECLINED', 'CANCELLED', 'EXPIRED'].includes(r.status))
   const inGate = requests.filter((r) => ['SUBMITTED', 'UNDER_PLATFORM_REVIEW', 'RETURNED_FOR_COMPLETION'].includes(r.status))
   const offered = requests.filter((r) => r.status === 'OFFERED')
@@ -191,8 +196,8 @@ export function RequestsSection({ initialRequestId }: { initialRequestId?: strin
                       {g.requests.length} sibling request{g.requests.length === 1 ? '' : 's'} — one per financier
                     </p>
                   </div>
-                  <Button variant="outline" size="sm" className="h-10 rounded-xl" onClick={() => setOpenId(g.requests[0].id)}>
-                    <ListChecks size={13} className="mr-1.5" /> Compare siblings
+                  <Button variant="outline" size="sm" className="h-10 rounded-xl" onClick={() => setCompareGroup(g.multiGroupId)}>
+                    <ListChecks size={13} className="mr-1.5" /> Compare offers
                   </Button>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -233,8 +238,212 @@ export function RequestsSection({ initialRequestId }: { initialRequestId?: strin
           ))}
         </div>
       )}
+
+      {/* Phase 5 — side-by-side sibling offers comparison */}
+      <SiblingCompareDialog
+        group={compareGroupData ?? null}
+        onClose={() => setCompareGroup(null)}
+        onPick={(requestId) => {
+          setCompareGroup(null)
+          setOpenId(requestId)
+        }}
+      />
     </div>
   )
+}
+
+// ── Phase 5: side-by-side multi-financier offers comparison (DP-25 surface) ──
+
+function SiblingCompareDialog({
+  group,
+  onClose,
+  onPick,
+}: {
+  group: { multiGroupId: string; requests: FinancingRequestSummaryDTO[] } | null
+  onClose: () => void
+  onPick: (requestId: string) => void
+}) {
+  const siblings = group?.requests ?? []
+  // The "best" column: lowest installment total among SENT offers.
+  const bestOfferId = useMemo(() => {
+    const totals = siblings
+      .map((r) => r.bestOffer)
+      .filter((o): o is NonNullable<FinancingRequestSummaryDTO['bestOffer']> => !!o && (o.installmentTotal ?? Infinity) > 0)
+    if (totals.length < 2) return null
+    return totals.reduce((best, o) => ((o.installmentTotal ?? Infinity) < (best.installmentTotal ?? Infinity) ? o : best)).id
+  }, [siblings])
+
+  if (!group) return null
+
+  const rows: { label: string; render: (r: FinancingRequestSummaryDTO) => React.ReactNode }[] = [
+    {
+      label: 'Status',
+      render: (r) => (
+        <div className="flex flex-col items-start gap-1">
+          <StatusBadge status={r.status} map={FIN_REQUEST_STATUS_MAP} />
+          <span className="font-mono text-[10px] text-muted-foreground">{r.number}</span>
+        </div>
+      ),
+    },
+    {
+      label: 'Financier',
+      render: (r) => (
+        <span className="flex items-center gap-1.5 font-semibold">
+          <Landmark size={13} className="text-primary" /> {r.financierOrgName}
+        </span>
+      ),
+    },
+    {
+      label: 'Service',
+      render: (r) => <span className="text-muted-foreground">{r.serviceName}</span>,
+    },
+    {
+      label: 'Offered amount',
+      render: (r) => (r.bestOffer ? <span className="font-bold">{formatMoney(r.bestOffer.amount)}</span> : <MutedDash />),
+    },
+    {
+      label: 'Rate',
+      render: (r) =>
+        r.bestOffer?.ratePercent ? (
+          <span>
+            {r.bestOffer.ratePercent}%{' '}
+            <span className="text-[10px] text-muted-foreground">
+              {r.bestOffer.rateType ? (RATE_TYPE_LABELS[r.bestOffer.rateType] ?? r.bestOffer.rateType) : ''}
+            </span>
+          </span>
+        ) : (
+          <MutedDash />
+        ),
+    },
+    {
+      label: 'Flat fee',
+      render: (r) => (r.bestOffer?.feeFlat ? <span>{formatMoney(r.bestOffer.feeFlat)}</span> : <MutedDash />),
+    },
+    {
+      label: 'Tenor',
+      render: (r) => (r.bestOffer?.tenorMonths ? <span>{r.bestOffer.tenorMonths} months</span> : <MutedDash />),
+    },
+    {
+      label: 'Installments',
+      render: (r) =>
+        r.bestOffer?.installmentCount ? (
+          <span>
+            {r.bestOffer.installmentCount} ×{' '}
+            {r.bestOffer.installmentTotal
+              ? formatMoney(Math.round(r.bestOffer.installmentTotal / r.bestOffer.installmentCount))
+              : ''}
+          </span>
+        ) : (
+          <MutedDash />
+        ),
+    },
+    {
+      label: 'Total payable',
+      render: (r) =>
+        r.bestOffer?.installmentTotal ? (
+          <span className={cn('font-bold', r.bestOffer.id === bestOfferId && 'text-emerald-600 dark:text-emerald-400')}>
+            {formatMoney(r.bestOffer.installmentTotal)}
+          </span>
+        ) : (
+          <MutedDash />
+        ),
+    },
+    {
+      label: 'Valid until',
+      render: (r) =>
+        r.bestOffer?.validUntil ? <span>{formatDate(r.bestOffer.validUntil)}</span> : <MutedDash />,
+    },
+  ]
+
+  return (
+    <Dialog open={!!group} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ListChecks size={17} className="text-primary" /> Compare financier offers
+          </DialogTitle>
+          <DialogDescription>
+            {group.multiGroupId} — the same application sent to {siblings.length} financiers. Accepting one offer
+            automatically declines every other — including the siblings here.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[520px] border-separate border-spacing-0 text-sm">
+            <thead>
+              <tr>
+                <th className="sticky left-0 z-10 w-32 bg-background p-2 text-left align-bottom text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  &nbsp;
+                </th>
+                {siblings.map((r) => (
+                  <th key={r.id} className="min-w-[150px] p-2 text-left align-bottom">
+                    <span className="flex items-center gap-1.5 text-sm font-bold">
+                      {r.financierOrgName}
+                      {r.bestOffer?.id === bestOfferId && (
+                        <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                          <Crown size={9} /> Lowest total
+                        </span>
+                      )}
+                    </span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.label} className="border-t">
+                  <th
+                    scope="row"
+                    className="sticky left-0 z-10 bg-background p-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+                  >
+                    {row.label}
+                  </th>
+                  {siblings.map((r) => (
+                    <td key={r.id} className="p-2 align-top">
+                      {row.render(r)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+              <tr className="border-t">
+                <th scope="row" className="sticky left-0 z-10 bg-background p-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Action
+                </th>
+                {siblings.map((r) => (
+                  <td key={r.id} className="p-2">
+                    <Button
+                      size="sm"
+                      variant={r.bestOffer ? 'default' : 'outline'}
+                      className="h-8 rounded-lg text-xs"
+                      onClick={() => onPick(r.id)}
+                    >
+                      {r.bestOffer ? (
+                        <>
+                          <Eye size={12} className="mr-1" /> Review &amp; accept
+                        </>
+                      ) : (
+                        <>
+                          <Eye size={12} className="mr-1" /> Open
+                        </>
+                      )}
+                    </Button>
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-muted-foreground">
+          <ShieldCheck size={12} className="mt-0.5 shrink-0 text-primary" />
+          Offers are binding once sent — the installment schedule freezes into the agreement at acceptance. Compare
+          totals, not just rates: fees and tenor change what you actually pay.
+        </p>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function MutedDash() {
+  return <span className="text-muted-foreground/40">—</span>
 }
 
 function RequestCard({ request: r, onOpen }: { request: FinancingRequestSummaryDTO; onOpen: () => void }) {

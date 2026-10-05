@@ -4,6 +4,7 @@ import { emitNotification, emitNotifications } from '@/server/modules/notificati
 import { nextNumber } from '@/server/modules/sequences/service'
 import { resolvePanel } from '@/server/modules/settings/service'
 import { FinancingError, assertApplicantActor, iso, type OfferStatus } from './shared'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 
 /**
  * FINANCING OFFERS — the financier's binding proposal (§3.9) + the acceptance
@@ -537,7 +538,20 @@ export async function acceptOffer(
       }))
     )
   }
-  const admins = await db.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })
+  // Phase 6 (6.2 sweep): notify permission holders, not the legacy role badge.
+  // Recipients = holders of financing.fees.manage OR platform.super-admin.
+  const staffAssignments = await db.userRole.findMany({
+    where: {
+      organizationId: '',
+      OR: [
+        { role: { permissions: { some: { permissionKey: 'financing.fees.manage' } } } },
+        { role: { key: 'platform.super-admin' } },
+      ],
+    },
+    select: { userId: true },
+    take: 100,
+  })
+  const admins = [...new Set(staffAssignments.map((a) => a.userId))].map((id) => ({ id }))
   await emitNotifications(
     admins.map((a) => ({
       userId: a.id,
