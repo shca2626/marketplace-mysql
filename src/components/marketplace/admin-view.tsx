@@ -35,6 +35,8 @@ import { PaymentsTab } from './admin/payments-tab'
 import { PayoutsTab } from './admin/payouts-tab'
 import { FinancingTab } from './admin/financing-tab'
 import { RbacTab } from './admin/rbac-tab'
+import { CurrencyTab } from './admin/currency-tab'
+import { WhatsAppTab } from './admin/whatsapp-tab'
 import { AdminSettings } from './admin-settings'
 import { RfqSettings } from './admin/settings/rfq-settings'
 
@@ -109,6 +111,8 @@ function AdminDashboard({ user }: { user: SessionUser | null }) {
       {activeSection === 'rbac' && <RbacTab user={user} />}
       {activeSection === 'rfq-settings' && <RfqSettings />}
       {activeSection === 'storefront' && <AdminSettings />}
+      {activeSection === 'currency' && <CurrencyTab />}
+      {activeSection === 'whatsapp' && <WhatsAppTab />}
       {activeSection === 'audit' && <AuditTab />}
     </DashboardLayout>
   )

@@ -44,6 +44,7 @@ import { CartDrawer } from './cart-drawer'
 import { AuthModal } from './auth-modal'
 import { ForgotPasswordView, ResetPasswordView, VerifyEmailView } from './auth-views'
 import { BackToTop } from './back-to-top'
+import { ChatWidget } from './chat-widget'
 import { StorefrontTheme } from './storefront-theme'
 
 /** Public shopping surfaces. */
@@ -79,6 +80,13 @@ export function MarketplaceApp() {
   const applyLocation = useMarketplace((s) => s.applyLocation)
   const applySettings = useMarketplace((s) => s.applySettings)
   const setSpaActive = useMarketplace((s) => s.setSpaActive)
+  const initCurrency = useMarketplace((s) => s.initCurrency)
+
+  // Phase 8 — dynamic currency: subscribing here re-renders the WHOLE view
+  // tree (factories below create fresh JSX) so every price re-formats
+  // through the live rate the moment the visitor switches currency.
+  const activeCurrencyCode = useMarketplace((s) => s.activeCurrency.code)
+  const currencyListVersion = useMarketplace((s) => s.currencyList.length)
 
   // Mark the SPA as mounted — navigate() from marketplace components reused
   // on platform pages (homepage product cards, etc.) then falls back to a
@@ -93,7 +101,12 @@ export function MarketplaceApp() {
   // and keep state in sync when the user navigates with back/forward.
   useEffect(() => {
     let cancelled = false
-    void useMarketplace.persist.rehydrate().then(markStoreHydrated)
+    void useMarketplace.persist.rehydrate().then(() => {
+      markStoreHydrated()
+      // Phase 8 — dynamic display currency: boot AFTER rehydrate so the
+      // persisted preference is known, then pull live rates from the server.
+      void initCurrency()
+    })
     if (parseLocation().view !== 'home') applyLocation()
     const onPopState = () => applyLocation()
     window.addEventListener('popstate', onPopState)
@@ -142,7 +155,7 @@ export function MarketplaceApp() {
       cancelled = true
       window.removeEventListener('popstate', onPopState)
     }
-  }, [setUser, setAuthChecked, applyLocation, applySettings])
+  }, [setUser, setAuthChecked, applyLocation, applySettings, initCurrency])
 
   const isConsole = DASHBOARD_VIEWS.has(view)
   const active = isConsole ? CONSOLE_VIEWS[view] : STOREFRONT_VIEWS[view]
@@ -153,6 +166,8 @@ export function MarketplaceApp() {
           default-mode onto the document root for BOTH storefront and
           dashboards the moment settings load or change. */}
       <StorefrontTheme />
+      {/* Currency re-render anchor (Phase 8) — see subscription above. */}
+      <span hidden data-currency={activeCurrencyCode} data-currencies={currencyListVersion} />
       {isConsole ? (
         /* ── Internal console — dedicated dashboard shell ── */
         <div className="min-h-screen bg-muted/40 text-foreground">
@@ -190,6 +205,7 @@ export function MarketplaceApp() {
           <CartDrawer />
           <AuthModal />
           <BackToTop />
+          <ChatWidget />
         </div>
       )}
     </ThemeProvider>

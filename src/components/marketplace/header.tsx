@@ -27,6 +27,7 @@ import { useApi } from '@/hooks/use-api'
 import type { CategoryDTO, OrganizationDTO } from '@/lib/types'
 import { initials } from '@/lib/format'
 import { SearchBox } from './search-box'
+import { CurrencySwitcher } from './currency-switcher'
 import { NotificationsBell } from './notifications-bell'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -175,6 +176,8 @@ export function Header() {
 
         {/* Actions */}
         <div className="ml-auto flex items-center gap-1 sm:gap-2">
+          <CurrencySwitcher />
+
           <Button
             variant="ghost"
             size="icon"

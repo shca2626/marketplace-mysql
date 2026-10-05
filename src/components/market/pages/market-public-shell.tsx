@@ -11,6 +11,7 @@ import { Footer } from '@/components/marketplace/footer'
 import { CartDrawer } from '@/components/marketplace/cart-drawer'
 import { AuthModal } from '@/components/marketplace/auth-modal'
 import { BackToTop } from '@/components/marketplace/back-to-top'
+import { ChatWidget } from '@/components/marketplace/chat-widget'
 import { StorefrontTheme } from '@/components/marketplace/storefront-theme'
 
 /**
@@ -99,6 +100,7 @@ export function MarketPublicShell({ children }: { children: React.ReactNode }) {
         <CartDrawer />
         <AuthModal />
         <BackToTop />
+        <ChatWidget />
       </div>
     </ThemeProvider>
   )

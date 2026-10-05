@@ -3,6 +3,11 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import type { CartItem, ProductDTO, ProductVariantDTO, SessionUser } from '@/lib/types'
 import type { StorefrontSettings, BannerSlideDTO } from '@/lib/settings/schema'
 import { DEFAULT_STOREFRONT_SETTINGS } from '@/lib/settings/schema'
+import {
+  DEFAULT_DISPLAY_CURRENCY,
+  setActiveCurrency as setLibActiveCurrency,
+  type DisplayCurrency,
+} from '@/lib/currency'
 import { parseLocation, viewToQuery } from '@/lib/routing'
 
 // ── Pre-hydration write gate ─────────────────────────────────────────────────
@@ -113,6 +118,20 @@ interface MarketplaceState {
   settings: StorefrontSettings // live storefront configuration (boot + admin saves)
   slides: BannerSlideDTO[] // active hero slides (boot + admin saves)
 
+  // ── Dynamic display currency (Phase 8) ────────────────────────────────
+  // Rates arrive from /api/settings/currency (DB-backed, live-refreshed).
+  // `activeCurrency` drives formatUSD()/formatMoney() globally via the
+  // module state in src/lib/currency.ts — every price on the storefront
+  // converts automatically.
+  currencyPref: string | null // persisted preferred code (null = USD base)
+  currencyReady: boolean
+  currencyList: DisplayCurrency[]
+  activeCurrency: DisplayCurrency
+  currencyBase: string
+  lastRefreshedAt: string | null
+  initCurrency: () => Promise<void>
+  setActiveCurrencyCode: (code: string) => void
+
   navigate: (view: View, params?: ViewParams) => void
   applyLocation: (location?: { view: View; params?: ViewParams }) => void
   applySettings: (payload: ApplySettingsPayload) => void
@@ -153,6 +172,55 @@ export const useMarketplace = create<MarketplaceState>()(
       recentlyViewed: [],
       settings: structuredClone(DEFAULT_STOREFRONT_SETTINGS),
       slides: [],
+
+      currencyPref: null,
+      currencyReady: false,
+      currencyList: [],
+      activeCurrency: DEFAULT_DISPLAY_CURRENCY,
+      currencyBase: 'USD',
+      lastRefreshedAt: null,
+
+      // Boot the dynamic currency system: pull live rates + active list from
+      // the server, then honor the visitor's persisted preference (if still
+      // active) — otherwise stay on the USD base. The lib module state is
+      // synced so formatUSD() converts every price immediately.
+      initCurrency: async () => {
+        if (get().currencyReady) return
+        try {
+          const res = await fetch('/api/settings/currency', { cache: 'no-store' })
+          if (!res.ok) return
+          const json = (await res.json()) as {
+            base?: string
+            lastRefreshedAt?: string | null
+            currencies?: DisplayCurrency[]
+          }
+          const list = (json.currencies ?? []).filter((c) => c.rateToUsd > 0)
+          const base = json.base ?? 'USD'
+          const pref = get().currencyPref
+          const chosen =
+            (pref ? list.find((c) => c.code === pref) : undefined) ??
+            list.find((c) => c.code === base) ??
+            DEFAULT_DISPLAY_CURRENCY
+          setLibActiveCurrency(chosen)
+          set({
+            currencyReady: true,
+            currencyList: list,
+            activeCurrency: chosen,
+            currencyBase: base,
+            lastRefreshedAt: json.lastRefreshedAt ?? null,
+          })
+        } catch {
+          // offline → keep USD base, mark ready to avoid refetch loops
+          set({ currencyReady: true })
+        }
+      },
+
+      setActiveCurrencyCode: (code) => {
+        const chosen = get().currencyList.find((c) => c.code === code)
+        if (!chosen) return
+        setLibActiveCurrency(chosen)
+        set({ activeCurrency: chosen, currencyPref: code === get().currencyBase ? null : code })
+      },
 
       navigate: (view, params = {}) => {
         set({ view, params, cartOpen: false })
@@ -307,6 +375,7 @@ export const useMarketplace = create<MarketplaceState>()(
         cart: state.cart,
         savedForLater: state.savedForLater,
         recentlyViewed: state.recentlyViewed,
+        currencyPref: state.currencyPref,
       }),
       // Avoid SSR hydration mismatch: rehydrate explicitly after mount (see MarketplaceApp)
       skipHydration: true,

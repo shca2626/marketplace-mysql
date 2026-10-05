@@ -13,9 +13,11 @@ import {
   type LucideIcon,
   LayoutDashboard,
   Building2,
+  Coins,
   FileText,
   FolderLock,
   Heart,
+  MessageCircle,
   Package,
   Palette,
   Scale,
@@ -120,11 +122,18 @@ export const ADMIN_NAV: NavConfig = {
       ],
     },
     {
+      label: 'Engagement',
+      items: [
+        { key: 'whatsapp', label: 'WhatsApp Suite', icon: MessageCircle, description: 'Templates, chatbot, campaigns & unified inbox', permission: 'storefront.manage', badge: 'New' },
+      ],
+    },
+    {
       label: 'Configuration',
       items: [
         { key: 'rbac', label: 'Roles & Access', icon: ShieldCheck, description: 'Permissions, staff & teams', anyPermissions: ['staff.view', 'rbac.roles.view', 'rbac.manage'], badge: 'New' },
         { key: 'rfq-settings', label: 'RFQ Settings', icon: SlidersHorizontal, description: '22 scoped behavior panels', permission: 'rfq.settings.manage' },
         { key: 'storefront', label: 'Storefront Designer', icon: Palette, description: 'Branding, theme & hero slides', permission: 'storefront.manage' },
+        { key: 'currency', label: 'Currency & Rates', icon: Coins, description: 'Live exchange rates & display currencies', permission: 'storefront.manage', badge: 'New' },
       ],
     },
     {
@@ -150,6 +159,8 @@ export const ADMIN_NAV: NavConfig = {
     'rfq-settings': { title: 'RFQ Settings', description: 'Scoped behavior configuration with change history & rollback.' },
     rbac: { title: 'Roles & Access', description: 'The RBAC control center — permissions, platform staff, organization teams and invitations.' },
     storefront: { title: 'Storefront Designer', description: 'Brand the public marketplace: name, logo, theme, hero slides.' },
+    currency: { title: 'Currency & Rates', description: 'Live exchange rates and display currencies — nothing hardcoded, everything convertible.' },
+    whatsapp: { title: 'WhatsApp Suite', description: 'Templates, chatbot auto-replies, bulk campaigns, unified inbox and the live connection.' },
     audit: { title: 'Audit Log', description: 'Immutable, signed record of critical platform actions.' },
   },
 }

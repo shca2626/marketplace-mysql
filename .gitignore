@@ -103,3 +103,6 @@ db/custom.db-journal
 /db/TESTER-ACCOUNTS.md
 /db/product-images/
 /db/product-images-gen.log
+# ── WA-8: WhatsApp mini-service — auth session files are ACCOUNT CREDENTIALS ──
+mini-services/*/service.log
+mini-services/whatsapp-service/sessions/

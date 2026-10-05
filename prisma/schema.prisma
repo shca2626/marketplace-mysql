@@ -72,7 +72,7 @@ model User {
   disputesResolved   Dispute[]            @relation("DisputeResolver")
   recurringSchedules RecurringRfq[]
   mediaAssets        MediaAsset[]         @relation("MediaAssets")
-  paymentsCaptured   Payment[]             @relation("PaymentsCapturedBy")
+  paymentsCaptured   Payment[]            @relation("PaymentsCapturedBy")
   payouts            Payout[]             @relation("PayoutSeller")
 
   // ── Applicant profile (FINANCIER_SCHEMA v5 §3.1) — additive, ALL nullable;
@@ -85,7 +85,7 @@ model User {
   nationality       String?
   identityType      String? // NATIONAL_ID | PASSPORT | RESIDENCE_PERMIT | OTHER
   identityNumber    String?
-  residenceStreet   String? @db.Text // MYSQL: street address, free-form
+  residenceStreet   String?   @db.Text // MYSQL: street address, free-form
   residenceCity     String?
   residenceDistrict String?
   residenceType     String? // OWNED | RENTED
@@ -340,16 +340,16 @@ model OrganizationMember {
 // Buyer segmentation that pricing and future promotions hang off. Works for
 // B2C segments (e.g. VIP retail) and B2B tiers (e.g. wholesale-tier-1).
 model CustomerGroup {
-  id            String         @id @default(cuid())
-  key           String         @unique
-  name          String
-  description   String?        @db.Text // MYSQL: free-form segment description
-  priority      Int            @default(0) // higher wins when several groups apply
-  isDefault     Boolean        @default(false)
-  createdAt     DateTime       @default(now())
+  id                         String                      @id @default(cuid())
+  key                        String                      @unique
+  name                       String
+  description                String?                     @db.Text // MYSQL: free-form segment description
+  priority                   Int                         @default(0) // higher wins when several groups apply
+  isDefault                  Boolean                     @default(false)
+  createdAt                  DateTime                    @default(now())
   customerGroupUsers         CustomerGroupUser[]         @relation("UserCustomerGroups")
   customerGroupOrganizations CustomerGroupOrganization[] @relation("OrganizationCustomerGroups")
-  priceLists    PriceList[]
+  priceLists                 PriceList[]
 
   @@index([isDefault])
 }
@@ -362,7 +362,7 @@ model CustomerGroupUser {
   customerGroupId String
   userId          String
   customerGroup   CustomerGroup @relation("UserCustomerGroups", fields: [customerGroupId], references: [id], onDelete: Cascade)
-  user            User         @relation("UserCustomerGroups", fields: [userId], references: [id], onDelete: Cascade)
+  user            User          @relation("UserCustomerGroups", fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([customerGroupId, userId])
   @@index([userId]) // MYSQL-FK-INDEX: userId relation needs its own leftmost index
@@ -466,7 +466,7 @@ model RfqLine {
   variantName String? // snapshot "Color: Black / Bundle: Duo"
   quantity    Int
   targetPrice Float? // buyer's target unit price (optional)
-  notes       String? @db.Text // MYSQL: free-form line notes
+  notes       String?  @db.Text // MYSQL: free-form line notes
   rfq         Rfq      @relation(fields: [rfqId], references: [id], onDelete: Cascade)
   product     Product? @relation(fields: [productId], references: [id])
 
@@ -602,9 +602,9 @@ model NotificationDigest {
 
 // Per-user digest opt-in + cadence. No row (or OFF) = never included in batches.
 model UserDigestPref {
-  userId    String  @id
-  frequency String  @default("OFF") // OFF | DAILY | WEEKLY
-  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String @id
+  frequency String @default("OFF") // OFF | DAILY | WEEKLY
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // ── Auth hardening (AUTHSEC-1): single-use, hashed, expiring tokens ─────────
@@ -846,9 +846,9 @@ model Sequence {
 // ═══════════════════════════════════════════════════════════════════════════
 
 model Permission {
-  key         String            @id // e.g. "financing.documents.verify"
-  domain      String            // catalog | vendors | financing | org-members | ... (UI grouping key)
-  description String?           @db.Text // MYSQL: free-form help text
+  key         String           @id // e.g. "financing.documents.verify"
+  domain      String // catalog | vendors | financing | org-members | ... (UI grouping key)
+  description String?          @db.Text // MYSQL: free-form help text
   roles       RolePermission[]
 
   @@index([domain])
@@ -859,7 +859,7 @@ model Role {
   key         String            @unique // e.g. "platform.super-admin" | "org.admin" | "custom.platform.x"
   name        String
   description String?           @db.Text // MYSQL: free-form description
-  scope       String            // PLATFORM | ORG
+  scope       String // PLATFORM | ORG
   isSystem    Boolean           @default(false) // seeded, undeletable
   isProtected Boolean           @default(false) // RBACSEC-1: hidden & untouchable for non-super-admins (super-admin, org.owner)
   createdAt   DateTime          @default(now())
@@ -872,10 +872,10 @@ model Role {
 }
 
 model RolePermission {
-  roleId         String
-  permissionKey  String
-  role           Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission     Permission @relation(fields: [permissionKey], references: [key], onDelete: Cascade)
+  roleId        String
+  permissionKey String
+  role          Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission    Permission @relation(fields: [permissionKey], references: [key], onDelete: Cascade)
 
   @@id([roleId, permissionKey])
 }
@@ -1010,7 +1010,7 @@ model FinancierProfile {
   organizationId String       @unique // 1:1 — the legal entity (BANK | MFI | EWALLET)
   organization   Organization @relation("FinancierProfileOrg", fields: [organizationId], references: [id], onDelete: Cascade)
 
-  about         String? @db.Text // MYSQL: public marketing text (About tab)
+  about         String?  @db.Text // MYSQL: public marketing text (About tab)
   licenseNumber String?
   regulator     String?
   logoUrl       String? // MediaAsset-backed URL (existing pattern: User.image)
@@ -1080,11 +1080,11 @@ model FinancierService {
   processingDays           Int?
   accreditationValidMonths Int? // ACCREDITATION kind: lifetime of the grant once ACCREDITED
   accreditationFeeAmount   Float? // ACCREDITATION kind: fee (invoiced externally, D-002)
-  financingLimitText       String? @db.Text // MYSQL: rich detail — financing limit display text
-  targetAudience           String? @db.Text // MYSQL: rich detail — who the program is for
-  termsNote                String? @db.Text // MYSQL: rich detail — terms callout (e.g. murabaha cap)
-  guaranteeTypes            String? @db.Text // MYSQL: rich detail — comma-separated guarantee kinds
-  financingPeriods         String? @db.Text // MYSQL: rich detail — comma-separated periods
+  financingLimitText       String?          @db.Text // MYSQL: rich detail — financing limit display text
+  targetAudience           String?          @db.Text // MYSQL: rich detail — who the program is for
+  termsNote                String?          @db.Text // MYSQL: rich detail — terms callout (e.g. murabaha cap)
+  guaranteeTypes           String?          @db.Text // MYSQL: rich detail — comma-separated guarantee kinds
+  financingPeriods         String?          @db.Text // MYSQL: rich detail — comma-separated periods
   viewCount                Int              @default(0)
   createdAt                DateTime         @default(now())
   updatedAt                DateTime         @updatedAt
@@ -1290,11 +1290,11 @@ model FinancingRequest {
   // ACTIVITY (wizard step 2)
   activityStatus        String?
   activityName          String?
-  activityDescription   String? @db.Text // MYSQL: free-form activity description
+  activityDescription   String?   @db.Text // MYSQL: free-form activity description
   activityStartDate     DateTime?
   activityCity          String?
   activityDistrict      String?
-  activityAddress       String? @db.Text // MYSQL: street address, free-form
+  activityAddress       String?   @db.Text // MYSQL: street address, free-form
   activityLocationType  String? // OWNED | RENTED
   activityCategory      String?
   activityCategoryOther String?
@@ -1304,7 +1304,7 @@ model FinancingRequest {
   ownContributionAmount      Float?
   monthlyInstallmentCapacity Float?
   previousFinancing          Boolean?
-  otherIncomeSources         String? @db.Text // MYSQL: free-form income listing
+  otherIncomeSources         String?  @db.Text // MYSQL: free-form income listing
 
   // THE ASK
   amountRequested      Float
@@ -1319,7 +1319,7 @@ model FinancingRequest {
   guaranteeStatusOther String?
 
   // CONSENT
-  applicantNotes String? @db.Text // MYSQL: free-form applicant notes
+  applicantNotes String?   @db.Text // MYSQL: free-form applicant notes
   consentAt      DateTime?
 
   // THE PLATFORM GATE (R-4, DP-23)
@@ -1364,16 +1364,16 @@ model FinancingOffer {
   ratePercent        Float?
   feeFlat            Float?
   tenorMonths        Int
-  collateralRequired String? @db.Text // MYSQL: from the guarantee taxonomy (§3.8), free-form
-  notes              String? @db.Text // MYSQL: free-form offer notes
+  collateralRequired String?          @db.Text // MYSQL: from the guarantee taxonomy (§3.8), free-form
+  notes              String?          @db.Text // MYSQL: free-form offer notes
   validUntil         DateTime?
   status             String           @default("DRAFT") // DRAFT | SENT | ACCEPTED | DECLINED | EXPIRED | WITHDRAWN
   sentAt             DateTime?
   acceptedAt         DateTime?
   declinedAt         DateTime?
   withdrawnAt        DateTime?
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 
   installments FinancingOfferInstallment[]
   agreement    FinancingAgreement?
@@ -1468,7 +1468,7 @@ model AccreditationRequest {
   // MULTI-FINANCIER ROUTING (DP-25)
   multiGroupId String?
 
-  scopeNotes String? @db.Text // MYSQL: free-form scope notes
+  scopeNotes String?   @db.Text // MYSQL: free-form scope notes
   consentAt  DateTime?
 
   // THE PLATFORM GATE (R-4)
@@ -1530,13 +1530,13 @@ model ContactMessage {
 // ═══ REDSIGN-ERA MODELS (ported to MySQL dialect) ═══
 
 model FaqItem {
-  id       String   @id @default(cuid())
-  topic    String   @default("GENERAL") // GENERAL | FUNDING | MARKET | SELL | B2B | ACCOUNT
+  id       String  @id @default(cuid())
+  topic    String  @default("GENERAL") // GENERAL | FUNDING | MARKET | SELL | B2B | ACCOUNT
   question String
-  answer   String   @db.Text // MYSQL: long-form answer
-  position Int      @default(0)
-  featured Boolean  @default(false)
-  isActive Boolean  @default(true)
+  answer   String  @db.Text // MYSQL: long-form answer
+  position Int     @default(0)
+  featured Boolean @default(false)
+  isActive Boolean @default(true)
 
   @@index([topic, position])
 }
@@ -1568,7 +1568,7 @@ model FundingStory {
   amountFinanced     Float?
   currency           String            @default("YER")
   peopleImpacted     Int?
-  co2AvoidedTonnes  Float?
+  co2AvoidedTonnes   Float?
   featured           Boolean           @default(false)
   status             String            @default("PUBLISHED") // DRAFT | PUBLISHED | ARCHIVED
   position           Int               @default(0)
@@ -1581,22 +1581,22 @@ model FundingStory {
 }
 
 model InsightPost {
-  id           String    @id @default(cuid())
-  slug         String    @unique
-  title        String
-  excerpt      String    @db.Text // MYSQL: article teaser
-  body         String    @db.Text // MYSQL: markdown-lite
-  coverUrl     String?
-  authorName   String?
-  authorTitle  String?
-  topic        String    @default("GUIDE") // GUIDE | NEWS | POLICY | FUNDING | MARKET
-  tags         String? // comma-separated
-  readMinutes  Int       @default(4)
-  featured     Boolean   @default(false)
-  status       String    @default("PUBLISHED") // DRAFT | PUBLISHED | ARCHIVED
-  publishedAt  DateTime  @default(now())
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  excerpt     String   @db.Text // MYSQL: article teaser
+  body        String   @db.Text // MYSQL: markdown-lite
+  coverUrl    String?
+  authorName  String?
+  authorTitle String?
+  topic       String   @default("GUIDE") // GUIDE | NEWS | POLICY | FUNDING | MARKET
+  tags        String? // comma-separated
+  readMinutes Int      @default(4)
+  featured    Boolean  @default(false)
+  status      String   @default("PUBLISHED") // DRAFT | PUBLISHED | ARCHIVED
+  publishedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([status, publishedAt])
   @@index([topic])
@@ -1606,7 +1606,7 @@ model LegalDocument {
   id          String   @id @default(cuid())
   slug        String   @unique // terms | privacy | cookies
   title       String
-  summary     String? @db.Text // MYSQL: short lead-in
+  summary     String?  @db.Text // MYSQL: short lead-in
   body        String   @db.Text // MYSQL: markdown-lite
   version     String   @default("1.0")
   effectiveAt DateTime @default(now())
@@ -1640,7 +1640,7 @@ model SiteStep {
   icon      String? // lucide icon name, mapped by the UI kit
   title     String
   subtitle  String?
-  body      String? @db.Text // MYSQL: step explanation
+  body      String?  @db.Text // MYSQL: step explanation
   stat      String? // optional micro-stat chip ("2–5 days")
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -1675,7 +1675,154 @@ model SolutionFeature {
   position   Int      @default(0)
   icon       String?
   title      String
-  body       String? @db.Text // MYSQL: feature explanation
+  body       String?  @db.Text // MYSQL: feature explanation
 
   @@index([solutionId]) // MYSQL-FK-INDEX: solutionId relation needs its own leftmost index
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 8. DYNAMIC CURRENCY ENGINE (PHASE 8 — nothing hardcoded)
+// Exchange rates are DATA, never code. All catalog prices are stored in the
+// base currency (USD); every display currency converts through CurrencyRate
+// rows that are live-fetched (multi-source fallback) or manually overridden
+// by an admin. The 1 USD → YER 535.5 style numbers change daily — the system
+// reads them from the DB and refreshes them from the open web on demand.
+// ═══════════════════════════════════════════════════════════════════════════
+
+model CurrencyRate {
+  id              String    @id @default(cuid())
+  code            String    @unique // ISO 4217: USD, YER, SAR, AED, EGP, JOD, KWD, …
+  name            String // "Yemeni Rial"
+  symbol          String    @default("$") // short display symbol
+  rateToUsd       Float // 1 USD = rateToUsd CODE (the USD row itself is 1.0)
+  displayDecimals Int       @default(2) // shown decimals when converted
+  source          String    @default("seed") // seed | live | manual — provenance of current rate
+  isManual        Boolean   @default(false) // admin override — live refresh skips until reset
+  isActive        Boolean   @default(true) // visible in the currency switcher
+  sortOrder       Int       @default(0)
+  lastSyncedAt    DateTime? // when the live rate was fetched (null = never)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([isActive, sortOrder])
+}
+
+// ── 9. WHATSAPP SUITE — templates, chatbot rules, bulk campaigns, messages ──
+
+model WhatsAppTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  category    String   @default("MARKETING") // MARKETING | UTILITY | AUTHENTICATION
+  language    String   @default("en") // en | ar
+  body        String   @db.Text // text with {{name}} {{discount}} … placeholders
+  status      String   @default("DRAFT") // DRAFT | APPROVED
+  useCount    Int      @default(0)
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  campaigns BulkCampaign[]
+
+  @@index([category, status])
+}
+
+// Auto-reply / chatbot rule. Evaluated by the matching engine on every
+// incoming message (widget + WhatsApp), priority DESC, first match wins.
+model ChatbotRule {
+  id        String   @id @default(cuid())
+  name      String
+  matchType String   @default("CONTAINS") // CONTAINS | EXACT | STARTS_WITH | REGEX
+  pattern   String   @db.Text // matched against the normalized incoming text
+  reply     String   @db.Text // reply text — supports template variables
+  priority  Int      @default(0)
+  active    Boolean  @default(true)
+  hits      Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, priority])
+}
+
+model BulkCampaign {
+  id          String            @id @default(cuid())
+  name        String
+  templateId  String?
+  template    WhatsAppTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  body        String            @db.Text // snapshot of the chosen body (before personalization)
+  audience    String            @default("ALL_USERS") // ALL_USERS | BUYERS | SELLERS | CUSTOM
+  phones      String?           @db.Text // JSON string array — recipient phone snapshot
+  status      String            @default("DRAFT") // DRAFT | QUEUED | SENDING | PAUSED | COMPLETED | CANCELLED | FAILED
+  total       Int               @default(0)
+  sent        Int               @default(0)
+  failed      Int               @default(0)
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  createdById String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  messages WhatsAppMessage[]
+
+  @@index([status])
+}
+
+model WhatsAppMessage {
+  id          String        @id @default(cuid())
+  campaignId  String?
+  campaign    BulkCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  toNumber    String
+  fromNumber  String?
+  body        String        @db.Text
+  direction   String        @default("OUT") // OUT | IN
+  status      String        @default("QUEUED") // QUEUED | SENT | FAILED | RECEIVED
+  error       String?       @db.Text
+  waMessageId String?
+  sentAt      DateTime?
+  createdAt   DateTime      @default(now())
+
+  @@index([campaignId])
+  @@index([toNumber, createdAt])
+  @@index([direction, createdAt])
+}
+
+// ── 10. CHAT — one conversation model for BOTH the marketplace widget and
+// WhatsApp inbound. Staff (admin + sellers) answer from the unified Inbox. ──
+
+model ChatConversation {
+  id                 String   @id @default(cuid())
+  kind               String   @default("WIDGET") // WIDGET | WHATSAPP
+  channelRef         String? // WhatsApp JID (…@s.whatsapp.net); null for widget
+  buyerId            String? // matched user id (by phone/email) when known
+  visitorName        String?
+  visitorPhone       String?
+  visitorEmail       String?
+  sellerOrgId        String? // organization/store the visitor wants to reach
+  subject            String?
+  widgetToken        String?  @unique // secret the widget uses to poll its own thread
+  lastMessageAt      DateTime @default(now())
+  lastMessagePreview String? // first 140 chars of the newest message
+  unreadStaff        Int      @default(0)
+  unreadVisitor      Int      @default(0)
+  status             String   @default("OPEN") // OPEN | CLOSED
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  messages ChatMessage[]
+
+  @@index([kind, lastMessageAt])
+  @@index([sellerOrgId])
+  @@index([status])
+}
+
+model ChatMessage {
+  id             String           @id @default(cuid())
+  conversationId String
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderRole     String // VISITOR | STAFF | SYSTEM | BOT
+  senderName     String?
+  body           String           @db.Text
+  readAt         DateTime?
+  createdAt      DateTime         @default(now())
+
+  @@index([conversationId, createdAt])
 }

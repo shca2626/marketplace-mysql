@@ -1,6 +1,17 @@
+import { formatMoney } from '@/lib/currency'
+
+/**
+ * Format a BASE-cURRENCY (USD) amount in the ACTIVE display currency.
+ * The catalog stores every price in USD; what the user sees is converted at
+ * the live DB-backed rate (see src/lib/currency.ts — Phase 8 dynamic rates).
+ * Server render keeps USD (module default) so SSR and first client paint
+ * agree; the marketplace store switches the active currency after hydration.
+ */
 export function formatUSD(n: number): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
+  return formatMoney(n)
 }
+
+export { formatMoney } from '@/lib/currency'
 
 export function timeAgo(iso: string): string {
   const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
