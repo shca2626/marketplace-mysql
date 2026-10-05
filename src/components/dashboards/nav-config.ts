@@ -343,7 +343,15 @@ export const FINANCIER_NAV: NavConfig = {
       label: 'Portfolio',
       items: [
         { key: 'agreements', label: 'Agreements', icon: ScrollText, description: 'Funding status & event reporting' },
+        { key: 'operations', label: 'Operations', icon: Receipt, description: 'Disbursements, collections & reconciliation', badge: 'New' },
+        { key: 'analytics', label: 'Analytics', icon: TrendingUp, description: 'Portfolio KPIs, aging/NPL & exports', badge: 'New' },
         { key: 'profile', label: 'Institution Profile', icon: Building2, description: 'Org facts & financier profile' },
+      ],
+    },
+    {
+      label: 'Compliance',
+      items: [
+        { key: 'sharia', label: 'Sharia & Contracts', icon: Scale, description: 'Certifications, contract templates & e-signatures', badge: 'New' },
       ],
     },
     {
@@ -361,6 +369,9 @@ export const FINANCIER_NAV: NavConfig = {
     offers: { title: 'Offers', description: 'Compose binding offers with installment schedules, send and withdraw.' },
     accreditations: { title: 'Accreditations', description: 'Forwarded accreditation requests — grant, reject or revoke.' },
     agreements: { title: 'Agreements', description: 'Accepted offers — report funding progress and money events (track-only).' },
+    operations: { title: 'Operations', description: 'Disbursement queue, installment collections and daily rail reconciliation.' },
+    analytics: { title: 'Portfolio Analytics', description: 'Approval rates, disbursed volume, aging/NPL buckets and exports.' },
+    sharia: { title: 'Sharia & Contracts', description: 'Scholar certifications, versioned contract templates and the e-signature evidence ledger.' },
     profile: { title: 'Institution Profile', description: 'Your organization, license and contact facts on Vendora.' },
     team: { title: 'Team & Roles', description: 'Your institution staff — underwriters, reviewers and branch officers — with scoped roles and email invitations.' },
   },

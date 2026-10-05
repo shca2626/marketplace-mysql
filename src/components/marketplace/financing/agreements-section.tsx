@@ -11,6 +11,8 @@ import { motion } from 'framer-motion'
 import { CalendarClock, ChevronDown, CircleDollarSign, ScrollText, Wallet } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
 import type { FinancingAgreementDTO } from '@/lib/types'
+import { BuyerStatement } from '@/components/marketplace/financing/buyer-statement'
+import { EsignFlow } from '@/components/marketplace/financing/esign-flow'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -185,6 +187,15 @@ export function AgreementsSection() {
                         </ol>
                       )}
                     </div>
+
+                    {/* Phase 10.4 — agreement execution (e-signature evidence
+                        package; renders nothing while unavailable/already
+                        signed — the component decides). */}
+                    <EsignFlow agreementId={a.id} agreementNumber={a.number} onSigned={refetch} />
+
+                    {/* Phase 10.8 — the buyer-obligation ledger: installment
+                        statement with paid/outstanding/overdue + aging. */}
+                    <BuyerStatement agreementId={a.id} currency={a.offer.currency} />
                   </div>
                 )}
               </CardContent>

@@ -33,6 +33,9 @@ import { InboxSection } from '@/components/marketplace/financier/inbox-section'
 import { OffersSection } from '@/components/marketplace/financier/offers-section'
 import { AccreditationsSection } from '@/components/marketplace/financier/accreditations-section'
 import { AgreementsSection } from '@/components/marketplace/financier/agreements-section'
+import { OperationsSection } from '@/components/marketplace/financier/operations-section'
+import { AnalyticsSection } from '@/components/marketplace/financier/analytics-section'
+import { ShariaSection } from '@/components/marketplace/financier/sharia-section'
 import { ProfileSection } from '@/components/marketplace/financier/profile-section'
 import { TeamSection } from '@/components/marketplace/financier/team-section'
 import { ActivationSection } from '@/components/marketplace/financier/activation-section'
@@ -125,6 +128,9 @@ function FinancierConsole() {
       {section === 'offers' && <OffersSection />}
       {section === 'accreditations' && <AccreditationsSection />}
       {section === 'agreements' && <AgreementsSection />}
+      {section === 'operations' && <OperationsSection />}
+      {section === 'analytics' && <AnalyticsSection />}
+      {section === 'sharia' && <ShariaSection />}
       {section === 'profile' && <ProfileSection />}
       {section === 'team' && <TeamSection />}
     </DashboardLayout>

@@ -621,3 +621,31 @@ Stage Summary:
   refused when commerce history is attached. Bulk actions write one audit entry per action.
 - NOT committed/pushed (per task instructions — main session commits); work record in
   agent-ctx/9-2a-admin-products.md.
+
+---
+Task ID: 10-0
+Agent: main session
+Task: Phase 10 foundation (lastplan v5 §10 — Financier Operations 100%): full schema design + push + parallel-safe UI wiring.
+
+Work Log:
+- Phase 9 verified saved/pushed/synced: tree clean, main == origin/main at b7da1ca (user request #1 complete — nothing was pending).
+- Read lastplan v5 §10: 10.1 portfolio analytics, 10.2 risk scoring, 10.3 Sharia artifacts, 10.4 e-signature evidence package, 10.5 disbursement ops, 10.6 collections & statements, 10.7 branch ops + underwriting limits, 10.8 installment payment model, 10.9 Murabaha checkout (gated).
+- Schema foundation appended to prisma/schema.prisma (10 new models, ZERO Json columns per module convention — MediumText payloads):
+  InstallmentPayment (receive/reverse via self-relation, never rewrites) + InstallmentAllocation (waterfall applications) + PaymentReconciliation (rail-vs-ledger discrepancy queue) [10.8];
+  DisbursementRecord (QUEUED→CONFIRMED w/ rail reference + ExchangeRate FX snapshot link) [10.5];
+  RiskConfig (6 factor weights, autoDecisionEnabled default false) + RiskAssessment (factors MediumText JSON, decision DECISION_SUPPORT|AUTO_*) [10.2];
+  ShariaCertification (expiry + reminderSentAt) + FinancingContractTemplate (kind+version unique, sha256, DRAFT|ACTIVE|RETIRED) [10.3];
+  ESignatureExecution (agreementId unique, documentSha256 fail-closed, signerMfaVerifiedAt, consentText, IP/UA, signatureImage→MediaAsset, evidence MediumText) [10.4];
+  UnderwritingLimit (scopeKey unique: org | org:user | branch | branch:user; resolution most-specific-wins) [10.7];
+  Order.financingAgreementId → FinancingAgreement (FinancedOrders) [10.9-ready].
+  Back-relations added: User (+8), FinancierProfile (+4), FinancierBranch, FinancingRequest, FinancingOfferInstallment, FinancingAgreement (+5), MediaAsset, ExchangeRate.
+- Pushed to Aiven: prisma validate ✓ → format ✓ → db push ✓ (client regenerated).
+- Parallel-safe UI wiring (subagents must NOT edit shared view files): 5 stub components created — financier/operations-section.tsx (10-a), financier/analytics-section.tsx (10-b), financier/sharia-section.tsx (10-c), financing/buyer-statement.tsx (10-a), financing/esign-flow.tsx (10-c). FINANCIER_NAV: Portfolio group + Operations + Analytics, new Compliance group + Sharia & Contracts (+titles). financier-view.tsx mounts all three. Buyer financing/agreements-section.tsx mounts EsignFlow + BuyerStatement per agreement row.
+- Verification: tsc 166 == 166 baseline (zero new); eslint zero problems on all 8 touched files.
+
+Stage Summary:
+- Phase 10 data substrate is live on Aiven; three parallel tasks can now build services/APIs/UI without touching schema or shared files:
+  10-a = installments+disbursements+reconciliation+statements (fills operations-section.tsx + buyer-statement.tsx)
+  10-b = analytics+risk+limits+branch-scoping (fills analytics-section.tsx)
+  10-c = sharia+contracts+e-signature (fills sharia-section.tsx + esign-flow.tsx)
+  10-d/10-e = Murabaha checkout (10.9) AFTER 10.1–10.8 E2E green + precondition docs.
