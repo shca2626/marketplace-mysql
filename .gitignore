@@ -38,8 +38,7 @@ yarn-error.log*
 # the pattern below is what actually keeps it out (comments alone do nothing
 # for already-tracked files; it is also untracked from the index).
 # A fresh clone boots fine without it: copy `.env.example` → `.env`.
-.env
-.env.*
+
 !.env.example
 
 # typescript
