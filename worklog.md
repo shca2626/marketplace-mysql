@@ -346,3 +346,42 @@ Stage Summary:
   CLI commands (with-env.sh wrappers), and agent behavior (CLAUDE.md + cron step 0).
 - .env stays git-ignored (public repo) but is recoverable in one command forever.
 - Next: dev task — unify 'fx' + 'currency' admin tabs into one Currencies console.
+
+---
+Task ID: 10
+Agent: main (z.ai code)
+Task: Unify 'fx' + 'currency' admin tabs into ONE Currencies & FX console + post-merge
+verification (negative-authz suite) + full protocol-compliant delivery cycle.
+
+Work Log:
+- NEW src/components/marketplace/admin/currencies-console.tsx — one console, sticky
+  pill-nav (same pattern as WhatsApp Channels): "Live Rates & Pins" (Phase 8 engine)
+  + "Currencies & Rate History" (Phase 7.2 ledger). Cross-link: per-row History icon
+  in Live Rates jumps to that pair's filtered ledger.
+- fx-tab.tsx: +initialPair prop (parent remounts with key so the pair applies cleanly).
+- currency-tab.tsx: +onViewHistory callback → per-row History icon button (USD disabled).
+- nav-config.ts: two Finance entries ('fx' + 'currency' w/ Zap icon + New badge) merged
+  into single 'currencies' (Coins, pricing.view); titles map unified; Zap import removed.
+- admin-view.tsx: renders CurrenciesConsole for 'currencies'; old imports/renders gone.
+- PROTOCOL PROVEN LIVE mid-task: dev server died (sandbox OOM/reap) → `bash
+  scripts/bootstrap.sh` detected :3000 down, restarted with the Aiven env, verified
+  healthy — zero manual discovery, exactly what the owner demanded.
+- E2E (agent-browser, qa-admin): login → ?view=admin&tab=currencies renders header +
+  2 pills; Live Rates table 14 currencies w/ KPI strip; YER row History icon →
+  history pill + "History — USD → YER" ledger showing 535.5 ADMIN (pin) /
+  236.904274 LIVE:er-api / 530 SEED — the immutable rate history end-to-end;
+  back-navigation restores Live Rates (14 rows again, YER 535.5 confirmed).
+- bunx eslint on all 5 touched files: 0 problems. Full `bun run lint`: guard-lint
+  248 routes, zero drift/shadows/bare guards/audit-atomicity drift.
+- negative-authz suite (with-env.sh wrapped): 20 passed, 0 failed →
+  audit/negative-suite-2026-10-05.md (post-merge RBAC regression clean).
+- bun run db:push → "The database is already in sync with the Prisma schema" (Aiven).
+
+Stage Summary:
+- Admin sidebar now has ONE "Currencies & FX" entry covering the whole money pipeline:
+  live feeds, market pins, display config, currency directory, and the auditable
+  ExchangeRate ledger — cross-linked (row → pair history) — nothing hardcoded.
+- 15-min webDevReview cron (job 438490) now enforces the CLAUDE.md protocol (step 0).
+- Next candidates: pair a real WhatsApp sender from the admin UI (needs a real phone);
+  consider surfacing rate-history sparkline in the Live Rates rows; storefront
+  currency-switcher mobile polish.

@@ -96,9 +96,14 @@ function formatRate(rate: number): string {
 
 // ── FX tab ───────────────────────────────────────────────────────────────────
 
-export function FxTab() {
+export function FxTab({ initialPair }: { initialPair?: { base: string; quote: string } | null }) {
   // Selected pair drives the history section (click a row to filter).
-  const [selectedPair, setSelectedPair] = useState<{ base: string; quote: string } | null>(null)
+  // `initialPair` comes from the unified console's cross-link (Live Rates →
+  // "view history" per row); the parent remounts us with a key so it applies
+  // on mount rather than fighting user clicks.
+  const [selectedPair, setSelectedPair] = useState<{ base: string; quote: string } | null>(
+    initialPair ?? null
+  )
 
   // Main console payload — history is filtered server-side by the pair.
   const historyQuery = new URLSearchParams()

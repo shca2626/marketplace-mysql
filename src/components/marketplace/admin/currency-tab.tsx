@@ -13,6 +13,7 @@ import {
   Coins,
   Gauge,
   HandCoins,
+  History,
   Loader2,
   Pencil,
   RefreshCw,
@@ -93,7 +94,7 @@ function SourceBadge({ row }: { row: CurrencyRow }) {
   )
 }
 
-export function CurrencyTab() {
+export function CurrencyTab({ onViewHistory }: { onViewHistory?: (code: string) => void }) {
   const { data, loading, error, refetch } = useApi<{ currencies: CurrencyRow[]; settings: SettingsShape }>(
     '/api/admin/currency'
   )
@@ -401,6 +402,19 @@ export function CurrencyTab() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
+                          {onViewHistory && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              disabled={row.code === 'USD'}
+                              onClick={() => onViewHistory(row.code)}
+                              aria-label={`View ${row.code} rate history`}
+                              title="View rate history & ledger"
+                            >
+                              <History size={14} />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"
