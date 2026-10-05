@@ -2951,6 +2951,17 @@
       "permissionKeys": [],
       "moduleKeys": [],
       "notes": "Private-vault authenticated proxy (6.6.4): session re-authenticated per retrieval; HMAC-signed one-time nonce (VaultAccessGrant) verified + atomically consumed; access RE-authorized against the 6.8 matrix (owner / financing.documents.verify / org member per class / financier review scope) inside consumeVaultUrl — not a static permission key. Cache-Control: no-store; never redirects to storage/CDN."
+    },
+    {
+      "route": "/api/financing/murabaha/prequalify",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [
+        "financing-hub"
+      ]
     }
   ]
 }

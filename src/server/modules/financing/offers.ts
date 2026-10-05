@@ -430,7 +430,7 @@ async function acceptOfferCore(
   // sibling offers across the multi-group also auto-decline (plan flow 7)
   const request = await tx.financingRequest.findUnique({
     where: { id: offer.requestId },
-    select: { multiGroupId: true, status: true },
+    select: { multiGroupId: true, status: true, targetType: true, targetId: true },
   })
   if (request?.multiGroupId) {
     const siblingIds = await tx.financingRequest.findMany({
@@ -467,6 +467,15 @@ async function acceptOfferCore(
       status: 'ACCRUED',
     },
   })
+  // 10.9 Murabaha checkout: an accepted offer on an ORDER-targeted request
+  // links the financed order to this agreement (FUNDED arrives at disbursement
+  // confirm — the buyer obligation stays on the financing ledger, never PAID).
+  if (request?.targetType === 'ORDER' && request.targetId) {
+    await tx.order.update({
+      where: { id: request.targetId },
+      data: { financingAgreementId: agreement.id },
+    })
+  }
   return agreement.id
 }
 

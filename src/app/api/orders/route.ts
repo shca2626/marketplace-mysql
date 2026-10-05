@@ -29,7 +29,7 @@ const checkoutSchema = z.object({
   zip: z.string().min(3, 'ZIP code is required').max(20),
   phone: z.string().max(30).optional().nullable(),
   couponCode: z.string().trim().max(24).optional().nullable(),
-  paymentMethod: z.enum(['CARD', 'BANK_TRANSFER']).optional(), // absent = CARD (legacy callers)
+  paymentMethod: z.enum(['CARD', 'BANK_TRANSFER', 'MURABAHA']).optional(), // absent = CARD (legacy callers); MURABAHA = Finance-it checkout (10.9)
 })
 
 /** 7.3.1: thrown inside the checkout transaction when a conditional atomic
@@ -73,6 +73,14 @@ export async function POST(req: NextRequest) {
     }
     const { items, couponCode: rawCouponCode, paymentMethod, ...shipping } = parsed.data
     const method = paymentMethod ?? 'CARD'
+
+    // 10.9 Finance-it (Murabaha): pre-qualification gate — KYC L2+ (identity
+    // docs verified). Fail-closed BEFORE the order transaction; the buyer
+    // falls back to card / bank transfer in the UI.
+    if (method === 'MURABAHA') {
+      const { assertMurabahaPreQualified } = await import('@/server/modules/financing/murabaha')
+      await assertMurabahaPreQualified(user.id)
+    }
 
     // Deduplicate + validate stock (product-level and, when selected, variant-level)
     const productIds = [...new Set(items.map((i) => i.productId))]
@@ -306,7 +314,9 @@ export async function POST(req: NextRequest) {
           // buyer's wire + operator capture; approval-routed orders pay after
           // the org clears them.
           status: routeForApproval ? 'PENDING_APPROVAL' : method === 'CARD' ? 'PAID' : 'PENDING_PAYMENT',
-          // 7.7 dimension split — money dimension mirrors the legacy gate
+          // 7.7 dimension split — money dimension mirrors the legacy gate.
+          // 10.9 MURABAHA: AWAITING_PAYMENT until disbursement → FUNDED
+          // (never PAID — the buyer obligation lives on the financing ledger).
           paymentStatus: 'AWAITING_PAYMENT',
           fulfillmentStatus: 'UNFULFILLED',
           currency: 'USD',
@@ -412,6 +422,10 @@ export async function POST(req: NextRequest) {
           requester: { id: user.id, name: user.name },
           amount: pricing.total,
         })
+      } else if (method === 'MURABAHA') {
+        // 10.9 Finance-it: NO Payment row — the financing request replaces
+        // the payment rail (the financier disburses to the sellers). The
+        // linked FinancingRequest is minted AFTER the transaction commits.
       } else {
         // Money settlement — CARD succeeds inline (simulated gateway);
         // BANK_TRANSFER parks the order in PENDING_PAYMENT with instructions.
@@ -452,6 +466,20 @@ export async function POST(req: NextRequest) {
       await notifyOrderPaid(order.id)
     }
 
+    // 10.9 Finance-it (Murabaha): mint + submit the linked order-financing
+    // request AFTER the tx commits (the platform gate R-4 stays intact —
+    // admins forward it like any other request).
+    let murabahaFinancing: { requestId: string; requestNumber: string } | null = null
+    if (method === 'MURABAHA') {
+      const { createOrderFinancingRequest } = await import('@/server/modules/financing/murabaha')
+      murabahaFinancing = await createOrderFinancingRequest(user.id, {
+        id: order.id,
+        total: pricing.total,
+        currency: 'USD',
+        city: shipping.city,
+      })
+    }
+
     const paymentRow = await db.payment.findUnique({ where: { orderId: order.id } })
 
     return NextResponse.json(
@@ -459,6 +487,7 @@ export async function POST(req: NextRequest) {
         order: serializeOrder(order),
         pendingApproval: routeForApproval,
         pendingPayment: order.status === 'PENDING_PAYMENT',
+        financing: murabahaFinancing,
         payment: paymentRow
           ? {
               method: paymentRow.method,
@@ -497,6 +526,12 @@ export async function POST(req: NextRequest) {
       )
     }
     console.error('orders POST error', err)
+    // 10.9: the pre-qualification gate raises a typed FinancingError —
+    // surface its message (400), not a generic 500.
+    const { FinancingError } = await import('@/server/modules/financing/shared')
+    if (err instanceof FinancingError) {
+      return NextResponse.json({ error: err.message }, { status: err.status })
+    }
     return NextResponse.json({ error: 'Checkout failed' }, { status: 500 })
   }
 }

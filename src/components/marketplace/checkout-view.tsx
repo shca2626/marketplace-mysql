@@ -15,6 +15,7 @@ import {
   Lock,
   MailCheck,
   MapPin,
+  Scale,
   ShieldCheck,
   Ticket,
   Wand2,
@@ -119,6 +120,7 @@ export function CheckoutView() {
     instructions: string | null
     dueAt: string | null
   } | null>(null)
+  const [placedFinancing, setPlacedFinancing] = useState<{ requestId: string; requestNumber: string } | null>(null)
   const [placedPricing, setPlacedPricing] = useState<{ discount: number; couponCode: string | null } | null>(null)
 
   // ── Coupon state ──
@@ -130,10 +132,21 @@ export function CheckoutView() {
   // ── Payment state (demo card fields — display only, never stored) ──
   // 'card' → paymentMethod CARD (simulated gateway, instant confirmation)
   // 'bank' → paymentMethod BANK_TRANSFER (order parks in PENDING_PAYMENT)
-  const [payMethod, setPayMethod] = useState<'card' | 'bank'>('card')
+  // 'murabaha' → paymentMethod MURABAHA (10.9 Finance-it — KYC L2+ gate,
+  // order parks AWAITING_PAYMENT → FUNDED at disbursement; the installment
+  // obligation lives on the financing ledger, never conflated with the order)
+  const [payMethod, setPayMethod] = useState<'card' | 'bank' | 'murabaha'>('card')
   const [card, setCard] = useState({ number: '', expiry: '', cvc: '' })
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [paidWith, setPaidWith] = useState<{ method: 'card'; last4?: string } | null>(null)
+
+  // ── 10.9 Finance-it (Murabaha) pre-qualification ──
+  const { data: preqData } = useApi<{
+    prequalified: { qualified: boolean; kycLevel: number; requiredLevel: number; reason: string; services: { financierOrgName: string }[] }
+  }>(user ? '/api/financing/murabaha/prequalify' : null)
+  const murabahaQualified = preqData?.prequalified.qualified ?? false
+  const murabahaReason = preqData?.prequalified.reason ?? ''
+  const murabahaServiceCount = preqData?.prequalified.services?.length ?? 0
 
   // Payment options offered by the platform — CARD runs on the simulated
   // gateway; a manual-only deployment (PAYMENT_DRIVER=manual) lists bank
@@ -307,7 +320,7 @@ export function CheckoutView() {
           ...form,
           phone: form.phone || null,
           couponCode: appliedCoupon?.code ?? null,
-          paymentMethod: payMethod === 'card' ? 'CARD' : 'BANK_TRANSFER',
+          paymentMethod: payMethod === 'card' ? 'CARD' : payMethod === 'bank' ? 'BANK_TRANSFER' : 'MURABAHA',
         }),
       })
       const json = await res.json()
@@ -319,10 +332,16 @@ export function CheckoutView() {
       setPlacedPricing(json.pricing ?? null)
       setPlacedPendingApproval(!!json.pendingApproval)
       setPlacedPendingPayment(!!json.pendingPayment)
+      setPlacedFinancing(json.financing ?? null)
       setPlacedPayment(json.payment ?? null)
       clearCart()
       toast(
-        json.pendingApproval
+        json.financing
+          ? {
+              title: 'Financing request submitted 🕌',
+              description: `Your order is reserved and financing request ${json.financing.requestNumber} was submitted. Once a financier's offer is accepted and disbursed, the order ships — you pay the financier in installments.`,
+            }
+          : json.pendingApproval
           ? {
               title: 'Sent for approval 🕐',
               description: 'Your organization must approve this order before it reaches the seller.',
@@ -470,8 +489,36 @@ export function CheckoutView() {
                 </span>
               </div>
 
+              {/* Murabaha — financing tracking card (10.9) */}
+              {placedFinancing && (
+                <div className="space-y-3 rounded-xl border border-bh-gold/40 bg-bh-gold/5 p-4 text-left">
+                  <div className="flex items-center gap-2">
+                    <Scale size={15} className="shrink-0 text-bh-gold-dark" />
+                    <p className="text-xs font-semibold uppercase tracking-wide text-bh-gold-dark">
+                      Financed — Murabaha
+                    </p>
+                  </div>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    Your order is reserved. Financing request{' '}
+                    <span className="font-mono font-bold text-foreground">{placedFinancing.requestNumber}</span> is
+                    with the platform verification gate — once a financier&rsquo;s offer is accepted, the agreement is
+                    signed and the financier disburses, this order ships and your installments begin. Your payment
+                    status will read <span className="font-semibold">FUNDED</span> — the installment obligation lives
+                    on the financing ledger, separately from this order.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-xl"
+                    onClick={() => navigate('financing', { financingSection: 'requests', requestId: placedFinancing.requestId })}
+                  >
+                    <Scale size={14} className="mr-1.5" /> Track my financing request
+                  </Button>
+                </div>
+              )}
+
               {/* Bank transfer — wire instructions + reference */}
-              {placedPendingPayment && (
+              {placedPendingPayment && !placedFinancing && (
                 <div className="space-y-3 rounded-xl border border-amber-500/40 bg-amber-500/5 p-4 text-left">
                   <div className="flex items-center gap-2">
                     <Landmark size={15} className="shrink-0 text-amber-600 dark:text-amber-400" />
@@ -713,6 +760,31 @@ export function CheckoutView() {
                     <p className="text-xs text-muted-foreground">{bankDescription}</p>
                   </div>
                   <span className="text-[10px] font-semibold uppercase text-muted-foreground">Manual</span>
+                </Label>
+                <Label
+                  htmlFor="pay-murabaha"
+                  className={`flex items-center gap-3 rounded-xl border-2 p-4 transition-colors ${
+                    murabahaQualified ? 'cursor-pointer has-[[data-state=checked]]:border-primary' : 'cursor-not-allowed opacity-70'
+                  }`}
+                >
+                  <RadioGroupItem value="murabaha" id="pay-murabaha" disabled={!murabahaQualified} />
+                  <Scale size={18} className="text-muted-foreground" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">
+                      Finance it (Murabaha)
+                      <span className="ml-2 rounded-full bg-bh-gold/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-bh-gold-dark">
+                        Islamic financing
+                      </span>
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {murabahaQualified
+                        ? `Buy now, pay the financier in installments — ${murabahaServiceCount} participating institution${murabahaServiceCount === 1 ? '' : 's'}`
+                        : murabahaReason || 'Requires identity verification (level 2) — pay by card or bank transfer instead.'}
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-semibold uppercase text-muted-foreground">
+                    {murabahaQualified ? 'Sharia' : 'Locked'}
+                  </span>
                 </Label>
               </RadioGroup>
 

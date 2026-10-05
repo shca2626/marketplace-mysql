@@ -356,6 +356,20 @@ export async function confirmDisbursement(
         reportedById: staffUserId,
       },
     })
+    // 10.9 Murabaha checkout: financed orders go FUNDED on disbursement —
+    // never PAID. The buyer obligation stays on the financing ledger
+    // (installments) until the agreement settles; sellers see the order as
+    // paid-to-them and fulfillment unlocks (legacy status PAID).
+    const financed = await tx.order.findMany({
+      where: { financingAgreementId: record.agreementId },
+      select: { id: true },
+    })
+    if (financed.length > 0) {
+      await tx.order.updateMany({
+        where: { financingAgreementId: record.agreementId },
+        data: { paymentStatus: 'FUNDED', status: 'PAID' },
+      })
+    }
   })
 
   await recordAudit({

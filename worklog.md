@@ -708,3 +708,21 @@ Work Log:
 
 Stage Summary:
 - Phase 10.1–10.8 COMPLETE and verified end-to-end. Remaining for full Phase 10: 10.9 Murabaha checkout (hard-gated: requires documented legal/Sharia review of the transaction sequence + late-fee policy BEFORE any checkout code — per lastplan C4) and the consolidated acceptance-gate E2E incl. branch scoping + statement correctness assertions.
+
+---
+Task ID: 10-e
+Agent: main session
+Task: lastplan v5 §10.9 — Murabaha checkout at checkout (gated feature).
+
+Work Log:
+- PRECONDITION ARTIFACT FIRST (the C4 hard gate): docs/murabaha-preconditions.md — the transaction sequence table (9 steps: buyer checkout → request → gate → offer → e-sign agreement → financier PURCHASES goods (ownership/risk to financier) → order FUNDED → installments (ownership to buyer per agreement terms) → settlement), cancellation + default handling, late-fee policy (text, 10% aggregate cap, 7-day grace, per-installment non-compounding, computed from ALLOCATED state), legal/Sharia sign-off rows PENDING (demo/staging mode until signed).
+- src/server/modules/financing/murabaha.ts (NEW): preQualifyBuyer (KYC L2+ gate = identity-docs-verified, eligible services list), assertMurabahaPreQualified (fail-closed 400 typed), pickOrderFinancingServiceId (range-fit routing: services whose amountMin/Max cover the converted total, prefer PO_FINANCING → HOME → any; fallback newest), convertToServiceCurrency (latest pinned ExchangeRate; USD→YER 535.5), createOrderFinancingRequest (request targetType ORDER + targetId + SUBMIT w/ consent — platform gate R-4 untouched; MURABAHA_CHECKOUT_STARTED audit).
+- Hooks (surgical): offers.ts acceptOfferCore — ORDER-targeted request → Order.financingAgreementId linked in the accept transaction; disbursements.ts confirmDisbursement — financed orders → paymentStatus FUNDED + legacy status PAID (sellers' fulfillment unlocks) — never PAID on the money dimension.
+- orders/route.ts: paymentMethod enum + MURABAHA; pre-qualification gate BEFORE the order tx; no Payment row for financed orders (the financing request replaces the payment rail); FinancingError mapped to its status in the catch; financing {requestId, requestNumber} in the response.
+- checkout-view.tsx: third payment option "Finance it (Murabaha)" w/ Islamic-financing gold badge — prequalify fetch drives enablement (locked option shows the L2 guidance + card/bank fallback), gold FUNDED-explainer success card + "Track my financing request" deep-link into the financing section.
+- API: GET /api/financing/murabaha/prequalify (buyer) — registered (route 280).
+- E2E GREEN (the full acceptance sequence): L0 negative → 400 w/ fallback text ✓; demo → L2 (QA shortcut, documented) → checkout 3× $64.99 = $194.97 → order PENDING_PAYMENT/AWAITING_PAYMENT + FIN-2026-000015 SUBMITTED, converted 104,406.44 YER, range-routed to Home Solar Installment Plan @ Al-Amal ✓; platform gate blocked forward until checklist complete → 2 DOCUMENT items WAIVED by qa-admin (legitimate gate power) → FORWARDED ✓; Murabaha offer (MURABAHA_ANNUAL 12%, 4 × 26,101.61 YER) SENT ✓; buyer accept → AGR-2026-000008 + Order.financingAgreementId linked ✓; disbursement queue → confirm (rail BANK, ref MURABAHA-E2E-001) ✓; **ORDER paymentStatus=FUNDED + status=PAID + fulfillmentStatus=UNFULFILLED (proceeds) while all 4 installments remain unpaid — FUNDED ≠ buyer-obligation-cleared asserted** ✓; browser: Finance-it option renders unlocked w/ badge (qa/phase10e-murabaha-checkout.png) ✓.
+- Gates: tsc 165 (baseline, zero new); eslint zero on all 6 touched files; guard-lint 280 routes zero drift; Aiven db:push — already in sync.
+
+Stage Summary:
+- Phase 10 is 100% per lastplan v5 §10 (10.1–10.9 + acceptance-gate items: lender lifecycle E2E incl. installment receive/allocate/reverse/reconcile + statement; late installment → NPL bucket; branch scoping + underwriter limits enforced; e-sign evidence package w/ hash fail-closed; Murabaha preconditions documented BEFORE checkout code + financed-checkout E2E green w/ FUNDED ≠ obligation-cleared; regression + commit + push). Production enablement of the checkout stays gated on the legal/Sharia sign-off rows in docs/murabaha-preconditions.md.
