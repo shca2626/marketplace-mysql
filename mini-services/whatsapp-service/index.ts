@@ -82,6 +82,66 @@ ensureDatabaseUrl()
 const TOKEN = process.env.WHATSAPP_SERVICE_TOKEN ?? 'vendora-internal'
 const prisma = new PrismaClient()
 
+// ── WA-CHAT: {{variable}} rendering — LOCAL COPY of
+// src/server/modules/whatsapp/variables.ts (this is a separate project and
+// cannot import src/ — keep the semantics identical: system vars from ctx,
+// custom vars from the campaign map, unknown vars REMOVED so a raw
+// {{placeholder}} is NEVER sent to a customer). ──────────────────────────────
+
+const SYSTEM_VARIABLE_KEYS = new Set([
+  'name',
+  'first_name',
+  'store_name',
+  'phone',
+  'email',
+  'role',
+  'date',
+  'time',
+  'app',
+])
+
+interface LocalUser {
+  name: string
+  email: string | null
+  phone: string | null
+  role: string
+  storeName: string | null
+}
+
+const LOCAL_ROLE_LABELS: Record<string, string> = { BUYER: 'Buyer', SELLER: 'Seller', ADMIN: 'Admin' }
+
+/** Same semantics as the Next-side buildUserContext (wa-chat-0 contract). */
+function buildLocalUserContext(user: LocalUser | null, phone: string): Record<string, string> {
+  const now = new Date()
+  const name = user?.name?.trim() || 'عميلنا العزيز'
+  return {
+    name,
+    first_name: name.split(/\s+/)[0] ?? 'عميلنا العزيز',
+    store_name: user?.storeName?.trim() || name,
+    phone: user?.phone?.trim() || phone,
+    email: user?.email?.trim() || '—',
+    role: LOCAL_ROLE_LABELS[user?.role ?? ''] ?? 'Customer',
+    date: now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+    time: now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+    app: 'Vendora',
+  }
+}
+
+/** Renders {{variables}}: system from ctx, custom from the map, unknown REMOVED
+ *  (never raw), doubled spaces collapsed. */
+function renderBody(
+  body: string,
+  ctx: Record<string, string>,
+  custom?: Record<string, string> | null
+): string {
+  const rendered = body.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (_raw, key: string) => {
+    if (SYSTEM_VARIABLE_KEYS.has(key)) return ctx[key] ?? ''
+    if (custom && Object.prototype.hasOwnProperty.call(custom, key)) return custom[key] ?? ''
+    return '' // unknown variable → removed, never sent raw
+  })
+  return rendered.replace(/ {2,}/g, ' ').trim()
+}
+
 // ── Logger — pino (Baileys' own logger; silent keeps the service log clean)
 
 const noopLogger = pino({ level: 'silent' })
@@ -305,8 +365,9 @@ async function connect(s: SenderSession): Promise<void> {
   sock.ev.on('connection.update', (u: Partial<ConnectionState>) => {
     void onConnectionUpdate(s, u)
   })
-  // WA-BIZ — chatbot auto-reply: evaluate every LIVE incoming text against
-  // the ACTIVE ChatbotRule rows (priority asc, first match wins) and reply on
+  // WA-CHAT — unified inbox pipeline: every live inbound text opens (or
+  // resumes) a WhatsAppChatThread, is persisted as an IN ChatMessage, and —
+  // when the thread has auto-reply on — is answered by the chatbot rules on
   // this same socket. Everything is wrapped so the socket can never crash.
   sock.ev.on('messages.upsert', (upsert: { messages: WAMessage[]; type: string }) => {
     try {
@@ -321,7 +382,7 @@ async function connect(s: SenderSession): Promise<void> {
           if (!jid || !jid.endsWith('@s.whatsapp.net')) continue // skip groups ('@g.us') + status broadcasts
           const text = msg.message.conversation ?? msg.message.extendedTextMessage?.text
           if (!text || !text.trim()) continue
-          void handleChatbotIncoming(s, jid, text)
+          void handleIncomingMessage(s, jid, text, typeof msg.pushName === 'string' ? msg.pushName : '')
         } catch {
           /* one malformed message never kills the loop */
         }
@@ -917,7 +978,7 @@ async function handleSend(payload: {
   return { status: 200, body: { ok: true } }
 }
 
-// ── WA-BIZ: chatbot auto-reply ──────────────────────────────────────────────
+// ── WA-CHAT: unified inbox pipeline + chatbot auto-reply ─────────────────────
 
 /** The subset of ChatbotRule the matcher needs — keep this shape and the
  * matching semantics in sync with src/server/modules/whatsapp/chatbot.ts
@@ -973,9 +1034,103 @@ function chatbotRuleMatches(rule: ChatbotRuleLite, text: string): boolean {
   }
 }
 
-/** Auto-reply one incoming text on the socket it arrived at. Fully guarded —
- * the socket must never crash because a rule fired badly. */
-async function handleChatbotIncoming(s: SenderSession, remoteJid: string, text: string): Promise<void> {
+interface ChatThreadLite {
+  id: string
+  name: string
+  phone: string | null
+  userId: string | null
+  autoReply: boolean
+}
+
+/**
+ * The FULL inbound pipeline (wa-chat-0 contract):
+ *   1. upsert the WhatsAppChatThread by waJid (name from pushName || phone,
+ *      userId by phone lookup),
+ *   2. persist the IN ChatMessage + thread lastMessage/unreadCount++,
+ *   3. when thread.autoReply → cached rule match (priority asc) → render the
+ *      reply ({{name}} = thread name) → sock.sendMessage,
+ *   4. OUT ChatMessage author `auto-reply: <rule>` + hits++ + ONE
+ *      WhatsAppMessage ledger row (template CHATBOT, status SENT, toPhone
+ *      E.164).
+ * Every stage is independently guarded — the socket can never crash.
+ */
+async function handleIncomingMessage(
+  s: SenderSession,
+  remoteJid: string,
+  text: string,
+  pushName: string
+): Promise<void> {
+  const phone = `+${remoteJid.split('@')[0]}` // E.164 from the jid
+
+  // 1. Upsert the conversation thread for this contact.
+  let thread: ChatThreadLite | null = null
+  try {
+    const existing = await prisma.whatsAppChatThread.findUnique({
+      where: { waJid: remoteJid },
+      select: { id: true, name: true, phone: true, userId: true, autoReply: true },
+    })
+    if (existing) {
+      thread = existing
+      // A thread whose name fell back to the phone gets the pushName once
+      // WhatsApp tells us who the contact is (an agent rename always wins
+      // afterwards — this only fills an EMPTY name).
+      if (!thread.name && pushName) {
+        await prisma.whatsAppChatThread.update({
+          where: { id: thread.id },
+          data: { name: pushName },
+        })
+        thread = { ...thread, name: pushName }
+      }
+    } else {
+      let userId: string | null = null
+      try {
+        const account = await prisma.user.findUnique({
+          where: { phone },
+          select: { id: true },
+        })
+        userId = account?.id ?? null
+      } catch {
+        /* account linking is best-effort */
+      }
+      thread = await prisma.whatsAppChatThread.create({
+        data: {
+          waJid: remoteJid,
+          phone,
+          source: 'WHATSAPP',
+          name: pushName || phone,
+          userId,
+        },
+        select: { id: true, name: true, phone: true, userId: true, autoReply: true },
+      })
+    }
+  } catch (err) {
+    console.error(`[wa-service] thread upsert failed (${phone}):`, err)
+    return
+  }
+
+  // 2. Persist the inbound bubble + bump the thread's last message / unread.
+  try {
+    await prisma.$transaction([
+      prisma.whatsAppChatMessage.create({
+        data: { threadId: thread.id, direction: 'IN', body: text, author: 'visitor' },
+      }),
+      prisma.whatsAppChatThread.update({
+        where: { id: thread.id },
+        data: {
+          lastMessageAt: new Date(),
+          lastMessageBody: text,
+          unreadCount: { increment: 1 },
+        },
+      }),
+    ])
+  } catch (err) {
+    console.error(`[wa-service] inbound message persist failed (${phone}):`, err)
+    return
+  }
+
+  // 3. Auto-reply (per-thread switch) — first ACTIVE rule wins.
+  if (!thread.autoReply) return
+
   let rule: ChatbotRuleLite | undefined
   try {
     const rules = await loadActiveChatbotRules()
@@ -988,40 +1143,60 @@ async function handleChatbotIncoming(s: SenderSession, remoteJid: string, text: 
 
   const sock = s.sock
   if (!sock || s.dead) return
-  const toPhone = `+${remoteJid.split('@')[0]}` // E.164 from the jid
+
+  const ctx = { ...buildLocalUserContext(null, phone), name: thread.name || 'عميلنا العزيز' }
+  const reply = renderBody(rule.reply, ctx)
 
   try {
-    const result = await withTimeout(sock.sendMessage(remoteJid, { text: rule.reply }), 25_000, 'chatbot-reply-timeout')
+    const result = await withTimeout(
+      sock.sendMessage(remoteJid, { text: reply }),
+      25_000,
+      'chatbot-reply-timeout'
+    )
     if (!result) return
   } catch (err) {
-    console.error(`[wa-service] chatbot reply send failed (${toPhone}):`, err)
+    console.error(`[wa-service] chatbot reply send failed (${phone}):`, err)
     return
   }
 
+  // 4. OUT bubble + rule hits + the single WhatsAppMessage ledger row.
   try {
-    await prisma.chatbotRule.update({ where: { id: rule.id }, data: { hits: { increment: 1 } } })
+    await prisma.$transaction([
+      prisma.whatsAppChatMessage.create({
+        data: {
+          threadId: thread.id,
+          direction: 'OUT',
+          body: reply,
+          author: `auto-reply: ${rule.name}`,
+        },
+      }),
+      prisma.chatbotRule.update({
+        where: { id: rule.id },
+        data: { hits: { increment: 1 } },
+      }),
+      prisma.whatsAppMessage.create({
+        data: {
+          senderId: s.senderId,
+          toPhone: phone,
+          template: 'CHATBOT',
+          body: reply,
+          status: 'SENT',
+          userId: thread.userId,
+          sentAt: new Date(),
+        },
+      }),
+      prisma.whatsAppChatThread.update({
+        where: { id: thread.id },
+        data: { lastMessageAt: new Date(), lastMessageBody: reply },
+      }),
+    ])
   } catch (err) {
-    console.error('[wa-service] chatbot hits++ failed:', err)
-  }
-
-  try {
-    await prisma.whatsAppMessage.create({
-      data: {
-        senderId: s.senderId,
-        toPhone,
-        template: 'CHATBOT',
-        body: `[in] ${text.slice(0, 180)} → ${rule.reply.slice(0, 180)}`,
-        status: 'SENT',
-        sentAt: new Date(),
-      },
-    })
-  } catch (err) {
-    console.error('[wa-service] chatbot audit row write failed:', err)
+    console.error(`[wa-service] chatbot reply persist failed (${phone}):`, err)
   }
 
   s.lastSeen = new Date()
   await dbUpdate(s, { lastUsedAt: new Date() })
-  console.log(`[wa-service] chatbot rule "${rule.name}" replied to ${toPhone}`)
+  console.log(`[wa-service] chatbot rule "${rule.name}" replied to ${phone}`)
 }
 
 // ── WA-BIZ: bulk campaign runner ────────────────────────────────────────────
@@ -1114,7 +1289,7 @@ async function campaignLoop(campaignId: string): Promise<void> {
   try {
     const campaign = await prisma.bulkCampaign.findUnique({
       where: { id: campaignId },
-      select: { name: true, body: true, phones: true, sent: true, failed: true },
+      select: { name: true, body: true, variables: true, phones: true, sent: true, failed: true },
     })
     if (!campaign) return
     const phones = (campaign.phones ?? '').split('\n').map((p) => p.trim()).filter(Boolean)
@@ -1125,6 +1300,19 @@ async function campaignLoop(campaignId: string): Promise<void> {
       })
       console.warn(`[wa-service] campaign "${campaign.name}" has an empty phones snapshot — marked FAILED`)
       return
+    }
+
+    // WA-CHAT — custom {{variables}} authored in the dialog (JSON map).
+    // Corrupt JSON degrades to "no custom vars": system variables still
+    // render, unknown ones are REMOVED — never sent raw.
+    let customVars: Record<string, string> = {}
+    try {
+      const parsed: unknown = JSON.parse(campaign.variables ?? '{}')
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        customVars = parsed as Record<string, string>
+      }
+    } catch {
+      customVars = {}
     }
 
     // One default sender for the whole run (same pick as /send without an
@@ -1143,7 +1331,7 @@ async function campaignLoop(campaignId: string): Promise<void> {
     let failed = campaign.failed
     const startIndex = sent + failed // resume continues where the last run stopped
     console.log(
-      `[wa-service] campaign "${campaign.name}" running: ${phones.length - startIndex}/${phones.length} remaining via ${session.phoneNumber}`
+      `[wa-service] campaign "${campaign.name}" running: ${phones.length - startIndex}/${phones.length} remaining via ${session.phoneNumber} (${Object.keys(customVars).length} custom variables)`
     )
 
     for (let i = startIndex; i < phones.length; i++) {
@@ -1170,7 +1358,24 @@ async function campaignLoop(campaignId: string): Promise<void> {
       if (i > startIndex) await sleep(CAMPAIGN_PACE_MS)
 
       const phone = phones[i]
-      const res = await handleSend({ toPhone: phone, body: campaign.body, senderId: null })
+      // WA-CHAT — render the body per recipient: user context from the DB by
+      // phone + the campaign's custom variables. The RENDERED body is what
+      // gets sent and logged — never a raw {{variable}}.
+      let user: LocalUser | null = null
+      try {
+        user = await prisma.user.findUnique({
+          where: { phone },
+          select: { name: true, email: true, phone: true, role: true, storeName: true },
+        })
+      } catch {
+        /* lookup failure renders with the guest context */
+      }
+      const renderedBody = renderBody(
+        campaign.body,
+        buildLocalUserContext(user, phone),
+        customVars
+      )
+      const res = await handleSend({ toPhone: phone, body: renderedBody, senderId: null })
       if (res.status === 503) {
         // No connected session — the run cannot continue meaningfully.
         await prisma.bulkCampaign.update({
@@ -1190,7 +1395,7 @@ async function campaignLoop(campaignId: string): Promise<void> {
             senderId: session.senderId,
             toPhone: phone,
             template: 'MARKETING',
-            body: campaign.body,
+            body: renderedBody, // the RENDERED body — never a raw {{variable}}
             status: ok ? 'SENT' : 'FAILED',
             error: ok ? null : String(res.body.error ?? `service responded ${res.status}`),
             campaignId,

@@ -2011,7 +2011,8 @@ model ChatbotRule {
 model BulkCampaign {
   id          String            @id @default(cuid())
   name        String
-  body        String            @db.Text // final rendered body sent to every recipient
+  body        String            @db.Text // body with {{placeholders}} — rendered per-recipient at send time
+  variables   String?           @db.Text // JSON key/value map for CUSTOM vars ({{discount}} etc.) authored in the dialog
   templateId  String?
   template    WhatsAppTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   audience    String            @default("CUSTOM") // ALL_USERS | BUYERS | SELLERS | CUSTOM
@@ -2028,6 +2029,46 @@ model BulkCampaign {
   updatedAt   DateTime          @updatedAt
 
   @@index([status])
+}
+
+// WA-CHAT — unified conversation inbox. Every inbound WhatsApp message opens
+// (or resumes) a thread; the public webchat widget creates WEBCHAT threads.
+// The admin "Chats" tab is a WhatsApp-Web-like console over these rows.
+model WhatsAppChatThread {
+  id              String   @id @default(cuid())
+  phone           String? // E.164 (WhatsApp threads: the contact; WEBCHAT: visitor phone when given)
+  waJid           String? // raw WhatsApp jid (@s.whatsapp.net) — unique per WA thread
+  source          String   @default("WHATSAPP") // WHATSAPP | WEBCHAT
+  name            String   @default("") // display name (pushName / visitor / user)
+  publicToken     String?   @unique // WEBCHAT only — unguessable widget session key
+  userId          String? // linked platform user when the phone matches an account
+  unreadCount     Int      @default(0)
+  lastMessageAt   DateTime @default(now())
+  lastMessageBody String?  @db.Text
+  autoReply       Boolean  @default(true) // per-thread auto-reply switch (agent mode takes over when off)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  messages WhatsAppChatMessage[]
+
+  @@unique([waJid])
+  @@index([lastMessageAt])
+  @@index([source])
+  @@index([publicToken])
+}
+
+// WA-CHAT — one bubble per row. IN = from the contact/visitor, OUT = sent by
+// auto-reply or a human agent from the admin console.
+model WhatsAppChatMessage {
+  id        String             @id @default(cuid())
+  threadId  String
+  thread    WhatsAppChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  direction String // IN | OUT
+  body      String             @db.Text
+  author    String? // 'auto-reply' | 'agent' | 'visitor' | rule name
+  createdAt DateTime           @default(now())
+
+  @@index([threadId, createdAt])
 }
 
 // Per-user channel toggles — the in-app bell is ALWAYS on; WhatsApp / email /

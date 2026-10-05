@@ -47,6 +47,7 @@ import { RegisterCompanyView } from './register/register-company-view'
 import { RegisterFinancierView } from './register/register-financier-view'
 import { BackToTop } from './back-to-top'
 import { StorefrontTheme } from './storefront-theme'
+import { SupportWidget } from './support-widget'
 
 /** Public shopping surfaces. */
 const STOREFRONT_VIEWS: Record<string, () => React.ReactNode> = {
@@ -97,7 +98,7 @@ export function MarketplaceApp() {
   // and keep state in sync when the user navigates with back/forward.
   useEffect(() => {
     let cancelled = false
-    void useMarketplace.persist.rehydrate().then(markStoreHydrated)
+    void Promise.resolve(useMarketplace.persist.rehydrate()).then(markStoreHydrated)
     if (parseLocation().view !== 'home') applyLocation()
     const onPopState = () => applyLocation()
     window.addEventListener('popstate', onPopState)
@@ -191,6 +192,7 @@ export function MarketplaceApp() {
             </AnimatePresence>
           </main>
           <Footer />
+          <SupportWidget />
           <CartDrawer />
           <AuthModal />
           <BackToTop />

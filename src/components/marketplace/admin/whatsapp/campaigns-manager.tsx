@@ -13,9 +13,10 @@
 // (POST first, then DELETE of the old draft) so a failed save never loses it.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   AlertTriangle,
+  Braces,
   FileText,
   Loader2,
   Megaphone,
@@ -61,13 +62,18 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { AdminEmptyState, apiRequest, toastApiError } from '../shared'
 import {
   CAMPAIGN_AUDIENCE_MAP,
   CAMPAIGN_LIVE_STATUSES,
   CAMPAIGN_STATUS_MAP,
+  ChatBubble,
+  extractCustomVars,
   PulsingDot,
+  renderPreview,
+  SYSTEM_VARIABLES,
   WaBadge,
   type CampaignDTO,
   type ManagerLoaderProps,
@@ -216,6 +222,7 @@ export function CampaignsManager({
             const pulsing = c.status === 'SENDING' || c.status === 'QUEUED'
             const busy = busyId === c.id
             const pct = c.total > 0 ? Math.round((c.sent / c.total) * 100) : 0
+            const varCount = c.variables ? Object.keys(c.variables).length : 0
             return (
               <Card key={c.id} className="rounded-xl">
                 <CardContent className="p-4 sm:p-6">
@@ -231,6 +238,14 @@ export function CampaignsManager({
                           <Users size={10} className="mr-1" />
                           {CAMPAIGN_AUDIENCE_MAP[c.audience] ?? c.audience}
                         </WaBadge>
+                        {varCount > 0 && (
+                          <span title={`Custom variables: ${Object.keys(c.variables ?? {}).join(', ')}`}>
+                            <WaBadge className="border border-dashed border-primary/40 bg-primary/5 font-mono text-[10px] text-primary">
+                              <Braces size={10} className="mr-1" />
+                              {varCount} var{varCount === 1 ? '' : 's'}
+                            </WaBadge>
+                          </span>
+                        )}
                       </div>
 
                       <p dir="auto" className="mt-2 line-clamp-2 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
@@ -467,10 +482,15 @@ function CampaignDialog({
   const [customPhones, setCustomPhones] = useState('')
   const [body, setBody] = useState(editing?.body ?? '')
   const [templateId, setTemplateId] = useState<string>(editing?.templateId ?? 'none')
+  // Custom variable values — rows appear automatically for every non-system
+  // {{token}} in the body; old values survive small body edits.
+  const [varValues, setVarValues] = useState<Record<string, string>>(editing?.variables ?? {})
   const [submitting, setSubmitting] = useState(false)
+  const bodyRef = useRef<HTMLTextAreaElement | null>(null)
 
   const usableTemplates = templates.filter((t) => t.status !== 'ARCHIVED')
   const phoneCount = useMemo(() => parsePhoneList(customPhones).length, [customPhones])
+  const customVars = useMemo(() => extractCustomVars(body), [body])
 
   const valid =
     name.trim().length >= 2 &&
@@ -483,6 +503,23 @@ function CampaignDialog({
     if (t) setBody(t.body)
   }
 
+  /** Insert a variable token at the textarea caret (keeps focus + caret). */
+  function insertVar(token: string) {
+    const el = bodyRef.current
+    if (!el) {
+      setBody((b) => b + token)
+      return
+    }
+    const start = el.selectionStart ?? body.length
+    const end = el.selectionEnd ?? start
+    setBody(body.slice(0, start) + token + body.slice(end))
+    requestAnimationFrame(() => {
+      el.focus()
+      const caret = start + token.length
+      el.setSelectionRange(caret, caret)
+    })
+  }
+
   async function submit() {
     if (submitting || !valid) return
     setSubmitting(true)
@@ -492,6 +529,10 @@ function CampaignDialog({
       body: body.trim(),
       ...(audience === 'CUSTOM' ? { customPhones: parsePhoneList(customPhones).join('\n') } : {}),
       ...(templateId !== 'none' ? { templateId } : {}),
+      // Custom variable map — only tokens still present in the body are sent.
+      ...(customVars.length > 0
+        ? { variables: Object.fromEntries(customVars.map((v) => [v.slice(2, -2).trim(), varValues[v] ?? ''])) }
+        : {}),
     })
 
     if (editing) {
@@ -626,6 +667,7 @@ function CampaignDialog({
               </div>
             )}
             <Textarea
+              ref={bodyRef}
               id="camp-body"
               dir="auto"
               value={body}
@@ -634,6 +676,75 @@ function CampaignDialog({
               rows={5}
               className="rounded-xl"
             />
+            {/* Variable picker — click inserts at the caret */}
+            <div className="space-y-1.5 pt-1">
+              <p className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
+                <Braces size={12} /> Variables — click to insert at the cursor
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {SYSTEM_VARIABLES.map((v) => (
+                  <Tooltip key={v.key}>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => insertVar(v.key)}
+                        className="rounded-md border border-dashed border-primary/40 bg-primary/5 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary transition-colors hover:bg-primary/15"
+                      >
+                        {v.key}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[220px] text-xs">
+                      <span className="font-semibold">{v.label}</span> — {v.description}
+                    </TooltipContent>
+                  </Tooltip>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Custom variables — rows auto-detected from the body */}
+          {customVars.length > 0 && (
+            <div className="space-y-2">
+              <div>
+                <p className="flex items-center gap-1 text-sm font-medium">
+                  <Braces size={14} className="text-primary" /> Custom variables
+                </p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  Auto-detected from the message — each value is sent as plain text (e.g. 20%).
+                </p>
+              </div>
+              <div className="space-y-2 rounded-xl border bg-muted/30 p-3">
+                {customVars.map((v) => {
+                  const key = v.slice(2, -2).trim()
+                  return (
+                    <div key={v} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] items-center gap-2">
+                      <span dir="auto" className="truncate rounded-md bg-muted px-2 py-1.5 font-mono text-xs" title={v}>
+                        {v}
+                      </span>
+                      <Input
+                        dir="auto"
+                        value={varValues[v] ?? ''}
+                        onChange={(e) => setVarValues((prev) => ({ ...prev, [v]: e.target.value }))}
+                        placeholder={`Value for ${key}…`}
+                        className="h-9 rounded-lg"
+                        aria-label={`Value for ${v}`}
+                        maxLength={200}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Live WhatsApp-style preview — mock recipient + custom values */}
+          <div className="space-y-1.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Live preview</p>
+            <div className="rounded-xl border bg-muted/50 p-3">
+              <div className="ml-auto w-fit max-w-[85%]">
+                <ChatBubble body={renderPreview(body.trim() || 'Your message preview…', varValues)} />
+              </div>
+            </div>
           </div>
         </div>
 

@@ -8,7 +8,7 @@
 //   PATCH/DELETE /api/admin/whatsapp/templates/[id]
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   AlertTriangle,
   Archive,
@@ -56,11 +56,15 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { AdminEmptyState, apiRequest, toastApiError } from '../shared'
 import {
   ChatBubble,
+  extractCustomVars,
   extractTemplateVars,
+  renderPreview,
+  SYSTEM_VARIABLES,
   TEMPLATE_CATEGORY_MAP,
   TEMPLATE_STATUS_MAP,
   WaBadge,
@@ -348,8 +352,10 @@ function TemplateDialog({
   const [language, setLanguage] = useState(editing?.language ?? 'ar')
   const [body, setBody] = useState(editing?.body ?? '')
   const [submitting, setSubmitting] = useState(false)
+  const bodyRef = useRef<HTMLTextAreaElement | null>(null)
 
   const vars = extractTemplateVars(body)
+  const customVars = extractCustomVars(body)
   const slug =
     name
       .trim()
@@ -384,6 +390,23 @@ function TemplateDialog({
     toast({ title: editing ? 'Template updated' : 'Template created', description: name.trim() })
     onSaved()
     onClose()
+  }
+
+  /** Insert a variable token at the textarea caret (keeps focus + caret). */
+  function insertVar(token: string) {
+    const el = bodyRef.current
+    if (!el) {
+      setBody((b) => b + token)
+      return
+    }
+    const start = el.selectionStart ?? body.length
+    const end = el.selectionEnd ?? start
+    setBody(body.slice(0, start) + token + body.slice(end))
+    requestAnimationFrame(() => {
+      el.focus()
+      const caret = start + token.length
+      el.setSelectionRange(caret, caret)
+    })
   }
 
   return (
@@ -450,6 +473,7 @@ function TemplateDialog({
           <div className="space-y-1.5">
             <Label htmlFor="tpl-body">Body</Label>
             <Textarea
+              ref={bodyRef}
               id="tpl-body"
               dir="auto"
               value={body}
@@ -458,32 +482,74 @@ function TemplateDialog({
               rows={6}
               className="rounded-xl"
             />
+            {/* Variable picker — click inserts at the caret */}
+            <div className="space-y-1.5 pt-1">
+              <p className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
+                <Braces size={12} /> Variables — click to insert at the cursor
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {SYSTEM_VARIABLES.map((v) => (
+                  <Tooltip key={v.key}>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => insertVar(v.key)}
+                        className="rounded-md border border-dashed border-primary/40 bg-primary/5 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary transition-colors hover:bg-primary/15"
+                      >
+                        {v.key}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[220px] text-xs">
+                      <span className="font-semibold">{v.label}</span> — {v.description}
+                    </TooltipContent>
+                  </Tooltip>
+                ))}
+              </div>
+            </div>
             {vars.length > 0 ? (
               <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                 <span className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
                   <Braces size={12} /> Detected variables:
                 </span>
                 {vars.map((v) => (
-                  <WaBadge key={v} className="border border-dashed border-primary/40 bg-primary/5 font-mono text-[10px] text-primary">
+                  <WaBadge
+                    key={v}
+                    className={cn(
+                      'font-mono text-[10px]',
+                      customVars.includes(v)
+                        ? 'border border-dashed border-amber-400 bg-amber-50 text-amber-800 dark:border-amber-500/60 dark:bg-amber-950 dark:text-amber-300'
+                        : 'border border-dashed border-primary/40 bg-primary/5 text-primary'
+                    )}
+                  >
                     {v}
                   </WaBadge>
                 ))}
               </div>
             ) : (
               <p className="text-[11px] text-muted-foreground">
-                Tip: type {'{{name}}'} to add a variable — it becomes a fill-in chip when sending.
+                Tip: type {'{{name}}'} or click a chip above — system variables auto-fill from each
+                recipient&apos;s account at send time.
               </p>
             )}
           </div>
 
-          {/* Live WhatsApp-style preview */}
+          {/* Live WhatsApp-style preview — resolved against a mock recipient */}
           <div className="space-y-1.5">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Live preview</p>
             <div className="rounded-xl border bg-muted/50 p-3">
               <div className="ml-auto w-fit max-w-[85%]">
-                <ChatBubble body={body.trim() || 'Your message preview…'} />
+                <ChatBubble
+                  body={renderPreview(body.trim() || 'Your message preview…')}
+                />
               </div>
             </div>
+            {customVars.length > 0 && (
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                <span className="font-semibold">{customVars.join(', ')}</span>{' '}
+                {customVars.length === 1 ? 'is a custom variable' : 'are custom variables'} — define
+                {customVars.length === 1 ? ' it' : ' them'} in the campaign dialog when sending.
+              </p>
+            )}
           </div>
         </div>
 

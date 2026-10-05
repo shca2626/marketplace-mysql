@@ -202,17 +202,29 @@ export async function deleteChatbotRule(ruleId: string): Promise<void> {
 // ── Live test console (pure evaluation) ──────────────────────────────────────
 
 /**
+ * Loads the ACTIVE rules (same ordering the mini-service uses) and returns the
+ * first match together with its id — callers that actually reply increment
+ * hits themselves. Returns null when nothing matches.
+ */
+export async function matchActiveChatbotRule(
+  text: string
+): Promise<{ id: string; name: string; reply: string } | null> {
+  const rows = await db.chatbotRule.findMany({
+    where: { active: true },
+    orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],
+    select: { id: true, name: true, matchType: true, pattern: true, reply: true },
+  })
+  const matched = matchChatbotRule(rows, text)
+  return matched ? { id: matched.id, name: matched.name, reply: matched.reply } : null
+}
+
+/**
  * Runs a sample text through the ACTIVE rules exactly as the mini-service
  * would — same ordering, same matcher, but WITHOUT sending anything.
  */
 export async function testChatbotSample(
   sample: string
 ): Promise<{ name: string; reply: string } | null> {
-  const rows = await db.chatbotRule.findMany({
-    where: { active: true },
-    orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],
-    select: { name: true, matchType: true, pattern: true, reply: true },
-  })
-  const matched = matchChatbotRule(rows, sample)
+  const matched = await matchActiveChatbotRule(sample)
   return matched ? { name: matched.name, reply: matched.reply } : null
 }

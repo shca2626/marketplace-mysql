@@ -16,17 +16,40 @@ import { waService, WhatsAppAdminError } from './admin'
 export const CAMPAIGN_AUDIENCES = ['ALL_USERS', 'BUYERS', 'SELLERS', 'CUSTOM'] as const
 export const CAMPAIGN_CONTROL_ACTIONS = ['pause', 'resume', 'cancel'] as const
 
+// Custom {{variable}} keys authored in the campaign dialog — strict [a-z_][a-z0-9_]*
+// so a rendered body can never smuggle a placeholder that renderBody would drop.
+const CAMPAIGN_VARIABLE_KEY_REGEX = /^[a-z_][a-z0-9_]*$/
+const MAX_CAMPAIGN_VARIABLES = 20
+
+export const campaignVariablesSchema = z
+  .record(z.string(), z.string().trim().max(200))
+  .refine(
+    (map) => Object.keys(map).length <= MAX_CAMPAIGN_VARIABLES,
+    `A campaign accepts at most ${MAX_CAMPAIGN_VARIABLES} custom variables`
+  )
+  .refine(
+    (map) => Object.keys(map).every((key) => CAMPAIGN_VARIABLE_KEY_REGEX.test(key)),
+    'Variable keys may only use lowercase letters, digits and underscores, and must start with a letter or underscore (e.g. discount)'
+  )
+
 export const campaignCreateSchema = z.object({
   name: z.string().trim().min(2).max(120),
   body: z.string().trim().min(1).max(4096),
   audience: z.enum(CAMPAIGN_AUDIENCES),
   customPhones: z.string().max(20_000).optional(),
   templateId: z.string().trim().min(1).optional().nullable(),
+  variables: campaignVariablesSchema.optional(),
 })
 
-export const campaignRenameSchema = z.object({
-  name: z.string().trim().min(2).max(120),
-})
+export const campaignRenameSchema = z
+  .object({
+    name: z.string().trim().min(2).max(120).optional(),
+    variables: campaignVariablesSchema.nullable().optional(),
+  })
+  .refine(
+    (patch) => patch.name !== undefined || patch.variables !== undefined,
+    'Nothing to update — provide a name and/or variables'
+  )
 
 export const campaignControlSchema = z.object({
   action: z.enum(CAMPAIGN_CONTROL_ACTIONS),
@@ -48,6 +71,7 @@ export interface BulkCampaignDTO {
   completedAt: string | null
   templateId: string | null
   templateName: string | null
+  variables: Record<string, string> | null
 }
 
 type CampaignRow = {
@@ -64,6 +88,7 @@ type CampaignRow = {
   completedAt: Date | null
   templateId: string | null
   template: { name: string } | null
+  variables: string | null
 }
 
 const CAMPAIGN_SELECT = {
@@ -80,7 +105,24 @@ const CAMPAIGN_SELECT = {
   completedAt: true,
   templateId: true,
   template: { select: { name: true } },
+  variables: true,
 } as const
+
+/** Stored JSON → object (null when absent/corrupt — rendering then simply has no custom vars). */
+export function parseCampaignVariables(raw: string | null): Record<string, string> | null {
+  if (!raw) return null
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+    const out: Record<string, string> = {}
+    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+      out[key] = typeof value === 'string' ? value : String(value)
+    }
+    return out
+  } catch {
+    return null
+  }
+}
 
 export function serializeBulkCampaign(row: CampaignRow): BulkCampaignDTO {
   return {
@@ -97,6 +139,7 @@ export function serializeBulkCampaign(row: CampaignRow): BulkCampaignDTO {
     completedAt: row.completedAt ? row.completedAt.toISOString() : null,
     templateId: row.templateId,
     templateName: row.template?.name ?? null,
+    variables: parseCampaignVariables(row.variables),
   }
 }
 
@@ -192,6 +235,7 @@ export async function createCampaign(
       body: input.body,
       audience: input.audience,
       templateId: input.templateId ?? null,
+      variables: input.variables ? JSON.stringify(input.variables) : null,
       phones: phones.join('\n'),
       total: phones.length,
       status: 'DRAFT',
@@ -204,16 +248,26 @@ export async function createCampaign(
 
 export async function renameCampaign(
   campaignId: string,
-  name: string
+  patch: { name?: string; variables?: Record<string, string> | null }
 ): Promise<BulkCampaignDTO> {
   const row = await db.bulkCampaign.findUnique({
     where: { id: campaignId },
-    select: { id: true },
+    select: { id: true, status: true },
   })
   if (!row) throw new WhatsAppAdminError(404, 'Campaign not found')
+  // The recipient snapshot is frozen at start — custom variables may only be
+  // edited while the campaign is still a DRAFT (matching the body semantics).
+  if (patch.variables !== undefined && row.status !== 'DRAFT') {
+    throw new WhatsAppAdminError(409, 'Variables are frozen once the campaign leaves DRAFT — duplicate it instead')
+  }
   const updated = await db.bulkCampaign.update({
     where: { id: campaignId },
-    data: { name },
+    data: {
+      ...(patch.name !== undefined ? { name: patch.name } : {}),
+      ...(patch.variables !== undefined
+        ? { variables: patch.variables ? JSON.stringify(patch.variables) : null }
+        : {}),
+    },
     select: CAMPAIGN_SELECT,
   })
   return serializeBulkCampaign(updated)

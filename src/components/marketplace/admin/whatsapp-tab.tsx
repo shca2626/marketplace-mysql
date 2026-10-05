@@ -12,6 +12,8 @@ import {
   Loader2,
   Megaphone,
   MessageCircle,
+  MessageSquareDashed,
+  MessagesSquare,
   QrCode,
   RefreshCw,
   Send,
@@ -44,11 +46,13 @@ import { cn } from '@/lib/utils'
 import { AdminEmptyState, apiRequest, toastApiError } from './shared'
 import { CampaignsManager } from './whatsapp/campaigns-manager'
 import { ChatbotManager } from './whatsapp/chatbot-manager'
+import { ChatsManager } from './whatsapp/chats-manager'
 import { TemplatesManager } from './whatsapp/templates-manager'
 import {
   CAMPAIGN_LIVE_STATUSES,
   KpiCard,
   type CampaignDTO,
+  type ChatsListDTO,
   type RuleDTO,
   type TemplateDTO,
 } from './whatsapp/shared'
@@ -59,8 +63,8 @@ import {
  * The platform sends WhatsApp for FREE through Baileys: the owner pairs ANY
  * international SIM (pairing code typed into WhatsApp → Linked devices →
  * "Link with phone number instead"), and that line becomes the outbound sender
- * for OTP codes + notification mirrors. This console now spans five tabs:
- *   Senders · Templates · Chatbot · Campaigns · Messages
+ * for OTP codes + notification mirrors. This console now spans six tabs:
+ *   Senders · Templates · Chatbot · Chats · Campaigns · Messages
  * backed by a KPI strip and (while a campaign is in flight) a 5s live poll.
  */
 
@@ -140,12 +144,13 @@ function formatSenderPhone(e164: string): string {
   return e164
 }
 
-type WhatsAppSection = 'senders' | 'templates' | 'chatbot' | 'campaigns' | 'messages'
+type WhatsAppSection = 'senders' | 'templates' | 'chatbot' | 'chats' | 'campaigns' | 'messages'
 
 const SECTIONS: { key: WhatsAppSection; label: string; icon: LucideIcon }[] = [
   { key: 'senders', label: 'Senders', icon: Smartphone },
   { key: 'templates', label: 'Templates', icon: FileText },
   { key: 'chatbot', label: 'Chatbot', icon: Bot },
+  { key: 'chats', label: 'Chats', icon: MessagesSquare },
   { key: 'campaigns', label: 'Campaigns', icon: Megaphone },
   { key: 'messages', label: 'Messages', icon: History },
 ]
@@ -171,11 +176,16 @@ export function WhatsAppTab() {
   const templatesApi = useApi<{ templates: TemplateDTO[] }>('/api/admin/whatsapp/templates')
   const rulesApi = useApi<{ rules: RuleDTO[] }>('/api/admin/whatsapp/chatbot')
   const campaignsApi = useApi<{ campaigns: CampaignDTO[] }>('/api/admin/whatsapp/campaigns')
+  // Chat threads (wa-chat-0) — 10s poll keeps the unread badge + KPI live;
+  // the open conversation itself refreshes faster inside ChatsManager (4s).
+  const chatsApi = useApi<ChatsListDTO>('/api/admin/whatsapp/chats', { pollMs: 10_000 })
 
   const senders = data?.senders ?? []
   const messages = ledgerData?.messages ?? []
   const rules = rulesApi.data?.rules
   const campaigns = campaignsApi.data?.campaigns
+  const chatThreads = chatsApi.data?.threads
+  const totalUnread = chatsApi.data?.totalUnread ?? null
 
   const pairedCount = senders.filter((s) => s.status === 'PAIRED').length
   const messages24h = messages.filter((m) => Date.now() - new Date(m.createdAt).getTime() < 86_400_000).length
@@ -189,7 +199,8 @@ export function WhatsAppTab() {
     void templatesApi.refetch()
     void rulesApi.refetch()
     void campaignsApi.refetch()
-  }, [refetch, refetchLedger, templatesApi.refetch, rulesApi.refetch, campaignsApi.refetch])
+    void chatsApi.refetch()
+  }, [refetch, refetchLedger, templatesApi.refetch, rulesApi.refetch, campaignsApi.refetch, chatsApi.refetch])
 
   // Live progress: while any campaign is QUEUED/SENDING/PAUSED, refresh the
   // campaigns list every 5s (silent — no skeleton flash) and stop on its own
@@ -216,7 +227,7 @@ export function WhatsAppTab() {
       </div>
 
       {/* KPI strip */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         <KpiCard
           icon={Smartphone}
           label="Paired lines"
@@ -247,6 +258,26 @@ export function WhatsAppTab() {
           tone="amber"
           hint={campaignLive ? 'Live · refreshing every 5s' : undefined}
         />
+        <KpiCard
+          icon={MessagesSquare}
+          label="Chat threads"
+          value={chatThreads?.length ?? '—'}
+          loading={chatsApi.loading}
+          tone="emerald"
+          hint={
+            chatThreads
+              ? `${chatThreads.filter((t) => t.source === 'WEBCHAT').length} from the website widget`
+              : undefined
+          }
+        />
+        <KpiCard
+          icon={MessageSquareDashed}
+          label="Unread"
+          value={totalUnread ?? '—'}
+          loading={chatsApi.loading}
+          tone="rose"
+          hint={totalUnread === null ? undefined : totalUnread > 0 ? 'Waiting for a reply' : 'All caught up'}
+        />
       </div>
 
       {/* Sticky section tabs — they dock right under the dashboard topbar (h-14) */}
@@ -258,7 +289,9 @@ export function WhatsAppTab() {
           {SECTIONS.map((s) => {
             const active = section === s.key
             const Icon = s.icon
-            const count = s.key === 'chatbot' ? activeRules : s.key === 'campaigns' ? runningCampaigns : null
+            const count =
+              s.key === 'chatbot' ? activeRules : s.key === 'campaigns' ? runningCampaigns : null
+            const unread = s.key === 'chats' ? totalUnread : null
             return (
               <button
                 key={s.key}
@@ -290,6 +323,19 @@ export function WhatsAppTab() {
                     )}
                   >
                     {count}
+                  </span>
+                )}
+                {!!unread && (
+                  <span
+                    className={cn(
+                      'rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none tabular-nums',
+                      active
+                        ? 'bg-rose-500 text-white'
+                        : 'bg-rose-500 text-white dark:bg-rose-400'
+                    )}
+                    title={`${unread} unread message${unread === 1 ? '' : 's'}`}
+                  >
+                    {unread > 99 ? '99+' : unread}
                   </span>
                 )}
               </button>
@@ -347,6 +393,16 @@ export function WhatsAppTab() {
           error={rulesApi.error}
           refetch={rulesApi.refetch}
           setData={rulesApi.setData}
+        />
+      )}
+
+      {section === 'chats' && (
+        <ChatsManager
+          data={chatsApi.data}
+          loading={chatsApi.loading}
+          error={chatsApi.error}
+          refetch={chatsApi.refetch}
+          setData={chatsApi.setData}
         />
       )}
 

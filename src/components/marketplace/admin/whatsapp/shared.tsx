@@ -54,6 +54,39 @@ export interface CampaignDTO {
   completedAt: string | null
   templateId: string | null
   templateName?: string | null
+  /** wa-chat-0: custom variable map stored as JSON on the campaign. */
+  variables: Record<string, string> | null
+}
+
+// ── Chat console DTOs (wa-chat-0 admin contract) ─────────────────────────────
+
+export interface ChatThreadDTO {
+  id: string
+  name: string
+  phone: string | null
+  source: string // WHATSAPP | WEBCHAT
+  unreadCount: number
+  lastMessageAt: string | null
+  lastMessageBody: string | null
+  autoReply: boolean
+}
+
+export interface ChatMessageDTO {
+  id: string
+  direction: string // IN (visitor) | OUT (agent / auto-reply)
+  body: string
+  author: string | null
+  createdAt: string
+}
+
+export interface ChatsListDTO {
+  threads: ChatThreadDTO[]
+  totalUnread: number
+}
+
+export interface ThreadDetailDTO {
+  thread: ChatThreadDTO
+  messages: ChatMessageDTO[]
 }
 
 /** Uniform loader props every manager receives from the tab shell — the shell
@@ -195,6 +228,110 @@ export function extractTemplateVars(body: string): string[] {
   return [...new Set(body.match(VAR_TOKEN_RE)?.map((s) => s.trim()) ?? [])]
 }
 
+// ── Variable system (wa-chat-0 — mirrors src/server/modules/whatsapp/variables.ts)
+
+export interface SystemVariable {
+  /** Literal token including braces, e.g. "{{name}}". */
+  key: string
+  label: string
+  description: string
+}
+
+/** The 9 auto-resolved variables — filled per recipient at send time. */
+export const SYSTEM_VARIABLES: SystemVariable[] = [
+  {
+    key: '{{name}}',
+    label: 'Full name',
+    description: "Recipient's full name — guests get عميلنا العزيز.",
+  },
+  {
+    key: '{{first_name}}',
+    label: 'First name',
+    description: 'First word of the name — the friendly opener (الاسم الأول).',
+  },
+  {
+    key: '{{store_name}}',
+    label: 'Store name',
+    description: 'Seller storefront name, or the account name for buyers.',
+  },
+  {
+    key: '{{phone}}',
+    label: 'Phone',
+    description: 'Recipient WhatsApp number in E.164 format (+967…).',
+  },
+  {
+    key: '{{email}}',
+    label: 'Email',
+    description: "Account email — shows — when the account has none.",
+  },
+  {
+    key: '{{role}}',
+    label: 'Role',
+    description: 'Buyer, Seller or Admin.',
+  },
+  {
+    key: '{{date}}',
+    label: 'Date',
+    description: "Send date, e.g. 5 Oct 2026.",
+  },
+  {
+    key: '{{time}}',
+    label: 'Time',
+    description: 'Send time, e.g. 10:30 PM.',
+  },
+  {
+    key: '{{app}}',
+    label: 'App',
+    description: 'Always Vendora.',
+  },
+]
+
+const SYSTEM_VAR_KEYS = new Set(SYSTEM_VARIABLES.map((v) => v.key))
+
+/** {{tokens}} in a body that are NOT system variables (campaign custom vars). */
+export function extractCustomVars(body: string): string[] {
+  return extractTemplateVars(body).filter((v) => !SYSTEM_VAR_KEYS.has(v))
+}
+
+/** Mock recipient used by live previews (per wa-chat-0). */
+const PREVIEW_CONTEXT: Record<string, string> = {
+  '{{name}}': 'أحمد محمد',
+  '{{first_name}}': 'أحمد',
+  '{{store_name}}': 'متجر أحمد',
+  '{{phone}}': '+967771234567',
+  '{{email}}': 'ahmed@example.com',
+  '{{role}}': 'Buyer',
+  '{{app}}': 'Vendora',
+}
+
+/** Renders a body the way the backend renderBody() will deliver it: system
+ *  vars resolved against a mock recipient, custom vars from the map, and
+ *  anything unresolved shown as a highlighted "missing" chip. */
+export function renderPreview(body: string, custom: Record<string, string> = {}): React.ReactNode {
+  const now = new Date()
+  const ctx: Record<string, string> = {
+    ...PREVIEW_CONTEXT,
+    '{{date}}': now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+    '{{time}}': now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+  }
+  return body.split(/(\{\{[^{}]+\}\})/g).map((part, i) => {
+    if (!/^\{\{[^{}]+\}\}$/.test(part)) return <span key={i}>{part}</span>
+    const token = part.trim()
+    if (ctx[token] !== undefined) return <span key={i}>{ctx[token]}</span>
+    const value = custom[token.slice(2, -2).trim()] ?? custom[token]
+    if (value !== undefined && value !== '') return <span key={i}>{value}</span>
+    return (
+      <mark
+        key={i}
+        title="Missing value — define it in the campaign dialog"
+        className="mx-0.5 inline-flex items-center gap-1 rounded-md border border-dashed border-amber-400 bg-amber-50 px-1.5 py-0.5 align-middle font-mono text-[0.8em] font-semibold text-amber-800 dark:border-amber-500/60 dark:bg-amber-950 dark:text-amber-300"
+      >
+        {part} · missing
+      </mark>
+    )
+  })
+}
+
 /** Renders text with {{tokens}} visually highlighted (used in live previews). */
 export function HighlightVars({ text }: { text: string }) {
   const parts = text.split(/(\{\{[^{}]+\}\})/g)
@@ -224,7 +361,8 @@ export function ChatBubble({
   showTime = true,
   className,
 }: {
-  body: string
+  /** Plain string (vars highlighted) or pre-rendered nodes (e.g. renderPreview). */
+  body: React.ReactNode
   incoming?: boolean
   showTime?: boolean
   className?: string
@@ -241,7 +379,7 @@ export function ChatBubble({
         className
       )}
     >
-      <HighlightVars text={body} />
+      {typeof body === 'string' ? <HighlightVars text={body} /> : body}
       {showTime && (
         <span className="mt-1 flex items-center justify-end gap-1 text-[10px] leading-none text-muted-foreground">
           {time}
@@ -259,6 +397,7 @@ const KPI_TONES: Record<string, string> = {
   amber: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
   violet: 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300',
   orange: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
+  rose: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300',
 }
 
 export function KpiCard({
@@ -274,7 +413,7 @@ export function KpiCard({
   value: string | number
   hint?: string
   loading?: boolean
-  tone?: 'emerald' | 'amber' | 'violet' | 'orange'
+  tone?: 'emerald' | 'amber' | 'violet' | 'orange' | 'rose'
 }) {
   return (
     <Card className="rounded-xl">

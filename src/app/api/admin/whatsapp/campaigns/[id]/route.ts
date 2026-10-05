@@ -23,8 +23,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   }
 }
 
-// PATCH /api/admin/whatsapp/campaigns/[id] — rename a campaign (any status —
-// the body/audience snapshot is immutable by design).
+// PATCH /api/admin/whatsapp/campaigns/[id] — rename and/or edit custom
+// variables. Variables are frozen once the campaign leaves DRAFT (the body and
+// audience snapshot are immutable by design).
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
@@ -41,15 +42,17 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       )
     }
 
-    const campaign = await renameCampaign(id, parsed.data.name)
+    const campaign = await renameCampaign(id, parsed.data)
 
     await recordAudit({
       actorId: user.id,
       actorType: 'ADMIN',
-      action: 'WHATSAPP_CAMPAIGN_RENAMED',
+      action: 'WHATSAPP_CAMPAIGN_UPDATED',
       entityType: 'BulkCampaign',
       entityId: campaign.id,
-      summary: `Campaign renamed to "${campaign.name}"`,
+      summary: campaign.variables
+        ? `Campaign "${campaign.name}" updated (custom variables: ${Object.keys(campaign.variables).length})`
+        : `Campaign "${campaign.name}" updated`,
     })
 
     return NextResponse.json({ campaign })
@@ -58,7 +61,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       return NextResponse.json({ error: err.message }, { status: err.status })
     }
     console.error('admin whatsapp campaign PATCH error', err)
-    return NextResponse.json({ error: 'Failed to rename campaign' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to update campaign' }, { status: 500 })
   }
 }
 
