@@ -118,6 +118,7 @@ function FinancierConsole() {
       activeKey={section}
       onNavigate={onNavigate}
       roleBadgeLabel="Institution Staff"
+      roleChip="Financier"
       topbarSlot={<InstitutionSwitcher />}
     >
       <PageHeader icon={headerIcon} title={title} description={description} />

@@ -31,6 +31,7 @@ export function DashboardLayout({
   onNavigate,
   children,
   roleBadgeLabel,
+  roleChip,
   topbarSlot,
 }: {
   role: RoleKey
@@ -40,6 +41,9 @@ export function DashboardLayout({
   children: ReactNode
   /** Optional context-aware label for the topbar account chip (e.g. "Institution Staff"). */
   roleBadgeLabel?: string
+  /** Optional console-aware sidebar rail chip (defaults to the platform role —
+   *  e.g. "FINANCIER" on the financier console instead of "BUYER"). */
+  roleChip?: string
   /** Optional compact control injected into the topbar (e.g. org switcher). */
   topbarSlot?: ReactNode
 }) {
@@ -49,7 +53,7 @@ export function DashboardLayout({
 
   return (
     <div className="flex min-h-screen bg-muted/40 text-foreground">
-      <DashboardSidebar nav={nav} role={role} activeKey={activeKey} onNavigate={onNavigate} />
+      <DashboardSidebar nav={nav} role={role} roleChip={roleChip} activeKey={activeKey} onNavigate={onNavigate} />
       <DashboardMobileNav
         nav={nav}
         role={role}

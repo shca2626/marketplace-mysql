@@ -71,10 +71,15 @@ export function Header() {
   // reviewers, branch officers holding org-scoped financier.* roles). The
   // context endpoint resolves both membership paths.
   const { data: finCtxData } = useApi<{
-    context: { organizationId: string } | null
+    context: { organizationId: string; organizationStatus?: string } | null
     organizations: { id: string; name: string; orgType: string }[]
   }>(user ? '/api/financier/context' : null, { skip: !user })
   const isFinancierStaff = !!finCtxData?.context
+  // Unverified institutions: the console entry doubles as the application
+  // tracker — make the pending state visible right in the menu.
+  const financierPending =
+    finCtxData?.context?.organizationStatus === 'PENDING_VERIFICATION' ||
+    finCtxData?.context?.organizationStatus === 'REJECTED'
 
   // Phase 5 — module activation gates for the account menu. Unknown state
   // (legacy admin / resolution skipped) fails OPEN; a resolved-off module
@@ -289,6 +294,11 @@ export function Header() {
                 {isFinancierStaff && financierConsoleOn && (
                   <DropdownMenuItem onClick={() => navigate('financier')} className="cursor-pointer font-medium">
                     <Landmark size={15} className="mr-2" /> Financier console
+                    {financierPending && (
+                      <span className="ml-auto rounded-full bg-amber-100 px-1.5 py-px text-[9.5px] font-bold uppercase tracking-wide text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                        pending
+                      </span>
+                    )}
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />

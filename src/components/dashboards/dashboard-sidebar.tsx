@@ -97,15 +97,18 @@ function SidebarNavBody({
   )
 }
 
-/** Brand block + (desktop) collapse toggle. */
+/** Brand block + (desktop) collapse toggle. `roleChip` is the console-aware
+ * identity shown in the rail (e.g. "FINANCIER" on the financier console — the
+ * user's GLOBAL platform role would wrongly read "BUYER" there, since financier
+ * access comes from org membership, not the role). */
 function SidebarHeader({
   nav,
-  role,
+  roleChip,
   collapsed,
   onToggleCollapsed,
 }: {
   nav: NavConfig
-  role: RoleKey
+  roleChip: string
   collapsed: boolean
   onToggleCollapsed?: () => void
 }) {
@@ -134,8 +137,8 @@ function SidebarHeader({
         </div>
       )}
       {!collapsed && (
-        <span className="shrink-0 rounded-full border bg-muted/60 px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wider text-muted-foreground">
-          {role}
+        <span className="max-w-[92px] shrink-0 truncate rounded-full border bg-muted/60 px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wider text-muted-foreground">
+          {roleChip}
         </span>
       )}
       {onToggleCollapsed && (
@@ -161,11 +164,14 @@ function SidebarHeader({
 export function DashboardSidebar({
   nav,
   role,
+  roleChip,
   activeKey,
   onNavigate,
 }: {
   nav: NavConfig
   role: RoleKey
+  /** Console-aware rail chip label — defaults to the platform role. */
+  roleChip?: string
   activeKey: string
   onNavigate: (item: NavItem) => void
 }) {
@@ -206,7 +212,7 @@ export function DashboardSidebar({
         collapsed ? 'w-[76px]' : 'w-[264px]'
       )}
     >
-      <SidebarHeader nav={nav} role={role} collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
+      <SidebarHeader nav={nav} roleChip={roleChip ?? role.toUpperCase()} collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
       <SidebarNavBody nav={nav} activeKey={activeKey} onNavigate={onNavigate} collapsed={collapsed} />
     </aside>
   )

@@ -40,6 +40,7 @@ import { useApi } from '@/hooks/use-api'
 import { formatDate, initials } from '@/lib/format'
 import type { OrderDTO, RfqDTO } from '@/lib/types'
 import { DashboardLayout, PageHeader, SignInRequired } from './dashboard-layout'
+import { FinancierPendingBanner } from './financier-pending-banner'
 import { ProfileSecurityPanel } from './buyer-profile-security'
 import { VerificationSection } from './verification-section'
 import { BUYER_NAV, filterNavByModules, userModuleSet } from './nav-config'
@@ -205,6 +206,13 @@ export function BuyerDashboard() {
           </Button>
         }
       />
+
+      {/* Financier application bridge (audit feedback): a pending financing
+          institution must be visible from the buyer account hub — otherwise the
+          applicant thinks the registration failed. */}
+      <div className="mb-6">
+        <FinancierPendingBanner />
+      </div>
 
       {/* Activity tiles */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { useMarketplace, markStoreHydrated } from '@/store/marketplace'
 import { userModuleSet } from '@/components/dashboards/nav-config'
+import { useApi } from '@/hooks/use-api'
 import { initials } from '@/lib/format'
 import { AuthModal } from '@/components/marketplace/auth-modal'
 import { SolarIcon } from './solar-icon'
@@ -146,6 +147,17 @@ export function SiteHeader() {
     setUser(null)
   }
 
+  // Financier console entry — same context gate as the market header, so
+  // institution staff (incl. pending applicants) can reach their workspace
+  // from the marketing site too.
+  const { data: finCtxData } = useApi<{
+    context: { organizationId: string; organizationStatus?: string } | null
+  }>(user ? '/api/financier/context' : null, { skip: !user })
+  const isFinancierStaff = !!finCtxData?.context
+  const financierPending =
+    finCtxData?.context?.organizationStatus === 'PENDING_VERIFICATION' ||
+    finCtxData?.context?.organizationStatus === 'REJECTED'
+
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`)
 
@@ -166,6 +178,15 @@ export function SiteHeader() {
       : []),
     ...(moduleOn('rfq')
       ? [{ href: '/market?view=rfqs', label: 'RFQ inbox (B2B)', icon: Building2 }]
+      : []),
+    ...(isFinancierStaff
+      ? [
+          {
+            href: '/market?view=financier',
+            label: financierPending ? 'Financier console (pending)' : 'Financier console',
+            icon: Landmark,
+          },
+        ]
       : []),
     ...(user?.role === 'SELLER'
       ? [{ href: '/market?view=seller', label: 'Seller console', icon: Settings }]

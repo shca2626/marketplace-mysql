@@ -242,13 +242,18 @@ export function RegisterFinancierView() {
             </li>
           </ul>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Button className="flex-1 rounded-xl" size="lg" onClick={() => navigate('business')}>
-              Open the business console <ArrowRight size={15} className="ml-1.5" />
+            <Button className="flex-1 rounded-xl" size="lg" onClick={() => navigate('financier')}>
+              Track application status <ArrowRight size={15} className="ml-1.5" />
             </Button>
             <Button variant="outline" className="rounded-xl" size="lg" onClick={() => navigate('home')}>
               Back to the marketplace
             </Button>
           </div>
+          <p className="text-center text-[11px] leading-relaxed text-muted-foreground">
+            The status tracker (also reachable from the account menu → “Financier console”) shows where the review
+            stands and the license documents on file. Your account stays a buyer account until the institution is
+            activated — that is expected, nothing failed.
+          </p>
         </div>
       </RegisterDoorShell>
     )

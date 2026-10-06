@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
+  ArrowRight,
   Building2,
   CalendarCheck,
   CalendarClock,
@@ -10,6 +11,7 @@ import {
   Clock,
   FileText,
   Hourglass,
+  Landmark,
   Loader2,
   Mail,
   Percent,
@@ -42,6 +44,17 @@ import {
 import { cn } from '@/lib/utils'
 import { apiRequest, ORG_ROLE_MAP, ORG_STATUS_MAP, StatusBadge } from './b2b-shared'
 import { ApprovalsCard } from './approvals-card'
+
+// Financier institutions (BANK/MFI/EWALLET) — they fund buyers rather than buy
+// on account, so the business console must not pitch them contract pricing,
+// NET terms or customer-group chips (audit feedback).
+const FINANCIER_ORG_LABELS: Record<string, string> = {
+  BANK: 'Bank',
+  MFI: 'Microfinance institution',
+  EWALLET: 'E-wallet provider',
+}
+const isFinancierOrg = (org: OrganizationDTO | null) =>
+  !!org && (org.orgType === 'BANK' || org.orgType === 'MFI' || org.orgType === 'EWALLET')
 
 // ── Register-form state ─────────────────────────────────────────────────────
 
@@ -421,10 +434,17 @@ export function BusinessView() {
             </div>
           )}
 
-          <OrgStatusCard org={detail} loading={detailLoading && !detailData} />
+          <OrgStatusCard
+            org={detail}
+            loading={detailLoading && !detailData}
+            onOpenFinancier={
+              isFinancierOrg(detail) ? () => navigate('financier') : undefined
+            }
+          />
 
-          {/* Purchase-approval workflow (ACTIVE orgs) */}
-          {detail?.status === 'ACTIVE' && (
+          {/* Purchase-approval workflow (ACTIVE buying orgs only — financier
+              institutions don't purchase on account) */}
+          {detail?.status === 'ACTIVE' && !isFinancierOrg(detail) && (
             <ApprovalsCard org={detail} myRole={detail.myRole} onChanged={() => void refetchDetail()} />
           )}
 
@@ -573,25 +593,28 @@ export function BusinessView() {
             </CardContent>
           </Card>
 
-          {/* Where B2B actually happens */}
-          <Card className="border-primary/30 bg-primary/5">
-            <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
-                  <FileText size={18} />
-                </span>
-                <div>
-                  <p className="text-sm font-semibold">Request bulk pricing</p>
-                  <p className="text-xs text-muted-foreground">
-                    Send a request for quote on behalf of {detail?.name ?? 'your business'}.
-                  </p>
+          {/* Where B2B actually happens (buying orgs — financiers manage their
+              pipeline from the financier console instead) */}
+          {!isFinancierOrg(detail) && (
+            <Card className="border-primary/30 bg-primary/5">
+              <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                    <FileText size={18} />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold">Request bulk pricing</p>
+                    <p className="text-xs text-muted-foreground">
+                      Send a request for quote on behalf of {detail?.name ?? 'your business'}.
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <Button className="rounded-xl" onClick={() => navigate('rfqs')}>
-                Go to RFQs
-              </Button>
-            </CardContent>
-          </Card>
+                <Button className="rounded-xl" onClick={() => navigate('rfqs')}>
+                  Go to RFQs
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
     </div>
@@ -600,12 +623,22 @@ export function BusinessView() {
 
 // ── Status card (per org status) ────────────────────────────────────────────
 
-function OrgStatusCard({ org, loading }: { org: OrganizationDTO | null; loading: boolean }) {
+function OrgStatusCard({
+  org,
+  loading,
+  onOpenFinancier,
+}: {
+  org: OrganizationDTO | null
+  loading: boolean
+  /** Financier orgs only — deep-link into the institution console/tracker. */
+  onOpenFinancier?: () => void
+}) {
   if (loading || !org) {
     return <Skeleton className="h-52 w-full rounded-2xl" />
   }
 
   const groups = org.groups ?? []
+  const financier = isFinancierOrg(org)
 
   // Status-driven accents: a slim color strip on top of the card + tinted icon.
   const statusAccent =
@@ -664,7 +697,68 @@ function OrgStatusCard({ org, loading }: { org: OrganizationDTO | null; loading:
       </div>
 
       <CardContent className="p-5 sm:p-6">
-        {org.status === 'PENDING_VERIFICATION' && (
+        {financier && (
+          /* ── Financing institution — never pitch buyer pricing ── */
+          <div className="space-y-4">
+            <div className="flex items-start gap-2.5 rounded-xl border border-bh-gold/40 bg-bh-bg-gold/40 px-4 py-3 dark:bg-bh-gold/10">
+              <Landmark size={16} className="mt-0.5 shrink-0 text-bh-gold-dark dark:text-bh-gold" />
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                {FINANCIER_ORG_LABELS[org.orgType ?? ''] ?? 'Financing institution'} — this organization funds buyers
+                on Vendora. Its services, requests, offers and agreements live in the financier console, not here.
+                {org.status === 'PENDING_VERIFICATION'
+                  ? ' The license review is underway — track it from the institution console.'
+                  : ''}
+              </p>
+            </div>
+            {org.status === 'ACTIVE' ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {[
+                  { icon: CalendarCheck, label: 'Verified since', value: org.verifiedAt ? formatDate(org.verifiedAt) : '—' },
+                  {
+                    icon: Landmark,
+                    label: 'Institution type',
+                    value: FINANCIER_ORG_LABELS[org.orgType ?? ''] ?? org.orgType ?? '—',
+                  },
+                ].map((tile) => (
+                  <div key={tile.label} className="flex items-center gap-3 rounded-xl border bg-muted/30 px-4 py-3">
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <tile.icon size={16} />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        {tile.label}
+                      </p>
+                      <p className="mt-0.5 truncate text-sm font-bold">{tile.value}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : org.status === 'PENDING_VERIFICATION' ? (
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                Vendora is verifying the license and contact facts. Once activated, your team configures financing and
+                accreditation services from the financier console.
+              </p>
+            ) : org.status === 'SUSPENDED' ? (
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                This institution is suspended — its financing services are hidden from the marketplace until Vendora
+                restores access.
+              </p>
+            ) : (
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                This institution application was declined. Contact Vendora support with updated license documents to
+                reapply.
+              </p>
+            )}
+            {onOpenFinancier && (
+              <Button className="rounded-xl" onClick={onOpenFinancier}>
+                {org.status === 'PENDING_VERIFICATION' ? 'Track application status' : 'Open financier console'}
+                <ArrowRight size={15} className="ml-1.5" />
+              </Button>
+            )}
+          </div>
+        )}
+
+        {!financier && org.status === 'PENDING_VERIFICATION' && (
           <div className="space-y-3">
             <p className="flex items-center gap-2 text-sm font-semibold">
               <Clock size={15} className="text-amber-600 dark:text-amber-400" /> We&apos;re reviewing
@@ -691,7 +785,7 @@ function OrgStatusCard({ org, loading }: { org: OrganizationDTO | null; loading:
           </div>
         )}
 
-        {org.status === 'ACTIVE' && (
+        {!financier && org.status === 'ACTIVE' && (
           <div className="space-y-5">
             <div className="grid gap-3 sm:grid-cols-3">
               {[
@@ -736,7 +830,7 @@ function OrgStatusCard({ org, loading }: { org: OrganizationDTO | null; loading:
           </div>
         )}
 
-        {org.status === 'SUSPENDED' && (
+        {!financier && org.status === 'SUSPENDED' && (
           <div className="space-y-2 text-sm text-muted-foreground">
             <p className="font-semibold text-foreground">This business account is suspended.</p>
             <p className="leading-relaxed">
@@ -746,7 +840,7 @@ function OrgStatusCard({ org, loading }: { org: OrganizationDTO | null; loading:
           </div>
         )}
 
-        {org.status === 'REJECTED' && (
+        {!financier && org.status === 'REJECTED' && (
           <div className="space-y-2 text-sm text-muted-foreground">
             <p className="font-semibold text-foreground">We couldn&apos;t verify this business.</p>
             <p className="leading-relaxed">

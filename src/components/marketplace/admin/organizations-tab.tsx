@@ -6,6 +6,7 @@ import {
   Ban,
   Building2,
   Globe,
+  Landmark,
   Loader2,
   Mail,
   Pencil,
@@ -75,6 +76,12 @@ const STATUS_FILTERS = [
   { value: 'SUSPENDED', label: 'Suspended' },
   { value: 'REJECTED', label: 'Rejected' },
 ]
+
+const FINANCIER_ORG_TYPES: Record<string, string> = {
+  BANK: 'Bank — financing institution',
+  MFI: 'Microfinance — financing institution',
+  EWALLET: 'E-wallet — financing institution',
+}
 
 export function OrganizationsTab() {
   const [statusFilter, setStatusFilter] = useState('')
@@ -235,7 +242,7 @@ export function OrganizationsTab() {
                   <td className="px-4 py-3.5 tabular-nums text-muted-foreground">{org.memberCount ?? '—'}</td>
                   <td className="px-4 py-3.5">
                     <span className="text-muted-foreground">
-                      NET-{org.creditTermsDays} · {formatUSD(org.creditLimit)}
+                      {FINANCIER_ORG_TYPES[org.orgType ?? ''] ?? `NET-${org.creditTermsDays} · ${formatUSD(org.creditLimit)}`}
                     </span>
                   </td>
                   <td className="px-4 py-3.5 text-muted-foreground" title={formatDate(org.createdAt)}>
@@ -280,7 +287,10 @@ export function OrganizationsTab() {
                   <StatusBadge status={org.status} map={ORG_STATUS_MAP} />
                 </div>
                 <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                  <span>NET-{org.creditTermsDays} · limit {formatUSD(org.creditLimit)}</span>
+                  <span>
+                    {FINANCIER_ORG_TYPES[org.orgType ?? ''] ??
+                      `NET-${org.creditTermsDays} · limit ${formatUSD(org.creditLimit)}`}
+                  </span>
                   <Button
                     variant="outline"
                     size="sm"
@@ -427,6 +437,26 @@ function OrgManageDialog({
   }
 
   const saveCommercial = async () => {
+    // Financier institutions: only the org type + internal notes apply —
+    // payment terms / credit limit are buyer-company concepts.
+    if (isFinancier) {
+      setSaving('commercial')
+      const res = await apiRequest(`/api/admin/organizations/${orgId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          notes: form.notes.trim() || null,
+          orgType: form.orgType,
+        }),
+      })
+      setSaving(null)
+      if (!res.ok) {
+        toastApiError(res.error, 'Save failed')
+        return
+      }
+      toast({ title: 'Institution settings saved' })
+      refresh()
+      return
+    }
     const terms = Number(form.creditTermsDays)
     const limit = Number(form.creditLimit)
     if (!Number.isInteger(terms) || terms < 0 || terms > 180) {
@@ -499,6 +529,11 @@ function OrgManageDialog({
 
   const status = org?.status
   const busy = saving !== null
+  // Financier institutions (BANK/MFI/EWALLET) are lenders on the platform —
+  // they don't buy on NET terms and never map to buyer customer groups.
+  // The manage dialog must reflect that instead of showing buyer-company fields
+  // (audit feedback: "why does a bank show Wholesale Tier 1 / Retail?").
+  const isFinancier = org?.orgType === 'BANK' || org?.orgType === 'MFI' || org?.orgType === 'EWALLET'
 
   return (
     <Dialog open={open} onOpenChange={(v) => (!v ? onClose() : undefined)}>
@@ -656,10 +691,23 @@ function OrgManageDialog({
               </div>
             </section>
 
-            {/* Commercial settings */}
-            <section aria-label="Commercial settings">
-              <h3 className="mb-2 text-sm font-semibold">Commercial settings</h3>
+            {/* Commercial settings (buyer companies) / Institution settings (financiers) */}
+            <section aria-label={isFinancier ? 'Institution settings' : 'Commercial settings'}>
+              <h3 className="mb-2 text-sm font-semibold">
+                {isFinancier ? 'Financing institution' : 'Commercial settings'}
+              </h3>
               <div className="space-y-3 rounded-xl border p-4">
+                {isFinancier && (
+                  <div className="flex items-start gap-2.5 rounded-lg border border-bh-gold/40 bg-bh-bg-gold/40 px-3 py-2.5 dark:bg-bh-gold/10">
+                    <Landmark size={15} className="mt-0.5 shrink-0 text-bh-gold-dark dark:text-bh-gold" />
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      This organization is a lender on Vendora — it publishes financing &amp; accreditation services and
+                      funds buyers. Payment terms, credit limits and customer groups are buyer-company concepts and do
+                      not apply here. Institution profile, services, requests and fees are managed in the{' '}
+                      <span className="font-semibold text-foreground">Financing</span> tab.
+                    </p>
+                  </div>
+                )}
                 <div className="space-y-1.5">
                   <Label htmlFor="org-type" className="text-xs">
                     Organization type
@@ -679,38 +727,40 @@ function OrgManageDialog({
                     Scoped RFQ settings can target a whole organization type.
                   </p>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="org-credit-terms" className="text-xs">
-                      Payment terms (days)
-                    </Label>
-                    <Input
-                      id="org-credit-terms"
-                      type="number"
-                      min={0}
-                      max={180}
-                      value={form.creditTermsDays}
-                      onChange={(e) => setForm((f) => ({ ...f, creditTermsDays: e.target.value }))}
-                      aria-label="Payment terms in days, 0 to 180"
-                    />
-                    <p className="text-[11px] text-muted-foreground">0 = prepaid · max 180 (NET-180)</p>
+                {!isFinancier && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="org-credit-terms" className="text-xs">
+                        Payment terms (days)
+                      </Label>
+                      <Input
+                        id="org-credit-terms"
+                        type="number"
+                        min={0}
+                        max={180}
+                        value={form.creditTermsDays}
+                        onChange={(e) => setForm((f) => ({ ...f, creditTermsDays: e.target.value }))}
+                        aria-label="Payment terms in days, 0 to 180"
+                      />
+                      <p className="text-[11px] text-muted-foreground">0 = prepaid · max 180 (NET-180)</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="org-credit-limit" className="text-xs">
+                        Credit limit (USD)
+                      </Label>
+                      <Input
+                        id="org-credit-limit"
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={form.creditLimit}
+                        onChange={(e) => setForm((f) => ({ ...f, creditLimit: e.target.value }))}
+                        aria-label="Credit limit in US dollars"
+                      />
+                      <p className="text-[11px] text-muted-foreground">{formatUSD(Number(form.creditLimit) || 0)}</p>
+                    </div>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="org-credit-limit" className="text-xs">
-                      Credit limit (USD)
-                    </Label>
-                    <Input
-                      id="org-credit-limit"
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={form.creditLimit}
-                      onChange={(e) => setForm((f) => ({ ...f, creditLimit: e.target.value }))}
-                      aria-label="Credit limit in US dollars"
-                    />
-                    <p className="text-[11px] text-muted-foreground">{formatUSD(Number(form.creditLimit) || 0)}</p>
-                  </div>
-                </div>
+                )}
                 <div className="space-y-1.5">
                   <Label htmlFor="org-notes" className="text-xs">
                     Internal notes
@@ -720,7 +770,11 @@ function OrgManageDialog({
                     rows={2}
                     value={form.notes}
                     onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                    placeholder="KYC notes, contract references, contact preferences…"
+                    placeholder={
+                      isFinancier
+                        ? 'License review notes, regulator references, contact preferences…'
+                        : 'KYC notes, contract references, contact preferences…'
+                    }
                     aria-label="Internal notes about this organization"
                     className="resize-none"
                   />
@@ -732,62 +786,66 @@ function OrgManageDialog({
                   disabled={busy}
                 >
                   {saving === 'commercial' ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Save size={14} className="mr-1.5" />}
-                  Save commercial settings
+                  {isFinancier ? 'Save institution settings' : 'Save commercial settings'}
                 </Button>
               </div>
             </section>
 
-            {/* Customer group mapping */}
-            <section aria-label="Customer group mapping">
-              <h3 className="mb-2 text-sm font-semibold">Customer groups</h3>
-              <div className="space-y-3 rounded-xl border p-4">
-                <div className="space-y-2">
-                  {groups.map((g) => (
-                    <label
-                      key={g.id}
-                      className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2 transition-colors hover:bg-accent/50"
-                    >
-                      <span className="min-w-0">
-                        <span className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
-                          {g.name}
-                          {g.isDefault && (
-                            <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
-                              DEFAULT
-                            </span>
-                          )}
+            {/* Customer group mapping — buying organizations only. Financier
+                institutions never join pricing segments (they are the funding
+                side, not a buyer), so the section is hidden for them. */}
+            {!isFinancier && (
+              <section aria-label="Customer group mapping">
+                <h3 className="mb-2 text-sm font-semibold">Customer groups</h3>
+                <div className="space-y-3 rounded-xl border p-4">
+                  <div className="space-y-2">
+                    {groups.map((g) => (
+                      <label
+                        key={g.id}
+                        className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2 transition-colors hover:bg-accent/50"
+                      >
+                        <span className="min-w-0">
+                          <span className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
+                            {g.name}
+                            {g.isDefault && (
+                              <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                                DEFAULT
+                              </span>
+                            )}
+                          </span>
+                          <span className="block truncate text-[11px] text-muted-foreground">
+                            /{g.key} · priority {g.priority}
+                          </span>
                         </span>
-                        <span className="block truncate text-[11px] text-muted-foreground">
-                          /{g.key} · priority {g.priority}
-                        </span>
-                      </span>
-                      <Switch
-                        checked={groupIds.has(g.id)}
-                        onCheckedChange={(c) => toggleGroup(g.id, c)}
-                        aria-label={`Map ${org.name} to customer group ${g.name}`}
-                      />
-                    </label>
-                  ))}
-                  {groups.length === 0 && (
-                    <p className="py-2 text-center text-xs text-muted-foreground">
-                      No customer groups exist yet — create them in the Pricing tab.
-                    </p>
-                  )}
+                        <Switch
+                          checked={groupIds.has(g.id)}
+                          onCheckedChange={(c) => toggleGroup(g.id, c)}
+                          aria-label={`Map ${org.name} to customer group ${g.name}`}
+                        />
+                      </label>
+                    ))}
+                    {groups.length === 0 && (
+                      <p className="py-2 text-center text-xs text-muted-foreground">
+                        No customer groups exist yet — create them in the Pricing tab.
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl"
+                    onClick={() => void saveGroups()}
+                    disabled={busy}
+                  >
+                    {saving === 'groups' ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Save size={14} className="mr-1.5" />}
+                    Apply group mapping
+                  </Button>
+                  <p className="text-[11px] text-muted-foreground">
+                    Saving replaces the full mapping — every enabled switch is sent to the server.
+                  </p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="rounded-xl"
-                  onClick={() => void saveGroups()}
-                  disabled={busy}
-                >
-                  {saving === 'groups' ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Save size={14} className="mr-1.5" />}
-                  Apply group mapping
-                </Button>
-                <p className="text-[11px] text-muted-foreground">
-                  Saving replaces the full mapping — every enabled switch is sent to the server.
-                </p>
-              </div>
-            </section>
+              </section>
+            )}
 
             {/* Status actions */}
             <section aria-label="Account status actions" className="rounded-xl border border-dashed p-4">
@@ -809,7 +867,9 @@ function OrgManageDialog({
                       title={status === 'PENDING_VERIFICATION' ? `Verify ${org.name}?` : `Reactivate ${org.name}?`}
                       description={
                         status === 'PENDING_VERIFICATION'
-                          ? 'The organization gains access to contract pricing, credit terms and B2B ordering. Their members can sign quotes and place orders on account.'
+                          ? isFinancier
+                            ? 'The financing institution is activated — its staff unlock the financier console (services, requests inbox, offers, agreements and operations) and its offerings become visible on the marketplace.'
+                            : 'The organization gains access to contract pricing, credit terms and B2B ordering. Their members can sign quotes and place orders on account.'
                           : 'The organization returns to good standing and regains full marketplace access.'
                       }
                       actionLabel="Confirm"
