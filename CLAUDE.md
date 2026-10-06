@@ -60,11 +60,11 @@
 | Item | Value |
 |---|---|
 | Stack | Next.js 16 App Router, React 19, TypeScript, Tailwind 4, shadcn/ui (NY), lucide |
-| DB | Aiven MySQL via `.env` `DATABASE_URL` (102+ tables) — `import { db } from '@/lib/db'` |
+| DB | Aiven MySQL via `.env` `DATABASE_URL` (123 tables, migration-managed since `0_init`) — `import { db } from '@/lib/db'` |
 | App | `bun run dev` on **:3000** (never `bun run build`; never other ports) |
 | WhatsApp bridge | `mini-services/whatsapp-service` on **:3031** (`bun --hot index.ts`, token `X-Internal-Token: vendora-internal`) |
 | Cross-service calls | relative URLs only, other ports via `?XTransformPort=<port>` (Caddy gateway) |
-| Route guard | every new API route must be registered in `scripts/audit/route-classification.json` → `bun run guard:lint` |
+| Route guard | every new API route must be registered in `audit/route-classification.json` → `bun run guard:lint` |
 | Auth guards | `requireUser() / requireAdmin(perm) / requireAdminAny([...])` in `src/server/guards.ts` |
 | Theme | warm navy / gold / stone / emerald — **BLUE & INDIGO ARE FORBIDDEN** in UI |
 | Dynamic data | **no hardcoded values that can change** — currency rates come from the live-rate
