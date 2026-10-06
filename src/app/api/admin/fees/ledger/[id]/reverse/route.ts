@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin } from '@/server/guards'
+import { requireAdmin, requireStepUpMfa } from '@/server/guards'
 import { reverseAssessment, FeeServiceError } from '@/server/modules/fees/service'
 import { assertSameOrigin } from '@/lib/http'
 
@@ -13,6 +13,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { user, error } = await requireAdmin('payouts.manage')
   if (error) return error
+  // SEC-1 (audit round): reversing an assessed fee is money movement on an
+  // immutable ledger — same step-up class as payout mark-paid/reverse.
+  const su = await requireStepUpMfa()
+  if (su.error) return su.error
   try {
     const { id } = await ctx.params
     const body = (await req.json().catch(() => ({}))) as { reason?: unknown }

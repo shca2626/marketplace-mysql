@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireAdmin } from '@/server/guards'
+import { requireAdmin, requireStepUpMfa } from '@/server/guards'
 import { assertSameOrigin } from '@/lib/http'
 import {
   SubscriptionServiceError,
@@ -41,6 +41,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ orgId: str
 
   const { user, error } = await requireAdmin('payouts.manage')
   if (error) return error
+  // SEC-1 (audit round): plan changes alter entitlements + billing — same
+  // step-up class as payout operations (11-b documented the deviation; the
+  // audit round closes it).
+  const su = await requireStepUpMfa()
+  if (su.error) return su.error
   try {
     const { orgId } = await ctx.params
     let body: unknown

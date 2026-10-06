@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
-import { requireAdmin } from '@/server/guards'
+import { requireAdmin, requireStepUpMfa } from '@/server/guards'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { recordAudit } from '@/server/modules/audit/service'
 import { DOCUMENT_TYPES } from '@/server/modules/financing/shared'
@@ -75,6 +75,11 @@ export async function PUT(req: NextRequest) {
   if (error) return error
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
+  // SEC-1 (audit round): changing KYC routing decides WHO verifies identity
+  // documents (e.g. routing NATIONAL_ID to an external provider) — the same
+  // trust class as security/module config, which already require step-up.
+  const su = await requireStepUpMfa()
+  if (su.error) return su.error
   const rl = enforceRateLimit(req, 'admin:kyc-provider-configs', { limit: 60, windowMs: 60_000 }, user.id)
   if (rl) return rl
 

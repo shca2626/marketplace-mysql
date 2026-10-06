@@ -73,16 +73,30 @@ export function invalidateCurrencyCache(): void {
   cache = null
 }
 
+let seedPromise: Promise<void> | null = null
+
 async function ensureSeeded(): Promise<void> {
-  // Idempotent: adds any catalog currency that's missing (first boot seeds
-  // everything; later boots top up new entries without touching existing).
-  for (const c of SEED_CURRENCIES) {
-    await db.currency.upsert({
-      where: { code: c.code },
-      update: {},
-      create: { code: c.code, name: c.name, symbol: c.symbol, decimals: c.decimals, isActive: true },
+  // PERF-3 (10k-concurrent criterion): this used to run ~10 blind upserts on
+  // EVERY call — ≈20 remote round-trips (5-7s against remote Aiven) paid
+  // before even the 60s cache check. Now: once per process (memoized), and
+  // a single COUNT first so the common case is ONE round-trip.
+  if (!seedPromise) {
+    seedPromise = (async () => {
+      const existing = await db.currency.count()
+      if (existing > 0) return // catalog already populated — nothing to top up
+      for (const c of SEED_CURRENCIES) {
+        await db.currency.upsert({
+          where: { code: c.code },
+          update: {},
+          create: { code: c.code, name: c.name, symbol: c.symbol, decimals: c.decimals, isActive: true },
+        })
+      }
+    })().catch((err) => {
+      seedPromise = null // allow retry on transient failure
+      throw err
     })
   }
+  return seedPromise
 }
 
 export async function getCurrencySettings(): Promise<CurrencySettings> {
@@ -130,13 +144,35 @@ async function latestRate(code: string): Promise<{ rate: number; source: string;
 }
 
 /**
+ * PERF-3: batched latest-rate-per-code lookup (ONE round-trip instead of the
+ * sequential per-currency latestRate() N+1 — each hop was a full remote-DB
+ * latency against Aiven). Used by multi-currency read paths.
+ */
+async function latestRatesForCodes(codes: string[]): Promise<Map<string, { rate: number; source: string; validFrom: Date }>> {
+  const out = new Map<string, { rate: number; source: string; validFrom: Date }>()
+  const targets = codes.filter((c) => c !== 'USD')
+  if (targets.length === 0) return out
+  const rows = await db.exchangeRate.findMany({
+    where: { baseCode: 'USD', quoteCode: { in: targets } },
+    orderBy: [{ validFrom: 'desc' }],
+    distinct: ['quoteCode'],
+  })
+  for (const row of rows) {
+    out.set(row.quoteCode, { rate: Number(row.rate), source: row.source, validFrom: row.validFrom })
+  }
+  return out
+}
+
+/**
  * Public payload for the storefront: active currencies + their operative
  * rates (latest history row per pair). Cheap 60s cache; self-heals stale
  * data in the background (fire-and-forget live refresh past the window).
  */
 export async function getPublicCurrencies(): Promise<PublicCurrencyPayload> {
-  await ensureSeeded()
+  // PERF-3: cache check FIRST — a warm payload must not pay even the (now
+  // cheap) seed guard or any DB round-trip.
   if (cache && Date.now() - cache.at < 60_000) return cache.payload
+  await ensureSeeded()
   const [settings, rows] = await Promise.all([
     getCurrencySettings(),
     db.currency.findMany({ orderBy: [{ code: 'asc' }] }),
@@ -144,8 +180,11 @@ export async function getPublicCurrencies(): Promise<PublicCurrencyPayload> {
   const active = rows.filter((r) => r.isActive)
   const currencies: PublicCurrency[] = []
   let newestSync: Date | null = null
+  // PERF-3: ONE batched round-trip for all operative rates (was a
+  // sequential latestRate() per currency — an N+1 over remote Aiven).
+  const rates = await latestRatesForCodes(active.map((r) => r.code))
   for (const r of active) {
-    const latest = await latestRate(r.code)
+    const latest = rates.get(r.code) ?? null
     if (latest && (!newestSync || latest.validFrom > newestSync)) newestSync = latest.validFrom
     currencies.push({
       code: r.code,
