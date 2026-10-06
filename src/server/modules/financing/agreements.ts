@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { recordAudit } from '@/server/modules/audit/service'
 import { emitNotification, emitNotifications } from '@/server/modules/notifications/service'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 import { FinancingError, assertApplicantActor, iso } from './shared'
 import { serializeOffer, type FinancingOfferDTO } from './offers'
 
@@ -182,10 +183,18 @@ async function loadAgreement(agreementId: string) {
   return agreement
 }
 
-/** Financier staff of the agreement's financier org. */
+/** Financier staff of the agreement's financier org.
+ *  TENANT-AUDIT F-03: applies the M2 ACTIVE predicate (user + organization
+ *  ACTIVE) so suspended-institution staff lose by-id agreement access. */
 async function assertFinancierAgreementAccess(userId: string, financierOrgId: string): Promise<void> {
   const membership = await db.organizationMember.findFirst({
-    where: { userId, organizationId: financierOrgId, role: { in: ['OWNER', 'ADMIN'] } },
+    where: {
+      userId,
+      organizationId: financierOrgId,
+      role: { in: ['OWNER', 'ADMIN'] },
+      user: { status: 'ACTIVE' },
+      organization: { status: 'ACTIVE' },
+    },
   })
   if (!membership) throw new FinancingError('Financier staff access required', 403)
 }
@@ -233,12 +242,19 @@ export async function getAgreement(
     createdById: string
     organizationId: string | null
   }
-  if (viewer.role !== 'ADMIN') {
+  // TENANT-AUDIT F-01: legacy User.role === 'ADMIN' bypass replaced by an
+  // explicit RBAC capability (financing gate reviewers may open any
+  // agreement); the financier branch now also applies the M2 ACTIVE
+  // predicate (F-03) so suspended institutions lose by-id access.
+  const isPlatformReviewer = await userHasPlatformPermission(viewer.id, 'financing.gate.view')
+  if (!isPlatformReviewer) {
     const isFinancier = !!(await db.organizationMember.findFirst({
       where: {
         userId: viewer.id,
         organizationId: agreement.offer.request.service.financierProfile.organizationId,
         role: { in: ['OWNER', 'ADMIN'] },
+        user: { status: 'ACTIVE' },
+        organization: { status: 'ACTIVE' },
       },
     }))
     if (!isFinancier) {

@@ -273,6 +273,12 @@ export async function listFinancierContextOrgs(
 /**
  * Assert the user is OWNER/ADMIN of the organization owning the given service
  * (or profile). Loads the service with its financier profile for the caller.
+ *
+ * TENANT-AUDIT F-03/F-05: applies the M2 ACTIVE predicate (user + organization
+ * both ACTIVE) so a suspended institution's staff cannot act on services via
+ * direct ids, and a PENDING_VERIFICATION institution cannot mutate its
+ * (pre-approval) console data — reads for the activation tracker run through
+ * /api/financier/context which intentionally keeps PENDING orgs listed.
  */
 export async function assertFinancierStaffOfService(
   userId: string,
@@ -297,9 +303,16 @@ export async function assertFinancierStaffOfService(
       userId,
       organizationId: service.financierProfile.organizationId,
       role: { in: ['OWNER', 'ADMIN'] },
+      user: { status: 'ACTIVE' },
+      organization: { status: 'ACTIVE' },
     },
   })
-  if (!membership) throw new FinancingError('Financier staff access required for this service', 403)
+  if (!membership) {
+    throw new FinancingError(
+      'Financier staff access required for this service — your institution must be active',
+      403
+    )
+  }
   return {
     organizationId: service.financierProfile.organizationId,
     service: {

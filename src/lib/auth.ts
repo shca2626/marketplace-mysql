@@ -286,3 +286,14 @@ export async function clearSessionCookie() {
   const cookieStore = await cookies()
   cookieStore.delete(SESSION_COOKIE)
 }
+
+/**
+ * TENANT-AUDIT M-3: logout also clears the tenant-selection cookies so the
+ * next user on a shared browser never starts pre-switched into the previous
+ * user's institution. The fin_org id was membership-validated on every read
+ * anyway (fail-safe), but the pre-selection itself is cross-user residue.
+ */
+export async function clearWorkspaceCookies() {
+  const cookieStore = await cookies()
+  cookieStore.delete('fin_org')
+}

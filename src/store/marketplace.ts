@@ -163,6 +163,11 @@ interface MarketplaceState {
   moveToCart: (lineId: string) => { ok: boolean; message: string }
   removeFromSaved: (lineId: string) => void
   clearCart: () => void
+  /** TENANT-AUDIT H-1/C-1: drop ALL user-scoped commerce state (cart,
+   *  saved-for-later, recently-viewed) — used when the signed-in identity
+   *  CHANGES (logout, account switch) so the next user never inherits the
+   *  previous user's lines on a shared browser. */
+  clearUserCommerceState: () => void
   setCartOpen: (open: boolean) => void
   openAuth: (mode?: 'login' | 'register', after?: { view: View; params?: ViewParams }) => void
   closeAuth: () => void
@@ -390,6 +395,11 @@ export const useMarketplace = create<MarketplaceState>()(
         }),
 
       clearCart: () => set({ cart: [] }),
+
+      // TENANT-AUDIT H-1/C-1: identity-scoped commerce state — cleared on
+      // logout and on identity change (see lib/signout.ts + auth-modal.tsx).
+      clearUserCommerceState: () =>
+        set({ cart: [], savedForLater: [], recentlyViewed: [] }),
 
       setCartOpen: (open) => set({ cartOpen: open }),
 

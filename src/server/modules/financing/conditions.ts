@@ -177,7 +177,7 @@ async function assertCodeUnique(code: string | null | undefined, ignoreId?: stri
  */
 export async function listVisibleConditionTemplates(
   userId: string,
-  actorRole: string,
+  _actorRole: string,
   filter?: { search?: string; conditionType?: string; includeInactive?: boolean }
 ): Promise<ConditionTemplateDTO[]> {
   const search = filter?.search?.trim()
@@ -192,8 +192,12 @@ export async function listVisibleConditionTemplates(
     : {}
   const typeWhere = filter?.conditionType ? { conditionType: filter.conditionType } : {}
 
+  // TENANT-AUDIT F-01: the legacy User.role === 'ADMIN' branch is replaced by
+  // an explicit RBAC capability — holders of the shared-library curation
+  // permission see the full GENERAL library (active + inactive).
+  const isLibraryManager = await userHasPlatformPermission(userId, 'financing.requirements.manage')
   let where: Record<string, unknown>
-  if (actorRole === 'ADMIN') {
+  if (isLibraryManager) {
     // Platform library manager sees the full GENERAL library
     where = {
       scope: 'GENERAL',
@@ -412,8 +416,16 @@ async function assertTemplateAccess(
     return
   }
   if (!organizationId) throw new FinancingError('Malformed financier condition', 500)
+  // TENANT-AUDIT F-03: M2 ACTIVE predicate — suspended institutions cannot
+  // mutate their condition templates via direct ids.
   const m = await db.organizationMember.findFirst({
-    where: { userId: actor.id, organizationId, role: { in: ['OWNER', 'ADMIN'] } },
+    where: {
+      userId: actor.id,
+      organizationId,
+      role: { in: ['OWNER', 'ADMIN'] },
+      user: { status: 'ACTIVE' },
+      organization: { status: 'ACTIVE' },
+    },
   })
   if (!m) throw new FinancingError('Access denied', 403)
 }

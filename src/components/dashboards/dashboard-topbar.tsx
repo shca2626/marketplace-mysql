@@ -14,6 +14,7 @@ import type { ReactNode } from 'react'
 import { ChevronRight, LogOut, Menu, Moon, Sun } from 'lucide-react'
 import { useMarketplace } from '@/store/marketplace'
 import { initials } from '@/lib/format'
+import { signOut } from '@/lib/signout'
 import { NotificationsBell } from '@/components/marketplace/notifications-bell'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -54,14 +55,13 @@ export function DashboardTopbar({
   topbarSlot?: ReactNode
 }) {
   const user = useMarketplace((s) => s.user)
-  const setUser = useMarketplace((s) => s.setUser)
   const navigate = useMarketplace((s) => s.navigate)
   const { theme, setTheme } = useTheme()
   const storefront = STOREFRONT_LINK[role]
 
+  // TENANT-AUDIT C-1: shared sign-out — clears persisted user state too.
   const logout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' })
-    setUser(null)
+    await signOut()
     navigate('home')
   }
 

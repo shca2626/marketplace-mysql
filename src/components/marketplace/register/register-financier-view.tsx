@@ -30,6 +30,7 @@ import {
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
+import { signOut as doSignOut } from '@/lib/signout'
 import type { SessionUser } from '@/lib/types'
 import { apiRequest } from '@/components/marketplace/financing/financing-shared'
 import { Button } from '@/components/ui/button'
@@ -117,11 +118,10 @@ export function RegisterFinancierView() {
 
   const signOut = async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' })
+      await doSignOut()
     } catch {
       // best-effort
     }
-    setUser(null)
     setContactName('')
     toast({ title: 'Signed out', description: 'File the application with a fresh account below.' })
   }

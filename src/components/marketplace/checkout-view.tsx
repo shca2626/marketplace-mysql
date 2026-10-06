@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   ArrowLeft,
@@ -27,6 +27,7 @@ import { useMarketplace } from '@/store/marketplace'
 import type { OrderDTO } from '@/lib/types'
 import { formatDate, formatUSD } from '@/lib/format'
 import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE } from '@/lib/pricing'
+import { defaultActiveOrg } from '@/components/marketplace/b2b/b2b-shared'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -98,6 +99,19 @@ export function CheckoutView() {
   const navigate = useMarketplace((s) => s.navigate)
   const clearCart = useMarketplace((s) => s.clearCart)
   const openAuth = useMarketplace((s) => s.openAuth)
+
+  // TENANT-AUDIT H-3: the org this order is placed FOR. Multi-org buyers get
+  // their remembered active org (the same one the RFQ flow uses) instead of
+  // the server's silent findFirst. The API re-validates membership + ACTIVE
+  // server-side — this is a CHOICE, never an authorization.
+  const { data: myOrgsData } = useApi<{ organizations: { id: string; status: string }[] }>(
+    user ? '/api/organizations' : null,
+    { skip: !user }
+  )
+  const activeOrg = useMemo(
+    () => defaultActiveOrg(myOrgsData?.organizations ?? []),
+    [myOrgsData]
+  )
 
   const [form, setForm] = useState({
     fullName: user?.name ?? '',
@@ -321,6 +335,8 @@ export function CheckoutView() {
           phone: form.phone || null,
           couponCode: appliedCoupon?.code ?? null,
           paymentMethod: payMethod === 'card' ? 'CARD' : payMethod === 'bank' ? 'BANK_TRANSFER' : 'MURABAHA',
+          // TENANT-AUDIT H-3: explicit org attribution (server-validated).
+          organizationId: activeOrg?.id ?? null,
         }),
       })
       const json = await res.json()

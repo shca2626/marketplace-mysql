@@ -13,7 +13,7 @@
 // and links straight to the status tracker (ActivationSection).
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { AlertTriangle, ArrowRight, Clock, Landmark } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Clock, Landmark, ShieldAlert } from 'lucide-react'
 import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
 import { Button } from '@/components/ui/button'
@@ -27,12 +27,18 @@ interface FinancierContextResponse {
   } | null
 }
 
+/** TENANT-AUDIT M-4: the statuses that must surface to the applicant/staff
+ *  on every account surface (not just inside the console). */
+const SURFACED_STATUSES = ['PENDING_VERIFICATION', 'REJECTED', 'SUSPENDED'] as const
+
 /**
  * Amber call-out for a pending financing-institution application. Renders
  * nothing when the user is not financier staff or their institution is already
  * ACTIVE (the console takes over at that point). Rejected applications get a
- * red variant — the applicant must act. `compact` fits the banner inside
- * cards (the business console org panel).
+ * red variant — the applicant must act. SUSPENDED institutions get the same
+ * red treatment with suspension-specific copy (M-4: the console alone would
+ * only show a misleading "not staff" screen). `compact` fits the banner
+ * inside cards (the business console org panel).
  */
 export function FinancierPendingBanner({ compact = false }: { compact?: boolean }) {
   const user = useMarketplace((s) => s.user)
@@ -43,9 +49,9 @@ export function FinancierPendingBanner({ compact = false }: { compact?: boolean 
 
   const ctx = data?.context
   const status = ctx?.organizationStatus
-  if (!ctx || (status !== 'PENDING_VERIFICATION' && status !== 'REJECTED')) return null
+  if (!ctx || !(SURFACED_STATUSES as readonly string[]).includes(status ?? '')) return null
 
-  const rejected = status === 'REJECTED'
+  const negative = status === 'REJECTED' || status === 'SUSPENDED'
 
   return (
     <div
@@ -62,28 +68,34 @@ export function FinancierPendingBanner({ compact = false }: { compact?: boolean 
           'flex shrink-0 items-center justify-center rounded-xl ' +
           (compact ? 'h-9 w-9' : 'h-11 w-11') +
           ' ' +
-          (rejected
+          (negative
             ? 'bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400'
             : 'bg-amber-100 text-amber-600 dark:bg-amber-900 dark:text-amber-400')
         }
       >
-        {rejected ? <AlertTriangle size={18} /> : <Clock size={19} />}
+        {status === 'SUSPENDED' ? <ShieldAlert size={18} /> : negative ? <AlertTriangle size={18} /> : <Clock size={19} />}
       </span>
       <div className="min-w-0 flex-1">
         <p className="flex flex-wrap items-center gap-1.5 text-sm font-semibold text-amber-900 dark:text-amber-200">
           <Landmark size={14} className="shrink-0" aria-hidden />
-          {rejected ? 'Institution application was declined' : 'Financing institution application in review'}
+          {status === 'SUSPENDED'
+            ? 'Your institution is suspended'
+            : status === 'REJECTED'
+              ? 'Institution application was declined'
+              : 'Financing institution application in review'}
         </p>
         <p className="mt-0.5 text-xs leading-relaxed text-amber-800/90 dark:text-amber-300/90">
-          {rejected
-            ? `${ctx.organizationName} was declined by the Vendora team — open the tracker for the reason and how to reapply.`
-            : `${ctx.organizationName} is pending Vendora verification. Your account works as a buyer until the institution is activated — that is expected, nothing failed.`}
+          {status === 'SUSPENDED'
+            ? `${ctx.organizationName} was suspended by the Vendora team — financing actions are paused while the review is ongoing. Open the tracker for details.`
+            : status === 'REJECTED'
+              ? `${ctx.organizationName} was declined by the Vendora team — open the tracker for the reason and how to reapply.`
+              : `${ctx.organizationName} is pending Vendora verification. Your account works as a buyer until the institution is activated — that is expected, nothing failed.`}
         </p>
       </div>
       <Button
         size="sm"
         className="shrink-0 rounded-xl"
-        variant={rejected ? 'destructive' : 'default'}
+        variant={negative ? 'destructive' : 'default'}
         onClick={() => navigate('financier')}
       >
         View application status <ArrowRight size={14} className="ml-1" />

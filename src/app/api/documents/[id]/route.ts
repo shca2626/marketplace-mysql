@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireUser } from '@/server/guards'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 import {
   updateAccountDocument,
   softDeleteAccountDocument,
@@ -98,11 +99,16 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
 
     // Ownership/ownership-precedence first so we never leak reference info
     // about a document the caller doesn't own (mirrors the service's checks).
+    // TENANT-AUDIT F-01: the legacy User.role === 'ADMIN' bypass is replaced by
+    // the explicit RBAC document-review capability.
     const doc = await db.accountDocument.findUnique({ where: { id }, select: { userId: true, isActive: true } })
     if (!doc || !doc.isActive) {
       return NextResponse.json({ error: 'Document not found' }, { status: 404 })
     }
-    if (doc.userId !== user.id && user.role !== 'ADMIN') {
+    if (
+      doc.userId !== user.id &&
+      !(await userHasPlatformPermission(user.id, 'financing.documents.verify'))
+    ) {
       return NextResponse.json({ error: 'Only the uploader can remove this document' }, { status: 403 })
     }
 
@@ -121,7 +127,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
       }
     }
 
-    // actorRole flows through so the ADMIN override allowed by the pre-check
+    // actorRole flows through so the RBAC override allowed by the pre-check
     // above isn't rejected by the service's own ownership guard.
     const result = await softDeleteAccountDocument(user.id, id, user.role)
     return NextResponse.json(result)

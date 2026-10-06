@@ -26,6 +26,8 @@ import { useMarketplace, markStoreHydrated } from '@/store/marketplace'
 import { userModuleSet } from '@/components/dashboards/nav-config'
 import { useApi } from '@/hooks/use-api'
 import { initials } from '@/lib/format'
+import { signOut } from '@/lib/signout'
+import { toast } from '@/hooks/use-toast'
 import { AuthModal } from '@/components/marketplace/auth-modal'
 import { SolarIcon } from './solar-icon'
 import { Button } from '@/components/ui/button'
@@ -138,13 +140,17 @@ export function SiteHeader() {
 
   const cartCount = mounted ? cart.reduce((sum, i) => sum + i.quantity, 0) : 0
 
+  // TENANT-AUDIT C-1 + L-3: shared sign-out (clears persisted user state —
+  // support-chat session, cart, company draft, seen-ids, active org), then
+  // give the visitor feedback + land them on the marketing home.
   const logout = async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' })
+      await signOut()
     } catch {
-      // best-effort
+      // best-effort — local state is already cleared
     }
-    setUser(null)
+    toast({ title: 'Signed out', description: 'You have been signed out. See you soon!' })
+    window.location.href = '/'
   }
 
   // Financier console entry — same context gate as the market header, so

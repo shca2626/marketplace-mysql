@@ -30,7 +30,20 @@ const checkoutSchema = z.object({
   phone: z.string().max(30).optional().nullable(),
   couponCode: z.string().trim().max(24).optional().nullable(),
   paymentMethod: z.enum(['CARD', 'BANK_TRANSFER', 'MURABAHA']).optional(), // absent = CARD (legacy callers); MURABAHA = Finance-it checkout (10.9)
+  // TENANT-AUDIT H-3: the org this purchase is placed for — multi-org buyers
+  // choose explicitly (the remembered active org). Validated against the
+  // caller's active memberships server-side; a foreign id is refused 403.
+  organizationId: z.string().max(64).optional().nullable(),
 })
+
+/** Legacy org resolution: the caller's first ACTIVE membership (H-3 keeps this
+ *  only as the fallback when the checkout carries no explicit org choice). */
+async function loadActiveMembership(userId: string) {
+  return db.organizationMember.findFirst({
+    where: { userId, organization: { status: 'ACTIVE' } },
+    include: { organization: true },
+  })
+}
 
 /** 7.3.1: thrown inside the checkout transaction when a conditional atomic
  * decrement matched 0 rows (concurrent buyer took the last units) — rolls
@@ -71,8 +84,34 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       )
     }
-    const { items, couponCode: rawCouponCode, paymentMethod, ...shipping } = parsed.data
+    const { items, couponCode: rawCouponCode, paymentMethod, organizationId: rawOrganizationId, ...shipping } = parsed.data
     const method = paymentMethod ?? 'CARD'
+
+    // ── B2B context (TENANT-AUDIT H-3): resolve the org this purchase is placed
+    // FOR before anything else — fail fast on authorization, before product
+    // pricing/stock work. When the checkout carries an explicit organizationId
+    // (the org the buyer selected), it is validated against the caller's
+    // ACTIVE memberships server-side — a foreign or suspended org id is
+    // refused 403, never silently re-attributed. Omitted → the caller's first
+    // active membership (legacy behavior, resolved later). ──
+    let membership: (Awaited<ReturnType<typeof loadActiveMembership>> | null) = null
+    if (rawOrganizationId) {
+      membership = await db.organizationMember.findFirst({
+        where: {
+          userId: user.id,
+          organizationId: rawOrganizationId,
+          organization: { status: 'ACTIVE' },
+          user: { status: 'ACTIVE' },
+        },
+        include: { organization: true },
+      })
+      if (!membership) {
+        return NextResponse.json(
+          { error: 'You are not an active member of the selected organization — refresh and pick a valid workspace.' },
+          { status: 403 }
+        )
+      }
+    }
 
     // 10.9 Finance-it (Murabaha): pre-qualification gate — KYC L2+ (identity
     // docs verified). Fail-closed BEFORE the order transaction; the buyer
@@ -265,12 +304,13 @@ export async function POST(req: NextRequest) {
     // ── Server-authoritative pricing (matches lib/pricing used by the UI) ──
     const pricing = computePricing(subtotal, coupon)
 
-    // ── B2B context: attach the buyer's active organization, and route the
-    // order for approval when a BUYER-role member reaches the org threshold ──
-    const membership = await db.organizationMember.findFirst({
-      where: { userId: user.id, organization: { status: 'ACTIVE' } },
-      include: { organization: true },
-    })
+    // ── B2B context resolution (continued): the explicit choice was validated
+    // above (fail-fast); without one, fall back to the first active membership
+    // and route the order for approval when a BUYER-role member reaches the
+    // org threshold. ──
+    if (!membership) {
+      membership = await loadActiveMembership(user.id)
+    }
     const orgId = membership?.organizationId ?? null
     const routeForApproval =
       !!membership &&

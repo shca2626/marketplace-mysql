@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
+import { signOut } from '@/lib/signout'
 import type { CategoryDTO } from '@/lib/types'
 import { initials } from '@/lib/format'
 import { SearchBox } from './search-box'
@@ -57,7 +58,6 @@ export function Header() {
   const announcement = useMarketplace((s) => s.settings?.general)
   const setCartOpen = useMarketplace((s) => s.setCartOpen)
   const openAuth = useMarketplace((s) => s.openAuth)
-  const setUser = useMarketplace((s) => s.setUser)
   const view = useMarketplace((s) => s.view)
   const activeCategory = useMarketplace((s) => s.params.category)
   const { theme, setTheme } = useTheme()
@@ -99,9 +99,10 @@ export function Header() {
     !financierOrgId ||
     ((user.modules.orgs[financierOrgId] ?? user.modules.personal)?.includes('financier-console') ?? true)
 
+  // TENANT-AUDIT C-1: shared sign-out — clears persisted user state
+  // (support-chat session, cart, company draft, seen-ids, active org) too.
   const logout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' })
-    setUser(null)
+    await signOut()
     navigate('home')
   }
 

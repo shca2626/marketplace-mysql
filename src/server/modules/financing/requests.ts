@@ -3,6 +3,7 @@ import { recordAudit } from '@/server/modules/audit/service'
 import { emitNotification, emitNotifications } from '@/server/modules/notifications/service'
 import { nextNumber } from '@/server/modules/sequences/service'
 import { resolvePanel } from '@/server/modules/settings/service'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 import { randomBytes } from 'crypto'
 import {
   FinancingError,
@@ -803,8 +804,7 @@ export async function listMyFinancingRequests(
 
 export async function getFinancingRequestDetail(
   userId: string,
-  requestId: string,
-  actorRole = 'USER'
+  requestId: string
 ): Promise<FinancingRequestDetailDTO> {
   await sweepFinancing()
   const request = await db.financingRequest.findUnique({
@@ -815,8 +815,12 @@ export async function getFinancingRequestDetail(
     },
   })
   if (!request) throw new FinancingError('Request not found', 404)
-  const isAdmin = actorRole === 'ADMIN'
-  if (!isAdmin) await assertApplicantActor(userId, request)
+  // TENANT-AUDIT F-01: the legacy User.role === 'ADMIN' bypass is replaced by
+  // an explicit RBAC capability — platform reviewers holding the financing
+  // gate permission can open any dossier; everyone else passes the applicant
+  // chain check (creator or applicant-org member).
+  const isPlatformReviewer = await userHasPlatformPermission(userId, 'financing.gate.view')
+  if (!isPlatformReviewer) await assertApplicantActor(userId, request)
 
   const detail = serializeRequest(request as never)
   const subs = await db.requirementSubmission.findMany({
@@ -1004,11 +1008,15 @@ export async function assertFinancierCanSee(
   const visible =
     (FINANCIER_VISIBLE_STATUSES as readonly string[]).includes(request.status) || request.forwardedAt != null
   if (!visible) throw new FinancingError('Request not found', 404)
+  // TENANT-AUDIT F-03: M2 ACTIVE predicate — suspended institutions lose
+  // by-id detail access, not just list access.
   const membership = await db.organizationMember.findFirst({
     where: {
       userId,
       organizationId: request.service.financierProfile.organizationId,
       role: { in: ['OWNER', 'ADMIN'] },
+      user: { status: 'ACTIVE' },
+      organization: { status: 'ACTIVE' },
     },
   })
   if (!membership) throw new FinancingError('Financier staff access required', 403)

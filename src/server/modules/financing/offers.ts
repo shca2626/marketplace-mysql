@@ -136,11 +136,16 @@ async function loadRequestForFinancier(userId: string, requestId: string) {
   if (!request) throw new FinancingError('Request not found', 404)
   // R-4: the financier may only act on requests that passed the gate
   if (request.forwardedAt == null) throw new FinancingError('Request not found', 404)
+  // TENANT-AUDIT F-03: the M2 ACTIVE predicate — staff of a suspended
+  // institution cannot act via direct ids (list endpoints already exclude
+  // them through requireFinancierContext).
   const membership = await db.organizationMember.findFirst({
     where: {
       userId,
       organizationId: request.service.financierProfile.organizationId,
       role: { in: ['OWNER', 'ADMIN'] },
+      user: { status: 'ACTIVE' },
+      organization: { status: 'ACTIVE' },
     },
   })
   if (!membership) throw new FinancingError('Financier staff access required', 403)
@@ -538,6 +543,28 @@ export async function acceptOffer(
   })
   if (!offer) throw new FinancingError('Offer not found', 404)
   await assertApplicantActor(userId, offer.request)
+  // TENANT-AUDIT F-04: an accepted offer on an ORG-scoped request binds the
+  // whole company to a financing agreement (plus fee accrual). Only members
+  // who hold the budget — OWNER / ADMIN / APPROVER — may accept; BUYER and
+  // VIEWER members must route through their approvers (the same policy the
+  // quote-acceptance flow enforces via needsApproval in rfq/service.ts).
+  if (offer.request.organizationId) {
+    const acceptingMember = await db.organizationMember.findFirst({
+      where: {
+        userId,
+        organizationId: offer.request.organizationId,
+        role: { in: ['OWNER', 'ADMIN', 'APPROVER'] },
+        user: { status: 'ACTIVE' },
+        organization: { status: 'ACTIVE' },
+      },
+    })
+    if (!acceptingMember) {
+      throw new FinancingError(
+        'Only organization owners, admins and approvers can accept financing offers on behalf of the organization — ask an approver to sign off',
+        403
+      )
+    }
+  }
   if (offer.status !== 'SENT') throw new FinancingError(`Offer is ${offer.status} — cannot accept`, 409)
   if (offer.validUntil && offer.validUntil.getTime() < Date.now()) {
     throw new FinancingError('This offer has expired', 409)

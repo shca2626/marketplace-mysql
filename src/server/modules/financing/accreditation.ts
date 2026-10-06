@@ -3,6 +3,7 @@ import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
 import { emitNotification, emitNotifications } from '@/server/modules/notifications/service'
 import { nextNumber } from '@/server/modules/sequences/service'
 import { resolvePanel } from '@/server/modules/settings/service'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 import {
   FinancingError,
   CANCELABLE_PRE_FORWARD,
@@ -789,11 +790,15 @@ async function assertFinancierAccreditationAccess(
       [...(FINANCIER_VISIBLE_STATUSES as readonly string[]), 'ACCREDITED', 'REJECTED', 'REVOKED'] as string[]
     ).includes(request.status) || request.forwardedAt != null
   if (!visible) throw new FinancingError('Request not found', 404)
+  // TENANT-AUDIT F-03: M2 ACTIVE predicate — suspended institutions lose
+  // by-id accreditation access.
   const membership = await db.organizationMember.findFirst({
     where: {
       userId,
       organizationId: request.service.financierProfile.organizationId,
       role: { in: ['OWNER', 'ADMIN'] },
+      user: { status: 'ACTIVE' },
+      organization: { status: 'ACTIVE' },
     },
   })
   if (!membership) throw new FinancingError('Financier staff access required', 403)
@@ -941,9 +946,11 @@ export async function decideAccreditation(
     throw new FinancingError('Only an accredited request can be revoked', 409)
   }
   // Admin revoke path: user might not be financier staff but must be platform admin
+  // TENANT-AUDIT F-01: legacy User.role === 'ADMIN' check replaced by the RBAC
+  // institution-management capability.
   if (!isFinancierStaff) {
-    const admin = await db.user.findUnique({ where: { id: userId }, select: { role: true } })
-    if (!admin || admin.role !== 'ADMIN') throw new FinancingError('Access denied', 403)
+    const canManageInstitutions = await userHasPlatformPermission(userId, 'financing.institutions.manage')
+    if (!canManageInstitutions) throw new FinancingError('Access denied', 403)
   }
   const now = new Date()
   await db.accreditationRequest.update({

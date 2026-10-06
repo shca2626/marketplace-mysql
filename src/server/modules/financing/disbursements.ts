@@ -134,7 +134,9 @@ function serializeDisbursement(
   }
 }
 
-/** Load a disbursement + assert the caller is financier staff of the owning org. */
+/** Load a disbursement + assert the caller is financier staff of the owning org.
+ *  TENANT-AUDIT F-03: M2 ACTIVE predicate — suspended institutions cannot
+ *  confirm or read disbursements via direct ids. */
 async function loadForFinancier(userId: string, disbursementId: string) {
   const record = await db.disbursementRecord.findUnique({
     where: { id: disbursementId },
@@ -146,6 +148,8 @@ async function loadForFinancier(userId: string, disbursementId: string) {
       userId,
       organizationId: record.agreement.offer.request.service.financierProfile.organizationId,
       role: { in: ['OWNER', 'ADMIN'] },
+      user: { status: 'ACTIVE' },
+      organization: { status: 'ACTIVE' },
     },
   })
   if (!membership) throw new FinancingError('Financier staff access required', 403)
@@ -174,11 +178,14 @@ async function loadAgreementForFinancier(userId: string, agreementId: string) {
     },
   })
   if (!agreement) throw new FinancingError('Agreement not found', 404)
+  // TENANT-AUDIT F-03: M2 ACTIVE predicate on the by-id financier path.
   const membership = await db.organizationMember.findFirst({
     where: {
       userId,
       organizationId: agreement.offer.request.service.financierProfile.organizationId,
       role: { in: ['OWNER', 'ADMIN'] },
+      user: { status: 'ACTIVE' },
+      organization: { status: 'ACTIVE' },
     },
   })
   if (!membership) throw new FinancingError('Financier staff access required', 403)

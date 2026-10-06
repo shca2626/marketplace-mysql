@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import type { Prisma } from '@prisma/client'
 import { assertSellerCanPublish } from '@/server/modules/kyc/service'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 import { sellerNeedsPublishReview } from './settings'
 
 /**
@@ -151,7 +152,9 @@ export interface OfferInput {
  * New sellers go through the publish-review queue; established ones go live.
  */
 export async function attachOffer(user: { id: string; role: string; status: string; kycLevel: number }, productId: string, input: OfferInput): Promise<OfferRaw> {
-  if (user.role !== 'SELLER' && user.role !== 'ADMIN')
+  // TENANT-AUDIT F-01: the ADMIN half of the legacy role bypass is replaced
+  // by the RBAC catalog-create capability (platform-managed listings).
+  if (user.role !== 'SELLER' && !(await userHasPlatformPermission(user.id, 'catalog.products.create')))
     throw new OfferError('Only sellers can attach offers to catalog products', 403)
   if (user.status === 'SUSPENDED')
     throw new OfferError('Your vendor account is suspended — offers cannot be published', 403)

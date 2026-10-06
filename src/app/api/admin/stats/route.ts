@@ -16,8 +16,9 @@ export async function GET(req: NextRequest) {
   try {
     const user = await getSessionUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    // RBAC Phase 2: legacy admins bypass; platform staff need overview access.
-    if (user.role !== 'ADMIN' && !(await userHasPlatformPermission(user.id, 'platform.overview.view')))
+    // RBAC Phase 2 (TENANT-AUDIT F-01: the legacy role shortcut is removed —
+    // access derives from the platform overview capability only).
+    if (!(await userHasPlatformPermission(user.id, 'platform.overview.view')))
       return NextResponse.json(
         { error: 'Access denied — the platform overview requires the "platform.overview.view" permission.' },
         { status: 403 }

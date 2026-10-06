@@ -252,6 +252,16 @@ export async function getOwnService(userId: string, serviceId: string): Promise<
 
 export async function createService(userId: string, input: ServiceInput): Promise<FinancierServiceDTO> {
   const ctx = await requireFinancierContext(userId)
+  // TENANT-AUDIT F-05: pre-activation institutions are read-only server-side
+  // too (the console's activation screen was client-only before) — a
+  // PENDING_VERIFICATION / REJECTED institution cannot seed services via the
+  // direct API while its application is still in review.
+  if (ctx.organizationStatus && ctx.organizationStatus !== 'ACTIVE') {
+    throw new FinancingError(
+      `Your institution is ${ctx.organizationStatus} — the financing console is read-only until Vendora activates it. Open the application tracker for the current status.`,
+      403
+    )
+  }
   validateServiceInput(input, true)
 
   // Phase 4 — publish-approval workflow (same mechanism as products): an

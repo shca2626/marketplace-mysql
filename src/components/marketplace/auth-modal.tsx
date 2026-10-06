@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
+import { clearPersistedUserState } from '@/lib/signout'
 import type { SessionUser } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import {
@@ -56,6 +57,13 @@ export function AuthModal() {
   const setUser = useMarketplace((s) => s.setUser)
   const navigate = useMarketplace((s) => s.navigate)
   const afterAuth = useMarketplace((s) => s.afterAuth)
+
+  // TENANT-AUDIT H-1: the identity this browser held when the modal opened.
+  // When finish() lands a DIFFERENT user, the previous user's commerce state
+  // (cart / saved-for-later / recently-viewed) and persisted keys (chat
+  // session, company draft, seen-ids, active org) are dropped — a shared
+  // browser must never place the previous user's lines under the new login.
+  const prevUserIdRef = useRef<string | null>(useMarketplace.getState().user?.id ?? null)
 
   // ── shared fields ──
   const [password, setPassword] = useState('')
@@ -139,6 +147,12 @@ export function AuthModal() {
   }, [mode])
 
   const finish = (user: SessionUser) => {
+    // TENANT-AUDIT H-1: identity change → drop the previous user's state.
+    if (prevUserIdRef.current && prevUserIdRef.current !== user.id) {
+      useMarketplace.getState().clearUserCommerceState()
+      clearPersistedUserState()
+    }
+    prevUserIdRef.current = user.id
     setUser(user)
     closeAuth()
     toast({
@@ -151,7 +165,14 @@ export function AuthModal() {
           }
         : {}),
     })
-    if (afterAuth) navigate(afterAuth.view, afterAuth.params)
+    // TENANT-AUDIT M-5: a seller-intent registration lands on the seller
+    // console — never left staring at the page they were on. An explicit
+    // afterAuth target always wins.
+    if (afterAuth) {
+      navigate(afterAuth.view, afterAuth.params)
+    } else if (mode === 'register' && user.role === 'SELLER') {
+      navigate('seller')
+    }
     setPassword('')
     setMfaStep(false)
     setMfaCode('')

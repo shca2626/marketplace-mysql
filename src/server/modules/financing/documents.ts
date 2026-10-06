@@ -8,6 +8,7 @@ import { VAULT_NAMESPACE } from '@/lib/storage/namespace'
 import { serializeMediaAsset } from '@/lib/serialize-media'
 import { canAccessAccountDocument } from '@/server/modules/documents/access'
 import { documentSensitivity, type DocumentSensitivity } from '@/server/modules/documents/sensitivity'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 import { FinancingError, DOCUMENT_TYPES, assertOrgMember, iso } from './shared'
 
 /**
@@ -351,11 +352,15 @@ export async function updateAccountDocument(
 export async function softDeleteAccountDocument(
   userId: string,
   documentId: string,
-  actorRole = 'USER'
+  _actorRole = 'USER'
 ): Promise<{ ok: true }> {
   const doc = await db.accountDocument.findUnique({ where: { id: documentId } })
   if (!doc || !doc.isActive) throw new FinancingError('Document not found', 404)
-  if (doc.userId !== userId && actorRole !== 'ADMIN') {
+  // TENANT-AUDIT F-01: the legacy actorRole === 'ADMIN' bypass is replaced by
+  // the explicit RBAC document-review capability (the caller's membership is
+  // resolved server-side from the session — never from client input).
+  const isDocumentReviewer = await userHasPlatformPermission(userId, 'financing.documents.verify')
+  if (doc.userId !== userId && !isDocumentReviewer) {
     throw new FinancingError('Only the uploader can remove this document', 403)
   }
   // 6.11: soft delete + audit row commit atomically.
@@ -363,7 +368,7 @@ export async function softDeleteAccountDocument(
     await tx.accountDocument.update({ where: { id: documentId }, data: { isActive: false } })
     await recordAuditTx(tx, {
       actorId: userId,
-      actorType: actorRole === 'ADMIN' ? 'ADMIN' : 'USER',
+      actorType: isDocumentReviewer ? 'ADMIN' : 'USER',
       action: 'ACCOUNT_DOCUMENT_DELETED',
       entityType: 'AccountDocument',
       entityId: documentId,

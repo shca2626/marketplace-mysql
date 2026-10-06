@@ -49,6 +49,7 @@ import {
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
+import { signOut as doSignOut } from '@/lib/signout'
 import type { SessionUser } from '@/lib/types'
 import { MERCHANT_TYPES, type MerchantType } from '@/lib/phone'
 import { apiRequest } from '@/components/marketplace/financing/financing-shared'
@@ -72,7 +73,13 @@ import { GovernorateSelect, PasswordInput, PhoneOtpField, RadioCard, RegisterDoo
 
 // ── Draft (localStorage) ─────────────────────────────────────────────────────
 
+// TENANT-AUDIT H-2: the draft is keyed by the step-1 owner id once signed
+// in — a browser where user A abandoned the wizard must NEVER pre-fill
+// user B's registration with A's legal name / registration no. / tax id.
+// The bare (pre-login step-1) key holds only the not-yet-created account
+// form; it is swept on sign-out (lib/signout.ts).
 const DRAFT_KEY = 'register-company-draft'
+const draftKeyFor = (uid?: string | null) => (uid ? `${DRAFT_KEY}:${uid}` : DRAFT_KEY)
 
 interface CompanyDraft {
   v: 1
@@ -297,7 +304,9 @@ export function RegisterCompanyView() {
   useEffect(() => {
     const t = setTimeout(() => {
       try {
-        const raw = window.localStorage.getItem(DRAFT_KEY)
+        // TENANT-AUDIT H-2: a signed-in user restores ONLY their own draft.
+        const key = draftKeyFor(useMarketplace.getState().user?.id)
+        const raw = window.localStorage.getItem(key)
         if (raw) {
           const draft = JSON.parse(raw) as CompanyDraft
           if (draft?.v === 1) {
@@ -350,11 +359,11 @@ export function RegisterCompanyView() {
       intent,
     }
     try {
-      window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
+      window.localStorage.setItem(draftKeyFor(user?.id), JSON.stringify(draft))
     } catch {
       // storage full / disabled — the wizard still works, just not resumable
     }
-  }, [draftReady, step, account, profile, docs, intent, submitted])
+  }, [draftReady, step, account, profile, docs, intent, submitted, user?.id])
 
   // Categories load (step 4 needs them; fetch lazily when first relevant)
   useEffect(() => {
@@ -408,7 +417,8 @@ export function RegisterCompanyView() {
 
   const clearDraft = () => {
     try {
-      window.localStorage.removeItem(DRAFT_KEY)
+      window.localStorage.removeItem(draftKeyFor(user?.id))
+      window.localStorage.removeItem(DRAFT_KEY) // pre-login copy, if any
     } catch {
       // ignore
     }
@@ -428,11 +438,12 @@ export function RegisterCompanyView() {
 
   const signOut = async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' })
+      await doSignOut()
     } catch {
       // best-effort
     }
-    setUser(null)
+    setDraftRestored(null)
+    setStep(1)
     toast({ title: 'Signed out', description: 'Create a fresh owner account for the company below.' })
   }
 

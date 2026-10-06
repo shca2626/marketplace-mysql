@@ -77,6 +77,14 @@ export async function canAccessAccountDocument(
  * Financier-scope predicate (6.6.3): "financier access tied to a specific
  * application or review scope — not mere financier membership".
  *
+ * TENANT-AUDIT F-02: the predicate now enforces the R-4 platform gate — only
+ * requests the platform actually FORWARDED (forwardedAt set) back a
+ * document for the target institution's staff. A DRAFT / never-forwarded
+ * request's attachments are the applicant's private material until the
+ * platform gate completes. The staff membership check also applies the M2
+ * ACTIVE predicate (user + organization ACTIVE) — suspended institutions
+ * and suspended staff lose document scope.
+ *
  * Resolves the requests the document backs (RequirementSubmission checklist
  * rows + RequestAttachment loose rows), then checks whether any of those
  * requests' FinancierService → FinancierProfile → Organization is one the
@@ -106,30 +114,34 @@ async function isDocumentInFinancierScope(userId: string, documentId: string): P
 
   if (finIds.length === 0 && accIds.length === 0) return false
 
-  // Financier orgs behind those requests' services.
+  // Financier orgs behind those requests' services — ONLY for requests the
+  // platform gate actually forwarded to the institution (R-4 parity with
+  // the request-list boundary in financing/requests.ts).
   const orgIds = new Set<string>()
   if (finIds.length > 0) {
     const reqs = await db.financingRequest.findMany({
-      where: { id: { in: finIds } },
+      where: { id: { in: finIds }, forwardedAt: { not: null } },
       select: { service: { select: { financierProfile: { select: { organizationId: true } } } } },
     })
     for (const r of reqs) orgIds.add(r.service.financierProfile.organizationId)
   }
   if (accIds.length > 0) {
     const reqs = await db.accreditationRequest.findMany({
-      where: { id: { in: accIds } },
+      where: { id: { in: accIds }, forwardedAt: { not: null } },
       select: { service: { select: { financierProfile: { select: { organizationId: true } } } } },
     })
     for (const r of reqs) orgIds.add(r.service.financierProfile.organizationId)
   }
   if (orgIds.size === 0) return false
 
-  // Caller must be OWNER/ADMIN of one of those financier orgs.
+  // Caller must be OWNER/ADMIN of one of those financier orgs (M2 ACTIVE).
   const membership = await db.organizationMember.findFirst({
     where: {
       userId,
       organizationId: { in: [...orgIds] },
       role: { in: ['OWNER', 'ADMIN'] },
+      user: { status: 'ACTIVE' },
+      organization: { status: 'ACTIVE' },
     },
     select: { id: true },
   })

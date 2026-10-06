@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { recordAudit } from '@/server/modules/audit/service'
 import { emitNotification } from '@/server/modules/notifications/service'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 import { FinancingError, assertApplicantActor, iso } from './shared'
 
 /**
@@ -127,10 +128,18 @@ async function loadAgreement(agreementId: string) {
   return agreement
 }
 
-/** Financier staff of the agreement's financier org (OWNER/ADMIN member). */
+/** Financier staff of the agreement's financier org (OWNER/ADMIN member).
+ *  TENANT-AUDIT F-03: M2 ACTIVE predicate — suspended institutions lose
+ *  by-id access (payments, allocations, schedules). */
 async function assertFinancierAgreementAccess(userId: string, financierOrgId: string): Promise<void> {
   const membership = await db.organizationMember.findFirst({
-    where: { userId, organizationId: financierOrgId, role: { in: ['OWNER', 'ADMIN'] } },
+    where: {
+      userId,
+      organizationId: financierOrgId,
+      role: { in: ['OWNER', 'ADMIN'] },
+      user: { status: 'ACTIVE' },
+      organization: { status: 'ACTIVE' },
+    },
   })
   if (!membership) throw new FinancingError('Financier staff access required', 403)
 }
@@ -604,12 +613,18 @@ export async function agreementStatement(
   agreementId: string
 ): Promise<AgreementStatementDTO> {
   const agreement = await loadAgreement(agreementId)
-  if (viewer.role !== 'ADMIN') {
+  // TENANT-AUDIT F-01: legacy User.role === 'ADMIN' bypass replaced by an
+  // explicit RBAC capability — platform reviewers holding the financing gate
+  // permission may open any statement.
+  const isPlatformReviewer = await userHasPlatformPermission(viewer.id, 'financing.gate.view')
+  if (!isPlatformReviewer) {
     const isFinancier = !!(await db.organizationMember.findFirst({
       where: {
         userId: viewer.id,
         organizationId: agreement.offer.request.service.financierProfile.organizationId,
         role: { in: ['OWNER', 'ADMIN'] },
+        user: { status: 'ACTIVE' },
+        organization: { status: 'ACTIVE' },
       },
     }))
     if (!isFinancier) {

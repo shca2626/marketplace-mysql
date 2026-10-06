@@ -58,10 +58,13 @@ export async function POST(req: NextRequest) {
     }
     // Route handlers get a mutable cookie store — writing it here both updates
     // the outgoing response AND every same-request read of the active org.
+    // TENANT-AUDIT Q2: security posture aligned with the session cookie
+    // (secure in production); the id is membership-validated on EVERY read.
     const store = await cookies()
     store.set(FINANCIER_ORG_COOKIE, target.id, {
       httpOnly: true,
       sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
       path: '/',
       maxAge: 60 * 60 * 24 * 365,
     })

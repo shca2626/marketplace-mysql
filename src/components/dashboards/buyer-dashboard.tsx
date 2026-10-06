@@ -41,6 +41,7 @@ import { formatDate, initials } from '@/lib/format'
 import type { OrderDTO, RfqDTO } from '@/lib/types'
 import { DashboardLayout, PageHeader, SignInRequired } from './dashboard-layout'
 import { FinancierPendingBanner } from './financier-pending-banner'
+import { OrgStatusBanner } from './org-status-banner'
 import { ProfileSecurityPanel } from './buyer-profile-security'
 import { VerificationSection } from './verification-section'
 import { BUYER_NAV, filterNavByModules, userModuleSet } from './nav-config'
@@ -209,9 +210,12 @@ export function BuyerDashboard() {
 
       {/* Financier application bridge (audit feedback): a pending financing
           institution must be visible from the buyer account hub — otherwise the
-          applicant thinks the registration failed. */}
-      <div className="mb-6">
+          applicant thinks the registration failed. TENANT-AUDIT H-4: merchant
+          companies get the same bridge — their pending/rejected/suspended org
+          surfaces here too, not just inside the business console. */}
+      <div className="mb-4 space-y-4">
         <FinancierPendingBanner />
+        <OrgStatusBanner />
       </div>
 
       {/* Activity tiles */}
