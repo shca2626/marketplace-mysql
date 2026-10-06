@@ -151,6 +151,18 @@ export function Header() {
               >
                 All Products
               </Button>
+              {/* Phase 12 — brands directory entry (public) */}
+              <Button
+                variant="ghost"
+                className="w-full justify-start"
+                onClick={() => {
+                  setMobileOpen(false)
+                  navigate('brands')
+                }}
+              >
+                <Store size={15} className="mr-2 text-bh-gold-dark" />
+                Brands
+              </Button>
               {categories.map((c) => (
                 <Button
                   key={c.id}
@@ -363,6 +375,19 @@ export function Header() {
               </span>
             </button>
           ))}
+          {/* Phase 12 — brands directory entry (public), next to the catalog */}
+          <button
+            onClick={() => navigate('brands')}
+            className={cn(
+              'flex items-center gap-1 rounded-full border px-3 py-1 text-[13px] font-medium transition-colors',
+              view === 'brands'
+                ? 'border-bh-navy bg-bh-navy text-white'
+                : 'border-transparent text-bh-subtle hover:border-bh-gold/50 hover:text-bh-navy'
+            )}
+          >
+            <Store size={13} className={view === 'brands' ? 'text-bh-gold' : 'opacity-70'} aria-hidden />
+            Brands
+          </button>
           <span className="mx-1 h-4 w-px bg-bh-border" />
           {user?.role !== 'ADMIN' && (
             <button

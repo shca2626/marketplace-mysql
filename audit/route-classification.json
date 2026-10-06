@@ -708,6 +708,30 @@
       "moduleKeys": []
     },
     {
+      "route": "/api/admin/kyc/cases",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "financing.documents.verify"
+      ],
+      "moduleKeys": [],
+      "notes": "KYC provider case queue (open = SUBMITTED+PROVIDER_ERROR+MANUAL_QUEUE+PENDING)."
+    },
+    {
+      "route": "/api/admin/kyc/cases/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "financing.documents.verify"
+      ],
+      "moduleKeys": [],
+      "notes": "Manual-queue decision on a provider case (approve/reject/requeue) \u2014 performs document verification."
+    },
+    {
       "route": "/api/admin/kyc/expiry-scan",
       "bucket": "PLATFORM_PRIVILEGED",
       "methods": [
@@ -717,6 +741,32 @@
         "financing.documents.verify"
       ],
       "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/kyc/provider-configs",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "PUT",
+        "POST"
+      ],
+      "permissionKeys": [
+        "staff.manage"
+      ],
+      "moduleKeys": [],
+      "notes": "Per-doc-type provider routing config + webhook secret rotation (console nav gate parity)."
+    },
+    {
+      "route": "/api/admin/kyc/webhook-events",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "financing.documents.verify"
+      ],
+      "moduleKeys": [],
+      "notes": "Immutable webhook receive log (forensics)."
     },
     {
       "route": "/api/admin/modules",
@@ -738,7 +788,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Digest trigger — internal endpoint guarded by header secret + optional session; runs the digest job (see service). Ops-only."
+      "notes": "Digest trigger \u2014 internal endpoint guarded by header secret + optional session; runs the digest job (see service). Ops-only."
     },
     {
       "route": "/api/admin/orders",
@@ -955,7 +1005,7 @@
         "catalog.products.update"
       ],
       "moduleKeys": [],
-      "notes": "Phase 9.2 admin full-field creation of a CURATED platform catalog record (sellerId null, curatedById admin, isCurated true) — no KYC/publication-agreement gates; platform is the author."
+      "notes": "Phase 9.2 admin full-field creation of a CURATED platform catalog record (sellerId null, curatedById admin, isCurated true) \u2014 no KYC/publication-agreement gates; platform is the author."
     },
     {
       "route": "/api/admin/products/[id]",
@@ -983,7 +1033,7 @@
         "catalog.products.view"
       ],
       "moduleKeys": [],
-      "notes": "Phase 9.3 product-scoped audit trail (diff viewer data source) — entityType=Product rows only."
+      "notes": "Phase 9.3 product-scoped audit trail (diff viewer data source) \u2014 entityType=Product rows only."
     },
     {
       "route": "/api/admin/products/bulk",
@@ -995,7 +1045,7 @@
         "catalog.products.moderate"
       ],
       "moduleKeys": [],
-      "notes": "Phase 9.3 bulk archive/restore/feature/unfeature — one audit entry per action, reason mandatory."
+      "notes": "Phase 9.3 bulk archive/restore/feature/unfeature \u2014 one audit entry per action, reason mandatory."
     },
     {
       "route": "/api/admin/quotes",
@@ -1619,7 +1669,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Self-service — verifies current password; bumps sessionVersion."
+      "notes": "Self-service \u2014 verifies current password; bumps sessionVersion."
     },
     {
       "route": "/api/auth/forgot-password",
@@ -1705,7 +1755,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Registration door (B2B company self-signup) — creates account + org."
+      "notes": "Registration door (B2B company self-signup) \u2014 creates account + org."
     },
     {
       "route": "/api/auth/register/financier",
@@ -1715,7 +1765,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Financier door — creates account via email-bound invitation token (hashed, 6.5)."
+      "notes": "Financier door \u2014 creates account via email-bound invitation token (hashed, 6.5)."
     },
     {
       "route": "/api/auth/reset-password",
@@ -1767,6 +1817,26 @@
       "notes": "Self-service email verification resend (rate-limited)."
     },
     {
+      "route": "/api/brands",
+      "bucket": "PUBLIC",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Phase 12 public brands directory (brands with live listings only, 60s cache)."
+    },
+    {
+      "route": "/api/brands/[slug]",
+      "bucket": "PUBLIC",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Phase 12 public brand detail + its live products (search/sort/pagination only)."
+    },
+    {
       "route": "/api/catalog",
       "bucket": "PUBLIC",
       "methods": [
@@ -1792,7 +1862,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Seller-scoped certification CRUD — ownership checked in service (seller profile owner)."
+      "notes": "Seller-scoped certification CRUD \u2014 ownership checked in service (seller profile owner)."
     },
     {
       "route": "/api/chat/widget/messages",
@@ -1820,7 +1890,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Public webchat widget (WA-CHAT) — anonymous by design; the session cookie is read only to prefill the visitor name/phone and link an existing account (guard-lint scans MANUAL_REVIEW because of the optional getSessionUser call, reviewed as PUBLIC)."
+      "notes": "Public webchat widget (WA-CHAT) \u2014 anonymous by design; the session cookie is read only to prefill the visitor name/phone and link an existing account (guard-lint scans MANUAL_REVIEW because of the optional getSessionUser call, reviewed as PUBLIC)."
     },
     {
       "route": "/api/contact",
@@ -2085,7 +2155,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Contract template draft edit — DRAFT-only (409 once ACTIVE/RETIRED); sha256 recomputed on body change."
+      "notes": "Contract template draft edit \u2014 DRAFT-only (409 once ACTIVE/RETIRED); sha256 recomputed on body change."
     },
     {
       "route": "/api/financier/contracts/[id]/activate",
@@ -2095,7 +2165,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Single-active template activation — all other templates of the kind retire atomically."
+      "notes": "Single-active template activation \u2014 all other templates of the kind retire atomically."
     },
     {
       "route": "/api/financier/contracts/[id]/retire",
@@ -2105,7 +2175,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Template retirement — leaves no active template; new signings fail closed until a new activation."
+      "notes": "Template retirement \u2014 leaves no active template; new signings fail closed until a new activation."
     },
     {
       "route": "/api/financier/disbursements",
@@ -2416,7 +2486,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Buyer e-sign execution: fail-closed chain — applicant binding (403), ACTIVE+first execution (409), active template (404), hash fail-closed (400), consent (400), step-up MFA (428/400)."
+      "notes": "Buyer e-sign execution: fail-closed chain \u2014 applicant binding (403), ACTIVE+first execution (409), active template (404), hash fail-closed (400), consent (400), step-up MFA (428/400)."
     },
     {
       "route": "/api/financing/agreements/[id]/statement",
@@ -2514,7 +2584,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Public financing hub listing (GET). POST (apply) requires session — inline auth in handler."
+      "notes": "Public financing hub listing (GET). POST (apply) requires session \u2014 inline auth in handler."
     },
     {
       "route": "/api/financing/services/[id]",
@@ -2546,6 +2616,16 @@
       "notes": "Public storefront home payload; optional session personalization."
     },
     {
+      "route": "/api/kyc/cases",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "The caller's own provider cases (buyer-side status contract)."
+    },
+    {
       "route": "/api/kyc/status",
       "bucket": "AUTHENTICATED_USER",
       "methods": [
@@ -2553,6 +2633,16 @@
       ],
       "permissionKeys": [],
       "moduleKeys": []
+    },
+    {
+      "route": "/api/kyc/webhook/[providerKey]",
+      "bucket": "PUBLIC",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "External provider decision webhook \u2014 the HMAC-SHA256 signature IS the auth: constant-time verify + 5-min replay window + nonce uniqueness + event-id idempotency; unauthenticated calls rejected 401 + audited."
     },
     {
       "route": "/api/media/[...key]",
@@ -2643,7 +2733,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Buyer payment attempt — ownership checked in payment service."
+      "notes": "Buyer payment attempt \u2014 ownership checked in payment service."
     },
     {
       "route": "/api/orders/[id]/refund",
@@ -2653,7 +2743,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Session buyer (getSessionUser + ownership check inside requestRefund: only the order buyer may request; refundable only when money actually moved — paidStates guard). Rate-limited like checkout."
+      "notes": "Session buyer (getSessionUser + ownership check inside requestRefund: only the order buyer may request; refundable only when money actually moved \u2014 paidStates guard). Rate-limited like checkout."
     },
     {
       "route": "/api/organizations",
@@ -2757,7 +2847,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Offer update/delete — offer seller ownership checked in service."
+      "notes": "Offer update/delete \u2014 offer seller ownership checked in service."
     },
     {
       "route": "/api/products/bulk",
@@ -2779,6 +2869,16 @@
       "permissionKeys": [],
       "moduleKeys": [],
       "notes": "Seller export (own) or catalog.products.view for scope=all (Phase 6 sweep)."
+    },
+    {
+      "route": "/api/products/facets",
+      "bucket": "PUBLIC",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Phase 12 spec-attribute facet aggregation for one category (60s cache)."
     },
     {
       "route": "/api/quotes/[id]/accept",
@@ -2878,7 +2978,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Session user (getSessionUser): returns only the caller’s own refunds (buyerRefunds scopes by order.buyerId = userId)."
+      "notes": "Session user (getSessionUser): returns only the caller\u2019s own refunds (buyerRefunds scopes by order.buyerId = userId)."
     },
     {
       "route": "/api/refunds/[id]/cancel",
@@ -2888,7 +2988,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Session user (getSessionUser): cancelRefund verifies the refund’s order belongs to the caller before any transition; only REQUESTED/APPROVED are cancellable."
+      "notes": "Session user (getSessionUser): cancelRefund verifies the refund\u2019s order belongs to the caller before any transition; only REQUESTED/APPROVED are cancellable."
     },
     {
       "route": "/api/reviews",
@@ -2992,7 +3092,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Seller fulfillment queue — items where sellerId = caller."
+      "notes": "Seller fulfillment queue \u2014 items where sellerId = caller."
     },
     {
       "route": "/api/seller/profile",
@@ -3022,7 +3122,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Seller self-service subscription view — org resolved from the CALLER's SellerProfile (never a parameter)."
+      "notes": "Seller self-service subscription view \u2014 org resolved from the CALLER's SellerProfile (never a parameter)."
     },
     {
       "route": "/api/seller/subscription/action",
@@ -3032,7 +3132,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Seller self-service subscription actions (change-plan / cancel) — org resolved from the CALLER's SellerProfile (never a parameter)."
+      "notes": "Seller self-service subscription actions (change-plan / cancel) \u2014 org resolved from the CALLER's SellerProfile (never a parameter)."
     },
     {
       "route": "/api/sellers/[id]",
@@ -3089,7 +3189,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Media asset delete — ownership checked (uploadedById = caller) or catalog permission."
+      "notes": "Media asset delete \u2014 ownership checked (uploadedById = caller) or catalog permission."
     },
     {
       "route": "/api/vault/[documentId]",
@@ -3099,7 +3199,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Private-vault authenticated proxy (6.6.4): session re-authenticated per retrieval; HMAC-signed one-time nonce (VaultAccessGrant) verified + atomically consumed; access RE-authorized against the 6.8 matrix (owner / financing.documents.verify / org member per class / financier review scope) inside consumeVaultUrl — not a static permission key. Cache-Control: no-store; never redirects to storage/CDN."
+      "notes": "Private-vault authenticated proxy (6.6.4): session re-authenticated per retrieval; HMAC-signed one-time nonce (VaultAccessGrant) verified + atomically consumed; access RE-authorized against the 6.8 matrix (owner / financing.documents.verify / org member per class / financier review scope) inside consumeVaultUrl \u2014 not a static permission key. Cache-Control: no-store; never redirects to storage/CDN."
     }
   ]
 }

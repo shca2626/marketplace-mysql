@@ -2,9 +2,12 @@
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FINANCING · SERVICES DIRECTORY (W-DIRECTORY) — the public catalog of ACTIVE
-// FINANCING + ACCREDITATION services: category chips, financier cards with
-// range/tenor/rate badges, coverage, attributes, requirements preview, and the
-// Apply CTA that launches the 3-step wizard.
+// FINANCING + ACCREDITATION services. Phase 12-c adds the directory facet bar:
+// kind chips, city select (coverage ∪ branch cities, server-provided), amount
+// bracket chips (intersection semantics), rate-cap select and sort — plus the
+// directory header counts ("N services from M institutions"). Financier cards
+// keep the range/tenor/rate badges, coverage, attributes, requirements preview,
+// and the Apply CTA that launches the 3-step wizard.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useMemo, useState } from 'react'
@@ -15,6 +18,7 @@ import {
   Clock3,
   Eye,
   Landmark,
+  ListFilter,
   MapPin,
   Search,
   ShieldCheck,
@@ -23,7 +27,11 @@ import {
 } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
 import { useDebounced } from '@/components/marketplace/financing/financing-shared'
-import type { FinancierServiceDTO, PublicServiceDetailDTO } from '@/lib/types'
+import type {
+  FinancierServiceDTO,
+  PublicServiceDetailDTO,
+  ServiceDirectoryFacetsDTO,
+} from '@/lib/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -36,6 +44,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import {
@@ -49,10 +64,47 @@ import {
   timeAgo,
 } from '@/components/marketplace/financing/financing-shared'
 
+interface ServicesDirectoryResponse {
+  services: FinancierServiceDTO[]
+  total: number
+  institutionCount: number
+  facets: ServiceDirectoryFacetsDTO
+}
+
+/** Amount brackets (YER-scale presets — every listing shares the currency).
+ *  The API intersects the bracket with each service's own range, so a service
+ *  qualifies when any part of its range falls inside the bracket. */
+const AMOUNT_BRACKETS = [
+  { value: 'ANY', label: 'Any amount' },
+  { value: 'U500K', label: 'Under 500K', max: 500_000 },
+  { value: '500K_2M', label: '500K – 2M', min: 500_000, max: 2_000_000 },
+  { value: '2M_10M', label: '2M – 10M', min: 2_000_000, max: 10_000_000 },
+  { value: 'O10M', label: '10M +', min: 10_000_000 },
+] as const
+
+const RATE_OPTIONS = [
+  { value: 'ANY', label: 'Any rate' },
+  { value: '15', label: 'Rate ≤ 15%/yr' },
+  { value: '20', label: 'Rate ≤ 20%/yr' },
+  { value: '25', label: 'Rate ≤ 25%/yr' },
+  { value: '30', label: 'Rate ≤ 30%/yr' },
+] as const
+
+const DIRECTORY_SORTS = [
+  { value: 'popular', label: 'Most viewed' },
+  { value: 'newest', label: 'Newest' },
+  { value: 'rate_asc', label: 'Lowest rate' },
+  { value: 'amount_desc', label: 'Largest amount' },
+] as const
+
 export function ServicesSection({ onApply }: { onApply: (serviceId: string) => void }) {
   const [kind, setKind] = useState<'ALL' | 'FINANCING' | 'ACCREDITATION'>('ALL')
   const [category, setCategory] = useState('ALL')
   const [search, setSearch] = useState('')
+  const [city, setCity] = useState('ALL')
+  const [amount, setAmount] = useState<string>((AMOUNT_BRACKETS[0] as { value: string }).value)
+  const [rateMax, setRateMax] = useState<string>((RATE_OPTIONS[0] as { value: string }).value)
+  const [sort, setSort] = useState<string>(DIRECTORY_SORTS[0].value)
   const debounced = useDebounced(search)
   const [detail, setDetail] = useState<PublicServiceDetailDTO | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
@@ -62,10 +114,16 @@ export function ServicesSection({ onApply }: { onApply: (serviceId: string) => v
     if (kind !== 'ALL') sp.set('kind', kind)
     if (category !== 'ALL') sp.set('category', category)
     if (debounced.trim()) sp.set('q', debounced.trim())
+    if (city !== 'ALL') sp.set('city', city)
+    const bracket = AMOUNT_BRACKETS.find((b) => b.value === amount)
+    if (bracket && 'min' in bracket && bracket.min != null) sp.set('amountMin', String(bracket.min))
+    if (bracket && 'max' in bracket && bracket.max != null) sp.set('amountMax', String(bracket.max))
+    if (rateMax !== 'ANY') sp.set('rateMax', rateMax)
+    if (sort !== 'popular') sp.set('sort', sort)
     return `/api/financing/services?${sp.toString()}`
-  }, [kind, category, debounced])
+  }, [kind, category, debounced, city, amount, rateMax, sort])
 
-  const { data, loading, error, refetch } = useApi<{ services: FinancierServiceDTO[]; total: number }>(query)
+  const { data, loading, error, refetch } = useApi<ServicesDirectoryResponse>(query)
 
   const openDetail = async (id: string) => {
     const res = await apiRequest<{ service: PublicServiceDetailDTO }>(`/api/financing/services/${id}`)
@@ -79,36 +137,145 @@ export function ServicesSection({ onApply }: { onApply: (serviceId: string) => v
   const accreditationCategories = Object.entries(ACCREDITATION_CATEGORY_LABELS)
   const categoryList = kind === 'ACCREDITATION' ? accreditationCategories : financingCategories
 
+  const filtersActive =
+    kind !== 'ALL' || category !== 'ALL' || debounced.trim() !== '' || city !== 'ALL' || amount !== 'ANY' || rateMax !== 'ANY'
+
+  const clearFilters = () => {
+    setKind('ALL')
+    setCategory('ALL')
+    setSearch('')
+    setCity('ALL')
+    setAmount('ANY')
+    setRateMax('ANY')
+  }
+
   return (
     <div className="space-y-4">
-      {/* search + kind toggle */}
-      <div className="flex flex-col gap-3 rounded-2xl border bg-card p-4 sm:flex-row sm:items-center">
-        <div className="relative min-w-0 flex-1">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search services or institutions…"
-            className="h-11 rounded-xl pl-9"
-          />
-        </div>
-        <div className="flex rounded-xl border bg-muted/40 p-1">
-          {(['ALL', 'FINANCING', 'ACCREDITATION'] as const).map((k) => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => {
-                setKind(k)
-                setCategory('ALL')
-              }}
-              className={cn(
-                'min-h-11 flex-1 rounded-lg px-4 text-xs font-semibold transition-colors sm:flex-none',
-                kind === k ? 'bg-background shadow-sm' : 'text-muted-foreground'
+      {/* directory header — live counts over the filtered set */}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="flex items-center gap-2 text-lg font-bold tracking-tight">
+            <ListFilter size={17} className="text-primary" aria-hidden /> Services directory
+          </h2>
+          {loading && !data ? (
+            <Skeleton className="mt-1.5 h-4 w-56" />
+          ) : (
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {data ? (
+                <>
+                  <span className="font-semibold text-foreground">{data.total}</span>{' '}
+                  {data.total === 1 ? 'service' : 'services'} from{' '}
+                  <span className="font-semibold text-foreground">{data.institutionCount}</span>{' '}
+                  {data.institutionCount === 1 ? 'institution' : 'institutions'}
+                </>
+              ) : (
+                'Financing programs and accreditation services from active institutions'
               )}
+              {filtersActive && <span className="ml-1">· matching your filters</span>}
+            </p>
+          )}
+        </div>
+        <Select value={sort} onValueChange={setSort}>
+          <SelectTrigger className="h-10 w-full rounded-xl text-sm sm:w-44" aria-label="Sort services">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {DIRECTORY_SORTS.map((s) => (
+              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* facet bar */}
+      <div className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="relative min-w-0 flex-1">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search services or institutions…"
+              className="h-11 rounded-xl pl-9"
+            />
+          </div>
+          <div className="flex flex-1 gap-2 sm:flex-none">
+            <Select value={city} onValueChange={setCity}>
+              <SelectTrigger className="h-11 w-full rounded-xl text-sm sm:w-44" aria-label="Filter by city">
+                <MapPin size={14} className="mr-1 shrink-0 text-muted-foreground" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="max-h-72">
+                <SelectItem value="ALL">All cities</SelectItem>
+                {(data?.facets.cities ?? []).map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={rateMax} onValueChange={setRateMax}>
+              <SelectTrigger className="h-11 w-full rounded-xl text-sm sm:w-40" aria-label="Filter by maximum rate">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {RATE_OPTIONS.map((r) => (
+                  <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          {/* kind chips */}
+          <div className="flex rounded-xl border bg-muted/40 p-1">
+            {(['ALL', 'FINANCING', 'ACCREDITATION'] as const).map((k) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => {
+                  setKind(k)
+                  setCategory('ALL')
+                }}
+                className={cn(
+                  'min-h-11 flex-1 rounded-lg px-4 text-xs font-semibold transition-colors sm:flex-none',
+                  kind === k ? 'bg-background shadow-sm' : 'text-muted-foreground'
+                )}
+              >
+                {k === 'ALL' ? 'All services' : k === 'FINANCING' ? 'Financing' : 'Accreditation'}
+              </button>
+            ))}
+          </div>
+
+          {/* amount bracket chips — the service's own range must intersect */}
+          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Amount bracket">
+            {AMOUNT_BRACKETS.map((b) => (
+              <button
+                key={b.value}
+                type="button"
+                onClick={() => setAmount(b.value)}
+                aria-pressed={amount === b.value}
+                className={cn(
+                  'min-h-11 rounded-full border px-3.5 text-xs font-semibold transition-colors',
+                  amount === b.value
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'bg-card text-muted-foreground hover:bg-muted/60'
+                )}
+              >
+                {b.label}
+              </button>
+            ))}
+          </div>
+
+          {filtersActive && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto h-9 rounded-xl px-3 text-xs text-muted-foreground"
+              onClick={clearFilters}
             >
-              {k === 'ALL' ? 'All services' : k === 'FINANCING' ? 'Financing' : 'Accreditation'}
-            </button>
-          ))}
+              Clear filters
+            </Button>
+          )}
         </div>
       </div>
 
@@ -351,6 +518,10 @@ export function ServiceCard({
         {s.summary && <p className="line-clamp-2 text-xs text-muted-foreground">{s.summary}</p>}
 
         <div className="flex flex-wrap gap-1.5 text-[10.5px] font-semibold">
+          {/* kind badge — visible especially when browsing All kinds */}
+          <span className="rounded-full border border-border bg-card px-2 py-0.5 text-muted-foreground">
+            {isAccreditation ? 'Accreditation' : 'Financing'}
+          </span>
           {isAccreditation ? (
             <>
               {s.accreditationValidMonths != null && (

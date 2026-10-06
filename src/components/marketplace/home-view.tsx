@@ -37,6 +37,12 @@ export function HomeView() {
   )
   const recentItems = recentData?.items ?? []
 
+  // Phase 12 — brands directory rail (only renders when brands exist)
+  const { data: brandsData } = useApi<{
+    brands: Array<{ id: string; name: string; slug: string; logoUrl: string | null; productCount: number }>
+  }>('/api/brands')
+  const brandRail = (brandsData?.brands ?? []).slice(0, 8)
+
   const submitSearch = (e: React.FormEvent) => {
     e.preventDefault()
     if (search.trim()) navigate('catalog', { query: search.trim() })
@@ -225,6 +231,51 @@ export function HomeView() {
           </div>
         </div>
       </section>
+
+      {/* ── Shop by brand (Phase 12 — canvas rail) ───────── */}
+      {brandRail.length > 0 && (
+        <section className="mx-auto max-w-7xl px-4 py-12" aria-labelledby="brands-heading">
+          <div className="mb-6 flex items-end justify-between">
+            <div>
+              <Eyebrow icon={Store}>Brands</Eyebrow>
+              <h2 id="brands-heading" className="mt-3 text-2xl font-bold tracking-tight text-bh-navy">
+                Shop by brand
+              </h2>
+              <p className="mt-1 text-sm text-bh-subtle">The names behind the gear.</p>
+            </div>
+            <Button
+              variant="ghost"
+              className="group hidden rounded-full text-bh-action hover:text-bh-navy-deep sm:flex"
+              onClick={() => navigate('brands')}
+            >
+              All brands <ArrowRight size={15} className="ml-1 transition-transform duration-200 group-hover:translate-x-0.5" />
+            </Button>
+          </div>
+          <div className="scrollbar-thin -mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2">
+            {brandRail.map((b) => (
+              <button
+                key={b.id}
+                onClick={() => navigate('brands', { brandSlug: b.slug })}
+                className="group flex w-52 shrink-0 snap-start items-center gap-3 rounded-2xl border border-bh-border bg-bh-card p-4 text-left shadow-card transition-all hover:-translate-y-0.5 hover:border-bh-gold/40 hover:shadow-hover focus-visible:ring-2 focus-visible:ring-bh-gold/60 focus-visible:ring-offset-2"
+              >
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-bh-navy-deep text-sm font-extrabold uppercase tracking-wide text-bh-gold">
+                  {b.logoUrl ? (
+                    <img src={b.logoUrl} alt="" className="h-full w-full object-contain p-1" loading="lazy" />
+                  ) : (
+                    b.name.slice(0, 2)
+                  )}
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold text-bh-navy group-hover:text-bh-gold-dark">{b.name}</span>
+                  <span className="block text-xs text-bh-muted">
+                    {b.productCount} {b.productCount === 1 ? 'listing' : 'listings'}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ── Recently viewed (canvas) ─────────────────────── */}
       {recentlyViewed.length > 0 && recentItems.length > 0 && (

@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import type { Prisma } from '@prisma/client'
 import { recordAudit } from '@/server/modules/audit/service'
 import { emitNotification } from '@/server/modules/notifications/service'
 import { adminCreateOrganization } from '@/server/modules/organizations/service'
@@ -467,45 +468,162 @@ export async function setServiceCoverage(
 
 // ── Public directory (applicant browsing — ACTIVE only) ────────────────────
 
+/** Phase 12-c — directory sort options (facet bar). */
+export const SERVICE_DIRECTORY_SORTS = [
+  'popular', // default: viewCount desc, then newest
+  'newest', // createdAt desc
+  'rate_asc', // lowest rate cap first (rate-less services last)
+  'amount_desc', // largest ticket first (open-ended last)
+] as const
+export type ServiceDirectorySort = (typeof SERVICE_DIRECTORY_SORTS)[number]
+
+export interface ServiceDirectoryFacets {
+  /** Distinct cities buyers can filter by — coverage regions ∪ financier
+   *  branch cities over the ACTIVE universe (the city facet matches either). */
+  cities: string[]
+}
+
 export async function listPublicServices(filter?: {
   kind?: string
   category?: string
   city?: string
   search?: string
+  /** Phase 12-c facets (amount bracket = the service's range must INTERSECT
+   *  the requested [amountMin, amountMax]; null service bounds are open). */
+  amountMin?: number
+  amountMax?: number
+  /** Services whose stated rate cap is ≤ this (rate-less services excluded —
+   *  a service with no stated rate cannot honestly be "under X%"). */
+  rateMax?: number
+  sort?: string
   page?: number
   limit?: number
-}): Promise<{ services: FinancierServiceDTO[]; total: number; page: number; limit: number }> {
+}): Promise<{
+  services: FinancierServiceDTO[]
+  total: number
+  page: number
+  limit: number
+  /** Distinct institutions matching the CURRENT filter (directory header). */
+  institutionCount: number
+  facets: ServiceDirectoryFacets
+}> {
   const limit = Math.min(Math.max(Number(filter?.limit) || 20, 1), 60)
   const page = Math.max(Number(filter?.page) || 1, 1)
   const search = filter?.search?.trim()
-  const where = {
+
+  // AND-array assembly: several facets need their own OR (coverage ∪ branch
+  // city, contains-search, open-ended amount bounds) — a single spread object
+  // cannot carry duplicate OR keys.
+  const and: Prisma.FinancierServiceWhereInput[] = []
+  if (filter?.kind) and.push({ serviceKind: filter.kind })
+  if (filter?.category) and.push({ category: filter.category })
+  if (filter?.city?.trim()) {
+    const city = normalizeRegion(filter.city)
+    // DP-16 coverage regions ∪ physical branch cities — either proves the
+    // institution serves that city.
+    and.push({
+      OR: [
+        { coverage: { some: { regionName: city } } },
+        { financierProfile: { branches: { some: { city } } } },
+      ],
+    })
+  }
+  if (search) {
+    and.push({
+      OR: [
+        { name: { contains: search } },
+        { summary: { contains: search } },
+        { description: { contains: search } },
+        { financierProfile: { organization: { name: { contains: search } } } },
+      ],
+    })
+  }
+  // Requested amount range [amountMin, amountMax] must INTERSECT the service's
+  // [amountMin, amountMax]. A null bound on a STATED range is open-ended; a
+  // service with NO amount data at all (both bounds null — ACCREDITATION
+  // kinds) cannot be placed in a bracket and is excluded, the same honest
+  // rule as rate-less services under the rateMax facet.
+  if (filter?.amountMin != null || filter?.amountMax != null) {
+    and.push({ NOT: { amountMin: null, amountMax: null } })
+  }
+  if (filter?.amountMin != null) {
+    and.push({ OR: [{ amountMax: { gte: filter.amountMin } }, { amountMax: null }] })
+  }
+  if (filter?.amountMax != null) {
+    and.push({ OR: [{ amountMin: { lte: filter.amountMax } }, { amountMin: null }] })
+  }
+  if (filter?.rateMax != null) {
+    and.push({ rateMax: { lte: filter.rateMax } })
+  }
+
+  const where: Prisma.FinancierServiceWhereInput = {
     status: 'ACTIVE',
     financierProfile: { organization: { status: 'ACTIVE' } },
-    ...(filter?.kind ? { serviceKind: filter.kind } : {}),
-    ...(filter?.category ? { category: filter.category } : {}),
-    ...(filter?.city?.trim() ? { coverage: { some: { regionName: normalizeRegion(filter.city) } } } : {}),
-    ...(search
-      ? {
-          OR: [
-            { name: { contains: search } },
-            { summary: { contains: search } },
-            { description: { contains: search } },
-            { financierProfile: { organization: { name: { contains: search } } } },
-          ],
-        }
-      : {}),
+    ...(and.length ? { AND: and } : {}),
   }
-  const [rows, total] = await Promise.all([
+
+  const orderBy: Prisma.FinancierServiceOrderByWithRelationInput[] =
+    filter?.sort === 'newest'
+      ? [{ createdAt: 'desc' }]
+      : filter?.sort === 'rate_asc'
+        ? [{ rateMax: { sort: 'asc', nulls: 'last' } }, { viewCount: 'desc' }]
+        : filter?.sort === 'amount_desc'
+          ? [{ amountMax: { sort: 'desc', nulls: 'last' } }, { viewCount: 'desc' }]
+          : [{ viewCount: 'desc' }, { createdAt: 'desc' }]
+
+  // Facet metadata + institution count run alongside the listing page.
+  const [rows, total, institutionRows, coverageCityRows, branchCityRows] = await Promise.all([
     db.financierService.findMany({
       where,
       include: serviceInclude,
-      orderBy: [{ viewCount: 'desc' }, { createdAt: 'desc' }],
+      orderBy,
       take: limit,
       skip: (page - 1) * limit,
     }),
     db.financierService.count({ where }),
+    db.financierService.findMany({
+      where,
+      select: { financierProfileId: true },
+      distinct: ['financierProfileId'],
+    }),
+    db.financierServiceCoverage.findMany({
+      where: {
+        service: {
+          status: 'ACTIVE',
+          financierProfile: { organization: { status: 'ACTIVE' } },
+        },
+      },
+      distinct: ['regionName'],
+      select: { regionName: true },
+    }),
+    db.financierBranch.findMany({
+      where: {
+        city: { not: null },
+        financierProfile: {
+          organization: { status: 'ACTIVE' },
+          services: { some: { status: 'ACTIVE' } },
+        },
+      },
+      distinct: ['city'],
+      select: { city: true },
+    }),
   ])
-  return { services: rows.map(serializeService), total, page, limit }
+
+  const cities = [
+    ...new Set([
+      ...coverageCityRows.map((c) => c.regionName),
+      ...branchCityRows.map((b) => b.city!),
+    ]),
+  ].sort((a, b) => a.localeCompare(b))
+
+  return {
+    services: rows.map(serializeService),
+    total,
+    page,
+    limit,
+    institutionCount: institutionRows.length,
+    facets: { cities },
+  }
 }
 
 export interface PublicServiceDetailDTO extends FinancierServiceDTO {

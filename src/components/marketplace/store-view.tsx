@@ -4,13 +4,18 @@ import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   BadgeCheck,
+  CalendarCheck2,
   Check,
   ChevronRight,
   Image as ImageIcon,
+  Info,
   LayoutDashboard,
-  MessageCircleHeart,
   Package,
+  PackageCheck,
   Share2,
+  Shield,
+  ShieldAlert,
+  ShieldCheck,
   Star,
   Store,
   TrendingUp,
@@ -18,7 +23,7 @@ import {
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
-import type { ProductDTO, StoreCategoryDTO, StoreDTO } from '@/lib/types'
+import type { ProductDTO, StoreCategoryDTO, StoreDTO, StoreTrustDTO } from '@/lib/types'
 import { formatDate, formatNumber, initials } from '@/lib/format'
 import { viewToHref } from '@/lib/routing'
 import { absoluteUrl, shareLink } from '@/lib/share'
@@ -36,6 +41,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 interface StoreProfileResponse {
@@ -212,12 +218,11 @@ export function StoreView() {
                   ) : (
                     <div className="flex items-center gap-2">
                       <h1 className="truncate text-2xl font-bold tracking-tight">{storeName}</h1>
-                      <BadgeCheck size={19} className="shrink-0 text-primary" aria-label="Verified seller" />
+                      {/* Phase 12-c: dynamic trust badge — only verified stores
+                          carry the BadgeCheck; others get an honest shield. */}
+                      <TrustBadgeIcon badge={store.trust?.badge} />
                     </div>
                   )}
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {store ? `Member since ${formatDate(store.memberSince)}` : '\u00A0'}
-                  </p>
                 </div>
               </div>
               {isOwnStore && (
@@ -245,34 +250,59 @@ export function StoreView() {
               )}
             </div>
 
-            {/* Stats row */}
-            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {[
-                { icon: Package, label: 'Listings', value: store ? formatNumber(store.activeListings) : '—' },
-                { icon: TrendingUp, label: 'Items sold', value: store ? formatNumber(store.totalSold) : '—' },
-                {
-                  icon: Star,
-                  label: 'Avg. rating',
-                  value: store && store.reviewCount > 0 ? `${store.avgRating.toFixed(1)} ★` : '—',
-                },
-                { icon: MessageCircleHeart, label: 'Reviews', value: store ? formatNumber(store.reviewCount) : '—' },
-              ].map((stat) => (
-                <div
-                  key={stat.label}
-                  className="rounded-xl border bg-muted/40 px-3.5 py-3 transition-colors hover:border-primary/40 hover:bg-primary/5"
-                >
-                  <stat.icon size={15} className="text-primary" />
-                  <p className="mt-1.5 text-base font-bold leading-none">{stat.value}</p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">{stat.label}</p>
-                </div>
-              ))}
-            </div>
-
             {/* Bio */}
             {store?.storeBio && (
               <p className="mt-4 max-w-3xl text-sm leading-relaxed text-muted-foreground">
                 {store.storeBio}
               </p>
+            )}
+          </div>
+        </Card>
+      </motion.div>
+
+      {/* ── Trust panel (Phase 12-c) — every counter traces to a live query;
+          absent history renders as em dashes, never invented metrics ── */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, delay: 0.08 }}
+      >
+        <Card className="gap-0 border-primary/15 py-0">
+          <div className="p-4 sm:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <ShieldCheck size={16} className="text-primary" aria-hidden />
+                <h2 className="text-sm font-bold tracking-tight">Trust &amp; track record</h2>
+              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex min-h-9 items-center gap-1 rounded-full px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+                    aria-label="How is this calculated?"
+                  >
+                    <Info size={13} aria-hidden /> How is this calculated?
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-72 text-left font-normal leading-relaxed">
+                  Counters are computed live from marketplace records: order items delivered, disputes
+                  raised on this store&apos;s orders, product ratings, and time on the platform. An em dash
+                  means there is not enough history yet — nothing here is estimated.
+                </TooltipContent>
+              </Tooltip>
+            </div>
+
+            {profileLoading || !store ? (
+              <div className="mt-4 space-y-3">
+                <Skeleton className="h-8 w-72 rounded-full" />
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <Skeleton key={i} className="h-[78px] rounded-xl" />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <StoreTrustPanel store={store} />
             )}
           </div>
         </Card>
@@ -376,3 +406,202 @@ export function StoreView() {
     </div>
   )
 }
+
+// ── Trust panel pieces (Phase 12-c) ─────────────────────────────────────────
+
+/** Dynamic badge next to the store name — only verified businesses carry the
+ *  BadgeCheck; identity-verified stores a shield-check; everyone else a
+ *  neutral shield with an honest label (never a fake checkmark). */
+function TrustBadgeIcon({ badge }: { badge?: StoreTrustDTO['badge'] }) {
+  if (badge === 'VERIFIED_BUSINESS') {
+    return <BadgeCheck size={19} className="shrink-0 text-primary" aria-label="Verified business" />
+  }
+  if (badge === 'IDENTITY_VERIFIED') {
+    return (
+      <ShieldCheck
+        size={19}
+        className="shrink-0 text-emerald-600 dark:text-emerald-400"
+        aria-label="Identity verified"
+      />
+    )
+  }
+  if (badge === 'NEW_SELLER') {
+    return <Shield size={19} className="shrink-0 text-muted-foreground/50" aria-label="New seller" />
+  }
+  return null // no trust data → no badge (never fabricate one)
+}
+
+const TRUST_TIERS: Record<
+  NonNullable<StoreTrustDTO['badge']>,
+  { icon: typeof BadgeCheck; label: string; note: string; chipClass: string; iconClass: string }
+> = {
+  VERIFIED_BUSINESS: {
+    icon: BadgeCheck,
+    label: 'Verified business',
+    note: 'Business documentation verified by the platform',
+    chipClass: 'border-primary/30 bg-primary/10 text-primary',
+    iconClass: 'text-primary',
+  },
+  IDENTITY_VERIFIED: {
+    icon: ShieldCheck,
+    label: 'Identity verified',
+    note: 'Government ID verified by the platform',
+    chipClass: 'border-emerald-600/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
+    iconClass: 'text-emerald-600 dark:text-emerald-400',
+  },
+  NEW_SELLER: {
+    icon: Shield,
+    label: 'New seller',
+    note: 'Verification not completed yet',
+    chipClass: 'border-border bg-muted/60 text-muted-foreground',
+    iconClass: 'text-muted-foreground',
+  },
+}
+
+/** Tenure with 1dp, honest for young stores ("<1 yr"). */
+function formatTenure(years: number | undefined): string {
+  if (years == null) return ''
+  return years < 1 ? '<1 yr' : `${years.toFixed(1)} yrs`
+}
+
+/** The trust tile grid + the tier badge chip. `store` is loaded here. */
+function StoreTrustPanel({ store }: { store: StoreDTO }) {
+  const trust = store.trust
+  const tier = trust ? TRUST_TIERS[trust.badge] : null
+  const TierIcon = tier?.icon ?? Shield
+
+  // Dispute state machine — "too early" is a muted em dash, never a fake 100%.
+  const dispute =
+    trust?.disputeFree === true
+      ? {
+          icon: ShieldCheck,
+          value: '100%',
+          label: 'Dispute-free',
+          iconClass: 'text-emerald-600 dark:text-emerald-400',
+        }
+      : trust?.disputeFree === false
+        ? {
+            icon: ShieldAlert,
+            value: trust.disputeRate != null ? `${trust.disputeRate}%` : '—',
+            label: 'Dispute rate',
+            iconClass: 'text-amber-600 dark:text-amber-400',
+          }
+        : {
+            icon: Shield,
+            value: '—',
+            label: 'Dispute-free · too early',
+            iconClass: 'text-muted-foreground/60',
+          }
+
+  const tiles = [
+    {
+      icon: Package,
+      iconClass: 'text-primary',
+      value: formatNumber(store.activeListings),
+      label: 'Listings',
+      hint: 'Products currently published and active in this store.',
+    },
+    {
+      icon: TrendingUp,
+      iconClass: 'text-primary',
+      value: formatNumber(store.totalSold),
+      label: 'Items sold',
+      hint: 'Lifetime units sold across this store\u2019s products.',
+    },
+    {
+      icon: PackageCheck,
+      iconClass: 'text-primary',
+      value: trust ? (trust.ordersTotal === 0 ? '—' : formatNumber(trust.ordersFulfilled)) : '—',
+      label: trust?.ordersTotal === 0 ? 'Orders fulfilled · no orders yet' : 'Orders fulfilled',
+      hint: 'Order items from this store whose delivery reached Delivered status, per the fulfillment record.',
+    },
+    {
+      icon: dispute.icon,
+      iconClass: dispute.iconClass,
+      value: dispute.value,
+      label: dispute.label,
+      hint: 'Orders with a dispute raised ÷ all orders containing this store\u2019s items. The dispute-free status appears once the store has at least 5 orders — before that there is too little history to be meaningful.',
+    },
+    {
+      icon: Star,
+      iconClass: 'text-primary',
+      value: store.reviewCount > 0 ? `${store.avgRating.toFixed(1)} ★` : '—',
+      label:
+        store.reviewCount > 0
+          ? `Avg. rating · ${formatNumber(store.reviewCount)} reviews`
+          : 'Avg. rating · no reviews',
+      hint: 'Mean rating across this store\u2019s products that have reviews.',
+    },
+    {
+      icon: CalendarCheck2,
+      iconClass: 'text-primary',
+      value: formatDate(store.memberSince),
+      label: `Member since${trust ? ` · ${formatTenure(trust.memberYears)}` : ''}`,
+      hint: 'Date this store joined Vendora, with tenure rounded to one decimal.',
+    },
+  ]
+
+  return (
+    <>
+      {/* Trust tier badge */}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <span
+          className={cn(
+            'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold',
+            tier?.chipClass ?? 'border-border bg-muted/60 text-muted-foreground'
+          )}
+        >
+          <TierIcon size={14} className={tier?.iconClass ?? 'text-muted-foreground'} aria-hidden />
+          {tier?.label ?? 'Trust status unavailable'}
+        </span>
+        <span className="text-xs text-muted-foreground">
+          {tier?.note ?? 'No verification history to show yet'}
+        </span>
+      </div>
+
+      {/* Counter tiles — each explains its own derivation on hover/focus */}
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        {tiles.map((tile) => (
+          <TrustTile key={tile.label} {...tile} />
+        ))}
+      </div>
+    </>
+  )
+}
+
+function TrustTile({
+  icon: Icon,
+  iconClass,
+  value,
+  label,
+  hint,
+}: {
+  icon: typeof BadgeCheck
+  iconClass: string
+  value: string
+  label: string
+  hint: string
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div
+          tabIndex={0}
+          role="group"
+          aria-label={`${label}: ${value}`}
+          className="flex h-full cursor-default flex-col rounded-xl border bg-muted/40 px-3.5 py-3 transition-colors hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+        >
+          <Icon size={15} className={cn('shrink-0', iconClass)} aria-hidden />
+          <p className="mt-1.5 truncate text-base font-bold leading-none" title={value}>
+            {value}
+          </p>
+          <p className="mt-1 text-[11px] leading-tight text-muted-foreground">{label}</p>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-64 text-left font-normal leading-relaxed">
+        {hint}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+

@@ -364,6 +364,8 @@ export interface StoreDTO {
   storeCoverLabel: string | null
   /** Phase 3 KYC: 0=L0 · 1=L1 phone · 2=L2 identity · 3=L3 business. */
   kycLevel?: number
+  /** Phase 12-c: trust counters (fulfilled orders, disputes, KYC tier, tenure). */
+  trust?: StoreTrustDTO
   memberSince: string
   activeListings: number
   totalSold: number
@@ -376,6 +378,34 @@ export interface StoreCategoryDTO {
   name: string
   slug: string
   count: number
+}
+
+/**
+ * Phase 12-c — trust counters for the public store page (lastplan v5 §12).
+ * Every number traces to a live query over marketplace records; absent
+ * history is null (rendered as an em dash, never an invented metric).
+ */
+export interface StoreTrustDTO {
+  /** This seller's order items whose fulfillment reached DELIVERED. */
+  ordersFulfilled: number
+  /** Distinct orders containing this seller's items. */
+  ordersTotal: number
+  /** Distinct orders of this seller on which a dispute was raised. */
+  ordersWithDispute: number
+  /** (ordersWithDispute / ordersTotal) as a percent, 1dp — null when no orders. */
+  disputeRate: number | null
+  /** rate === 0 AND ordersTotal ≥ 5. Null = "too early" (< 5 orders) — never a fake 100%. */
+  disputeFree: boolean | null
+  /** Live-computed KYC level of the seller account (0–3, Phase 3 engine). */
+  kycLevel: number
+  /** SellerProfile.verificationState — null when the seller has no profile row. */
+  verificationState: string | null
+  /** Owner organization's persisted KYB level. */
+  orgKycLevel: number | null
+  /** Trust tier — drives the store badge. */
+  badge: 'VERIFIED_BUSINESS' | 'IDENTITY_VERIFIED' | 'NEW_SELLER'
+  /** Years since memberSince, 1dp. */
+  memberYears: number
 }
 
 export interface SellerStats {
@@ -870,6 +900,15 @@ export interface PublicServiceDetailDTO extends FinancierServiceDTO {
    * signed-in viewers only (FIN-6 wizard renders its checklist from this).
    */
   requirements?: ServiceRequirementDTO[]
+}
+
+/**
+ * Phase 12-c — services directory facet metadata returned with the public
+ * listing: the distinct cities buyers can filter by (coverage regions ∪
+ * financier branch cities over the ACTIVE universe).
+ */
+export interface ServiceDirectoryFacetsDTO {
+  cities: string[]
 }
 
 /** User applicant-profile scalars (FINANCIER_SCHEMA §3.1, DP-14) — additive sibling

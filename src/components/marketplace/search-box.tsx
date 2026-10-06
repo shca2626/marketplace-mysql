@@ -20,6 +20,10 @@ interface SearchBoxProps {
 interface SuggestionsResponse {
   items: ProductDTO[]
   total: number
+  /** Phase 12 typo tolerance — set when the server re-ran a corrected query */
+  suggestion?: { original: string; corrected: string }
+  /** Phase 12 typo tolerance — "did you mean" chips when nothing matched */
+  suggestions?: string[]
 }
 
 const MIN_CHARS = 2
@@ -41,6 +45,7 @@ export function SearchBox({
   const [query, setQuery] = useState('')
   const [items, setItems] = useState<ProductDTO[]>([])
   const [total, setTotal] = useState(0)
+  const [didYouMean, setDidYouMean] = useState<string[]>([])
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1) // -1 = not hovering list; 0..n-1 = product
@@ -72,6 +77,10 @@ export function SearchBox({
         const json = (await res.json()) as SuggestionsResponse
         setItems(json.items ?? [])
         setTotal(json.total ?? 0)
+        // Phase 12 — typo tolerance: surface the correction chips when the
+        // exact term found nothing (the server already re-ran the best
+        // correction, so items may be the corrected matches).
+        setDidYouMean(json.suggestions ?? (json.suggestion ? [json.suggestion.corrected] : []))
         setOpen(true)
       } catch {
         // aborted or offline — keep previous state
@@ -213,9 +222,29 @@ export function SearchBox({
             className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-2xl border bg-popover p-1.5 text-popover-foreground shadow-xl"
           >
             {items.length === 0 && !loading ? (
-              <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-                No matches for “{query.trim()}” — try another word
-              </div>
+              didYouMean.length > 0 ? (
+                <div className="px-3 py-4 text-sm text-muted-foreground">
+                  <p className="mb-2">No matches for “{query.trim()}”.</p>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide">Did you mean</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {didYouMean.map((s) => (
+                      <button
+                        key={s}
+                        role="option"
+                        aria-selected={false}
+                        onClick={() => go('catalog', { query: s })}
+                        className="rounded-full border border-primary/30 bg-muted px-3 py-1 text-xs font-semibold text-primary transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                  No matches for “{query.trim()}” — try another word
+                </div>
+              )
             ) : (
               items.map((p, i) => (
                 <button

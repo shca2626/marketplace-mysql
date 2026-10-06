@@ -6,6 +6,8 @@ import {
   Calendar,
   ChevronRight,
   Package,
+  Shield,
+  ShieldCheck,
   Star,
   Store,
   TrendingUp,
@@ -61,6 +63,32 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
   const storeName = data.seller.storeName || data.seller.name
   const base = await siteBaseUrl()
   const storeUrl = toAbsoluteUrl(base, `/market/store/${data.seller.id}`)
+
+  // Phase 12-c: trust badge + counters — same shared computation as the SPA
+  // store view (computeStoreTrust). Honest rendering: absent history shows as
+  // em dashes, never invented numbers.
+  const trust = data.seller.trust
+  const badgeMeta =
+    trust?.badge === 'VERIFIED_BUSINESS'
+      ? { icon: BadgeCheck, label: 'Verified business' }
+      : trust?.badge === 'IDENTITY_VERIFIED'
+        ? { icon: ShieldCheck, label: 'Identity verified' }
+        : { icon: Shield, label: 'New seller' }
+  const BadgeIcon = badgeMeta.icon
+  const disputeValue =
+    trust == null
+      ? '—'
+      : trust.disputeFree === true
+        ? '100%'
+        : trust.disputeFree === false
+          ? `${trust.disputeRate}%`
+          : '—'
+  const disputeNote =
+    trust == null
+      ? 'no history yet'
+      : trust.disputeFree == null
+        ? 'too early'
+        : 'of orders, no disputes'
 
   // ── Organization JSON-LD + BreadcrumbList ──
   const jsonLd: Record<string, unknown> = {
@@ -131,8 +159,17 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
                 </p>
               )}
               <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-white/70">
-                <span className="inline-flex items-center gap-1.5">
-                  <BadgeCheck size={15} className="text-bh-gold" /> Active seller
+                <span
+                  className="inline-flex items-center gap-1.5"
+                  title={
+                    trust?.badge === 'VERIFIED_BUSINESS'
+                      ? 'This seller’s organization is verified by Vendora.'
+                      : trust?.badge === 'IDENTITY_VERIFIED'
+                        ? 'This seller has verified identity documents on file.'
+                        : 'This seller has not completed verification yet.'
+                  }
+                >
+                  <BadgeIcon size={15} className="text-bh-gold" /> {badgeMeta.label}
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <Calendar size={15} className="text-bh-gold" /> Selling since {formatDate(data.seller.memberSince)}
@@ -145,16 +182,28 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
             </div>
           </div>
 
-          {/* Stats row */}
-          <dl className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:max-w-3xl">
+          {/* Stats row — Phase 12-c: trust counters integrated */}
+          <dl className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6 lg:max-w-5xl">
             {[
               { label: 'Active listings', value: formatNumber(data.seller.activeListings) },
               { label: 'Units sold', value: formatNumber(data.seller.totalSold) },
+              {
+                label: 'Orders fulfilled',
+                value: trust == null || trust.ordersTotal === 0 ? '—' : formatNumber(trust.ordersFulfilled),
+                title: "This seller's order items delivered to buyers (fulfillments that reached DELIVERED).",
+              },
+              {
+                label: `Dispute-free · ${disputeNote}`,
+                value: disputeValue,
+                title:
+                  'Share of this seller’s orders with no dispute. Shown only once at least 5 orders exist — below that it is too early to tell.',
+              },
               { label: 'Store rating', value: data.seller.avgRating > 0 ? `${data.seller.avgRating} / 5` : '—' },
               { label: 'Reviews', value: formatNumber(data.seller.reviewCount) },
             ].map((s) => (
               <div
                 key={s.label}
+                title={s.title}
                 className="rounded-xl border border-white/10 bg-white/[0.07] px-4 py-3 backdrop-blur-sm"
               >
                 <dt className="text-[11px] font-semibold uppercase tracking-wide text-white/60">{s.label}</dt>

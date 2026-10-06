@@ -7,6 +7,8 @@ import { ensureUniqueSlug, productFormSchema, slugify, createProduct, PUBLICATIO
 import { assertSellerCanPublish } from '@/server/modules/kyc/service'
 import { sellerNeedsPublishReview } from '@/server/modules/catalog/settings'
 import { recordPublicationConsent } from '@/server/modules/catalog/review'
+import { suggestTerm } from '@/server/modules/catalog/search'
+import { matchesSpecFilters, parseSpecFilters, parseSpecs } from '@/server/modules/catalog/facets'
 import { assertSameOrigin, enforceRateLimit, clientIp } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 import { userHasPlatformPermission } from '@/server/modules/rbac/service'
@@ -18,6 +20,20 @@ import { assertOrgLimit, SubscriptionServiceError } from '@/server/modules/subsc
 // (MySQL ci collation makes LIKE case-insensitive). Public feeds only include
 // ACTIVE products of ACTIVE sellers; sellers see their own rows via mine=1;
 // admins can browse the full catalog via scope=all (+ optional status filter).
+//
+// Phase 12 discovery (task 12-b):
+//   • brand=<slug>           — filter on the Brand relation
+//   • spec=<label>::<value>  — repeatable spec-attribute facet filter. Specs
+//     live in a JSON Text column; JSON_TABLE through Prisma is heavy, so the
+//     PRAGMATIC path is: the SQL query keeps every non-spec filter (category,
+//     price, q, brand, sort…) and the spec predicates run in JS on the bounded
+//     row set, then pagination happens in memory — ONLY when spec filters are
+//     present. The no-facet path keeps the existing pure-SQL flow untouched.
+//   • typo tolerance — when a search returns 0 results, the server suggests
+//     corrections (levenshtein over a title/category vocabulary, see
+//     src/server/modules/catalog/search.ts). A suggestion that yields results
+//     re-runs the query with it and marks the response `suggestion`; otherwise
+//     the response carries `suggestions` chips for the UI's "did you mean".
 export async function GET(req: NextRequest) {
   try {
     const sp = req.nextUrl.searchParams
@@ -28,6 +44,8 @@ export async function GET(req: NextRequest) {
     const sort = sp.get('sort') || 'popular'
     const featured = sp.get('featured') === '1'
     const sellerId = sp.get('sellerId') || ''
+    const brandSlug = sp.get('brand') || '' // Phase 12: brands directory filter
+    const specFilters = parseSpecFilters(sp.getAll('spec')) // repeatable Label::Value
     const mine = sp.get('mine') === '1'
     const allScope = sp.get('scope') === 'all'
     const statusFilter = sp.get('status') || ''
@@ -65,14 +83,16 @@ export async function GET(req: NextRequest) {
     if (featured) where.featured = true
     if (sellerId) where.sellerId = sellerId // store pages — coexists with the seller-status filter
     if (categorySlug) where.category = { slug: categorySlug }
+    if (brandSlug) where.brand = { slug: brandSlug }
     if (ids.length > 0) where.id = { in: ids }
     if (!Number.isNaN(min) && min > 0) where.price = { ...(where.price as object), gte: min }
     if (!Number.isNaN(max) && max > 0) where.price = { ...(where.price as object), lte: max }
 
     // Multi-term AND search — every term must match somewhere (SQL, ci-collation)
     const terms = q ? q.split(/\s+/).map((t) => t.trim()).filter(Boolean).slice(0, 8) : []
-    if (terms.length > 0) {
-      where.AND = terms.map((t) => ({
+    const applyTerms = (base: Record<string, unknown>, ts: string[]) => ({
+      ...base,
+      AND: ts.map((t) => ({
         OR: [
           { title: { contains: t } },
           { description: { contains: t } },
@@ -82,16 +102,9 @@ export async function GET(req: NextRequest) {
           // 9.1: match curated records by their own title when seller-less
           ...(t ? [{ title: { contains: t } }] : []),
         ],
-      }))
-    }
-
-    const sorters: Record<string, Prisma.ProductOrderByWithRelationInput[]> = {
-      'price-asc': [{ price: 'asc' }],
-      'price-desc': [{ price: 'desc' }],
-      rating: [{ rating: 'desc' }, { reviewCount: 'desc' }],
-      newest: [{ createdAt: 'desc' }],
-      popular: [{ soldCount: 'desc' }, { rating: 'desc' }],
-    }
+      })),
+    })
+    if (terms.length > 0) Object.assign(where, applyTerms({}, terms))
 
     // "recently viewed" ids: small bounded set — keep caller order, paginate in memory
     if (ids.length > 0) {
@@ -110,17 +123,88 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    const [total, items] = await Promise.all([
-      db.product.count({ where }),
-      db.product.findMany({
+    const sorters: Record<string, Prisma.ProductOrderByWithRelationInput[]> = {
+      'price-asc': [{ price: 'asc' }],
+      'price-desc': [{ price: 'desc' }],
+      rating: [{ rating: 'desc' }, { reviewCount: 'desc' }],
+      newest: [{ createdAt: 'desc' }],
+      popular: [{ soldCount: 'desc' }, { rating: 'desc' }],
+    }
+
+    const runQuery = async (w: Record<string, unknown>) =>
+      Promise.all([
+        db.product.count({ where: w }),
+        db.product.findMany({
+          where: w,
+          include: productInclude,
+          orderBy: sorters[sort] ?? sorters.popular,
+          skip: (page - 1) * limit,
+          take: limit,
+        }),
+      ])
+
+    // ── Spec-facet path (Phase 12): JS filtering over the bounded row set ──
+    // ONLY when spec=<label>::<value> params are present. The SQL where keeps
+    // every other filter + the sort; the spec predicates + pagination run in
+    // memory (see src/server/modules/catalog/facets.ts for the rationale).
+    if (specFilters.length > 0) {
+      const rows = await db.product.findMany({
         where,
         include: productInclude,
         orderBy: sorters[sort] ?? sorters.popular,
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-    ])
+        take: 2000, // hard bound — spec facets are a per-category refinement
+      })
+      const filtered = rows.filter((p) => matchesSpecFilters(parseSpecs(p.specs), specFilters))
+      const total = filtered.length
+      const pages = Math.max(1, Math.ceil(total / limit))
+      const items = filtered.slice((page - 1) * limit, page * limit)
+      const favIds = await favoriteIdsFor(user?.id, items.map((p) => p.id))
+      return NextResponse.json({
+        items: items.map((p) => serializeProduct(p, favIds.has(p.id))),
+        total,
+        page,
+        pages,
+      })
+    }
+
+    const [total, items] = await runQuery(where)
     const pages = Math.max(1, Math.ceil(total / limit))
+
+    // ── Typo tolerance (Phase 12): zero results for a search term → suggest ──
+    // nosuggest=1 lets the UI's "search instead for <original>" link opt out
+    // (otherwise the server would re-correct the same typo into a loop).
+    if (total === 0 && q && !allScope && !mine && sp.get('nosuggest') !== '1') {
+      try {
+        const { correctedQuery, best } = await suggestTerm(q, categorySlug)
+        if (correctedQuery) {
+          const fixedTerms = correctedQuery.split(/\s+/).map((t) => t.trim()).filter(Boolean).slice(0, 8)
+          const correctedWhere = applyTerms(where, fixedTerms)
+          const [cTotal, cItems] = await runQuery(correctedWhere)
+          if (cTotal > 0) {
+            const cPages = Math.max(1, Math.ceil(cTotal / limit))
+            const favIds = await favoriteIdsFor(user?.id, cItems.map((p) => p.id))
+            return NextResponse.json({
+              items: cItems.map((p) => serializeProduct(p, favIds.has(p.id))),
+              total: cTotal,
+              page,
+              pages: cPages,
+              // the UI shows "Showing results for <corrected> — search instead for <original>"
+              suggestion: { original: q, corrected: correctedQuery },
+            })
+          }
+        }
+        // nothing helped — still offer the chips for the "did you mean" strip
+        if (best) {
+          const suggestions = [best.corrected, ...best.alternates].filter(
+            (s, i, arr) => s.toLowerCase() !== q.toLowerCase() && arr.indexOf(s) === i
+          )
+          if (suggestions.length > 0)
+            return NextResponse.json({ items: [], total, page, pages, suggestions })
+        }
+      } catch (err) {
+        console.error('products search suggestion error', err) // never break the listing on a suggestion failure
+      }
+    }
 
     const favIds = await favoriteIdsFor(user?.id, items.map((p) => p.id))
 

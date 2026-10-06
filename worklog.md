@@ -915,3 +915,168 @@ Stage Summary:
   12-b = discovery depth (typo-tolerant search, spec-attribute facets, brands directory view, bestsellers).
   12-c = trust counters on store pages + services directory facets.
 - 12-d = main session integration + acceptance E2E + regression + commit/push.
+
+---
+Task ID: 12-c
+Agent: trust-and-directory (subagent, Task 12-c — second invocation)
+Task: lastplan v5 §12 — trust counters on store pages + the services directory facets.
+
+Work Log:
+- Arrived to find a first 12-c invocation's code fully in place but unreported (no worklog entry, no services screenshot). Per Law 5 (preserve effort): nothing rebuilt; this session audited every line against the models, then ran the FULL E2E + gates and completed the missing evidence.
+- Model audit (all values verified against prisma/schema.prisma before trusting any query): OrderFulfillment.status = UNFULFILLED|PROCESSING|SHIPPED|DELIVERED|CANCELLED — DELIVERED is the terminal success (there is NO "COMPLETED" value and OrderItem itself carries no status, so fulfilled = order items joined via OrderFulfillmentItem to a DELIVERED fulfillment). OrderFulfillment has shippedAt/deliveredAt but NO promised date → onTimeRate is DELIBERATELY ABSENT (cannot be computed without fabricating; documented in the route header). Dispute carries sellerId + orderId (rate = distinct disputed orders ÷ distinct orders containing this seller's items). SellerProfile.verificationState + owner org kycLevel drive the badge. FinancierService fields: serviceKind (FINANCING|ACCREDITATION), category, amountMin/amountMax (null = open), rateMax, viewCount, coverage (FinancierServiceCoverage.regionName) ∪ financierProfile.branches (city).
+- src/app/api/sellers/[id]/route.ts (EDIT): payload gains `trust` — ordersFulfilled, ordersTotal, ordersWithDispute, disputeRate (1dp %, null when 0 orders), disputeFree (true only when rate===0 AND ≥5 orders; null = "too early" — never a fake 100%), live computeUserKycLevel (persisted column can lag), verificationState, orgKycLevel, badge ('VERIFIED_BUSINESS' when SellerProfile VERIFIED | 'IDENTITY_VERIFIED' when KYC L2 | 'NEW_SELLER'), memberYears (1dp). kycLevel now actually returned (was selected but dropped pre-12c). All five trust queries run in one Promise.all (read-only, no new tx surface). onTimeRate SKIPPED per the model audit above.
+- src/lib/types.ts (EDIT): StoreTrustDTO + `trust?: StoreTrustDTO` on StoreDTO + ServiceDirectoryFacetsDTO.
+- src/components/marketplace/store-view.tsx (EDIT): static BadgeCheck replaced by TrustBadgeIcon (BadgeCheck only for VERIFIED_BUSINESS; ShieldCheck for IDENTITY_VERIFIED; muted neutral Shield for NEW_SELLER; nothing when no trust data). The old 4-stat row (Listings/Items sold/Avg. rating/Reviews) + "Member since" line are replaced by a dedicated TRUST PANEL Card under the store hero: tier chip + note, 6 icon+number+label tiles (Listings, Items sold, Orders fulfilled, Dispute-free/Dispute rate, Avg. rating · N reviews, Member since · tenure) each with a derivation tooltip, plus a panel-level "How is this calculated?" honesty tooltip. Absent data = em dashes with muted "too early"/"no orders yet"/"no reviews" labels; tenure <1yr renders "<1 yr". Loading skeletons (badge row + 6 tiles). Storefront regression kept: products grid, category chips, cover, share.
+- src/server/modules/financing/services.ts (EDIT): listPublicServices rebuilt on an AND-array (duplicate OR keys need it) — new facets amountMin/amountMax (INTERSECTION semantics: a service matches when its own range overlaps the requested bracket; null bounds open; both-null services — ACCREDITATION — excluded from bracket queries, same honest rule as rate-less under rateMax), rateMax (≤, rate-less excluded), sort popular|newest|rate_asc|amount_desc (nulls last). city now matches coverage regions ∪ financier branch cities (case-normalized). Returns institutionCount (distinct financier profiles in the CURRENT filter) + facets.cities (distinct coverage regions ∪ branch cities over the ACTIVE universe, sorted).
+- src/app/api/financing/services/route.ts (EDIT): facet query params wired (kind/category/city pre-existing; + amountMin/amountMax/rateMax/sort) with strict validation — non-numeric or negative → 400, amountMin>amountMax → 400, unknown sort → 400; unknown kind/city → empty result (ignored, never 500).
+- src/components/marketplace/financing/services-section.tsx (EDIT): directory facet bar — search input (debounced), city select (server-provided facet list), rateMax select, kind chips (All/Financing/Accreditation, resets category), amount bracket chips (Any / Under 500K / 500K–2M / 2M–10M / 10M+), category chips, clear-filters, sort select; directory header "N services from M institutions · matching your filters". Cards (pre-existing) already show institution, program, kind badge, amount range, rate cap, tenor, coverage, Apply/Details.
+- E2E (scripts/tmp/12c-trust-verify.ts + 12c-facets-verify.ts — independent from-scratch counts vs the API; agent-browser session 12c2, closed after):
+  TRUST — 4/4 MATCH vs manual DB counts: HelioMount {fulfilled=1, orders=6, disputed=0, disputeFree=true, kyc=2, state=UNVERIFIED, badge=IDENTITY_VERIFIED}; SunCore {4, 15, 0, true, 0, NEW_SELLER}; LumaRay {1, 3 orders → disputeFree=null "too early"}; company1 {state=VERIFIED → VERIFIED_BUSINESS}. Dispute-branch proof via TEMP row (created + deleted same script, zero residue — table back to 0): SunCore 1 disputed of 15 orders → disputeRate=6.7% (1/15 rounded 1dp), disputeFree=false; after cleanup back to true.
+  Browser store page (HelioMount): trust panel renders all 6 tiles (Orders fulfilled 1, Dispute-free 100%, Avg. rating 4.4★ · 16 reviews, Member since Sep 26, 2026 · <1 yr), dynamic badge = ShieldCheck aria-label "Identity verified" (NOT BadgeCheck), "How is this calculated?" present, products grid intact ("Everything from this store · 4 items") → qa/phase12c-store-trust.png. LumaRay: "Dispute-free · too early: —" em dash + "New seller" neutral shield → honest too-early state rendered.
+  FACETS — 10/10 MATCH vs manual DB counts: universe 9 services/3 institutions; kind FINANCING 7 / ACCREDITATION 2; city Sana'a 8 / Hodeidah 4; rateMax 15→1 / 20→3; amount 500K–2M→7 / 10M+→5; combined Sana'a+FINANCING+rateMax25→4; facets.cities 13/13 identical lists (Aden…Taiz).
+  Browser services page (buyer riley, Financing → Financing Services): facet bar + city select listing all 13 facet cities; kind=Financing chip → "7 services from 3 institutions · matching your filters" (= API); +city=Sana'a → 6/2 (= API); +amount 10M+ → 4/2 (= API) → qa/phase12c-services-facets.png. Apply flow regression: card Apply CTA → wizard deep link ?view=financing&wizard=<id> opens ("Financing application · Your profile / Document vault") — untouched listing-layer-only change confirmed.
+  NEGATIVE — amountMin=abc / amountMax=-5 / rateMax=xyz / amountMin>amountMax / sort=bogus → 400 with clear messages; kind=BOGUS / city=Nowhere → 200 empty; limit=abc&page=-3 → clamped defaults; /api/sellers/doesnotexist → 404. Zero 500s on my routes in dev.log.
+- ROUTES: none added — /api/sellers/[id] and /api/financing/services were already registered in audit/route-classification.json (lines 3138 / 2580); zero new registrations needed.
+- Gates: tsc — dev stopped via `python3 scripts/daemon-dev.py --stop` (DISCOVERY: a dev-server watchdog daemon from an earlier session kept resurrecting next-server within 10s and OOM-killing tsc; --stop/--start is the clean gate window) → 179 errors = 165 baseline + 14, with ZERO in my 12-c files (the +14 are siblings' in-flight files: 12-b's catalog/facets.ts ×6 + api/brands ×2 + catalog-view ×3, 12-a's kyc/provider/dispatch.ts ×3 — theirs to clear before 12-d). eslint zero problems on all 6 touched files. guard:lint 301 routes, zero drift. Aiven: no schema changes mine (pure query/UI layer); db:status healthy. Dev server restarted via the daemon and left RUNNING (root/store-api/services-api all 200).
+
+Stage Summary:
+- 12-c COMPLETE: store pages carry an honest trust panel (fulfilled orders, dispute-free with the ≥5-order gate, KYC tier badge replacing the static BadgeCheck, rating/review + tenure integrated, onTimeRate skipped as non-computable) and the financing services directory is facet-filterable (kind, city from live coverage ∪ branches, amount bracket with intersection semantics, rate cap, 4 sorts, directory counts). All numbers trace to live queries; absent history renders as em dashes. Ready for 12-d integration (note the 14 sibling tsc errors above are outside my ownership).
+
+---
+Task ID: 12-b
+Agent: discovery (subagent, Task 12-b — SECOND invocation)
+Task: lastplan v5 §12 — discovery depth: typo-tolerant search, spec-attribute facets, public brands directory, bestsellers rail.
+
+Work Log:
+- Arrived to find the first 12-b invocation's full implementation in the working tree (uncommitted) but
+  unreported — per Law 5 nothing was rebuilt. This session audited every file against the contract,
+  confirmed the 11 tsc errors 12-c had seen were already fixed by the prior invocation, applied ONE
+  minor cleanup, then ran the full E2E + gates and produced this report.
+- AUDIT (implementation found complete and correct, files owned by 12-b):
+  • src/server/modules/catalog/search.ts (165 lines): bounded DP levenshtein (64-char cap, len-diff>3
+    short-circuit), tolerance 1 for words <6 chars else 2, vocabulary = ACTIVE public product titles
+    (take 400, curated rows included, dead sellers excluded) + category names, per-term suggest with
+    pass-through for already-correct terms.
+  • src/server/modules/catalog/facets.ts (193 lines): specs JSON parsed in JS (JSON_TABLE-through-Prisma
+    deemed heavy — documented rationale), parseSpecFilters (first `::` split, ≤12 pairs, malformed
+    ignored), matchesSpecFilters (OR within label, AND across labels), categoryFacets aggregation
+    (dictionary label order = category attrs then globals; extra labels alphabetical; values count-desc
+    top 8) cached 60s via cached() tag products.
+  • api/products/route.ts: brand= filter + repeatable spec= params (JS-filter path ONLY when spec
+    filters present, take 2000, in-memory pagination; no-facet path stays pure SQL), typo tolerance —
+    0-result queries get suggestTerm; a helping correction re-runs the query and the response carries
+    suggestion {original, corrected}; nosuggest=1 lets the UI's "search instead" link opt out; leftover
+    did-you-mean chips in `suggestions` when the correction yields nothing.
+  • api/products/facets (400 without param / 404 unknown category), api/brands (26-brand directory:
+    counts, top-3 categories, 4-product preview, 60s cache), api/brands/[slug] (hero + q/min/max/sort/
+    page listing) — all registered in audit/route-classification.json as PUBLIC.
+  • UI: brands-view (directory cards → brand page with hero + search-within-brand + sort + back
+    breadcrumb + Load more), catalog-view (Refine panel from the facet API, removable active-facet
+    chips, shareable URL state via history.replaceState, brand filter list, "Bestsellers in <category>"
+    rail top-6 by soldCount hidden when searching/refining), search-box (did-you-mean chips + corrected
+    items in the live dropdown), header (Brands nav link desktop + mobile), home-view ("Shop by brand"
+    rail, top 8, links to directory + brand pages).
+  • scripts/phase12/seed-discovery.ts: idempotent (26 brands linked by title prefix, 23 spec attrs for
+    the 6 solar categories). Already run by the prior invocation; re-run this session for proof:
+    brands created: 0 (total 26), products linked: 0 (total 26), spec attrs created: 0 (total 23).
+- FIXES THIS SESSION (audit outcome — the implementation needed almost nothing):
+  1. brands-view.tsx: removed an unused useCallback import (dead code).
+  2. scripts/tmp/12b-facets-verify.ts: type-guard rewrite clearing 2 tsc errors in my own E2E helper.
+  3. Deleted a corrupted .next/dev/types/validator.ts build artifact (interrupted mid-write by a dev
+     kill — TS1128; regenerated space left clean, zero runtime impact).
+- E2E (curl + scripts/tmp/12b-{facets,brands}-verify.ts vs from-scratch DB counts; agent-browser
+  session 12b, closed after):
+  TYPO SEARCH: 'Panle' → total 18 with suggestion {"original":"Panle","corrected":"panel"}; 'Pnel' +
+  category scope → 7 corrected in solar-panels; exact 'Panel' → 18 no suggestion (regression clean);
+  nosuggest=1 → clean 0 (no re-correction loop); nonsense 'xyzzq' → 0, no crash; 'Panle zzzqx' →
+  0 results + chips ["panel","panels","cable"]. Browser: strip reads exactly `Showing results for
+  "panel" — search instead for "Panle"` (18 products), clicking "search instead" → 0 results with the
+  plain empty state and NO strip (loop broken) → qa/phase12b-typo.png + phase12b-did-you-mean-chips.png.
+  FACETS: ground truth re-derived from DB for solar-panels (7 public products w/ specs, 11 labels) —
+  labels match: true, counts match: true (every value of every label); OR within label (Cell type::
+  CIGS thin film | ::Monocrystalline bifacial) api=2 db=2; AND across labels positive (Rated power::
+  120W & Cell type::CIGS) api=1 = ShingleSlate, negative (120W & Monocrystalline PERC) api=0; invalid
+  label (Nonexistent Label::ZZZ) → total 0, HTTP 200 (ignored gracefully); combined brand+spec+price
+  query → 1 (ShingleSlate $149, price-asc respected). Browser: facet chip click filters to 1 product,
+  URL becomes shareable ?spec=Cell+type::CIGS+thin+film, active chip "Cell type: CIGS thin film" with
+  working Remove (7 products restored, param dropped from URL); deep-link boot with the spec param
+  filters correctly on first paint → qa/phase12b-facet-chip-active.png.
+  BRANDS: /api/brands 26 == DB 26; every brand's productCount + topCategories match independent DB
+  counts; /api/brands/helios detail (verified brand, 1 listing, hero fields); products?brand=helios →
+  only Helios titles; brand q=450 search-within → 1; 404s: unknown brand 404, facets unknown category
+  404, facets missing param 400. Browser: /market?view=brands renders 26 directory cards ("26 brands
+  with live listings"), header Brands link navigates there; Helios card → brand page (hero + verified
+  badge + search + sort + product grid), "All brands" back works → qa/phase12b-brands-directory.png +
+  phase12b-brand-page.png.
+  BESTSELLERS: solar-panels category page renders the "Bestsellers in Solar Panels" rail (region +
+  h2 + "Top by units sold", top 6 by soldCount, horizontal snap scroll) → qa/phase12b-bestsellers.png.
+  Home "Shop by brand" rail renders on /market?view=home (0 console errors).
+  REGRESSION: home/catalog/brands/brand-detail pages 200; category+price+sort (min100-max500 price-asc
+  → 5, batteries popular → 8 w/ VoltPouch 476 sold first); facet cache 2nd call 136ms vs 490ms with
+  byte-identical payload; brands cache 13ms vs 18ms identical; all 12-b endpoints 200 across the E2E
+  (zero 500s in dev.log; the one prisma:error is 12-a's kycWebhookEvent legacy, not mine).
+- ROUTES: /api/brands, /api/brands/[slug], /api/products/facets registered (PUBLIC) — guard:lint
+  301 routes zero drift/shadows/bare guards.
+- Gates: tsc 165 == the 12-0 committed baseline, ZERO errors in any 12-b file (the 12 tsc hits in
+  home-view.tsx are PRE-EXISTING at HEAD — proven via a git-stash A/B run: identical 12 errors with
+  my diff reverted; they trace to the old `Array.from({length:6})` unknown-narrowing pattern in the
+  categories/trending sections, untouched by my purely-additive 51-line brands-rail diff). Note:
+  12-a's 3 dispatch.ts errors present at my session start were cleared mid-session by their own
+  parallel invocation — final count 165 is baseline-only. eslint ZERO problems on all 12 touched
+  files (incl. both E2E helpers). No schema changes (query/UI layer only) — db:push not needed. Dev
+  server left RUNNING via the daemon (home/brands/facets/typo-search all 200, supervisor alive).
+- DEVIATIONS (minor, documented): (1) brand pages have no spec facets/category hops (deliberate —
+  those live on the catalog surface, per the route header); (2) spec filtering parses specs JSON in
+  JS over a bounded row set (take 2000) instead of SQL JSON_TABLE — documented in facets.ts as the
+  pragmatic Prisma path, no-facet requests keep the pure-SQL flow; (3) the nonsense-term case can
+  yield no chips when nothing is within edit distance (by design — never fabricate suggestions).
+
+Stage Summary:
+- 12-b COMPLETE: discovery depth is live — typo-tolerant search (levenshtein suggestions with the
+  corrected re-run + loop-breaking "search instead"), spec-attribute facets (OR/AND semantics, 60s
+  cached aggregation, shareable URL state, removable chips), a public brands directory (26 brands,
+  hero pages, header + home rails) and the category bestsellers rail — all E2E-verified against
+  independent DB counts, zero tsc/eslint/guard-lint regressions. Ready for 12-d integration.
+
+---
+Task ID: 12-a (second invocation — completion)
+Agent: kyc-provider (subagent, Task 12-a)
+Task: lastplan v5 §12.4 — KYC provider subsystem: per-doc-type routing (MANUAL|PROVIDER|PROVIDER_THEN_MANUAL), fail-PENDING semantics, HMAC webhooks w/ replay protection + idempotency, data minimization, admin console, retention.
+
+Work Log:
+- ARRIVED to find the first 12-a invocation's code FULLY in the working tree (unreported, uncommitted): provider modules, 7 API routes, retention script, docs/kyc-provider.md, the 914-line console and a partial E2E trail (11 cases / 16 webhook events + 4 console screenshots already in qa/). Per Law 5 (preserve effort): NOTHING rebuilt — audited every file against the contract, fixed the one real defect, then ran the FULL E2E fresh and completed the report.
+- AUDIT (all contract items verified in code before testing): routing table per doc type w/ MANUAL fail-safe (absent/disabled config → no case, pre-Phase-12 behavior); failure semantics in dispatch (adapter throw / Promise.race timeout → case PROVIDER_ERROR via guarded updateMany {status in PENDING,SUBMITTED} — never clobbering a decision — document untouched); webhook pipeline in order signature→freshness(±5min)→eventId idempotency→nonce-unique insert, every delivery logged in KycWebhookEvent (valid or not), unauth 401 audited w/ providerKey+IP; data minimization matrix (BASE docType/mediaSha256/reference=opaque vault pointer, per-type extras, absent fields omitted) snapshotted per-case in transmittedFields BEFORE submit so evidence survives a throwing submit; manual-queue decisions (approve/reject/requeue, SUBMITTED refused 409); retention job + docs (180d events / 365d closed cases / never vault media or open cases / processing-location note: mock provider is in-process → no cross-border transfer, production providers gated on DPA+region assessment).
+- FIX: the 3 tsc errors 12-c flagged in dispatch.ts — readSecretMap's hand-rolled structural tx type ({ platformSetting: { findUnique: (a: unknown)… } }) wasn't assignable from PrismaClient (findUnique is a generic overload). Retyped `tx: Prisma.TransactionClient` (codebase convention). ZERO other defects found; the interrupted run's tmp scripts (12a-*) were superseded by this session's fresh E2E and removed.
+- E2E (curl cookie-jars: qa-admin w/ TOTP via 11c-totp helper; buyer demo@vendora.com + fresh OTP-registered user; python HMAC crafter; browser session 12a2):
+  1. ROUTING + HAPPY PATH — PUT NATIONAL_ID→PROVIDER/approve (admin API, audit KYC_PROVIDER_CONFIG_UPDATED) → upload as demo buyer → doc PENDING → case SUBMITTED (providerCaseRef mock-…) → REAL HTTP signed webhook (mock adapter posts to /api/kyc/webhook/mock after 350ms) → case APPROVED + document VERIFIED + audit chain DOCUMENT_UPLOADED→DOCUMENT_VERIFIED→KYC_CASE_APPROVED. transmittedFields evidence: {docType, mediaSha256, reference:"vault:<mediaId>", issuedAt, expiresAt, title} — exactly the minimization matrix, no bytes, no URL. KYC RECOMPUTE: demo's phone is unverified so the engine's L1 gate holds that account at L0 (by design) — proved the recompute on a FRESH user registered through the REAL OTP flow (devCode → otpToken → register → L1): identity-doc approval through the provider webhook moved them L1→L2 "Identity verified" (persisted + /api/kyc/status).
+  2. FAILURE SEMANTICS (the test) — outcome error500: upload → case PROVIDER_ERROR w/ errorDetail `provider "mock" submit failed: mock provider simulated HTTP 500 opening a NATIONAL_ID case`, document STAYS PENDING, audit KYC_PROVIDER_ERROR, case visible in the OPEN queue filter. outcome timeout (timeoutMs 3000): case PROVIDER_ERROR w/ `provider "mock" submit timed out after 3000ms — case held for manual review`, audit metadata timeout:true, document STAYS PENDING. NEVER auto-approved in either path.
+  3. WEBHOOK SECURITY MATRIX — deterministic SUBMITTED case built via the settings.webhookUrl knob pointing at a dead port (mock's own delivery fails → case stays SUBMITTED with a live providerCaseRef): (a) no signature headers → 401 + KycWebhookEvent row signatureValid=false + audit KYC_WEBHOOK_UNAUTHENTICATED (providerKey+IP); (b) timestamp 6 min old → 400 + event row + audit KYC_WEBHOOK_REPLAY_WINDOW; (c) VALID signed case.approved → 200 applied=true → case APPROVED + doc VERIFIED, decision applied EXACTLY ONCE (exactly 1 KYC_CASE_APPROVED + 1 DOCUMENT_VERIFIED audit for that case/doc); (d) identical replay (same eventId+body+nonce) → 200 {duplicate:true, applied:false}, event row flagged replayed=true, decisionAt unchanged; (e) NEW eventId + REUSED nonce → 400 "Replayed nonce — delivery rejected" + audit KYC_WEBHOOK_NONCE_REPLAY. Bonus guards: valid new-eventId delivery on a decided case → 200 applied=false (late events never re-apply); dispatch's failure update is status-guarded so a late timeout can't clobber a webhook decision.
+  4. PROVIDER_THEN_MANUAL — PASSPORT→PROVIDER_THEN_MANUAL/reject → upload → case MANUAL_QUEUE (audit KYC_CASE_MANUAL_QUEUE) + document STILL PENDING, no decision.
+  5. MANUAL DECISION — admin approve on the MANUAL_QUEUE case → case APPROVED + decidedById=qa-admin + document VERIFIED (note recorded) + audit chain incl. DOCUMENT_VERIFIED "(manual queue)". Requeue on the error500 case → PENDING (audit KYC_CASE_REQUEUED); deciding the already-APPROVED case → 409 "Case is already APPROVED".
+  6. NEGATIVE-AUTHZ — buyer 403 / unauth 401 on ALL admin KYC routes (GET configs/cases/webhook-events, PUT configs, POST configs rotate-secret, POST case-decision) and unauth 401 on /api/kyc/cases.
+  7. RESTORE — NATIONAL_ID + PASSPORT + COMMERCIAL_REG back to MANUAL (settings {} — the seeded default); fresh MANUAL upload creates NO case (no-op proof, zero behavior change).
+  8. RETENTION — `bash scripts/with-env.sh bun scripts/kyc-retention.ts --dry-run`: 0 webhook events >180d, 0 closed cases >365d, dry-run notice (job never touches vault media/open cases; --execute prunes + audits KYC_RETENTION_PRUNED).
+  9. BROWSER (qa/phase12a-kyc-console.png Routing + phase12a2-console-{cases,webhooklog}.png; admin session cookie seeded, agent-browser closed after): all three pills render with live data — Routing (15 doc types, mode/provider/outcome/timeout/enabled + transmitted-fields dialog), Case Queue (OPEN work queue listing the PROVIDER_ERROR + PENDING evidence cases w/ error-detail + approve/reject/requeue row actions), Webhook Log (events w/ signature valid/bad-signature + replayed badges + raw payload viewer).
+- ROUTES registered (audit/route-classification.json, lines 711-770 + 2619-2648): /api/admin/kyc/cases GET (financing.documents.verify), /api/admin/kyc/cases/[id] POST (same), /api/admin/kyc/provider-configs GET/PUT/POST (staff.manage), /api/admin/kyc/webhook-events GET (financing.documents.verify), /api/kyc/cases GET (AUTHENTICATED_USER), /api/kyc/webhook/[providerKey] POST (PUBLIC — the HMAC signature IS the auth, documented in the notes field). No pre-existing routes touched; /api/documents POST hook is the only shared-file edit (fire-and-forget dispatch wrapped in .catch — upload can never break).
+- Gates: tsc 165 == baseline with ZERO errors in my files (the 3 dispatch.ts errors fixed; 12-b's in-flight files were also clean by the time of my run — dev server stopped via `python3 scripts/daemon-dev.py --stop` for the window per the OOM recipe, restarted after). eslint ZERO problems on all 14 touched files. guard:lint 301 routes — zero unclassified/shadows/bare guards/unknown keys/drift/audit-atomicity drift. Aiven: `prisma db push` → "already in sync" (schema was 12-0's; no changes mine). dev.log: no 5xx on any of my routes across the whole E2E (only 400/401/403/409 = the negative tests). Dev server left RUNNING (daemon supervisor alive).
+- DEVIATIONS (minor, documented): (1) E2E-prep DB tweak — the deterministic SUBMITTED case used settings.webhookUrl=http://127.0.0.1:9 (delivery-fails knob from the settings contract; the admin PUT API intentionally doesn't expose it) — restored after; (2) the L2-recompute proof used a fresh OTP-registered user (kyc-e2e-12a2@vendora.test) because demo@vendora.com's phone is unverified and the engine's L1 gate correctly holds that account at L0 — engine semantics, not a provider defect; (3) one OOM kill of next-server mid-E2E (4GB box ceiling, dmesg-confirmed) — daemon restarted it, zero data impact, no 5xx emitted. No git commit (main session 12-d commits, per instructions).
+
+Stage Summary:
+- 12-a COMPLETE per lastplan v5 §12.4: per-doc-type provider routing admin-customizable at runtime (console + audited API), mock provider exercising the FULL production path (real HTTP + HMAC-signed webhooks, no shortcuts), failure semantics proven both ways (HTTP 500 and timeout → PROVIDER_ERROR + document stays PENDING for the manual queue — never auto-approval), webhook security matrix proven end-to-end (401+audit, ±5min window, nonce uniqueness, eventId idempotency, decided-case finality), data minimization evidenced per-case (transmittedFields snapshot), vault semantics + retention schedule + processing-location note documented for the §14.5 legal review (docs/kyc-provider.md, sign-off rows PENDING = demo mode). All doc types restored to the seeded MANUAL default. Ready for 12-d integration + acceptance E2E.
+
+---
+Task ID: 12-d
+Agent: main session
+Task: Phase 12 integration + acceptance (lastplan v5 §12) + regression + commit/push.
+
+Work Log:
+- All three parallel deliveries audited via their worklog entries + live spot-checks (12-a KYC provider, 12-b discovery, 12-c trust + services facets; the second-invocation agents completed E2E after infra cut-offs — Law 5 preserved all first-invocation code).
+- INTEGRATION GAP FOUND + FIXED: the SPA StoreView trust panel (12-c) never reached users because middleware 301-redirects ?view=store&id to the server-rendered SEO page /market/store/[id] — a DIFFERENT surface. Fix: trust computation extracted to src/server/modules/sellers/trust.ts (computeStoreTrust: the exact 5-query Promise.all 12-c wrote), reused by BOTH the API route (refactored to call it) and getPublicStore (queries.ts, PublicStoreData.seller.trust); the server page hero now renders the dynamic badge (BadgeCheck only for VERIFIED_BUSINESS / ShieldCheck IDENTITY_VERIFIED / Shield New seller w/ tooltips) + the stats row extended to 6 tiles incl. Orders fulfilled + Dispute-free (with the ≥5-order 'too early' honesty + em dashes). Fixed a dangling kycLevel reference my refactor created (500 → 200; kycLevel now trust.kycLevel).
+- Acceptance spot-checks (main session): webhook unauth → 401 ✓; typo 'Panle' → 18 results + suggestion {original:'Panle', corrected:'panel'} ✓; facets solar-panels → real spec labels w/ counts (Rated power 100W/120W/150W/450W/550W-bifacial…) ✓; brands 26 w/ counts, brand=agrispray → 1 ✓; KYC state: 15/15 configs MANUAL restored, cases 11 APPROVED + 2 PENDING + 4 PROVIDER_ERROR as evidence, 25 webhook events logged ✓; store page (server) renders 'Identity verified' badge + Dispute-free tile ✓.
+- Browser verified (screenshots): qa/phase12d-brands-directory.png (Shop by brand grid), phase12d-catalog-facets.png (Refine panel + Rated power/Efficiency labels + Bestsellers strip), phase12d-store-trust.png (server page trust panel).
+- Regression: home/catalog/brands/financing + product search + sellers API all 200; the one 500 found (sellers API kycLevel) fixed in this task.
+- Gates: tsc 165 == true baseline (dev stopped; queries.ts:86 error proven PRE-EXISTING at HEAD:85 via git-stash A/B — my import shifted the line); eslint zero on all Phase 12 files + the 4 integration files; guard:lint 683 files, 301 routes, zero drift; dev server restarted healthy.
+
+Stage Summary:
+- PHASE 12 COMPLETE per lastplan v5 §12: KYC provider subsystem (per-doc-type routing MANUAL|PROVIDER|PROVIDER_THEN_MANUAL admin-customizable; failure semantics proven — error500/timeout → PROVIDER_ERROR + doc STAYS PENDING + manual queue, never auto-approval; webhooks HMAC-signed + replay-protected (ts+nonce) + event-id idempotent + unauth 401 audited; data minimization w/ transmittedFields evidence; vault semantics; retention docs + deletion job; admin console 3 pills; user case status API) + discovery depth (typo-tolerant search w/ did-you-mean + corrected re-run, spec-attribute facets w/ shareable URLs + facet endpoint, public brands directory 26 brands + brand pages + header link, bestsellers strip) + trust (honest store trust panels on BOTH store surfaces — SPA + server SEO page — with the ≥5-order dispute-free gate, dynamic KYC-tier badges, no fabricated metrics) + services directory facets (kind/city/amount-bracket/rate/sort + directory counts, 10/10 facet parity proven).
+- Next phase per lastplan: Phase 13 — Arabic / RTL / i18n (THE LAST FEATURE PHASE): locale routing + persisted toggle, RTL mirroring, Arabic content, bilingual emails, buyer currency switcher polish, AR buyer journey at 390px acceptance.

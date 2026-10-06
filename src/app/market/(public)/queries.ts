@@ -1,7 +1,8 @@
 import { cache } from 'react'
 import { db } from '@/lib/db'
 import { productInclude, serializeProduct } from '@/lib/serialize'
-import type { ProductDTO } from '@/lib/types'
+import { computeStoreTrust } from '@/server/modules/sellers/trust'
+import type { ProductDTO, StoreTrustDTO } from '@/lib/types'
 
 /**
  * Server-side data access for the real public market routes
@@ -110,6 +111,8 @@ export interface PublicStoreData {
     totalSold: number
     avgRating: number
     reviewCount: number
+    /** Phase 12-c: trust counters — same computation as /api/sellers/[id]. */
+    trust: StoreTrustDTO
   }
   /** Categories this seller actually lists in (for chips). */
   categories: { id: string; name: string; slug: string; count: number }[]
@@ -144,6 +147,10 @@ export const getPublicStore = cache(async (id: string): Promise<PublicStoreData 
     const avgRating =
       rated.length > 0 ? Math.round((rated.reduce((sum, p) => sum + p.rating, 0) / rated.length) * 10) / 10 : 0
 
+    // Phase 12-c: trust counters — the SAME shared computation the API route
+    // uses, so the SEO page and the SPA store view tell the same story.
+    const trust = await computeStoreTrust(seller.id, seller.createdAt)
+
     const categoryMap = products.reduce(
       (map, p) => {
         const entry = map.get(p.category.id) ?? { ...p.category, count: 0 }
@@ -165,6 +172,7 @@ export const getPublicStore = cache(async (id: string): Promise<PublicStoreData 
         totalSold,
         avgRating,
         reviewCount,
+        trust,
       },
       categories: [...categoryMap.values()],
       products: products.map((p) => serializeProduct(p)),

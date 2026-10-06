@@ -1,9 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { findStoreCover } from '@/lib/store-covers'
+import { computeStoreTrust } from '@/server/modules/sellers/trust'
 
 // GET /api/sellers/[id] — public storefront profile for any seller.
 // Read-only aggregation over existing tables (no new transaction surface).
+//
+// Phase 12-c: the payload now carries a `trust` object (lastplan v5 §12) —
+// trust counters derived ONLY from real marketplace records. Every number
+// below traces to a query on this file's face; absent history is surfaced as
+// nulls / em dashes, never invented:
+//   ordersFulfilled  — this seller's order items linked (OrderFulfillmentItem)
+//                       to a fulfillment that reached DELIVERED (the model's
+//                       terminal success state — there is no COMPLETED value,
+//                       and OrderItem carries no status of its own).
+//   disputeFree       — orders with a dispute ÷ total orders of this seller,
+//                       shown only once ≥ 5 orders exist (below that it is
+//                       "too early" and reported as null — never a fake 100%).
+//   onTimeRate        — DELIBERATELY ABSENT: OrderFulfillment carries actual
+//                       shippedAt/deliveredAt but no promised-vs-actual
+//                       shipping expectation, so an on-time metric cannot be
+//                       computed without fabricating data.
+//   kycLevel          — recomputed LIVE from the Phase 3 engine (the persisted
+//                       User.kycLevel can lag behind verified evidence).
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -57,6 +76,10 @@ export async function GET(
     }, new Map<string, { id: string; name: string; slug: string; count: number }>())
     const categories = [...categoryMap.values()]
 
+    // ── Trust counters (Phase 12-c) — shared computation with the server
+    // page (src/server/modules/sellers/trust.ts) so both surfaces agree.
+    const trust = await computeStoreTrust(seller.id, seller.createdAt)
+
     // STAB-8: resolve the persisted cover id to its url/label server-side
     // so buyers' clients never need the curated map. A stale/unknown id
     // resolves to null → the storefront falls back to the default gradient.
@@ -76,6 +99,8 @@ export async function GET(
         totalSold,
         avgRating: Math.round(avgRating * 10) / 10,
         reviewCount,
+        kycLevel: trust.kycLevel, // live from the shared trust computation
+        trust,
       },
       categories,
     })

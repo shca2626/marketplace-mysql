@@ -7,6 +7,7 @@ import {
   listAccountDocuments,
 } from '@/server/modules/financing/documents'
 import { FinancingError } from '@/server/modules/financing/shared'
+import { dispatchDocumentForVerification } from '@/server/modules/kyc/provider/dispatch'
 
 // POST /api/documents — universal document vault upload (DP-27 — ALL users).
 // Multipart: file + documentType + optional title/issuedAt/expiresAt/
@@ -38,6 +39,13 @@ export async function POST(req: NextRequest) {
       issuedAt: String(form.get('issuedAt') ?? '') || null,
       expiresAt: String(form.get('expiresAt') ?? '') || null,
       organizationId,
+    })
+    // Phase 12.4 — provider dispatch, FIRE-AND-FORGET: a dispatch failure
+    // must NEVER break the upload (dispatch catches its own adapter errors
+    // into PROVIDER_ERROR cases; this .catch is the last-resort belt).
+    // MANUAL routing (the default) resolves to a no-op inside dispatch.
+    void dispatchDocumentForVerification(doc.id).catch((err: unknown) => {
+      console.error('[kyc-provider] dispatch failed after upload:', err instanceof Error ? err.message : err)
     })
     return NextResponse.json({ document: doc }, { status: 201 })
   } catch (err) {
