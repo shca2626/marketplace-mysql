@@ -33,6 +33,7 @@ import { AdminProductsTab } from './admin/products-tab'
 import { AdminOrdersTab } from './admin/orders-tab'
 import { PaymentsTab } from './admin/payments-tab'
 import { PayoutsTab } from './admin/payouts-tab'
+import { MonetizationConsole } from './admin/monetization-console'
 import { CurrenciesConsole } from './admin/currencies-console'
 import { FinancingTab } from './admin/financing-tab'
 import { RbacTab } from './admin/rbac-tab'
@@ -126,6 +127,7 @@ function AdminDashboard({ user }: { user: SessionUser | null }) {
       {activeSection === 'orders' && <AdminOrdersTab />}
       {activeSection === 'payments' && <PaymentsTab />}
       {activeSection === 'payouts' && <PayoutsTab />}
+      {activeSection === 'monetization' && <MonetizationConsole />}
       {activeSection === 'currencies' && <CurrenciesConsole />}
       {activeSection === 'financing' && <FinancingTab />}
       {activeSection === 'organizations' && <OrganizationsTab />}

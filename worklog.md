@@ -726,3 +726,28 @@ Work Log:
 
 Stage Summary:
 - Phase 10 is 100% per lastplan v5 §10 (10.1–10.9 + acceptance-gate items: lender lifecycle E2E incl. installment receive/allocate/reverse/reconcile + statement; late installment → NPL bucket; branch scoping + underwriter limits enforced; e-sign evidence package w/ hash fail-closed; Murabaha preconditions documented BEFORE checkout code + financed-checkout E2E green w/ FUNDED ≠ obligation-cleared; regression + commit + push). Production enablement of the checkout stays gated on the legal/Sharia sign-off rows in docs/murabaha-preconditions.md.
+
+---
+Task ID: 11-0
+Agent: main session
+Task: Phase 11 foundation (lastplan v5 §11 — Monetization Mix): schema + seed + the two service spines + parallel-safe UI wiring.
+
+Work Log:
+- Phase 10 verified complete/pushed (9ab3408, tree clean, main == origin/main). User directive: "go to the next" → Phase 11.
+- Read lastplan v5 §11: 11.1 fee engine (immutable FeeAssessment ledger + simulator + 10%-commission migration, zero behavior change), 11.2 seller subscriptions on the 7.0 tenant (ceiling semantics, grace→downgrade), 11.3 financier monetization + revenue console reconciling to the ledger.
+- Live-data survey: 9 module definitions, ZERO User.commissionRate overrides, 15 seller orgs, payouts config = default 10%, 1 existing payout ($65.80 commission), 7 FinancingFee rows (82,912.55 YER total).
+- Schema appended + pushed to Aiven (client regenerated): FeeRule (event × actorType × scopeType/scopeId × dimension, precedence, effectiveFrom/To, version), FeeAssessment (idempotencyKey unique, ruleId+ruleVersion+ruleSnapshot MediumText, currency+fxRateToUsd, calcInputs MediumText, REVERSAL rows via self-relation reversalOfId — append-only), SubscriptionPlan (modules/limits as MediumText JSON), SellerSubscription (organizationId unique = the 7.0 tenant; TRIALING|ACTIVE|GRACE|DOWNGRADED|CANCELLED, graceDays default 7), SubscriptionInvoice (SUB-YYYY sequence, PAID|FAILED). Organization back-relations added.
+- Seed scripts/phase11/seed-monetization.ts (idempotent): PLATFORM ORDER_COMMISSION rule @ 10%; plans free(0)/starter(19)/growth(49)/pro(99) — bundles: free=[], starter=[rfq,reviews], growth=[+insights,compare], pro=[+b2b-orgs,solutions]; limits maxProducts/maxActiveOffers/maxUsers (null=uncapped on pro); ALL 15 seller orgs grandfathered onto PRO ACTIVE 30d (zero behavior change day one).
+- fees/service.ts spine: resolveFeeRule (ORG→ORG_TYPE→PLATFORM chain w/ effective dating + precedence + version), resolveFeeRuleChain (full trace for simulator), computeFee (cent-exact), assessFee (idempotent write w/ rule snapshot; explicitRule param for hooks; legacyAmount fallback for zero-change migration), reverseAssessment (appends REVERSAL row w/ mandatory reason, original never touched), simulateFee (no writes), ledgerEventSummary + listAssessments (11.3 base), resolveOrderCommissionPercent (engine-first w/ PlatformSetting legacy fallback).
+- subscriptions/service.ts spine: subscriptionCeilingForOrg (batched one-shot ceiling resolution — gated universe = modules claimed by any active plan; entitled set = effective tier's bundle; null when org isn't a seller tenant), getEffectiveSubscription (self-heals GRACE-past-graceEndsAt → DOWNGRADED w/ SYSTEM audit), subscribeOrg/attemptRenewal/cancelSubscription/forceDowngrade (audited; renewals write SubscriptionInvoice + SUBSCRIPTION_RENEWAL FeeAssessment on PAID), getOrgLimits/assertOrgLimit (SUBSCRIPTION_LIMIT_REACHED 402 typed), listSubscriptions/listPlans/upsertPlan (plan cache 30s TTL + invalidation).
+- CEILING CLAMP wired into modules/service.ts resolveModuleState: after the activation chain, gated modules not in the entitled set clamp OFF. An ORG flip can turn a paid module OFF but NEVER ON beyond the subscription. Resolution errors log loudly + fall back to matrix-only (transient-failure posture documented). Fail-closed typed errors still propagate from the service.
+- UI wiring (parallel-safe — subagents never touch shared files): admin/monetization-console.tsx (5 pill tabs: Rules/Simulator/Ledger/Revenue/Subscriptions, sticky pill-nav per currencies-console pattern) + 5 stubs in admin/monetization/*; seller/subscription-section.tsx stub mounted in seller-view.tsx; ADMIN_NAV 'monetization' (Finance group, CircleDollarSign, payouts.view, badge New) + SELLER_NAV 'subscription' + titles.
+- SequencePrefix extended with 'SUB'.
+- Verification: tsc 166 vs HEAD-stash 167 (zero new — the flagged modules/service.ts:223 invalidateModuleCache null-assign pre-exists at HEAD); eslint zero problems on all 8 touched files; Aiven db:push in sync; dev server restarted (old client lacked the new models); smoke test: PRO org keeps all 9 modules, sub=ACTIVE pro renewAt+30d, simulateFee(ORDER_COMMISSION, 1000)=100 from PLATFORM with chain trace [ORG:—, ORG_TYPE:—, PLATFORM:10], BANK org unaffected by ceiling.
+
+Stage Summary:
+- Phase 11 substrate is live on Aiven. Three parallel tasks now build without touching schema or shared files:
+  11-a = fee-rule CRUD APIs + simulator API + admin/monetization/fee-rules-tab.tsx + simulator-tab.tsx + payout/financing-success assessment hooks (payouts/service.ts + financing/offers.ts acceptOfferCore).
+  11-b = subscription APIs (admin + seller) + subscriptions-tab.tsx + seller/subscription-section.tsx + maxProducts limit enforcement on the seller product-create path.
+  11-c = ledger/reconcile/export APIs + ledger-tab.tsx + revenue-tab.tsx + financier success-fee customization (ORG-scope FINANCING_SUCCESS rules surfaced in the rules UI).
+- Main session will run 11-d integration + acceptance E2E + regression + commit/push (Laws 2-3-5).

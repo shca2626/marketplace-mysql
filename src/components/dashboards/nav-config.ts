@@ -51,6 +51,7 @@ import {
   Boxes,
   TrendingUp,
   UserCog,
+  CircleDollarSign,
 } from 'lucide-react'
 import type { View, ViewParams } from '@/store/marketplace'
 
@@ -143,6 +144,7 @@ export const ADMIN_NAV: NavConfig = {
       items: [
         { key: 'payments', label: 'Payments', icon: Receipt, description: 'Money settlement & capture queue', permission: 'payments.view' },
         { key: 'payouts', label: 'Payouts', icon: Banknote, description: 'Vendor settlement & commission', permission: 'payouts.view' },
+        { key: 'monetization', label: 'Monetization', icon: CircleDollarSign, description: 'Fee rules, ledger, revenue & subscriptions', permission: 'payouts.view', badge: 'New' },
         { key: 'currencies', label: 'Currencies & FX', icon: Coins, description: 'Live rates, market pins & rate history', permission: 'pricing.view' },
         { key: 'financing', label: 'Financing', icon: Landmark, description: 'Verification gate, financiers & fees', permission: 'financing.gate.view' },
       ],
@@ -190,6 +192,7 @@ export const ADMIN_NAV: NavConfig = {
     orders: { title: 'Orders', description: 'Every order placed on the platform — buyers, sellers and money.' },
     payments: { title: 'Payments', description: 'Settlement console — bank transfers and invoices awaiting capture.' },
     payouts: { title: 'Payouts', description: 'Vendor settlement batches and commission configuration.' },
+    monetization: { title: 'Monetization', description: 'The fee engine — rules, simulator, the immutable assessment ledger, the revenue console and seller subscriptions on the ceiling model.' },
     currencies: { title: 'Currencies & FX', description: 'Live exchange feeds, pinned market rates and the auditable rate ledger — every price converts dynamically, nothing hardcoded.' },
     financing: { title: 'Financing', description: 'The platform verification gate — review queues, financier institutions, fees and the shared requirements library.' },
     organizations: { title: 'Organizations', description: 'Manage companies, banks, MFIs, e-wallets and their members.' },
@@ -231,6 +234,7 @@ export const SELLER_NAV: NavConfig = {
       items: [
         { key: 'orders', label: 'Orders', icon: ShoppingBag, description: 'Incoming orders & fulfilment' },
         { key: 'earnings', label: 'Earnings', icon: Wallet, description: 'Settlement & payout history' },
+        { key: 'subscription', label: 'Subscription', icon: CircleDollarSign, description: 'Your plan, entitlements & limits', badge: 'New' },
         { key: 'rfqs', label: 'RFQ Inbox', icon: FileText, description: 'Quote requests for your catalog' },
         { key: 'disputes', label: 'Disputes', icon: Scale, description: 'Buyer disputes on your orders' },
       ],
@@ -242,6 +246,7 @@ export const SELLER_NAV: NavConfig = {
     offers: { title: 'My Offers', description: 'Sell other vendors’ catalog products — your price, stock and terms on their listings.' },
     orders: { title: 'Orders', description: 'Incoming orders and fulfilment status.' },
     earnings: { title: 'Earnings', description: 'Your settlement balance, commission rate and payout history.' },
+    subscription: { title: 'Subscription', description: 'Your plan, the modules it entitles, your limits, and the renewal state — the subscription is a ceiling, activations can only stay within it.' },
     rfqs: { title: 'RFQ Inbox', description: 'Quote requests that reference your catalog — respond with winning quotes.' },
     disputes: { title: 'Disputes', description: 'Buyer disputes raised against your orders.' },
   },

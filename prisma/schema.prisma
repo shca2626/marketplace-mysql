@@ -512,12 +512,15 @@ model Organization {
   approvalRequests ApprovalRequest[]
 
   // ── Phase 7.0: seller-org tenant back-relations (three-concept identity) ──
-  sellerProfile           SellerProfile?     @relation("SellerProfileOrg")
-  offersAsSellerOrg       ProductOffer[]     @relation("OfferSellerOrg")
-  orderItemsAsSellerOrg   OrderItem[]        @relation("OrderItemSellerOrg")
-  payoutsAsSellerOrg      Payout[]           @relation("PayoutSellerOrg")
-  quotesAsSellerOrg       Quote[]            @relation("QuoteSellerOrg")
-  fulfillmentsAsSellerOrg OrderFulfillment[] @relation("FulfillmentSellerOrg")
+  sellerProfile           SellerProfile?      @relation("SellerProfileOrg")
+  offersAsSellerOrg       ProductOffer[]      @relation("OfferSellerOrg")
+  orderItemsAsSellerOrg   OrderItem[]         @relation("OrderItemSellerOrg")
+  payoutsAsSellerOrg      Payout[]            @relation("PayoutSellerOrg")
+  quotesAsSellerOrg       Quote[]             @relation("QuoteSellerOrg")
+  fulfillmentsAsSellerOrg OrderFulfillment[]  @relation("FulfillmentSellerOrg")
+  // ── Phase 11: monetization back-relations ──
+  sellerSubscription      SellerSubscription? @relation("SellerSubscriptionOrg")
+  feeAssessmentsAsActor   FeeAssessment[]     @relation("FeeAssessmentActorOrg")
 
   // ── financing-domain back-relations (FINANCIER_SCHEMA v5) ──
   financierProfile      FinancierProfile?      @relation("FinancierProfileOrg")
@@ -2817,4 +2820,152 @@ model UnderwritingLimit {
   @@index([financierProfileId])
   @@index([branchId]) // MYSQL-FK-INDEX: branchId relation needs its own leftmost index
   @@index([userId]) // MYSQL-FK-INDEX: userId relation needs its own leftmost index
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 11 (lastplan v5 §11) — Monetization mix: the fee engine (immutable
+// assessment ledger), seller subscriptions on the 7.0 tenant, and the
+// subscription invoice rail that feeds the revenue console.
+// Convention: ZERO Json columns — payloads are MediumText JSON strings.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// 11.1 — a fee rule. Resolution chain (most specific wins):
+//   ORG scope  >  ORG_TYPE scope  >  PLATFORM scope  >  legacy fallback
+// effectiveFrom/effectiveTo give effective dating; precedence breaks ties
+// within one scope; version bumps on every edit so FeeAssessment snapshots
+// stay reproducible against the rule that was actually applied.
+model FeeRule {
+  id            String    @id @default(cuid())
+  event         String // ORDER_COMMISSION | FINANCING_SUCCESS | SUBSCRIPTION_RENEWAL
+  actorType     String // SELLER | FINANCIER | PLATFORM
+  scopeType     String    @default("PLATFORM") // PLATFORM | ORG_TYPE | ORG
+  scopeId       String    @default("") // "" | COMPANY/BANK/MFI/EWALLET | org id
+  dimension     String    @default("PERCENT") // PERCENT | FLAT
+  value         Float // percent (0..90) or flat amount
+  currency      String? // FLAT rules only; null = ledger currency
+  precedence    Int       @default(0)
+  effectiveFrom DateTime  @default(now())
+  effectiveTo   DateTime? // null = open-ended
+  version       Int       @default(1)
+  note          String?   @db.Text
+  isActive      Boolean   @default(true)
+  changedById   String? // admin actor
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  assessments FeeAssessment[] @relation("FeeAssessmentRule")
+
+  @@unique([event, scopeType, scopeId, version])
+  @@index([event, isActive, scopeType])
+  @@index([scopeType, scopeId])
+}
+
+// 11.1 — the IMMUTABLE fee ledger. Every applied fee writes exactly one row;
+// reversals/corrections are APPENDED rows (status REVERSAL, negative amount,
+// reversalOfId → original) — existing rows are never rewritten. The revenue
+// console reconciles against this ledger to the cent.
+model FeeAssessment {
+  id             String          @id @default(cuid())
+  idempotencyKey String          @unique // event-scoped, e.g. "ORDER_COMMISSION:payout:PY-2026-000001"
+  event          String
+  ruleId         String? // null = recorded without a rule row (legacy carry-over)
+  rule           FeeRule?        @relation("FeeAssessmentRule", fields: [ruleId], references: [id])
+  ruleVersion    Int?
+  ruleSnapshot   String?         @db.MediumText // JSON: {dimension, value, scopeType, scopeId, precedence} at application time
+  actorType      String // SELLER | FINANCIER | PLATFORM
+  actorOrgId     String? // the paying/subject org (seller org | financier org)
+  actorOrg       Organization?   @relation("FeeAssessmentActorOrg", fields: [actorOrgId], references: [id])
+  refType        String? // PAYOUT | AGREEMENT | SUBSCRIPTION_INVOICE | ORDER
+  refId          String?
+  baseAmount     Float
+  currency       String          @default("USD")
+  fxRateToUsd    Float           @default(1) // FX snapshot at assessment time
+  calcInputs     String?         @db.MediumText // JSON: {percent?, itemCount?, note?}
+  amount         Float // resulting fee (reversal rows carry the negative)
+  reversalOfId   String? // set on REVERSAL rows → the original assessment
+  reversalOf     FeeAssessment?  @relation("FeeAssessmentReversal", fields: [reversalOfId], references: [id])
+  reversals      FeeAssessment[] @relation("FeeAssessmentReversal")
+  reversalReason String?         @db.Text
+  changedById    String? // actor who issued the reversal
+  status         String          @default("APPLIED") // APPLIED | REVERSAL
+  assessedAt     DateTime        @default(now())
+
+  @@index([event, assessedAt])
+  @@index([actorOrgId, event])
+  @@index([refType, refId])
+  @@index([reversalOfId])
+}
+
+// 11.2 — a subscription tier: the module bundle (ceiling for entitlements)
+// + numeric limits. One row per plan key; isActive=false retires it from
+// pickers but existing subscriptions keep resolving against it.
+model SubscriptionPlan {
+  id           String   @id @default(cuid())
+  key          String   @unique // free | starter | growth | pro
+  name         String
+  description  String?  @db.Text
+  priceMonthly Float    @default(0)
+  currency     String   @default("USD")
+  modules      String   @db.MediumText // JSON array of module keys (the ceiling bundle)
+  limits       String   @db.MediumText // JSON object of numeric limits (null value = uncapped)
+  isActive     Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  changedById  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  subscriptions SellerSubscription[]
+
+  @@index([isActive, sortOrder])
+}
+
+// 11.2 — the seller-org subscription (ONE per seller org — the 7.0 tenant).
+// Status machine: TRIALING|ACTIVE → GRACE (renewal failed, still entitled,
+// read-only warnings) → DOWNGRADED (grace expired: paid modules off, limits
+// re-clamped to the free tier, data preserved). CANCELLED = explicit stop.
+// getEffectiveSubscription() self-heals GRACE-past-graceEndsAt → DOWNGRADED
+// (one audited transition on read).
+model SellerSubscription {
+  id                 String           @id @default(cuid())
+  organizationId     String           @unique // the seller-org tenant (org with a SellerProfile)
+  organization       Organization     @relation("SellerSubscriptionOrg", fields: [organizationId], references: [id])
+  planId             String
+  plan               SubscriptionPlan @relation(fields: [planId], references: [id])
+  status             String           @default("ACTIVE") // TRIALING | ACTIVE | GRACE | DOWNGRADED | CANCELLED
+  currentPeriodStart DateTime         @default(now())
+  currentPeriodEnd   DateTime // renewAt
+  graceEndsAt        DateTime? // set when GRACE (now + graceDays)
+  graceDays          Int              @default(7)
+  cancelledAt        DateTime?
+  cancelReason       String?          @db.Text
+  changedById        String? // last admin/actor
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  invoices SubscriptionInvoice[]
+
+  @@index([status])
+}
+
+// 11.2 — the billing rail for subscriptions. Every renewal attempt writes an
+// invoice: PAID (period extends + a SUBSCRIPTION_RENEWAL FeeAssessment lands
+// on the ledger) or FAILED (subscription → GRACE). Immutable record.
+model SubscriptionInvoice {
+  id             String             @id @default(cuid())
+  number         String             @unique // SUB-2026-000001
+  subscriptionId String
+  subscription   SellerSubscription @relation(fields: [subscriptionId], references: [id])
+  planKey        String // snapshot
+  planName       String // snapshot
+  amount         Float
+  currency       String             @default("USD")
+  status         String             @default("PAID") // PAID | FAILED
+  periodStart    DateTime
+  periodEnd      DateTime
+  paidAt         DateTime?
+  failedAt       DateTime?
+  createdAt      DateTime           @default(now())
+
+  @@index([subscriptionId, createdAt])
+  @@index([status, createdAt])
 }

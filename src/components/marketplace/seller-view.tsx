@@ -33,6 +33,7 @@ import { ProductFormDialog } from './product-form-dialog'
 import { SellerRfqInboxTab } from './seller/rfq-inbox-tab'
 import { SellerDisputesTab } from './seller/disputes-tab'
 import { SellerEarningsTab } from './seller/earnings-tab'
+import { SubscriptionSection } from './seller/subscription-section'
 import { SellerOffersTab, type MyOfferRow } from './seller/offers-tab'
 import { StarRating } from './star-rating'
 import { DashboardLayout, PageHeader } from '@/components/dashboards/dashboard-layout'
@@ -954,6 +955,9 @@ export function SellerView() {
 
       {/* ── Earnings section ── */}
       {activeTab === 'earnings' && <SellerEarningsTab />}
+
+      {/* ── Subscription section (Phase 11.2 — the seller's plan & ceiling) ── */}
+      {activeTab === 'subscription' && <SubscriptionSection />}
 
       {/* ── Disputes section ── */}
       {activeTab === 'disputes' && <SellerDisputesTab focusId={params.disputeId ?? null} />}

@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
+import { subscriptionCeilingForOrg } from '@/server/modules/subscriptions/service'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MODULE ACTIVATION SERVICE — Phase 5.3 (mergedplan.md §6)
@@ -91,6 +92,12 @@ function scopeKeyOf(scopeType: string, scopeId: string): string {
 /**
  * Resolve every active module for a context. Falls through ORG → ORG_TYPE →
  * PLATFORM → definition default; `core` modules are always enabled.
+ *
+ * Phase 11.2 CEILING: after the activation chain resolves, subscription-
+ * gated modules (claimed by any active plan bundle) are clamped OFF unless
+ * the seller org's effective subscription tier entitles them. An ORG flip
+ * can turn a paid module OFF; it can NEVER turn it ON beyond the
+ * subscription (lastplan v5 §11.2.3).
  */
 export async function resolveModuleState(
   ctx: { orgId?: string | null; orgType?: string | null } = {}
@@ -99,6 +106,19 @@ export async function resolveModuleState(
   const chain = [scopeKeyOf('PLATFORM', '')]
   if (ctx.orgType) chain.unshift(scopeKeyOf('ORG_TYPE', ctx.orgType))
   if (ctx.orgId) chain.unshift(scopeKeyOf('ORG', ctx.orgId))
+
+  // Phase 11.2: one ceiling resolution for the whole map (null = no clamp).
+  let ceiling: { gated: string[]; entitled: Set<string> } | null = null
+  try {
+    ceiling = await subscriptionCeilingForOrg(ctx.orgId)
+  } catch (e) {
+    // Fail-OPEN would violate the ceiling; fail-CLOSED would take down the
+    // whole nav on a transient DB error. The ceiling fails CLOSED for the
+    // gated universe only when we know it applies — on resolution ERROR we
+    // log loudly and leave the activation matrix in charge (matching the
+    // pre-11 behavior) — the subscription service rethrows typed failures.
+    console.error('[modules] subscription ceiling resolution failed — activation matrix only', e)
+  }
 
   const result: Record<string, boolean> = {}
   for (const [key, def] of Object.entries(state.modules)) {
@@ -114,7 +134,9 @@ export async function resolveModuleState(
         break
       }
     }
-    result[key] = enabled ?? def.defaultOn
+    let resolved = enabled ?? def.defaultOn
+    if (ceiling && ceiling.gated.includes(key) && !ceiling.entitled.has(key)) resolved = false
+    result[key] = resolved
   }
   return result
 }
