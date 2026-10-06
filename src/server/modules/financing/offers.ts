@@ -6,6 +6,8 @@ import { resolvePanel } from '@/server/modules/settings/service'
 import { FinancingError, assertApplicantActor, iso, type OfferStatus } from './shared'
 import { assertOfferWithinUnderwritingLimit } from './limits' // 10.7: underwriting-limit enforcement
 import { userHasPlatformPermission } from '@/server/modules/rbac/service'
+import { assessFee, type ResolvedFeeRule } from '@/server/modules/fees/service' // 11.1: immutable fee ledger
+import { resolveFinancingSuccessPercent } from '@/server/modules/fees/admin' // 11.1: engine-first success percent
 
 /**
  * FINANCING OFFERS — the financier's binding proposal (§3.9) + the acceptance
@@ -410,12 +412,17 @@ export async function updateOfferDraft(
 
 // ── Applicant responses (accept / decline) ────────────────────────────────
 
-/** Freeze + agreement + SUCCESS fee — the shared acceptance core. */
+/** Freeze + agreement + SUCCESS fee — the shared acceptance core.
+ * `feeCtx` (Phase 11.1) carries the engine-resolved success-fee rule + the
+ * financier org context: the FINANCING_SUCCESS assessment is written on the
+ * SAME transaction as the FinancingFee accrual, idempotent by agreement, so
+ * the fee ledger and the legacy fee row can never drift apart. */
 async function acceptOfferCore(
   tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
   offer: { id: string; requestId: string; amount: number; currency: string },
   agreementNumber: string,
-  successPercent: number
+  successPercent: number,
+  feeCtx?: { rule: ResolvedFeeRule | null; orgId: string | null; orgType: string | null }
 ): Promise<string> {
   const now = new Date()
   // freeze the accepted offer + decline every other SENT offer on the request
@@ -467,6 +474,29 @@ async function acceptOfferCore(
       status: 'ACCRUED',
     },
   })
+  // ── Phase 11.1: the immutable FINANCING_SUCCESS assessment — same tx as
+  // the fee accrual, idempotent by agreement id. The resolved rule is passed
+  // forward so the snapshot matches the percent actually applied; with no
+  // rule (day one) the legacyAmount path records the rfq-settings numbers —
+  // zero behavior change. ──
+  if (feeCtx) {
+    await assessFee(
+      {
+        event: 'FINANCING_SUCCESS',
+        actorType: 'FINANCIER',
+        actorOrgId: feeCtx.orgId,
+        ctx: { orgId: feeCtx.orgId, orgType: feeCtx.orgType },
+        baseAmount: offer.amount,
+        currency: offer.currency,
+        calcInputs: { percent, legacyAmount: feeAmount },
+        idempotencyKey: `FINANCING_SUCCESS:agreement:${agreement.id}`,
+        refType: 'AGREEMENT',
+        refId: agreement.id,
+      },
+      tx,
+      feeCtx.rule
+    )
+  }
   // 10.9 Murabaha checkout: an accepted offer on an ORDER-targeted request
   // links the financed order to this agreement (FUNDED arrives at disbursement
   // confirm — the buyer obligation stays on the financing ledger, never PAID).
@@ -487,7 +517,22 @@ export async function acceptOffer(
     where: { id: offerId },
     include: {
       request: {
-        select: { id: true, number: true, status: true, createdById: true, organizationId: true, multiGroupId: true },
+        select: {
+          id: true,
+          number: true,
+          status: true,
+          createdById: true,
+          organizationId: true,
+          multiGroupId: true,
+          // 11.1: the financier org drives the FINANCING_SUCCESS rule context
+          service: {
+            select: {
+              financierProfile: {
+                select: { organizationId: true, organization: { select: { orgType: true } } },
+              },
+            },
+          },
+        },
       },
     },
   })
@@ -502,14 +547,27 @@ export async function acceptOffer(
   }
 
   // mint the AGR number + resolve the fee percent BEFORE the transaction
-  // (nextNumber opens its own tx — write-lock discipline)
+  // (nextNumber opens its own tx — write-lock discipline). Phase 11.1: the
+  // success percent resolves ENGINE-FIRST against the financier's org
+  // (ORG rule → ORG_TYPE → PLATFORM, legacy rfq-settings fallback = zero
+  // change day one) so the accrued fee and its assessment share one source.
   const [agreementNumber, feesPanel] = await Promise.all([
     nextNumber('AGR'),
     resolvePanel('financingFees'),
   ])
-  const successPercent = Number(feesPanel.financierSuccessPercent) || 0
+  const financierOrgId = offer.request.service.financierProfile.organizationId
+  const financierOrgType = offer.request.service.financierProfile.organization.orgType
+  const feeRes = await resolveFinancingSuccessPercent(
+    { orgId: financierOrgId, orgType: financierOrgType },
+    Number(feesPanel.financierSuccessPercent) || 0
+  )
+  const successPercent = feeRes.percent
   const agreementId = await db.$transaction(async (tx) =>
-    acceptOfferCore(tx, offer, agreementNumber, successPercent)
+    acceptOfferCore(tx, offer, agreementNumber, successPercent, {
+      rule: feeRes.rule,
+      orgId: financierOrgId,
+      orgType: financierOrgType,
+    })
   )
 
   await recordAudit({
@@ -531,14 +589,8 @@ export async function acceptOffer(
     metadata: { baseAmount: offer.amount },
   })
 
-  // notify financier staff + platform admins
-  const request = await db.financingRequest.findUnique({
-    where: { id: offer.requestId },
-    select: {
-      service: { select: { financierProfile: { select: { organizationId: true, organization: { select: { name: true } } } } } },
-    },
-  })
-  const financierOrgId = request?.service.financierProfile.organizationId
+  // notify financier staff + platform admins (the financier org id was
+  // already resolved engine-side above — the re-query is unnecessary)
   if (financierOrgId) {
     const staff = await db.organizationMember.findMany({
       where: { organizationId: financierOrgId, role: { in: ['OWNER', 'ADMIN'] } },

@@ -393,6 +393,27 @@ export async function simulateFee(
   const resolution = await resolveFeeRuleChain(event, ctx)
   const notes: string[] = []
   if (!resolution.rule) {
+    // Legacy-preview parity (acceptance gate: the simulator must match fees
+    // actually applied across ALL flows): for SUBSCRIPTION_RENEWAL the
+    // invoice amount IS the revenue — the legacy path lands exactly the base
+    // amount on the ledger. Order/financing legacy sources (PlatformSetting
+    // / rfq-settings) are caller-side and stay null with the note.
+    if (event === 'SUBSCRIPTION_RENEWAL') {
+      return {
+        event,
+        baseAmount,
+        currency,
+        resolution,
+        computation: {
+          amount: Math.round(baseAmount * 100) / 100,
+          percentApplied: null,
+          dimension: 'FLAT',
+          value: Math.round(baseAmount * 100) / 100,
+        },
+        amount: Math.round(baseAmount * 100) / 100,
+        notes: ['No rule resolves — the legacy path applies: the invoice amount lands on the ledger as-is.'],
+      }
+    }
     notes.push('No rule resolves at any scope — the legacy fallback path would apply.')
     return { event, baseAmount, currency, resolution, computation: null, amount: null, notes }
   }

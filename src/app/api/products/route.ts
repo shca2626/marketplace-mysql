@@ -10,6 +10,7 @@ import { recordPublicationConsent } from '@/server/modules/catalog/review'
 import { assertSameOrigin, enforceRateLimit, clientIp } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 import { userHasPlatformPermission } from '@/server/modules/rbac/service'
+import { assertOrgLimit, SubscriptionServiceError } from '@/server/modules/subscriptions/service'
 
 // GET /api/products — list with filters/search/sort/pagination.
 // All filtering, search, sorting and pagination happen in SQL (TD-03 resolved);
@@ -205,6 +206,28 @@ export async function POST(req: NextRequest) {
     }
 
     try {
+      // Phase 11.2 — subscription maxProducts ceiling. Applies to SELLER-org
+      // tenants only: the caller's SellerProfile org (legacy sellers without
+      // an org skip the check; admins creating curated records are exempt).
+      // The count is the org's non-archived listings (any product owned by an
+      // org member). Over-cap → 402 SUBSCRIPTION_LIMIT_REACHED with the
+      // upgrade message from the service.
+      if (user.role === 'SELLER') {
+        const profile = await db.sellerProfile.findFirst({
+          where: { ownerUserId: user.id },
+          select: { organizationId: true },
+        })
+        if (profile) {
+          const currentCount = await db.product.count({
+            where: {
+              status: { not: 'ARCHIVED' },
+              seller: { memberships: { some: { organizationId: profile.organizationId } } },
+            },
+          })
+          await assertOrgLimit(profile.organizationId, 'maxProducts', currentCount)
+        }
+      }
+
       const product = await createProduct(user.id, { ...parsed.data, status: effectiveStatus })
       if (parsed.data.publicationAgreed && wantsPublish) {
         // Phase 9.4 dual-write: the consent lands in the versioned ledger
@@ -234,6 +257,9 @@ export async function POST(req: NextRequest) {
         { status: 201 }
       )
     } catch (err) {
+      if (err instanceof SubscriptionServiceError) {
+        return NextResponse.json({ error: err.message, code: err.code }, { status: err.status })
+      }
       const status = (err as { status?: number }).status
       if (status) return NextResponse.json({ error: (err as Error).message }, { status })
       throw err

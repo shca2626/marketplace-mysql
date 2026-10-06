@@ -402,6 +402,89 @@
       "moduleKeys": []
     },
     {
+      "route": "/api/admin/fees/export",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "payouts.view"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/fees/ledger",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "payouts.view"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/fees/ledger/[id]/reverse",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "payouts.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/fees/reconcile",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "payouts.view"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/fees/rules",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [
+        "payouts.view",
+        "payouts.manage"
+      ],
+      "moduleKeys": [],
+      "notes": "Fee-rule engine CRUD (11.1): GET lists rules incl. retired (payouts.view); POST creates (payouts.manage). Edits are version bumps; DELETE only retires."
+    },
+    {
+      "route": "/api/admin/fees/rules/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "PUT",
+        "DELETE"
+      ],
+      "permissionKeys": [
+        "payouts.manage"
+      ],
+      "moduleKeys": [],
+      "notes": "PUT = edit-in-place with version bump (assessments keep snapshots); DELETE = retire (isActive=false, never hard delete)."
+    },
+    {
+      "route": "/api/admin/fees/simulate",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "payouts.view"
+      ],
+      "moduleKeys": [],
+      "notes": "Read-only simulator: resolves the scope chain for an event/actor/base without writing; returns recent applied assessments for parity."
+    },
+    {
       "route": "/api/admin/financing/conditions",
       "bucket": "PLATFORM_PRIVILEGED",
       "methods": [
@@ -1222,6 +1305,41 @@
       "permissionKeys": [],
       "moduleKeys": [],
       "notes": "Inline RBAC check userHasPlatformPermission('platform.overview.view') on getSessionUser."
+    },
+    {
+      "route": "/api/admin/subscriptions",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "payouts.view"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/subscriptions/[orgId]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [
+        "payouts.manage"
+      ],
+      "moduleKeys": []
+    },
+    {
+      "route": "/api/admin/subscriptions/plans",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET",
+        "PUT"
+      ],
+      "permissionKeys": [
+        "payouts.view",
+        "payouts.manage"
+      ],
+      "moduleKeys": []
     },
     {
       "route": "/api/admin/vendors",
@@ -2312,6 +2430,17 @@
       ]
     },
     {
+      "route": "/api/financing/murabaha/prequalify",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [
+        "financing-hub"
+      ]
+    },
+    {
       "route": "/api/financing/requests",
       "bucket": "AUTHENTICATED_USER",
       "methods": [
@@ -2886,6 +3015,26 @@
       "notes": "Seller self-service stats (sellerId = caller)."
     },
     {
+      "route": "/api/seller/subscription",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Seller self-service subscription view — org resolved from the CALLER's SellerProfile (never a parameter)."
+    },
+    {
+      "route": "/api/seller/subscription/action",
+      "bucket": "MANUAL_REVIEW",
+      "methods": [
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "Seller self-service subscription actions (change-plan / cancel) — org resolved from the CALLER's SellerProfile (never a parameter)."
+    },
+    {
       "route": "/api/sellers/[id]",
       "bucket": "PUBLIC",
       "methods": [
@@ -2951,17 +3100,6 @@
       "permissionKeys": [],
       "moduleKeys": [],
       "notes": "Private-vault authenticated proxy (6.6.4): session re-authenticated per retrieval; HMAC-signed one-time nonce (VaultAccessGrant) verified + atomically consumed; access RE-authorized against the 6.8 matrix (owner / financing.documents.verify / org member per class / financier review scope) inside consumeVaultUrl — not a static permission key. Cache-Control: no-store; never redirects to storage/CDN."
-    },
-    {
-      "route": "/api/financing/murabaha/prequalify",
-      "bucket": "AUTHENTICATED_USER",
-      "methods": [
-        "GET"
-      ],
-      "permissionKeys": [],
-      "moduleKeys": [
-        "financing-hub"
-      ]
     }
   ]
 }

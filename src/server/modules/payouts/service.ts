@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
 import { emitNotification } from '@/server/modules/notifications/service'
 import { nextNumber } from '@/server/modules/sequences/service'
+import { assessFee, resolveOrderCommissionPercent, type ResolvedFeeRule } from '@/server/modules/fees/service'
 
 /**
  * Payouts — platform → vendor settlement of marketplace revenue (Phase 7.4).
@@ -87,6 +88,34 @@ export interface PayoutPreview {
   latestItemAt: string | null
 }
 
+/** Phase 11.1 — the commission context for a seller. Engine-first: the fee
+ * rule chain ORG → ORG_TYPE → PLATFORM (resolved through
+ * resolveOrderCommissionPercent, which falls back to the legacy
+ * PlatformSetting payouts.defaultCommissionPercent when nothing resolves —
+ * day one that is exactly the 10% default, zero behavior change). The legacy
+ * per-vendor override (User.commissionRate, which predates rules) still wins
+ * when set — the engine chain applies only without it. */
+async function resolveSellerCommissionContext(
+  sellerId: string,
+  vendorOverride: number | null
+): Promise<{
+  orgId: string | null
+  orgType: string | null
+  rate: number
+  source: 'VENDOR' | 'RULE' | 'LEGACY'
+  rule: ResolvedFeeRule | null
+}> {
+  const profile = await db.sellerProfile.findFirst({
+    where: { ownerUserId: sellerId },
+    select: { organizationId: true, organization: { select: { orgType: true } } },
+  })
+  const orgId = profile?.organizationId ?? null
+  const orgType = profile?.organization.orgType ?? null
+  if (vendorOverride != null) return { orgId, orgType, rate: vendorOverride, source: 'VENDOR', rule: null }
+  const res = await resolveOrderCommissionPercent({ orgId, orgType })
+  return { orgId, orgType, rate: res.percent, source: res.source, rule: res.rule }
+}
+
 /** Unsettled, paid-for items of one seller, with the payout math applied. */
 export async function previewPayout(sellerId: string): Promise<PayoutPreview> {
   const seller = await db.user.findUnique({
@@ -95,8 +124,8 @@ export async function previewPayout(sellerId: string): Promise<PayoutPreview> {
   })
   if (!seller || seller.role !== 'SELLER') throw new PayoutServiceError('Vendor not found', 404)
 
-  const [cfg, items] = await Promise.all([
-    getPayoutsConfig(),
+  const [commissionCtx, items] = await Promise.all([
+    resolveSellerCommissionContext(sellerId, seller.commissionRate),
     db.orderItem.findMany({
       where: {
         sellerId,
@@ -108,7 +137,7 @@ export async function previewPayout(sellerId: string): Promise<PayoutPreview> {
     }),
   ])
 
-  const commissionRate = seller.commissionRate ?? cfg.defaultCommissionPercent
+  const commissionRate = commissionCtx.rate
   const gross = items.reduce((s, i) => s + i.price * i.quantity, 0)
   const commission = Math.round(gross * (commissionRate / 100) * 100) / 100
 
@@ -141,21 +170,22 @@ const ELIGIBLE_ITEMS = (sellerId: string) => ({
 export async function generatePayout(adminId: string, sellerId: string) {
   const seller = await db.user.findUnique({
     where: { id: sellerId },
-    select: { id: true, name: true, storeName: true, commissionRate: true, role: true, sellerProfilesOwned: { select: { organizationId: true } } },
+    select: { id: true, name: true, storeName: true, commissionRate: true, role: true },
   })
   if (!seller || seller.role !== 'SELLER') throw new PayoutServiceError('Vendor not found', 404)
 
-  // Pre-transaction reads: config + document number + seller-org are fetched
+  // Pre-transaction reads: commission context + document number are fetched
   // OUTSIDE the interactive transaction — nextNumber opens its own nested
   // $transaction, which must never run inside another transaction's callback
   // (the remote-Aiven latency + nested-tx contention deadlocked the old code).
-  const [cfg, number, sellerOrgId] = await Promise.all([
-    getPayoutsConfig(),
+  // The commission rate resolves ENGINE-FIRST (ORG → ORG_TYPE → PLATFORM fee
+  // rule, legacy PlatformSetting fallback = zero change day one); the legacy
+  // per-vendor override still wins when set (it predates rules).
+  const [number, commissionCtx] = await Promise.all([
     nextNumber('PY'),
-    db.sellerProfile
-      .findFirst({ where: { ownerUserId: sellerId }, select: { organizationId: true } })
-      .then((sp) => sp?.organizationId ?? null),
+    resolveSellerCommissionContext(sellerId, seller.commissionRate),
   ])
+  const sellerOrgId = commissionCtx.orgId
 
   const payout = await db.$transaction(
     async (tx) => {
@@ -167,7 +197,7 @@ export async function generatePayout(adminId: string, sellerId: string) {
       })
       if (items.length === 0) throw new PayoutServiceError('Nothing to settle — no paid, unsettled items', 409)
 
-      const commissionRate = seller.commissionRate ?? cfg.defaultCommissionPercent
+      const commissionRate = commissionCtx.rate
 
       // Per-line math under the declared rounding rule (per-line cents)
       const lineMath = items.map((i) => {
@@ -225,6 +255,34 @@ export async function generatePayout(adminId: string, sellerId: string) {
           },
         })
       }
+      // ── Phase 11.1: the immutable ORDER_COMMISSION assessment, written IN
+      // the settlement transaction — payout row + ledger lines + fee-ledger
+      // row commit (or roll back) together. Idempotent by key, so a retried
+      // scope can never double-charge. The resolved rule is passed forward so
+      // the snapshot matches exactly what the payout math applied; a vendor
+      // override (or legacy fallback) records the applied numbers instead. ──
+      await assessFee(
+        {
+          event: 'ORDER_COMMISSION',
+          actorType: 'SELLER',
+          actorOrgId: commissionCtx.orgId,
+          ctx: { orgId: commissionCtx.orgId, orgType: commissionCtx.orgType },
+          baseAmount: gross,
+          currency: 'USD',
+          calcInputs: {
+            percent: commissionRate,
+            itemCount: items.length,
+            source: commissionCtx.source,
+            legacyAmount: commission,
+          },
+          idempotencyKey: `ORDER_COMMISSION:payout:${created.id}`,
+          refType: 'PAYOUT',
+          refId: created.id,
+        },
+        tx,
+        commissionCtx.rule
+      )
+
       // 6.11: settlement + audit row commit atomically.
       await recordAuditTx(tx, {
         actorId: adminId,
@@ -572,11 +630,13 @@ export async function getPayoutDetail(payoutId: string) {
 // ── Seller-facing earnings ──────────────────────────────────────────────────
 
 export async function sellerEarnings(sellerId: string) {
-  const [seller, cfg] = await Promise.all([
-    db.user.findUnique({ where: { id: sellerId }, select: { commissionRate: true } }),
-    getPayoutsConfig(),
-  ])
-  const commissionRate = seller?.commissionRate ?? cfg.defaultCommissionPercent
+  // Phase 11.1: the pending projection resolves through the same engine-first
+  // chain as generation, so what the seller sees as "pending commission" is
+  // what the next payout will actually charge (vendor override → rule chain →
+  // legacy PlatformSetting fallback).
+  const seller = await db.user.findUnique({ where: { id: sellerId }, select: { commissionRate: true } })
+  const commissionCtx = await resolveSellerCommissionContext(sellerId, seller?.commissionRate ?? null)
+  const commissionRate = commissionCtx.rate
 
   const [pendingItems, payouts, lifetimeAgg] = await Promise.all([
     db.orderItem.findMany({
