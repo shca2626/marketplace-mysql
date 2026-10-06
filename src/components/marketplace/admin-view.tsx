@@ -38,6 +38,7 @@ import { CurrenciesConsole } from './admin/currencies-console'
 import { FinancingTab } from './admin/financing-tab'
 import { RbacTab } from './admin/rbac-tab'
 import { SecurityTab } from './admin/security-tab'
+import { KycProviderConsole } from './admin/kyc-provider/kyc-provider-console'
 import { ModulesTab } from './admin/modules-tab'
 import { WhatsAppTab } from './admin/whatsapp-tab'
 import { SpecAttributesTab } from './admin/spec-attributes-tab'
@@ -137,6 +138,7 @@ function AdminDashboard({ user }: { user: SessionUser | null }) {
       {activeSection === 'disputes' && <DisputesTab />}
       {activeSection === 'rbac' && <RbacTab user={user} />}
       {activeSection === 'security' && <SecurityTab user={user} />}
+      {activeSection === 'kyc-provider' && <KycProviderConsole />}
       {activeSection === 'modules' && <ModulesTab />}
       {activeSection === 'whatsapp' && <WhatsAppTab />}
       {activeSection === 'rfq-settings' && <RfqSettings />}

@@ -31,6 +31,7 @@ import { HomeView } from './home-view'
 import { CatalogView } from './catalog-view'
 import { ProductView } from './product-view'
 import { StoreView } from './store-view'
+import { BrandsView } from './brands-view'
 import { CartView } from './cart-view'
 import { CheckoutView } from './checkout-view'
 import { SellerView } from './seller-view'
@@ -56,6 +57,7 @@ const STOREFRONT_VIEWS: Record<string, () => React.ReactNode> = {
   catalog: () => <CatalogView />,
   product: () => <ProductView />,
   store: () => <StoreView />,
+  brands: () => <BrandsView />, // Phase 12: the brands directory
   cart: () => <CartView />,
   checkout: () => <CheckoutView />,
   'forgot-password': () => <ForgotPasswordView />,

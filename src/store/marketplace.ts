@@ -66,6 +66,7 @@ export type View =
   | 'catalog'
   | 'product'
   | 'store'
+  | 'brands' // Phase 12: the brands directory (all brands | one brand's products)
   | 'cart'
   | 'checkout'
   | 'orders'
@@ -88,6 +89,7 @@ export interface ViewParams {
   category?: string
   query?: string
   sellerId?: string
+  brandSlug?: string // Phase 12: brands view — boot focused on one brand
   sellerTab?: string
   adminTab?: string // admin console: active sidebar section (?view=admin&tab=…)
   rfqId?: string

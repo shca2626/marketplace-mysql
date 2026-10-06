@@ -108,6 +108,7 @@ model User {
   // ── financing-domain relations (FINANCIER_SCHEMA v5) ──
   accountDocuments          AccountDocument[]       @relation("AccountDocumentsOwner")
   documentsReviewed         AccountDocument[]       @relation("AccountDocumentsReviewedBy")
+  kycCasesDecided           KycCase[]               @relation("KycCaseDecidedBy") // Phase 12.4 manual-queue decisions
   financingRequests         FinancingRequest[]      @relation("FinancingRequests")
   financingOffers           FinancingOffer[]        @relation("FinancingOffers")
   financingEventsReported   FinancingEvent[]        @relation("FinancingEventsReportedBy")
@@ -1790,6 +1791,7 @@ model AccountDocument {
   submissions        RequirementSubmission[]
   requestAttachments RequestAttachment[]     @relation("RequestAttachmentDocument")
   vaultAccessGrants  VaultAccessGrant[]      @relation("VaultAccessGrants")
+  kycCases           KycCase[]               @relation("KycCaseDocument") // Phase 12.4 provider cases
 
   @@index([userId, documentType, status])
   @@index([organizationId])
@@ -2968,4 +2970,99 @@ model SubscriptionInvoice {
 
   @@index([subscriptionId, createdAt])
   @@index([status, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 12 (lastplan v5 §12) — KYC provider subsystem.
+//
+// 12.4 contract (hard requirements this schema serves):
+//   • per document type: MANUAL | PROVIDER | PROVIDER_THEN_MANUAL routing,
+//     admin-customizable (KycProviderConfig)
+//   • every provider verification is a CASE with a minimized payload snapshot
+//     (only the fields the doc type requires are ever transmitted — the
+//     evidence of what left the platform lives on the case)
+//   • failure semantics: a provider error/timeout NEVER auto-approves — the
+//     case lands in the manual queue (status PROVIDER_ERROR | MANUAL_QUEUE,
+//     AccountDocument stays PENDING)
+//   • webhooks: HMAC-signed, replay-protected (timestamp + nonce), event-id
+//     idempotency (duplicate delivery is a no-op) — KycWebhookEvent is the
+//     immutable receive log; unauthenticated calls are rejected 401 + audited
+// Convention: ZERO Json columns — payloads are MediumText JSON strings.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Per-document-type routing of the verification workflow. Exactly one row per
+// doc type; absence = MANUAL (the pre-Phase-12 behavior, fail-safe default).
+model KycProviderConfig {
+  id          String   @id @default(cuid())
+  docType     String   @unique // NATIONAL_ID | PASSPORT | COMMERCIAL_REG | …
+  mode        String   @default("MANUAL") // MANUAL | PROVIDER | PROVIDER_THEN_MANUAL
+  providerKey String   @default("mock") // which adapter handles PROVIDER legs
+  enabled     Boolean  @default(true) // master switch (false = MANUAL regardless)
+  timeoutMs   Int      @default(30000) // dispatch timeout → PROVIDER_ERROR
+  settings    String?  @db.MediumText // JSON: adapter options (mock outcome, webhook URL…)
+  changedById String? // last admin actor
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  cases KycCase[]
+
+  @@index([enabled, mode])
+}
+
+// One provider verification case. Created when a document is submitted for
+// provider verification; the case (never the document alone) carries the
+// provider state machine:
+//   PENDING → SUBMITTED → APPROVED | REJECTED            (happy path)
+//   PENDING → SUBMITTED → PROVIDER_ERROR → MANUAL_QUEUE   (failure semantics)
+//   PENDING → MANUAL_QUEUE                                 (PROVIDER_THEN_MANUAL reject)
+model KycCase {
+  id                String             @id @default(cuid())
+  documentId        String
+  document          AccountDocument    @relation("KycCaseDocument", fields: [documentId], references: [id], onDelete: Cascade)
+  docType           String // snapshot
+  providerKey       String // snapshot
+  configId          String?
+  config            KycProviderConfig? @relation(fields: [configId], references: [id])
+  status            String             @default("PENDING") // PENDING | SUBMITTED | APPROVED | REJECTED | PROVIDER_ERROR | MANUAL_QUEUE | CANCELLED
+  providerCaseRef   String? // the provider's own case id (round-trip correlation)
+  submittedAt       DateTime?
+  decisionAt        DateTime?
+  errorDetail       String?            @db.Text // timeout/HTTP/parse error evidence
+  transmittedFields String?            @db.MediumText // JSON: the EXACT minimized payload sent (data-minimization evidence)
+  lastEventId       String? // last webhook event applied (idempotency link)
+  decidedById       String? // manual reviewer when the manual queue decided
+  decidedBy         User?              @relation("KycCaseDecidedBy", fields: [decidedById], references: [id])
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  webhookEvents KycWebhookEvent[] @relation("KycWebhookEventCase")
+
+  @@index([status, createdAt])
+  @@index([documentId])
+  @@index([providerKey, status])
+  @@index([decidedById]) // MYSQL-FK-INDEX: decidedById relation needs its own leftmost index
+}
+
+// The immutable webhook receive log: every delivery attempt is recorded
+// (signature-valid or not); eventId is UNIQUE so duplicate deliveries are
+// detected and become no-ops; nonce is UNIQUE per provider for replay
+// protection alongside the timestamp freshness window.
+model KycWebhookEvent {
+  id             String    @id @default(cuid())
+  eventId        String // provider-declared event id — the idempotency key
+  providerKey    String
+  caseId         String?
+  case           KycCase?  @relation("KycWebhookEventCase", fields: [caseId], references: [id])
+  eventType      String // case.approved | case.rejected | case.error | ping
+  payload        String    @db.MediumText // exactly what arrived (evidence)
+  signatureValid Boolean   @default(false)
+  replayed       Boolean   @default(false) // true = duplicate eventId (no-op)
+  nonce          String? // replay protection — unique per provider when present
+  receivedAt     DateTime  @default(now())
+  processedAt    DateTime?
+
+  @@unique([providerKey, eventId])
+  @@unique([providerKey, nonce])
+  @@index([providerKey, receivedAt])
+  @@index([caseId])
 }

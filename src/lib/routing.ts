@@ -27,6 +27,7 @@ const VIEWS = new Set<View>([
   'catalog',
   'product',
   'store',
+  'brands',
   'cart',
   'checkout',
   'orders',
@@ -51,6 +52,9 @@ export function viewToQuery(view: View, params: ViewParams = {}): string {
   if (view !== 'home') sp.set('view', view)
   if (view === 'product' && params.productId) sp.set('id', params.productId)
   if (view === 'store' && params.sellerId) sp.set('id', params.sellerId)
+  if (view === 'brands') {
+    if (params.brandSlug) sp.set('brand', params.brandSlug)
+  }
   if (view === 'catalog') {
     if (params.category) sp.set('category', params.category)
     if (params.query) sp.set('q', params.query)
@@ -96,6 +100,10 @@ export function parseLocation(href: string = typeof window !== 'undefined' ? win
     const id = sp.get('id')
     if (view === 'product' && id) params.productId = id
     if (view === 'store' && id) params.sellerId = id
+    if (view === 'brands') {
+      const brand = sp.get('brand')
+      if (brand) params.brandSlug = brand
+    }
     if (view === 'catalog') {
       const category = sp.get('category')
       const q = sp.get('q')

@@ -893,3 +893,25 @@ Stage Summary:
 - PHASE 11 COMPLETE per lastplan v5 §11 acceptance gate: simulator≡applied across all three flows (idempotency + snapshot verified, incl. temporal snapshot proof), ceiling semantics proven (org override cannot exceed subscription; non-gated modules unaffected; state machine GRACE→DOWNGRADED→restore verified), revenue dashboard reconciles to the cent (0.00 across events, legacy rows listed+excluded from diff by design, per-currency honest).
 - Monetization mix live: PLATFORM 10% commission rule (zero-change migration), immutable FeeAssessment ledger with append-only reversals, 4 subscription tiers with grandfathered PRO orgs, revenue console with CSV exports, financier success-fee customization via ORG-scope rules.
 - Next phase per lastplan: Phase 12 — Directory, Discovery, Trust + KYC Provider (KycProvider abstraction MANUAL|PROVIDER|PROVIDER_THEN_MANUAL, fail-PENDING semantics, HMAC webhooks, retention).
+
+---
+Task ID: 12-0
+Agent: main session
+Task: Phase 12 foundation (lastplan v5 §12 — Directory, Discovery, Trust + KYC Provider): schema + seed + view/nav wiring + parallel-safe stubs.
+
+Work Log:
+- Session start: bootstrap verified (Aiven 6/6, tree clean), pushed the cron review's cleanup commit a475c6a (deleted 10 p11d-* temp scripts). Phase 11 confirmed complete at e29d6ff.
+- Read lastplan v5 §12: carried items (brands directory, trending/bestsellers, services directory, spec-attribute facets, typo-tolerant search w/ normalized comparison, trust counters, PWA/newsletter stretch) + the KYC provider spec (12.4): KycProvider abstraction MANUAL|PROVIDER|PROVIDER_THEN_MANUAL per doc type admin-customizable w/ mock fallback; FAILURE SEMANTICS = provider error/timeout → PENDING for manual review, NEVER auto-approval (tested); webhooks HMAC-signed + replay-protected (timestamp+nonce) + event-id idempotency + unauth 401 audited; data minimization (only required fields transmitted) + private-vault storage (6.6) + retention/deletion-job/processing-location docs for the 14.5 legal review.
+- Survey: AccountDocument (PENDING|VERIFIED|REJECTED, vault-backed, admin verify API at /api/admin/financing/documents/[id]); search = multi-term contains (no typo tolerance); no spec facets in catalog; admin brand tab exists but no public brands view; store page has basic stats (listings/sold/rating/reviews); trending rail exists on home (soldCount).
+- Schema appended + pushed to Aiven (client regenerated): KycProviderConfig (docType unique, mode MANUAL|PROVIDER|PROVIDER_THEN_MANUAL, providerKey, enabled, timeoutMs, settings MediumText), KycCase (document link, status PENDING|SUBMITTED|APPROVED|REJECTED|PROVIDER_ERROR|MANUAL_QUEUE|CANCELLED, providerCaseRef, transmittedFields MediumText = the EXACT minimized payload evidence, lastEventId idempotency link, decidedById manual reviewer), KycWebhookEvent (eventId + nonce unique per provider, payload MediumText, signatureValid, replayed, receivedAt/processedAt — the immutable receive log). Back-relations: AccountDocument.kycCases, User.kycCasesDecided.
+- Seed scripts/phase12/seed-kyc-provider.ts (idempotent): all 15 known doc types → MANUAL (zero behavior change day one; admin flips per-type from the console).
+- View wiring: 'brands' added to View union (store/marketplace.ts) + VIEWS set + viewToQuery/parseLocation (brandSlug param ↔ ?brand=) + STOREFRONT_VIEWS mount; brands-view.tsx stub (12-b fills).
+- Admin wiring: 'kyc-provider' nav item (Configuration group, ScanFace icon, staff.manage, badge New) + titles entry + KycProviderConsole stub mounted in admin-view (12-a fills: Routing/Case Queue/Webhook Log pills).
+- Verification: tsc 165 == true baseline with ZERO Phase 12 files in the error list. IMPORTANT DISCOVERY: bare `tsc --noEmit` was being OOM-KILLED (exit 137, silent 0-error false negative) — the sandbox memory ceiling (4GB, next-server 1.4GB + chrome leftovers) starves tsc; the reliable recipe: kill stale agent-browser chrome + stop dev server + nice tsc → 165. eslint zero problems on all 7 touched files; guard:lint 668 files zero drift; dev restarted (200).
+
+Stage Summary:
+- Phase 12 substrate live on Aiven. Three parallel tasks:
+  12-a = KYC provider subsystem (service+dispatch+minimization+failure semantics, mock provider w/ real HTTP webhook, webhook route HMAC+replay+idempotency, admin console Routing/Queue/Log, user status, docs/kyc-provider.md retention+deletion job).
+  12-b = discovery depth (typo-tolerant search, spec-attribute facets, brands directory view, bestsellers).
+  12-c = trust counters on store pages + services directory facets.
+- 12-d = main session integration + acceptance E2E + regression + commit/push.
