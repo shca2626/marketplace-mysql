@@ -117,20 +117,43 @@ async function isDocumentInFinancierScope(userId: string, documentId: string): P
   // Financier orgs behind those requests' services — ONLY for requests the
   // platform gate actually forwarded to the institution (R-4 parity with
   // the request-list boundary in financing/requests.ts).
+  // TENANT-AUDIT RISK-7 (F-02 residual policy): terminal requests
+  // (DECLINED / CANCELLED / EXPIRED) close the document scope UNLESS an
+  // agreement came out of the request — a financing that proceeded creates
+  // a retention relationship (installments, statements, disputes) that
+  // justifies continued access to the applicant's documents.
+  const FIN_TERMINAL_CLOSED = ['DECLINED', 'CANCELLED', 'EXPIRED'] as const
   const orgIds = new Set<string>()
   if (finIds.length > 0) {
     const reqs = await db.financingRequest.findMany({
       where: { id: { in: finIds }, forwardedAt: { not: null } },
-      select: { service: { select: { financierProfile: { select: { organizationId: true } } } } },
+      select: {
+        status: true,
+        offers: { select: { agreement: { select: { id: true } } } },
+        service: { select: { financierProfile: { select: { organizationId: true } } } },
+      },
     })
-    for (const r of reqs) orgIds.add(r.service.financierProfile.organizationId)
+    for (const r of reqs) {
+      const hasAgreement = r.offers.some((o) => o.agreement != null)
+      if ((FIN_TERMINAL_CLOSED as readonly string[]).includes(r.status) && !hasAgreement) continue
+      orgIds.add(r.service.financierProfile.organizationId)
+    }
   }
   if (accIds.length > 0) {
+    // Same policy for accreditation: REJECTED / EXPIRED / REVOKED / CANCELLED
+    // close the scope; ACCREDITED and in-flight statuses retain it.
+    const ACC_TERMINAL_CLOSED = ['REJECTED', 'EXPIRED', 'REVOKED', 'CANCELLED'] as const
     const reqs = await db.accreditationRequest.findMany({
       where: { id: { in: accIds }, forwardedAt: { not: null } },
-      select: { service: { select: { financierProfile: { select: { organizationId: true } } } } },
+      select: {
+        status: true,
+        service: { select: { financierProfile: { select: { organizationId: true } } } },
+      },
     })
-    for (const r of reqs) orgIds.add(r.service.financierProfile.organizationId)
+    for (const r of reqs) {
+      if ((ACC_TERMINAL_CLOSED as readonly string[]).includes(r.status)) continue
+      orgIds.add(r.service.financierProfile.organizationId)
+    }
   }
   if (orgIds.size === 0) return false
 

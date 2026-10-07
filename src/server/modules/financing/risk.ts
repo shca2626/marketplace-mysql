@@ -293,22 +293,36 @@ function scoreCapacity(
   }
 }
 
-function scoreHistory(summary: {
-  total: number
-  completed: number
-  defaulted: number
-  overdue90: number
-}): { score: number; note: string } {
+function scoreHistory(
+  summary: {
+    total: number
+    completed: number
+    defaulted: number
+    overdue90: number
+  },
+  scope?: { crossInstitution: boolean }
+): { score: number; note: string } {
   if (summary.total === 0) {
-    return { score: 55, note: 'No prior agreements on the platform — neutral' }
+    return {
+      score: 55,
+      note: scope?.crossInstitution
+        ? 'No prior agreements on the platform — neutral'
+        : 'No prior agreements with this institution — neutral',
+    }
   }
   const completedRatio = summary.completed / summary.total
   const defaultedRatio = summary.defaulted / summary.total
   const overdueRatio = summary.overdue90 / summary.total
   const score = clamp(Math.round(60 + 35 * completedRatio - 40 * defaultedRatio - 20 * overdueRatio))
+  const stats = `${summary.total} prior agreement(s): ${summary.completed} completed, ${summary.defaulted} defaulted, ${summary.overdue90} with 90+ day arrears`
   return {
     score,
-    note: `${summary.total} prior agreement(s): ${summary.completed} completed, ${summary.defaulted} defaulted, ${summary.overdue90} with 90+ day arrears`,
+    // TENANT-AUDIT F-07: the note names the data scope explicitly —
+    // cross-institution aggregates appear only with the applicant's
+    // data-transfer consent; otherwise this institution's own history.
+    note: scope?.crossInstitution
+      ? `${stats} (platform-wide, with applicant data-transfer consent)`
+      : `${stats} (this institution only — applicant did not consent to cross-institution sharing)`,
   }
 }
 
@@ -380,7 +394,17 @@ export async function computeRiskAssessment(
     guaranteeStatus: request.guaranteeStatus,
   }
 
-  const history = await summarizeApplicantHistory(request.createdById, { excludeRequestIds: [request.id] })
+  // TENANT-AUDIT F-07: cross-institution applicant history requires the
+  // applicant's data-transfer consent (request.consentAt, collected at
+  // submit when the program's intake requires it). Without consent the
+  // history factor scopes to THIS institution's own agreements — the
+  // underwriter no longer learns how many agreements the applicant holds
+  // elsewhere.
+  const historyConsented = request.consentAt != null
+  const history = await summarizeApplicantHistory(request.createdById, {
+    excludeRequestIds: [request.id],
+    institutionOrgId: historyConsented ? undefined : profile.organizationId,
+  })
   const subTotal = request.submissions.length
   const subVerified = request.submissions.filter((s) => s.status === 'VERIFIED').length
   const subWaived = request.submissions.filter((s) => s.status === 'WAIVED').length
@@ -394,7 +418,7 @@ export async function computeRiskAssessment(
     weightTenor: scoreTenor(input.tenorRequestedMonths),
     weightGuarantee: scoreGuarantee(input.guaranteeType, input.guaranteeStatus),
     weightCapacity: scoreCapacity(input.amountRequested, input.tenorRequestedMonths, input.monthlyInstallmentCapacity),
-    weightHistory: scoreHistory(history),
+    weightHistory: scoreHistory(history, { crossInstitution: historyConsented }),
     weightDocuments: scoreDocuments(subTotal, subVerified, subWaived, subRejected),
   }
 

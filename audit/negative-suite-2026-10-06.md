@@ -1,4 +1,4 @@
-# Negative authorization suite — 2026-10-06T21:41:21.162Z
+# Negative authorization suite — 2026-10-06T23:43:23.494Z
 
 Target: `http://localhost:3000` (dev; STAGING_BASE_URL parameterizes; production markers abort the run).
 

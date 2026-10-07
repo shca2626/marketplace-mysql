@@ -73,7 +73,13 @@ export function Header() {
   const { data: finCtxData } = useApi<{
     context: { organizationId: string; organizationStatus?: string } | null
     organizations: { id: string; name: string; orgType: string }[]
-  }>(user ? '/api/financier/context' : null, { skip: !user })
+  }>(user ? '/api/financier/context' : null, {
+    skip: !user,
+    // TENANT-AUDIT M-1: the always-mounted header revalidates the financier
+    // context every 60s (visible tabs only) so a mid-session approval /
+    // suspension flips the console entry + pending chip without a reload.
+    pollMs: 60_000,
+  })
   const isFinancierStaff = !!finCtxData?.context
   // Unverified institutions: the console entry doubles as the application
   // tracker — make the pending state visible right in the menu.

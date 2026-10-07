@@ -457,13 +457,17 @@ export interface OrganizationMemberDTO {
   jobTitle?: string | null
   user: { id: string; name: string; email: string | null }
   createdAt: string
+  /** TENANT-AUDIT RISK-5 (soft conflict guard): cross-family memberships
+   * (selling-side COMPANY ↔ financing-side BANK/MFI/EWALLET), populated
+   * ONLY in platform-admin org detail views. */
+  conflicts?: { orgName: string; orgType: string }[]
 }
 
-/** B2B purchase-approval request (ORDER checkout or QUOTE_ACCEPT gated by the org threshold). */
+/** B2B purchase-approval request (ORDER checkout, QUOTE_ACCEPT or OFFER_ACCEPT gated by the org threshold). */
 export interface ApprovalRequestDTO {
   id: string
   organizationId: string
-  type: 'ORDER' | 'QUOTE_ACCEPT'
+  type: 'ORDER' | 'QUOTE_ACCEPT' | 'OFFER_ACCEPT'
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
   amount: number
   note?: string | null
@@ -487,6 +491,17 @@ export interface ApprovalRequestDTO {
     paymentTerms?: string | null
     validUntil?: string | null
     status: string
+  } | null
+  financingOffer?: {
+    id: string
+    amount: number
+    currency: string
+    tenorMonths: number
+    rateType?: string | null
+    ratePercent?: number | null
+    status: string
+    requestId: string
+    requestNumber: string
   } | null
   rfqId?: string | null
 }
@@ -1096,6 +1111,8 @@ export interface FinancingOfferDTO {
   createdAt: string
   createdBy: { id: string; name: string }
   installments: OfferInstallmentDTO[]
+  /** OFFER_ACCEPT follow-up: true while this SENT offer sits in the org approval queue (applicant view). */
+  pendingApproval?: boolean | null
 }
 
 export interface FinancingEventDTO {

@@ -168,8 +168,13 @@ export async function buildSessionRbac(user: { id: string; role: string }): Prom
       orgs,
     }
   } catch (err) {
-    // Module resolution must never break sign-in — fail open (all on).
-    console.error('[rbac] module resolution failed for session:', err)
+    // TENANT-AUDIT Q6 fix: module resolution now FAILS CLOSED — an empty
+    // module map hides console entries until the next session refresh, which
+    // aligns with requireModule's strict unknown-key behavior (guards.ts).
+    // Over-reporting modules in the session payload made the UI advertise
+    // entries the route gates would then 403.
+    console.error('[rbac] module resolution failed for session (failing closed):', err)
+    modules = { personal: [], orgs: {} }
   }
 
   return { permissions: [...set], isPlatformStaff: assignments.length > 0, modules }
@@ -187,7 +192,32 @@ export async function userHasPlatformPermission(userId: string, permission: stri
   return count > 0
 }
 
-/** True when the user holds ANY of the given permissions through platform-scope roles. */
+/**
+ * TENANT-AUDIT RISK-8 fix: platform-admin notification fan-out resolves RBAC
+ * PERMISSION HOLDERS (any of the given platform-scope permission keys, or the
+ * platform.super-admin role) instead of the legacy `User.role === 'ADMIN'`
+ * badge — the badge population and the permission-holder population have
+ * diverged since Phase 6.
+ */
+export async function listPlatformPermissionHolders(
+  permissionKeys: string[],
+  limit = 100
+): Promise<string[]> {
+  if (permissionKeys.length === 0) return []
+  const assignments = await db.userRole.findMany({
+    where: {
+      organizationId: '',
+      OR: [
+        { role: { permissions: { some: { permissionKey: { in: permissionKeys } } } } },
+        { role: { key: 'platform.super-admin' } },
+      ],
+    },
+    select: { userId: true },
+    take: limit * 3, // dedupe below — several roles can overlap
+  })
+  return [...new Set(assignments.map((a) => a.userId))].slice(0, limit)
+}
+
 export async function userHasAnyPlatformPermission(userId: string, permissions: string[]): Promise<boolean> {
   if (permissions.length === 0) return false
   const count = await db.userRole.count({
@@ -916,34 +946,66 @@ export async function revokeInvitation(actor: RbacActor, id: string): Promise<vo
 }
 
 /**
- * Consume a pending invitation at registration time. Returns the role to
- * assign when the token is valid + matches the registering email. Phase 5:
- * ORG-scoped invitations (institution staff) carry the organizationId — the
- * register route also creates the VIEWER membership for those.
+ * Validate a staff invitation at registration time WITHOUT consuming it
+ * (TENANT-AUDIT Q3 fix — the read side). Read-only: the caller decides what
+ * to do with the result; the actual ACCEPTED marking happens atomically inside
+ * the registration transaction via claimInvitationTx so a failed user-creation
+ * tx can never burn the invitation.
+ *
+ * Throws RbacServiceError(400) when a token was supplied but is invalid,
+ * expired, revoked, already used, or bound to a different email — the user
+ * explicitly presented a token, so silently dropping the role is wrong.
  */
-export async function consumeInvitation(
+export async function validateInvitation(
   email: string,
   token: string
-): Promise<{ roleId: string; roleName: string; organizationId: string } | null> {
+): Promise<{ id: string; roleId: string; roleName: string; organizationId: string }> {
   // Phase 6 (6.5): lookup by SHA-256 hash — the raw token exists only in the
   // invitation email/link.
   const invitation = await db.staffInvitation.findUnique({
     where: { tokenHash: sha256Hex(token) },
     include: { role: { select: { id: true, name: true, scope: true } } },
   })
-  const valid =
-    !!invitation &&
-    invitation.status === 'PENDING' &&
-    invitation.email === email.toLowerCase() &&
-    invitation.expiresAt >= new Date() &&
-    (invitation.role.scope === 'PLATFORM' || invitation.role.scope === 'ORG')
-  if (!invitation || !valid) {
-    return null
+  if (!invitation) {
+    throw new RbacServiceError('This invitation link is not valid — ask the platform for a fresh invitation', 400)
   }
-  await db.staffInvitation.update({ where: { id: invitation.id }, data: { status: 'ACCEPTED', acceptedAt: new Date() } })
+  if (invitation.status === 'ACCEPTED') {
+    throw new RbacServiceError('This invitation was already used — ask the platform for a fresh invitation', 400)
+  }
+  if (invitation.status === 'REVOKED') {
+    throw new RbacServiceError('This invitation was revoked — ask the platform for a fresh invitation', 400)
+  }
+  if (invitation.email !== email.toLowerCase()) {
+    throw new RbacServiceError('This invitation is bound to a different email address — register with the invited email', 400)
+  }
+  if (invitation.expiresAt < new Date()) {
+    throw new RbacServiceError('This invitation has expired — ask the platform for a fresh invitation', 400)
+  }
+  if (invitation.role.scope !== 'PLATFORM' && invitation.role.scope !== 'ORG') {
+    throw new RbacServiceError('This invitation carries an unsupported role scope', 400)
+  }
   return {
+    id: invitation.id,
     roleId: invitation.roleId,
     roleName: invitation.role.name,
     organizationId: invitation.organizationId,
   }
+}
+
+/**
+ * Atomically mark the invitation ACCEPTED inside the caller's registration
+ * transaction (TENANT-AUDIT Q3 fix — the write side). Returns false when the
+ * invitation was consumed concurrently (e.g. the same link used twice at
+ * once) — the caller MUST abort the transaction in that case so no user is
+ * created without the promised role.
+ */
+export async function claimInvitationTx(
+  tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
+  invitationId: string
+): Promise<boolean> {
+  const claimed = await tx.staffInvitation.updateMany({
+    where: { id: invitationId, status: 'PENDING' },
+    data: { status: 'ACCEPTED', acceptedAt: new Date() },
+  })
+  return claimed.count === 1
 }

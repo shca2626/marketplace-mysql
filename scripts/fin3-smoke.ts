@@ -219,8 +219,17 @@ assertNotProd() // Phase 6 (6.0b.8/B1): fail-closed — no production mode, ever
   const amalBox = await financierInbox(amalOrg.id)
   ok('A7a kuraimi inbox lists the forwarded request', kuraimiBox.requests.some((r) => r.id === a1.id), `total=${kuraimiBox.total}`)
   ok('A7b amal inbox does NOT list it (org scope)', !amalBox.requests.some((r) => r.id === a1.id))
-  const fr1 = await db.financingRequest.findFirst({ where: { number: 'FIN-2026-000001' } })
-  ok('A7c pre-forward request invisible to EVERY inbox', !kuraimiBox.requests.some((r) => r.id === fr1!.id) && !amalBox.requests.some((r) => r.id === fr1!.id))
+  // A7c (TENANT-AUDIT follow-up): seed rows drift over live runs — probe with a
+  // FRESH draft so the pre-forward invisibility assertion is deterministic.
+  const fr1 = await createFinancingRequest(demo.id, {
+    serviceId: kuraimiIF.id,
+    organizationId: acme.id,
+    targetType: 'WORKING_CAPITAL',
+    amountRequested: 500_000,
+  })
+  const kuraimiBox2 = await financierInbox(kuraimiOrg.id)
+  const amalBox2 = await financierInbox(amalOrg.id)
+  ok('A7c pre-forward request invisible to EVERY inbox', !kuraimiBox2.requests.some((r) => r.id === fr1.id) && !amalBox2.requests.some((r) => r.id === fr1.id))
 
   // A8. financier opens → review → offer
   const a8 = await financierOpenReview(kuraimiAdmin.id, a1.id)
@@ -247,14 +256,19 @@ assertNotProd() // Phase 6 (6.0b.8/B1): fail-closed — no production mode, ever
   ok('A8e request → OFFERED', requestNow.status === 'OFFERED')
   const offerReceived = await db.notification.findFirst({ where: { userId: demo.id, type: 'OFFER_RECEIVED', linkId: a1.id } })
   ok('A8f applicant notified (OFFER_RECEIVED)', !!offerReceived)
-  await expectThrow('A8g amal staff cannot offer on kuraimi request (403)', () =>
-    createOffer(amalAdmin.id, { requestId: a1.id, amount: 1_000_000, tenorMonths: 1 }), 403
+  // A8g (TENANT-AUDIT F-08): uniform 404 — foreign-institution staff cannot
+  // distinguish "exists but not mine" from "does not exist".
+  await expectThrow('A8g amal staff cannot offer on kuraimi request (404 uniform)', () =>
+    createOffer(amalAdmin.id, { requestId: a1.id, amount: 1_000_000, tenorMonths: 1 }), 404
   )
 
   // A9. accept → agreement + SUCCESS fee
   await expectThrow('A9a non-applicant cannot accept (403)', () => acceptOffer(amalAdmin.id, sent.id), 403)
   const accepted = await acceptOffer(demo.id, sent.id)
   ok('A9b offer ACCEPTED, agreement minted', accepted.offer.status === 'ACCEPTED' && !!accepted.agreementId)
+  // TENANT-AUDIT OFFER_ACCEPT: the direct-acceptance path returns a non-null
+  // agreementId (typed string | null for the approval-routed branch).
+  if (!accepted.agreementId) throw new Error('A9b direct acceptance must mint an agreement')
   const agreement = await db.financingAgreement.findUniqueOrThrow({
     where: { id: accepted.agreementId },
     include: { fees: true },
@@ -481,7 +495,7 @@ assertNotProd() // Phase 6 (6.0b.8/B1): fail-closed — no production mode, ever
   const linkIds = [a1.id, agreement.id, b1.id, b6.id, c4.id, acc1.id, sent.id]
   await db.notification.deleteMany({ where: { linkId: { in: linkIds } } })
   await db.financingAgreement.delete({ where: { id: agreement.id } }) // cascades fee + events
-  for (const rid of [a1.id, b1.id, b6.id, c4.id, d1.id, d2.id]) {
+  for (const rid of [a1.id, b1.id, b6.id, c4.id, d1.id, d2.id, fr1.id]) {
     await db.financingRequest.delete({ where: { id: rid } }) // cascades submissions + offers
   }
   await db.accreditationRequest.delete({ where: { id: d3.id } })

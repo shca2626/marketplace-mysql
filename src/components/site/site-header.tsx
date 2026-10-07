@@ -111,15 +111,32 @@ export function SiteHeader() {
   useEffect(() => {
     void useMarketplace.persist.rehydrate().then(markStoreHydrated)
     let cancelled = false
-    void (async () => {
+    const fetchMe = async () => {
       try {
         const res = await fetch('/api/auth/me', { cache: 'no-store' })
         const json = (await res.json()) as { user: typeof user }
-        if (!cancelled && json.user) setUser(json.user)
+        if (!cancelled) setUser(json.user ?? null)
       } catch {
         // offline — stay signed out
       }
-    })()
+    }
+    void fetchMe()
+    // TENANT-AUDIT M-1: revalidate on focus (throttled 60s) so the
+    // "(pending)" financier suffix on marketing pages clears after a
+    // mid-session approval without a reload.
+    let lastFetch = 0
+    const onRevalidate = () => {
+      const now = Date.now()
+      if (now - lastFetch < 60_000) return
+      lastFetch = now
+      void fetchMe()
+    }
+    const onFocus = () => onRevalidate()
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') onRevalidate()
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisible)
     void (async () => {
       try {
         const res = await fetch('/api/settings', { cache: 'no-store' })
@@ -135,6 +152,8 @@ export function SiteHeader() {
     })()
     return () => {
       cancelled = true
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisible)
     }
   }, [setUser])
 

@@ -231,7 +231,10 @@ export async function listVisibleConditionTemplates(
   return rows.map((r) => serializeTemplate(r as never))
 }
 
-export async function getConditionTemplate(templateId: string): Promise<ConditionTemplateDTO> {
+// TENANT-AUDIT F-09: this getter is internal-only (instantiate/render paths
+// below) — deliberately NOT exported so no route can list/fetch templates
+// without the scope guards on the exported CRUD surface.
+async function getConditionTemplate(templateId: string): Promise<ConditionTemplateDTO> {
   const row = await db.conditionTemplate.findUnique({
     where: { id: templateId },
     include: templateInclude,
@@ -290,7 +293,7 @@ export async function createConditionTemplate(
 
   await recordAudit({
     actorId: actor.id,
-    actorType: actor.role === 'ADMIN' ? 'ADMIN' : 'USER',
+    actorType: 'ADMIN', // TENANT-AUDIT RISK-6: template CRUD is RBAC-gated — label the fact, not the legacy User.role badge
     action: 'CONDITION_TEMPLATE_CREATED',
     entityType: 'ConditionTemplate',
     entityId: created.id,
@@ -364,7 +367,7 @@ export async function updateConditionTemplate(
 
   await recordAudit({
     actorId: actor.id,
-    actorType: actor.role === 'ADMIN' ? 'ADMIN' : 'USER',
+    actorType: 'ADMIN', // TENANT-AUDIT RISK-6: template CRUD is RBAC-gated — label the fact, not the legacy User.role badge
     action: 'CONDITION_TEMPLATE_UPDATED',
     entityType: 'ConditionTemplate',
     entityId: templateId,
@@ -390,7 +393,7 @@ export async function setConditionTemplateActive(
   })
   await recordAudit({
     actorId: actor.id,
-    actorType: actor.role === 'ADMIN' ? 'ADMIN' : 'USER',
+    actorType: 'ADMIN', // TENANT-AUDIT RISK-6: template CRUD is RBAC-gated — label the fact, not the legacy User.role badge
     action: 'CONDITION_TEMPLATE_UPDATED',
     entityType: 'ConditionTemplate',
     entityId: templateId,

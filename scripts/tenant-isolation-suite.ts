@@ -9,7 +9,9 @@
 // with the audit-round fixes + the cross-account matrix:
 //
 //   TI-01  F-04  VIEWER member of applicant org accepts SENT offer     → 403
-//   TI-02  F-04  BUYER-role member accepts SENT offer                   → 403
+//   TI-02  F-04+ OFFER_ACCEPT: BUYER at threshold routes to approval     → 200 routed (no agreement)
+//   TI-02b dup routing → 409 · TI-02c self-approve → 403 · TI-02d REJECT keeps offer SENT
+//   TI-02e APPROVE performs the acceptance (agreement + fee + sibling decline)
 //   TI-03  F-04  OWNER accepts (positive control)                       → 200 + agreement
 //   TI-04  F-02  financier staff reads doc on DRAFT (unforwarded) req  → 403
 //   TI-05  F-02  after platform forward the same staff CAN read        → 201 (gate opens)
@@ -195,6 +197,19 @@ async function main() {
       validUntil: new Date(Date.now() + 7 * 24 * 3600 * 1000),
     },
   })
+  // OFFER_ACCEPT follow-up: a second SENT offer for the approval-release
+  // branch (BUYER routes → approver APPROVES → agreement minted).
+  const sentOffer2 = await db.financingOffer.create({
+    data: {
+      requestId: reqForwarded.id,
+      createdById: staffX.id,
+      amount: 30000,
+      tenorMonths: 6,
+      status: 'SENT',
+      sentAt: new Date(),
+      validUntil: new Date(Date.now() + 7 * 24 * 3600 * 1000),
+    },
+  })
 
   // DRAFT (never forwarded) request (org C → service X) with an attached doc
   const reqDraft = await db.financingRequest.create({
@@ -256,7 +271,10 @@ async function main() {
   const { processImageUpload } = await import('../src/lib/storage/image-pipeline')
   const { VAULT_NAMESPACE } = await import('../src/lib/storage/namespace')
   const sharp = (await import('sharp')).default
-  const png = await sharp({ create: { width: 64, height: 64, channels: 3, background: '#445566' } }).png().toBuffer()
+  // unique pixel content per run — a deterministic fixture image collides on
+  // the (namespace, sha256) unique key when a previous run's cleanup failed
+  const stampHex = (parseInt(stamp, 36) % 0xffffff).toString(16).padStart(6, '0')
+  const png = await sharp({ create: { width: 64, height: 64, channels: 3, background: `#${stampHex}` } }).png().toBuffer()
   const processed = await processImageUpload(png, { namespace: VAULT_NAMESPACE })
   const vaultAsset = await db.mediaAsset.create({
     data: {
@@ -298,6 +316,8 @@ async function main() {
   // Fixtures created with a direct session (no login dance) where OTP rules
   // would interfere (phone-optional accounts created above DO have emails).
   const agreementIds: string[] = []
+  let approvalId = ''
+  let reqDirectId = ''
 
   try {
     // TI-01 — VIEWER member cannot accept an org-scoped offer (F-04) ────────
@@ -312,7 +332,29 @@ async function main() {
       record('TI-01', 'VIEWER member of applicant org accepts SENT offer', '403 approver-role refusal', pass, `got ${r.status} ${(r.json?.error ?? '').slice(0, 80)}`)
     }
 
-    // TI-02 — BUYER-role member cannot accept either (F-04) ────────────────
+    // TI-02 — BUYER-role member, org WITH threshold ≥ amount (F-04 + OFFER_ACCEPT
+    // follow-up): acceptance ROUTES through the org approval queue instead of
+    // being denied — offer stays SENT, no agreement yet.
+    {
+      await db.organization.update({ where: { id: orgC.id }, data: { approvalThreshold: 20000 } })
+      const r = await http(
+        'POST',
+        `/api/financing/requests/${reqForwarded.id}/offers/${sentOffer.id}/accept`,
+        buyerCCookie,
+        {}
+      )
+      const routed = r.status === 200 && r.json?.approvalRequested === true && !r.json?.agreementId
+      let offerStillSent = false
+      if (routed) {
+        const o = await db.financingOffer.findUnique({ where: { id: sentOffer.id }, select: { status: true } })
+        offerStillSent = o?.status === 'SENT'
+        const pend = await db.approvalRequest.findFirst({ where: { offerId: sentOffer.id, status: 'PENDING' }, select: { id: true } })
+        if (pend) approvalId = pend.id
+      }
+      record('TI-02', 'BUYER at threshold routes to OFFER_ACCEPT (no agreement yet)', '200 approvalRequested', routed && offerStillSent, `got ${r.status} ${(r.json?.error ?? '').slice(0, 80)} offer=${offerStillSent ? 'SENT' : 'MUTATED'}`)
+    }
+
+    // TI-02b — duplicate routing: the same offer cannot enter the queue twice
     {
       const r = await http(
         'POST',
@@ -320,16 +362,88 @@ async function main() {
         buyerCCookie,
         {}
       )
-      const pass = r.status === 403 && /owners, admins and approvers/i.test(r.json?.error ?? '')
-      record('TI-02', 'BUYER-role member accepts SENT offer', '403 approver-role refusal', pass, `got ${r.status} ${(r.json?.error ?? '').slice(0, 80)}`)
+      const pass = r.status === 409 && /already awaiting approval/i.test(r.json?.error ?? '')
+      record('TI-02b', 'duplicate OFFER_ACCEPT routing refused', '409 already awaiting', pass, `got ${r.status} ${(r.json?.error ?? '').slice(0, 80)}`)
     }
 
-    // TI-03 — OWNER accepts (positive control — the door still opens) ──────
+    // TI-02c — the requester cannot self-approve their own routed acceptance
     {
+      const r = await http('POST', `/api/approvals/${approvalId}/decide`, buyerCCookie, { action: 'APPROVE' })
+      const pass = r.status === 403
+      record('TI-02c', 'requester cannot self-approve the routed acceptance', '403', pass, `got ${r.status}`)
+    }
+
+    // TI-02d — an OWNER approver REJECTS: offer stays open, no agreement, no fee
+    {
+      const r = await http('POST', `/api/approvals/${approvalId}/decide`, ownerCCookie, { action: 'REJECT', note: 'too rich for this quarter' })
+      let stayed = false
+      if (r.status === 200) {
+        const o = await db.financingOffer.findUnique({ where: { id: sentOffer.id }, select: { status: true } })
+        stayed = o?.status === 'SENT'
+      }
+      const pass = r.status === 200 && stayed
+      record('TI-02d', 'approver REJECT leaves the offer open (no agreement)', '200 + offer stays SENT', pass, `got ${r.status} offer=${stayed ? 'SENT' : 'MUTATED'}`)
+    }
+
+    // TI-02e — the APPROVE branch on the second offer: BUYER routes, OWNER
+    // approves → agreement minted + sibling offer declined + fee accrued.
+    {
+      const r = await http(
+        'POST',
+        `/api/financing/requests/${reqForwarded.id}/offers/${sentOffer2.id}/accept`,
+        buyerCCookie,
+        {}
+      )
+      const routed = r.status === 200 && r.json?.approvalRequested === true
+      let released = false
+      if (routed) {
+        const pend = await db.approvalRequest.findFirst({ where: { offerId: sentOffer2.id, status: 'PENDING' }, select: { id: true } })
+        const d = await http('POST', `/api/approvals/${pend!.id}/decide`, ownerCCookie, { action: 'APPROVE' })
+        if (d.status === 200) {
+          const agr = await db.financingAgreement.findFirst({
+            where: { offerId: sentOffer2.id },
+            include: { fees: true },
+          })
+          const sib = await db.financingOffer.findUnique({ where: { id: sentOffer.id }, select: { status: true } })
+          released = !!agr && agr.fees.length === 1 && sib?.status === 'DECLINED'
+          if (agr) agreementIds.push(agr.id)
+        }
+      }
+      record('TI-02e', 'approver APPROVE performs the acceptance (agreement+fee+sibling decline)', 'released', released, `routed=${routed} released=${released}`)
+    }
+
+    // TI-03 — OWNER accepts directly (positive control — the door still opens;
+    // own request, because TI-02e's release CLOSED the first one).
+    {
+      const reqDirect = await db.financingRequest.create({
+        data: {
+          number: `TIDIR-${stamp}`,
+          organizationId: orgC.id,
+          createdById: ownerC.id,
+          serviceId: serviceX.id,
+          targetType: 'WORKING_CAPITAL',
+          amountRequested: 46000,
+          status: 'FORWARDED_TO_FINANCIER',
+          forwardedAt: new Date(),
+          submittedAt: new Date(),
+        },
+      })
+      reqDirectId = reqDirect.id
+      const sentOffer3 = await db.financingOffer.create({
+        data: {
+          requestId: reqDirect.id,
+          createdById: staffX.id,
+          amount: 44000,
+          tenorMonths: 12,
+          status: 'SENT',
+          sentAt: new Date(),
+          validUntil: new Date(Date.now() + 7 * 24 * 3600 * 1000),
+        },
+      })
       const ordersBefore = await db.order.count({ where: { buyerId: buyer1.id } })
       const r = await http(
         'POST',
-        `/api/financing/requests/${reqForwarded.id}/offers/${sentOffer.id}/accept`,
+        `/api/financing/requests/${reqForwarded.id}/offers/${sentOffer3.id}/accept`,
         ownerCCookie,
         {}
       )
@@ -543,9 +657,14 @@ async function main() {
           await db.financingAgreement.deleteMany({ where: { id: aid } })
         }
       }
-      await db.financingOffer.deleteMany({ where: { requestId: { in: [reqForwarded.id, reqDraft.id, reqY.id, reqZ.id] } } })
+      const fixtureRequestIds = [reqForwarded.id, reqDraft.id, reqY.id, reqZ.id, ...(reqDirectId ? [reqDirectId] : [])]
+      await db.approvalRequest.deleteMany({
+        where: { OR: [{ organizationId: orgC.id }, { requesterId: { in: fixtureUserIds } }] },
+      })
+      await db.financingAgreement.deleteMany({ where: { offer: { requestId: { in: fixtureRequestIds } } } })
+      await db.financingOffer.deleteMany({ where: { requestId: { in: fixtureRequestIds } } })
       await db.requestAttachment.deleteMany({ where: { parentId: { in: [reqDraft.id, reqForwarded.id] } } })
-      await db.financingRequest.deleteMany({ where: { id: { in: [reqForwarded.id, reqDraft.id, reqY.id, reqZ.id] } } })
+      await db.financingRequest.deleteMany({ where: { id: { in: fixtureRequestIds } } })
       await db.financierService.deleteMany({ where: { id: { in: [serviceX.id, serviceY.id, serviceZ.id] } } })
       await db.financierProfile.deleteMany({ where: { organizationId: { in: [instX.id, instY.id, instZ.id, instW.id] } } })
       await db.vaultAccessGrant.deleteMany({ where: { documentId: draftDoc.id } })

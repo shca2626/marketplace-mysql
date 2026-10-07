@@ -242,3 +242,15 @@ Admin `PATCH /api/admin/vendors/[id]/verification {state, note?}` (guard `vendor
 | 12 | Email verification / password reset / session kill | ?view=verify-email / reset views; Settings→Security | /api/auth/verify-email/*, /api/auth/{forgot,reset}-password, /api/auth/sign-out-everywhere | EmailVerificationToken / PasswordResetToken / sessionVersion + SessionRegistry revocations | Verified-email account / fresh credentials / all sessions dead | n/a | self-service (token-bound) |
 
 **END OF INVENTORY — AUDIT-TENANT-a step 1.** Next step for the tenant-isolation audit: negative cross-tenant probes per flow (org-scoped endpoints × wrong-org member), seeded from the guard chains documented in §0.3.
+
+---
+
+## RESOLUTION (follow-up round, 2026-10-07 — see REPORT.md §8)
+
+- **Q1 FIXED** — `createIndividualSellerTenantTx` runs at WRITE TIME in both seller self-registration paths (register Sell-intent + become-seller): Organization (COMPANY/ACTIVE store tenant) + OWNER membership + SellerProfile, idempotent. `organizations/service.ts`.
+- **Q2** — already fixed in the previous round (secure flag).
+- **Q3 FIXED** — `validateInvitation` (hard 400 on invalid/expired/revoked/used/wrong-email) + `claimInvitationTx` (atomic in-tx claim; concurrent use aborts the registration). `rbac/service.ts`, `api/auth/register/route.ts`.
+- **Q4 FIXED** — new `DELETE|PATCH /api/organizations/[id]/members/[memberId]` + business-console UI (role change, removal, confirm dialog, last-owner invariant, financier orgs redirected to their team surface). E2E verified.
+- **Q5 FIXED** — admin org-create now `orgs.update`; UI button hidden for view-only admins.
+- **Q6 FIXED** — `buildSessionRbac` fails CLOSED on module-resolution errors.
+- **Q7 (conflict of interest)** — soft guard: admin org detail computes cross-family memberships per member; amber flag rendered in the admin dialog. Advisory by design.

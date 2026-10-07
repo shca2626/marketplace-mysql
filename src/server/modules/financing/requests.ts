@@ -1019,7 +1019,11 @@ export async function assertFinancierCanSee(
       organization: { status: 'ACTIVE' },
     },
   })
-  if (!membership) throw new FinancingError('Financier staff access required', 403)
+  // TENANT-AUDIT F-08: uniform 404 — a non-staff caller must not be able to
+  // distinguish "exists but not mine / not staff" from "does not exist".
+  // (Suspended-institution staff get the same shape; the console banner is
+  // the surface that explains suspension.)
+  if (!membership) throw new FinancingError('Request not found', 404)
 }
 
 export async function financierGetRequest(userId: string, requestId: string): Promise<FinancingRequestDetailDTO> {

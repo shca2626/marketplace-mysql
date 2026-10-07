@@ -5,6 +5,7 @@ import { getSessionUser, toSessionUser } from '@/lib/auth'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { recordAudit } from '@/server/modules/audit/service'
 import { buildSessionRbac } from '@/server/modules/rbac/service'
+import { createIndividualSellerTenantTx } from '@/server/modules/organizations/service'
 
 const schema = z.object({
   storeName: z.string().min(2, 'Store name must be at least 2 characters').max(60),
@@ -47,13 +48,24 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const updated = await db.user.update({
-      where: { id: user.id },
-      data: {
-        role: 'SELLER',
-        storeName: parsed.data.storeName,
-        storeBio: parsed.data.storeBio ?? null,
-      },
+    const updated = await db.$transaction(async (tx) => {
+      const row = await tx.user.update({
+        where: { id: user.id },
+        data: {
+          role: 'SELLER',
+          storeName: parsed.data.storeName,
+          storeBio: parsed.data.storeBio ?? null,
+        },
+      })
+      // TENANT-AUDIT Q1 fix: the seller org tenant is provisioned AT WRITE
+      // TIME (idempotent) — no more org-scoped-null interim for upgraded
+      // buyers.
+      await createIndividualSellerTenantTx(tx, {
+        userId: row.id,
+        userName: row.name,
+        storeName: row.storeName,
+      })
+      return row
     })
 
     await recordAudit({

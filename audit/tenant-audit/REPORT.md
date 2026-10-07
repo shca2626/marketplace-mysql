@@ -95,21 +95,37 @@ Coverage per the required matrix: two unrelated buyers (TI-15), buyer-vs-seller 
 
 Full pending→approved financier lifecycle incl. admin approval + console unlock was E2E-verified in UX-FIN-1 (qa/fix-financier-1..7). Approval mechanics for merchants/financiers/staff are additionally covered at API level by the 38 negative/regression cases above.
 
-## 8. Remaining risks (explicitly NOT claimed fixed)
+## 8. Remaining risks — RESOLUTION STATUS (follow-up round, 2026-10-07)
 
-1. **Offer-acceptance threshold parity (design follow-up):** a BUYER-role member below the org threshold is now denied direct acceptance (strict policy) rather than routed through an `OFFER_ACCEPT` approval request the way quote acceptance is. The approval-type extension (schema + decideApproval branch + UI) is the natural next increment; current behavior fails closed, never open.
-2. **Q3 invitation acceptance race:** org-invitation rows are marked ACCEPTED before the registration transaction commits; an invalid/expired token is silently ignored. Low risk (tokens are single-use hashes) but should be tightened to post-commit marking.
-3. **Q1 orgless individual sellers:** individual Seller accounts carry no Organization tenant until admin verification lazily provisions one — org-scoped paths see `orgId=null` in the interim (documented in the System Manual).
-4. **Q6 `buildSessionRbac` module resolution fails open** where `requireModule` fails closed — a module-list omission in the session builder would over-report (not grant) access; harmless today, worth aligning.
-5. **No conflict-of-interest guard** on multi-org membership (known, documented, accepted deviation — manual §13/Q&A).
-6. **Audit actorType labels** in `conditions.ts`/`disputes.ts` still derive from User.role for labeling only (not authorization).
-7. **F-02 residual:** document scope now opens at forward and stays open for the lifetime of the request rows (agreed-file retention) — terminal-status expiry remains a policy decision (declined-before-offer requests keep the financier's read access to what was forwarded to them; nothing pre-forward).
-8. **Admin-notification fan-out** (`role: 'ADMIN'` findMany for notifying platform admins in disputes/rfq) targets legacy ADMIN accounts rather than RBAC holders — delivery gap, not a data exposure.
+All eight remaining risks from §8 have now been implemented and verified:
+
+1. **Offer-acceptance threshold parity — FIXED (feature complete).** `OFFER_ACCEPT` is a full approval type: schema (`ApprovalRequest.offerId` + relation, migration `20261006090000_offer_accept_approval`), `createOfferAcceptApprovalRequest` + `decideApproval` APPROVE/REJECT branches (approve → `performOfferAcceptanceForApproval` performs the real acceptance: validations, AGR minting, SUCCESS fee, audits, financier notifications; reject → offer stays open), applicant UI (amber "Awaiting your organization's approval" chip via `pendingApproval` flag on the applicant offer DTO) and approver UI (teal OFFER_ACCEPT badge + financing summary in the approvals card + tailored dialog copy). Policy mirrors quote acceptance exactly: OWNER/ADMIN/APPROVER direct, BUYER direct below threshold / routed at-or-above, VIEWER denied. Verified: TI-01..TI-03 + TI-02b/c/d/e (routing, dup 409, no self-approve, reject-keeps-offer, approve-performs-acceptance with agreement+fee+sibling decline) + browser E2E golden path (buyer routes → owner approves → AGR-2026-000023 minted, SUCCESS fee ACCRUED) — qa/e2e-offer-accept-{1..4}-*.png.
+2. **Q3 invitation acceptance race — FIXED.** `consumeInvitation` split into read-only `validateInvitation` (hard 400 with actionable message on invalid/expired/revoked/already-used/wrong-email — no more silent drop) + atomic `claimInvitationTx` inside the user-creation transaction (updateMany status=PENDING guard — concurrent double-use aborts the whole registration, 409). A failed registration tx can no longer burn an invitation.
+3. **Q1 orgless individual sellers — FIXED.** `createIndividualSellerTenantTx` (idempotent: reuses existing profile/OWNER org; mirrors the admin defensive provisioning shape) runs at WRITE TIME inside both self-registration paths — register with Sell intent and become-seller. Every new seller has its Organization tenant from minute one.
+4. **Q6 buildSessionRbac fails open — FIXED.** Module-resolution errors now fail CLOSED (empty module map, console error) — aligned with requireModule's strict behavior; the session payload can no longer over-advertise consoles the route gates would 403.
+5. **Conflict-of-interest — SOFT GUARD IMPLEMENTED.** Platform-admin org detail now computes cross-family memberships (selling-side COMPANY ↔ financing-side BANK/MFI/EWALLET, ACTIVE orgs only) per member and the admin dialog renders an amber "Also staff of …" flag with the recommendation to review before granting financing-side access. Deliberately advisory (documented accepted deviation — legitimate multi-org consultants exist); the humans deciding approvals now SEE it.
+6. **Audit actorType labels — FIXED.** conditions.ts (3 sites) label `'ADMIN'` unconditionally (template CRUD is RBAC-gated — the fact, not the legacy User.role badge); disputes.ts labels the acting principal (`'USER'` buyer side, `'SELLER'` respond flow) instead of deriving from role.
+7. **F-02 residual terminal-status expiry — FIXED (policy implemented).** `isDocumentInFinancierScope` now closes on terminal financing requests (DECLINED/CANCELLED/EXPIRED) UNLESS an agreement exists (retention for financings that proceeded: installments, statements, disputes); accreditation closes on REJECTED/EXPIRED/REVOKED/CANCELLED, stays open for ACCREDITED/in-flight.
+8. **Admin-notification fan-out — FIXED.** New `listPlatformPermissionHolders(permissionKeys)` resolves RBAC holders (+ platform.super-admin); the three `role: 'ADMIN'` findMany sites in rfq/disputes.ts (dispute opened, auto-escalation) and rfq/service.ts (quote review queue) now notify permission holders (`disputes.view`/`disputes.resolve`, `rfq.pipeline.view`) instead of the legacy badge population.
+
+**Additional items closed in this round:**
+
+- **F-06** — analytics funnel `requestsReceived` now counts forwarded-only (`forwardedAt != null`).
+- **F-07** — risk-engine applicant history is consent-scoped: without the applicant's data-transfer consent (`request.consentAt`) the factor aggregates THIS institution's agreements only, and the note names the data scope explicitly.
+- **F-08** — uniform 404s: `assertFinancierCanSee` + `loadRequestForFinancier` no longer split 403/404 (existence oracle removed).
+- **F-09** — `getConditionTemplate` un-exported (internal-only callers; no route can reach it without the scoped CRUD guards).
+- **F-11** — `/api/uploads/[id]` classification notes updated to the post-F-01 RBAC reality.
+- **Q4** — COMPANY orgs gained self-service member management: `DELETE/PATCH /api/organizations/[id]/members/[memberId]` (OWNER/ADMIN, M2 ACTIVE, no self-removal, owner-changes owner-only, last-active-owner invariant, financier orgs 409→their role-based team surface) + business-console UI (role select + Remove + confirm dialog). Verified E2E: role change applied (DB+UI), removal immediate (viewer loses access 403/empty list, audit `ORG_MEMBER_REMOVED`).
+- **Q5** — admin org creation now gated on `orgs.update` (was `orgs.view`); "New organization" button hidden for view-only admins; classification notes updated.
+- **M-1** — always-mounted chrome revalidates: header financier-context polls every 60s (visible tabs), `/api/auth/me` re-fetches on focus/visibility (60s throttle) in both the market SPA and site-header (ADM-001 semantics preserved: only 401 concludes signed-out).
+- **M-2** — the business console shares the RFQ/product org-memory mechanism (`defaultActiveOrg`/`rememberActiveOrg`, prefers ACTIVE orgs) — two of the three "active org" notions unified; the financier console keeps its server-validated institution cookie by design.
+
+**Verification (this round):** tenant-isolation suite 22/22 (TI-02 family extended for OFFER_ACCEPT), negative authz suite 20/20, guard:lint 302 routes zero drift, tsc 149 vs 174 true baseline (phantom-type family fixed, zero new), eslint zero on all touched files, zero 5xx / zero page errors in dev.log across the browser E2E, migration `20261006090000_offer_accept_approval` applied via `migrate deploy` (never db-push, Law 2).
 
 ## 9. Gates
 
-- tsc: 172 errors == pre-existing baseline, **zero new** (git-stash A/B proven)
-- eslint: zero problems on all 34 touched files
-- guard:lint: 301 routes, zero unclassified/shadows/bare guards/unknown keys/drift/audit-atomicity drift
-- dev.log: zero 5xx across the entire round (suites + browser E2E)
-- Schema unchanged (no migration needed — `prisma migrate status` up to date with `0_init` baseline)
+- tsc: 149 errors after the follow-up round (was 172 reported; the true same-client baseline re-measured at 174 — the follow-up round FIXED the 23-error phantom ApprovalRaw type family, zero new errors introduced; A/B via git-stash with regenerated clients)
+- eslint: zero problems on every touched file
+- guard:lint: 302 routes (+1 new member-management route, classified), zero unclassified/shadows/bare guards/unknown keys/drift/audit-atomicity drift
+- dev.log: zero 5xx across both audit rounds (suites + browser E2E)
+- Schema: one additive migration `20261006090000_offer_accept_approval` (ApprovalRequest.offerId nullable + unique + FK SetNull) applied via `migrate deploy` — `prisma migrate status` up to date

@@ -48,7 +48,9 @@ export async function POST(req: NextRequest) {
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
 
-  const { user, error } = await requireAdmin('orgs.view')
+  // TENANT-AUDIT Q5 fix: org CREATION is a mutation — orgs.view (the read
+  // permission that gates the tab UI) must not grant it via direct API use.
+  const { user, error } = await requireAdmin('orgs.update')
   if (error) return error
   try {
     const body = await req.json()

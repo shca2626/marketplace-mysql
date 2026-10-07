@@ -5,7 +5,9 @@ import { hashPassword, setSessionCookie, toSessionUser } from '@/lib/auth'
 import { assertSameOrigin, clientIp, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
-import { buildSessionRbac, consumeInvitation } from '@/server/modules/rbac/service'
+import { buildSessionRbac, validateInvitation, claimInvitationTx } from '@/server/modules/rbac/service'
+import { RbacServiceError } from '@/server/modules/rbac/service'
+import { createIndividualSellerTenantTx } from '@/server/modules/organizations/service'
 import { appBaseUrl, issueEmailVerificationToken } from '@/lib/auth-tokens'
 import { emailVerificationEmail } from '@/lib/emails/auth-emails'
 import { sendMail } from '@/lib/mailer'
@@ -87,8 +89,29 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate the staff invitation (if any) BEFORE creating the account.
-    // Invitations are email-bound — a token without an email cannot match.
-    const invite = inviteToken && email ? await consumeInvitation(email, inviteToken) : null
+    // TENANT-AUDIT Q3: a presented token that is invalid/expired/revoked or
+    // bound to another email is now a hard 400 — the user explicitly expects
+    // the staff role, so silently registering without it is wrong. The
+    // ACCEPTED marking itself happens atomically INSIDE the user-creation
+    // transaction below (claimInvitationTx) so a failed tx can never burn
+    // the invitation.
+    let invite: Awaited<ReturnType<typeof validateInvitation>> | null = null
+    if (inviteToken) {
+      if (!email) {
+        return NextResponse.json(
+          { error: 'Staff invitations are email-bound — provide the invited email to use an invitation link.' },
+          { status: 400 }
+        )
+      }
+      try {
+        invite = await validateInvitation(email, inviteToken)
+      } catch (err) {
+        if (err instanceof RbacServiceError) {
+          return NextResponse.json({ error: err.message }, { status: err.status })
+        }
+        throw err
+      }
+    }
 
     // 6.11: account + invited-role grant + audit rows commit atomically.
     const user = await db.$transaction(async (tx) => {
@@ -106,7 +129,25 @@ export async function POST(req: NextRequest) {
         },
       })
 
+      // TENANT-AUDIT Q1 fix: every SELLER gets its org tenant AT WRITE TIME
+      // (Organization + OWNER membership + SellerProfile). Previously the
+      // tenant was provisioned lazily by admin verification, leaving the
+      // seller org-scoped-null in the interim.
+      if (role === 'SELLER') {
+        await createIndividualSellerTenantTx(tx, {
+          userId: created.id,
+          userName: created.name,
+          storeName: created.storeName,
+        })
+      }
+
       if (invite) {
+        // Atomic claim — a concurrently consumed invitation aborts the whole
+        // registration (no user without the promised role).
+        const claimed = await claimInvitationTx(tx, invite.id)
+        if (!claimed) {
+          throw new Error('INVITATION_CONSUMED_CONCURRENTLY')
+        }
         await tx.userRole.create({
           data: { userId: created.id, roleId: invite.roleId, organizationId: invite.organizationId },
         })
@@ -166,6 +207,12 @@ export async function POST(req: NextRequest) {
     const rbac = await buildSessionRbac(user)
     return NextResponse.json({ user: toSessionUser(user, rbac) }, { status: 201 })
   } catch (err) {
+    if (err instanceof Error && err.message === 'INVITATION_CONSUMED_CONCURRENTLY') {
+      return NextResponse.json(
+        { error: 'This invitation was just used elsewhere — ask the platform for a fresh invitation' },
+        { status: 409 }
+      )
+    }
     console.error('register error', err)
     return NextResponse.json({ error: 'Registration failed' }, { status: 500 })
   }

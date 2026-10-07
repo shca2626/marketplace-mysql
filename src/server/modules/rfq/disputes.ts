@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { recordAudit } from '@/server/modules/audit/service'
 import { nextNumber } from '@/server/modules/sequences/service'
 import { emitNotification, emitNotifications, type EmitInput } from '@/server/modules/notifications/service'
+import { listPlatformPermissionHolders } from '@/server/modules/rbac/service'
 import { resolvePanel } from '@/server/modules/settings/service'
 import type { DisputeDTO } from '@/lib/types'
 import { userHasPlatformPermission } from '@/server/modules/rbac/service'
@@ -231,10 +232,12 @@ export async function createDispute(
       linkId: dispute.id,
     },
   ]
-  const admins = await db.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })
-  for (const a of admins) {
+  // TENANT-AUDIT RISK-8: notify RBAC dispute/resolve permission holders (+
+  // super-admins), not the legacy User.role='ADMIN' badge population.
+  const adminIds = await listPlatformPermissionHolders(['disputes.view', 'disputes.resolve'])
+  for (const a of adminIds) {
     emits.push({
-      userId: a.id,
+      userId: a,
       type: 'RFQ_DISPUTE',
       title: `New dispute ${number}`,
       body: `${dispute.raisedBy.name} vs ${dispute.seller.name} — ${disputeReasonLabel(input.reason)}.`,
@@ -246,7 +249,7 @@ export async function createDispute(
 
   await recordAudit({
     actorId: actor.id,
-    actorType: actor.role === 'ADMIN' ? 'ADMIN' : 'USER',
+    actorType: 'USER', // TENANT-AUDIT RISK-6: label the acting principal, not the legacy User.role badge
     action: 'DISPUTE_OPENED',
     entityType: 'Dispute',
     entityId: dispute.id,
@@ -301,7 +304,7 @@ export async function respondToDispute(
 
   await recordAudit({
     actorId: actor.id,
-    actorType: actor.role === 'ADMIN' ? 'ADMIN' : 'SELLER',
+    actorType: 'SELLER', // TENANT-AUDIT RISK-6: seller-response surface — label the acting principal
     action: 'DISPUTE_RESPONDED',
     entityType: 'Dispute',
     entityId: disputeId,
@@ -504,7 +507,8 @@ export async function sweepDisputes(): Promise<void> {
       data: { status: 'ESCALATED' },
     })
     if (escalated.count === 0) continue
-    const admins = await db.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })
+    // TENANT-AUDIT RISK-8: permission holders, not the legacy ADMIN badge.
+    const adminIds = await listPlatformPermissionHolders(['disputes.view', 'disputes.resolve'])
     await emitNotifications([
       {
         userId: d.raisedById,
@@ -514,8 +518,8 @@ export async function sweepDisputes(): Promise<void> {
         linkView: 'orders',
         linkId: d.orderId,
       },
-      ...admins.map((a) => ({
-        userId: a.id,
+      ...adminIds.map((id) => ({
+        userId: id,
         type: 'RFQ_DISPUTE_STATUS' as const,
         title: `Dispute ${d.number} needs mediation`,
         body: 'Auto-escalated after the resolution window lapsed.',

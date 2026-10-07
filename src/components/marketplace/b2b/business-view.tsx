@@ -42,7 +42,16 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import { apiRequest, ORG_ROLE_MAP, ORG_STATUS_MAP, StatusBadge } from './b2b-shared'
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { apiRequest, ORG_ROLE_MAP, ORG_STATUS_MAP, StatusBadge, defaultActiveOrg, rememberActiveOrg } from './b2b-shared'
 import { ApprovalsCard } from './approvals-card'
 
 // Financier institutions (BANK/MFI/EWALLET) — they fund buyers rather than buy
@@ -115,9 +124,18 @@ export function BusinessView() {
   })
 
   const orgs = useMemo(() => orgListData?.organizations ?? [], [orgListData])
+  // TENANT-AUDIT M-2: the business console now shares the SAME remembered
+  // org-selection mechanism as the RFQ/product flows (vendora_active_org) and
+  // prefers ACTIVE orgs — previously it defaulted to orgs[0] and forgot the
+  // selection on every mount (the third uncoordinated "active org" notion).
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const activeOrgId = selectedId && orgs.some((o) => o.id === selectedId) ? selectedId : orgs[0]?.id ?? null
+  const remembered = defaultActiveOrg(orgs)
+  const activeOrgId = selectedId && orgs.some((o) => o.id === selectedId) ? selectedId : remembered?.id ?? null
   const selected = orgs.find((o) => o.id === activeOrgId) ?? null
+  const onOrgChange = (id: string) => {
+    setSelectedId(id)
+    rememberActiveOrg(id)
+  }
 
   // Detail (members + groups) for the selected organization
   const {
@@ -189,7 +207,43 @@ export function BusinessView() {
   // typed it, instead of being swallowed after the field clears.
   const [memberError, setMemberError] = useState<string | null>(null)
 
+  // TENANT-AUDIT Q4: self-service member removal + role change
+  const [busyMemberId, setBusyMemberId] = useState<string | null>(null)
+  const [confirmRemove, setConfirmRemove] = useState<{ id: string; name: string; role: string } | null>(null)
+  const orgIsFinancier = ['BANK', 'MFI', 'EWALLET'].includes(selected?.orgType ?? detail?.orgType ?? '')
   const canManageMembers = detail?.myRole === 'OWNER' || detail?.myRole === 'ADMIN'
+
+  const changeMemberRole = async (memberId: string, name: string, role: string) => {
+    if (!activeOrgId) return
+    setBusyMemberId(memberId)
+    const res = await apiRequest(`/api/organizations/${activeOrgId}/members/${memberId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role }),
+    })
+    setBusyMemberId(null)
+    if (!res.ok) {
+      toast({ title: 'Could not change the role', description: res.error, variant: 'destructive' })
+      return
+    }
+    void refetchDetail()
+    toast({ title: 'Role updated', description: `${name} is now ${ORG_ROLE_MAP[role as keyof typeof ORG_ROLE_MAP]?.label ?? role}.` })
+  }
+
+  const removeMember = async () => {
+    if (!activeOrgId || !confirmRemove) return
+    setBusyMemberId(confirmRemove.id)
+    const res = await apiRequest(`/api/organizations/${activeOrgId}/members/${confirmRemove.id}`, {
+      method: 'DELETE',
+    })
+    setBusyMemberId(null)
+    if (!res.ok) {
+      toast({ title: 'Could not remove the member', description: res.error, variant: 'destructive' })
+      return
+    }
+    setConfirmRemove(null)
+    void refetchDetail()
+    toast({ title: 'Member removed', description: `${confirmRemove.name} no longer has access to ${detail?.name ?? 'this organization'}.` })
+  }
 
   const submitAddMember = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -419,7 +473,7 @@ export function BusinessView() {
               <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Viewing
               </span>
-              <Select value={activeOrgId ?? undefined} onValueChange={setSelectedId}>
+              <Select value={activeOrgId ?? undefined} onValueChange={onOrgChange}>
                 <SelectTrigger className="h-9 w-64 rounded-full text-sm" aria-label="Select organization">
                   <SelectValue placeholder="Select organization" />
                 </SelectTrigger>
@@ -486,7 +540,10 @@ export function BusinessView() {
                         </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold">{m.user.name}</p>
+                        <p className="truncate text-sm font-semibold">
+                          {m.user.name}
+                          {m.user.id === user?.id && <span className="ml-1.5 text-[11px] font-normal text-muted-foreground">(you)</span>}
+                        </p>
                         <p className="flex min-w-0 items-center gap-1 truncate text-xs text-muted-foreground">
                           <Mail size={11} className="shrink-0" /> {m.user.email}
                         </p>
@@ -496,6 +553,41 @@ export function BusinessView() {
                           <span className="hidden text-xs text-muted-foreground sm:inline">{m.jobTitle}</span>
                         )}
                         <StatusBadge status={m.role} map={ORG_ROLE_MAP} />
+                        {/* TENANT-AUDIT Q4: self-service role change + removal
+                            (OWNER/ADMIN of a non-financier org; not for yourself) */}
+                        {canManageMembers && !orgIsFinancier && m.user.id !== user?.id && (
+                          <>
+                            <Select
+                              value={m.role}
+                              onValueChange={(role) => void changeMemberRole(m.id, m.user.name, role)}
+                              disabled={busyMemberId === m.id}
+                            >
+                              <SelectTrigger
+                                size="sm"
+                                className="h-7 w-28 rounded-full border-dashed text-xs"
+                                aria-label={`Change role for ${m.user.name}`}
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Object.entries(ORG_ROLE_MAP).map(([role, def]) => (
+                                  <SelectItem key={role} value={role}>
+                                    {def.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 rounded-full px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              disabled={busyMemberId === m.id}
+                              onClick={() => setConfirmRemove({ id: m.id, name: m.user.name, role: m.role })}
+                            >
+                              Remove
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </li>
                   ))}
@@ -617,6 +709,33 @@ export function BusinessView() {
           )}
         </div>
       )}
+
+      {/* TENANT-AUDIT Q4: member removal confirmation */}
+      <AlertDialog open={!!confirmRemove} onOpenChange={(o) => !o && setConfirmRemove(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove {confirmRemove?.name} from {detail?.name ?? 'this organization'}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              They immediately lose access to the organization&apos;s dashboard, members, contract pricing and
+              approval queue. Their personal account and orders are untouched. This cannot be undone — you can
+              always add them back.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl" disabled={busyMemberId === confirmRemove?.id}>
+              Keep them
+            </AlertDialogCancel>
+            <Button
+              variant="destructive"
+              className="rounded-xl"
+              disabled={busyMemberId === confirmRemove?.id}
+              onClick={() => void removeMember()}
+            >
+              {busyMemberId === confirmRemove?.id ? 'Removing…' : 'Remove member'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

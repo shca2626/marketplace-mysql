@@ -735,9 +735,10 @@ model Quote {
 model ApprovalRequest {
   id             String    @id @default(cuid())
   organizationId String
-  type           String // ORDER | QUOTE_ACCEPT
+  type           String // ORDER | QUOTE_ACCEPT | OFFER_ACCEPT (financing)
   orderId        String?   @unique // set for ORDER
   quoteId        String?   @unique // set for QUOTE_ACCEPT
+  offerId        String?   @unique // set for OFFER_ACCEPT (financing offer)
   rfqId          String? // owning RFQ context (QUOTE_ACCEPT)
   requesterId    String
   amount         Float
@@ -751,6 +752,7 @@ model ApprovalRequest {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   order        Order?       @relation(fields: [orderId], references: [id])
   quote        Quote?       @relation("ApprovalQuote", fields: [quoteId], references: [id])
+  financingOffer FinancingOffer? @relation("ApprovalFinancingOffer", fields: [offerId], references: [id])
   requester    User         @relation("ApprovalRequester", fields: [requesterId], references: [id])
   decidedBy    User?        @relation("ApprovalDecider", fields: [decidedById], references: [id])
 
@@ -1947,6 +1949,7 @@ model FinancingOffer {
 
   installments FinancingOfferInstallment[]
   agreement    FinancingAgreement?
+  approvalRequests ApprovalRequest[] @relation("ApprovalFinancingOffer")
 
   @@index([requestId, status])
   @@index([createdById]) // MYSQL-FK-INDEX: createdById relation needs its own leftmost index

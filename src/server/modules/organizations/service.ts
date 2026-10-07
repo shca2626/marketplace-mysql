@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
-import { recordAudit } from '@/server/modules/audit/service'
+import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
 import { recomputeOrgKycLevel } from '@/server/modules/kyc/service'
+import { assertNotLastActiveOwner } from '@/server/membership'
 import type { OrganizationDTO, OrganizationMemberDTO, OrgRole } from '@/lib/types'
 
 /**
@@ -177,7 +178,37 @@ export async function getOrganization(
   const membership = org.members.find((m) => m.userId === userId)
   if (!membership && !isAdmin) throw new OrgServiceError('Access denied', 403)
 
-  return serializeOrg(org as never, membership?.role as OrgRole | undefined)
+  const dto = serializeOrg(org as never, membership?.role as OrgRole | undefined)
+
+  // TENANT-AUDIT RISK-5 (conflict-of-interest soft guard): for PLATFORM
+  // ADMIN views only, flag members who simultaneously hold staff membership
+  // in an ACTIVE org of the other family (selling-side COMPANY ↔
+  // financing-side BANK/MFI/EWALLET). Documented accepted deviation — this
+  // surfaces it to the humans deciding approvals instead of silently
+  // blocking legitimate multi-org consultants.
+  if (isAdmin) {
+    const thisIsFinancier = (FINANCIER_ORG_TYPES as readonly string[]).includes(org.orgType)
+    const otherMemberships = await db.organizationMember.findMany({
+      where: {
+        userId: { in: org.members.map((m) => m.userId) },
+        organizationId: { not: orgId },
+        organization: { status: 'ACTIVE' },
+      },
+      include: { organization: { select: { name: true, orgType: true } } },
+      take: 500,
+    })
+    const conflictMap = new Map<string, { orgName: string; orgType: string }[]>()
+    for (const om of otherMemberships) {
+      const otherIsFinancier = (FINANCIER_ORG_TYPES as readonly string[]).includes(om.organization.orgType)
+      if (thisIsFinancier === otherIsFinancier) continue // same family — not a conflict
+      const list = conflictMap.get(om.userId) ?? []
+      list.push({ orgName: om.organization.name, orgType: om.organization.orgType })
+      conflictMap.set(om.userId, list)
+    }
+    dto.members = dto.members?.map((m) => ({ ...m, conflicts: conflictMap.get(m.user.id) ?? [] }))
+  }
+
+  return dto
 }
 
 /**
@@ -286,6 +317,144 @@ export async function addOrganizationMember(
     jobTitle: member.jobTitle,
     user: { id: user.id, name: user.name, email: user.email },
     createdAt: member.createdAt.toISOString(),
+  }
+}
+
+// ── Self-service member management (TENANT-AUDIT Q4) ───────────────────────
+
+const FINANCIER_ORG_TYPES = ['BANK', 'MFI', 'EWALLET'] as const
+const MANAGEABLE_ROLES = ['ADMIN', 'BUYER', 'APPROVER', 'VIEWER'] as const
+
+/** Resolve the actor's active OWNER/ADMIN membership of a COMPANY org. */
+async function requireOrgManager(orgId: string, actorUserId: string) {
+  const actor = await db.organizationMember.findUnique({
+    where: { organizationId_userId: { organizationId: orgId, userId: actorUserId } },
+    include: { user: { select: { status: true } }, organization: { select: { status: true, orgType: true, name: true } } },
+  })
+  if (!actor) throw new OrgServiceError('You are not a member of this organization', 403)
+  if (actor.user.status !== 'ACTIVE' || actor.organization.status !== 'ACTIVE') {
+    throw new OrgServiceError('Your membership is not active (user or organization suspended/pending)', 403)
+  }
+  if ((FINANCIER_ORG_TYPES as readonly string[]).includes(actor.organization.orgType)) {
+    throw new OrgServiceError(
+      'Financing institutions manage their staff in the Financier console → Team (role-based invitations)',
+      409
+    )
+  }
+  if (!['OWNER', 'ADMIN'].includes(actor.role)) {
+    throw new OrgServiceError('Only owners and admins can manage members', 403)
+  }
+  return actor
+}
+
+/**
+ * TENANT-AUDIT Q4: self-service member REMOVAL for plain COMPANY orgs —
+ * previously only the financier team surface and admin-side actions could
+ * remove memberships, so a merchant OWNER/ADMIN could not remove their own
+ * staff. Guards: OWNER/ADMIN actor, no self-removal, OWNER members removable
+ * only by an OWNER, and the last-active-owner invariant always holds.
+ */
+export async function removeOrganizationMember(
+  orgId: string,
+  actorUserId: string,
+  memberId: string
+): Promise<{ removedUserId: string; removedName: string; role: string }> {
+  await requireOrgManager(orgId, actorUserId)
+
+  const member = await db.organizationMember.findUnique({
+    where: { id: memberId },
+    include: { user: { select: { id: true, name: true, email: true } } },
+  })
+  if (!member || member.organizationId !== orgId) {
+    throw new OrgServiceError('Member not found in this organization', 404)
+  }
+  if (member.userId === actorUserId) {
+    throw new OrgServiceError('You cannot remove yourself — ask another owner or admin to remove you.', 409)
+  }
+  const actor = await db.organizationMember.findUnique({
+    where: { organizationId_userId: { organizationId: orgId, userId: actorUserId } },
+    select: { role: true },
+  })
+  if (member.role === 'OWNER') {
+    if (actor?.role !== 'OWNER') {
+      throw new OrgServiceError('Only an owner can remove another owner', 403)
+    }
+    await assertNotLastActiveOwner(orgId, { excludingUserId: member.userId })
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.organizationMember.delete({ where: { id: memberId } })
+    await recordAuditTx(tx, {
+      actorId: actorUserId,
+      actorType: 'USER',
+      action: 'ORG_MEMBER_REMOVED',
+      entityType: 'Organization',
+      entityId: orgId,
+      summary: `${member.user.name} removed from the organization`,
+      metadata: { memberId, removedUserId: member.userId, role: member.role },
+    })
+  })
+
+  return { removedUserId: member.userId, removedName: member.user.name, role: member.role }
+}
+
+/**
+ * TENANT-AUDIT Q4: self-service member ROLE CHANGE for plain COMPANY orgs.
+ * OWNER-level changes (promotion to OWNER, demotion from OWNER) are
+ * owner-only; the last-active-owner invariant guards demotions.
+ */
+export async function updateOrganizationMemberRole(
+  orgId: string,
+  actorUserId: string,
+  memberId: string,
+  input: { role: string; jobTitle?: string | null }
+): Promise<OrganizationMemberDTO> {
+  const manager = await requireOrgManager(orgId, actorUserId)
+  const role = input.role.toUpperCase()
+  const validRoles = [...MANAGEABLE_ROLES, 'OWNER'] as const
+  if (!(validRoles as readonly string[]).includes(role)) {
+    throw new OrgServiceError(`Role must be one of ${validRoles.join(', ')}`)
+  }
+
+  const member = await db.organizationMember.findUnique({
+    where: { id: memberId },
+    include: { user: { select: { id: true, name: true, email: true } } },
+  })
+  if (!member || member.organizationId !== orgId) {
+    throw new OrgServiceError('Member not found in this organization', 404)
+  }
+
+  const ownerChange = role === 'OWNER' || member.role === 'OWNER'
+  if (ownerChange && manager.role !== 'OWNER') {
+    throw new OrgServiceError('Only an owner can grant or revoke the Owner role', 403)
+  }
+  if (member.role === 'OWNER' && role !== 'OWNER') {
+    await assertNotLastActiveOwner(orgId, { excludingUserId: member.userId })
+  }
+
+  const updated = await db.$transaction(async (tx) => {
+    const row = await tx.organizationMember.update({
+      where: { id: memberId },
+      data: { role, jobTitle: input.jobTitle !== undefined ? input.jobTitle : member.jobTitle },
+    })
+    await recordAuditTx(tx, {
+      actorId: actorUserId,
+      actorType: 'USER',
+      action: 'ORG_MEMBER_ROLE_CHANGED',
+      entityType: 'Organization',
+      entityId: orgId,
+      summary: `${member.user.name}: ${member.role} → ${role}`,
+      metadata: { memberId, from: member.role, to: role },
+    })
+    return row
+  })
+
+  return {
+    id: updated.id,
+    role: updated.role as OrgRole,
+    jobTitle: updated.jobTitle,
+    user: { id: member.user.id, name: member.user.name, email: member.user.email },
+    createdAt: updated.createdAt.toISOString(),
   }
 }
 
@@ -600,4 +769,71 @@ export async function adminDeleteOrganization(adminId: string, orgId: string): P
     summary: `Organization "${org.name}" deleted`,
     metadata: { name: org.name, slug: org.slug, members: org._count.members },
   })
+}
+
+// ── Individual-seller tenant provisioning (TENANT-AUDIT Q1) ────────────────
+
+type TxClient = Parameters<Parameters<typeof db.$transaction>[0]>[0]
+
+/**
+ * TENANT-AUDIT Q1 fix: provision the individual seller's org tenant AT WRITE
+ * TIME (self-registration with Sell intent + the become-seller upgrade) so the
+ * invariant "every seller has an Organization tenant" holds from the first
+ * minute — previously the tenant appeared only when an admin flipped the
+ * verification state (vendors/service setSellerVerification defensive branch)
+ * or via the one-shot backfill, leaving org-scoped paths at orgId=null in the
+ * interim.
+ *
+ * Shape mirrors the admin defensive provisioning exactly (COMPANY org,
+ * ACTIVE store tenant — seller trust lives on SellerProfile.verificationState,
+ * never on org.status): Organization "(Store)" + OWNER membership +
+ * SellerProfile(UNVERIFIED). Idempotent: an existing profile or existing OWNER
+ * org is reused, never duplicated.
+ */
+export async function createIndividualSellerTenantTx(
+  tx: TxClient,
+  input: { userId: string; userName: string; storeName: string | null }
+): Promise<{ organizationId: string }> {
+  const existingProfile = await tx.sellerProfile.findFirst({
+    where: { ownerUserId: input.userId },
+    select: { organizationId: true },
+  })
+  if (existingProfile) return { organizationId: existingProfile.organizationId }
+
+  const existingMembership = await tx.organizationMember.findFirst({
+    where: { userId: input.userId, role: 'OWNER' },
+    select: { organizationId: true },
+  })
+  if (existingMembership) {
+    // the user already owns an org (e.g. a merchant company) — attach the
+    // seller profile to it rather than creating a second tenant
+    await tx.sellerProfile.create({
+      data: { organizationId: existingMembership.organizationId, ownerUserId: input.userId },
+    })
+    return { organizationId: existingMembership.organizationId }
+  }
+
+  const baseName = `${input.storeName || input.userName} (Store)`
+  const baseSlug = `store-${input.userId.slice(-8).toLowerCase()}`
+  let slug = baseSlug
+  let suffix = 1
+  while (await tx.organization.findUnique({ where: { slug } })) {
+    suffix += 1
+    slug = `${baseSlug}-${suffix}`
+  }
+  const org = await tx.organization.create({
+    data: {
+      name: baseName,
+      slug,
+      orgType: 'COMPANY',
+      status: 'ACTIVE', // the store tenant; seller trust = SellerProfile.verificationState
+    },
+  })
+  await tx.organizationMember.create({
+    data: { organizationId: org.id, userId: input.userId, role: 'OWNER' },
+  })
+  await tx.sellerProfile.create({
+    data: { organizationId: org.id, ownerUserId: input.userId },
+  })
+  return { organizationId: org.id }
 }

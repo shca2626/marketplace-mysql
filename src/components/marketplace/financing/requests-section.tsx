@@ -525,16 +525,23 @@ export function RequestDetail({ requestId, onBack }: { requestId: string; onBack
   const confirmAccept = async () => {
     if (!acceptOffer) return
     setBusy(true)
-    const res = await apiRequest<{ agreement: { number: string } }>(
+    const res = await apiRequest<{ agreement?: { number: string }; agreementId?: string | null; approvalRequested?: boolean }>(
       `/api/financing/requests/${requestId}/offers/${acceptOffer.id}/accept`,
       { method: 'POST' }
     )
     setBusy(false)
     if (!res.ok) return toastApiError(res.error, 'Could not accept the offer')
-    toast({
-      title: 'Offer accepted 🎉',
-      description: `Agreement ${res.data?.agreement.number ?? ''} created — other offers were declined automatically.`,
-    })
+    if (res.data?.approvalRequested) {
+      toast({
+        title: 'Sent for approval',
+        description: `This offer is at or above your organization's approval threshold — an approver must release it before the agreement is created. Track it in the business console → Purchase approvals.`,
+      })
+    } else {
+      toast({
+        title: 'Offer accepted 🎉',
+        description: `Agreement created — other offers were declined automatically.`,
+      })
+    }
     setAcceptOffer(null)
     void refetch()
   }
@@ -750,18 +757,26 @@ export function RequestDetail({ requestId, onBack }: { requestId: string; onBack
                     </span>
                     {o.status === 'SENT' && (
                       <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-10 rounded-xl"
-                          disabled={busy}
-                          onClick={() => void actOnOffer(o, 'decline')}
-                        >
-                          <XCircle size={14} className="mr-1.5" /> Decline
-                        </Button>
-                        <Button size="sm" className="h-10 rounded-xl" disabled={busy} onClick={() => void actOnOffer(o, 'accept')}>
-                          <CheckCircle2 size={14} className="mr-1.5" /> Accept offer
-                        </Button>
+                        {o.pendingApproval ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                            <Hourglass size={12} /> Awaiting your organization's approval
+                          </span>
+                        ) : (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-10 rounded-xl"
+                              disabled={busy}
+                              onClick={() => void actOnOffer(o, 'decline')}
+                            >
+                              <XCircle size={14} className="mr-1.5" /> Decline
+                            </Button>
+                            <Button size="sm" className="h-10 rounded-xl" disabled={busy} onClick={() => void actOnOffer(o, 'accept')}>
+                              <CheckCircle2 size={14} className="mr-1.5" /> Accept offer
+                            </Button>
+                          </>
+                        )}
                       </div>
                     )}
                   </div>

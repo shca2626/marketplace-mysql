@@ -154,3 +154,12 @@ Note: there is **no single "switch workspace" affordance** — buyer→seller→
 4. **H-4** generalize the pending banner to merchant orgs.
 5. **M-1/M-4** revalidate `/me` + financier context on interval/focus; SUSPENDED variant of the banner + explicit console messaging.
 6. **M-2** single `activeOrgId` in the store; **M-5** seller-intent destination; **L-3** site-header logout feedback.
+
+---
+
+## RESOLUTION (follow-up round, 2026-10-07 — see REPORT.md §8)
+
+- **M-1 FIXED** — always-mounted chrome revalidates: header `/api/financier/context` polls every 60s (visible tabs, useApi pollMs); `/api/auth/me` refetches on focus/visibilitychange with a 60s throttle in both marketplace-app (ADM-001 semantics preserved) and site-header.
+- **M-2 FIXED** — business console now reads/writes the shared `vendora_active_org` memory via `defaultActiveOrg`/`rememberActiveOrg` (prefers ACTIVE orgs); two of the three active-org notions unified. Financier console keeps its server-validated institution cookie by design.
+- **L-2** — benign preference residue, accepted (no action).
+- Fix-order items 1–6 from §8 are all landed (C-1/H-1..H-4/M-3..M-5/L-1/L-3 in the previous round; M-1/M-2 + the OFFER_ACCEPT UX bridge now).

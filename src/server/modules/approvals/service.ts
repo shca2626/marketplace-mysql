@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import type { Prisma } from '@prisma/client'
 import { recordAudit } from '@/server/modules/audit/service'
 import { emitNotification, emitNotifications, type EmitInput } from '@/server/modules/notifications/service'
 
@@ -6,9 +7,11 @@ import { emitNotification, emitNotifications, type EmitInput } from '@/server/mo
  * APPROVALS — B2B purchase-approval workflow.
  *
  * When an organization sets an approvalThreshold, BUYER-role members trigger
- * an approval request whenever they (a) place a cart order or (b) accept a
- * quote whose total is at or above the threshold. The order/quote is held
- * until an OWNER/ADMIN/APPROVER member decides. Requesters never self-approve.
+ * an approval request whenever they (a) place a cart order, (b) accept a
+ * quote, or (c) accept a financing offer whose amount is at or above the
+ * threshold (OFFER_ACCEPT — tenant-audit REPORT §8.1). The order/quote/offer
+ * is held until an OWNER/ADMIN/APPROVER member decides. Requesters never
+ * self-approve.
  */
 
 export class ApprovalServiceError extends Error {
@@ -153,14 +156,78 @@ export async function createQuoteAcceptApprovalRequest(input: {
   return request
 }
 
+/**
+ * Create the pending OFFER_ACCEPT approval (financing offer stays SENT until
+ * approved) — TENANT-AUDIT REPORT §8.1 threshold-parity extension. A BUYER
+ * member at/above the org threshold routes their financing-offer acceptance
+ * here instead of being denied; the offer is only accepted when an approver
+ * releases the request.
+ */
+export async function createOfferAcceptApprovalRequest(input: {
+  organizationId: string
+  offerId: string
+  requester: RequesterInfo
+  amount: number
+  currency: string
+}) {
+  const existing = await db.approvalRequest.findFirst({
+    where: { offerId: input.offerId, status: 'PENDING' },
+  })
+  if (existing) {
+    throw new ApprovalServiceError('This offer acceptance is already awaiting approval', 409)
+  }
+  const request = await db.approvalRequest.create({
+    data: {
+      organizationId: input.organizationId,
+      type: 'OFFER_ACCEPT',
+      offerId: input.offerId,
+      requesterId: input.requester.id,
+      amount: input.amount,
+    },
+  })
+  await recordAudit({
+    actorId: input.requester.id,
+    actorType: 'USER',
+    action: 'APPROVAL_REQUESTED',
+    entityType: 'ApprovalRequest',
+    entityId: request.id,
+    summary: `Financing offer acceptance routed for approval (${input.amount.toLocaleString()} ${input.currency})`,
+    metadata: { offerId: input.offerId, organizationId: input.organizationId },
+  })
+  await notifyApprovers(input.organizationId, input.requester.id, {
+    type: 'quote',
+    title: `Financing offer acceptance needs approval`,
+    body: `${input.requester.name} wants to accept a ${input.amount.toLocaleString()} ${input.currency} financing offer — your decision binds the organization to the agreement.`,
+    linkView: 'business',
+    linkId: null,
+  })
+  return request
+}
+
 const approvalInclude = {
   requester: { select: { id: true, name: true, email: true } },
   decidedBy: { select: { id: true, name: true, email: true } },
   order: { include: { items: true } },
   quote: { select: { id: true, number: true, total: true, paymentTerms: true, validUntil: true, status: true } },
-} as const
+  financingOffer: {
+    select: {
+      id: true,
+      amount: true,
+      currency: true,
+      tenorMonths: true,
+      rateType: true,
+      ratePercent: true,
+      status: true,
+      requestId: true,
+      request: { select: { number: true } },
+    },
+  },
+} satisfies Prisma.ApprovalRequestInclude
 
-type ApprovalRaw = Awaited<ReturnType<typeof db.approvalRequest.findFirstOrThrow>>
+// TENANT-AUDIT follow-up: the row type now derives from the ACTUAL include —
+// the old `findFirstOrThrow` return type omitted the relations, producing 23
+// phantom TS2551 errors on serializeApproval.
+type ApprovalRaw = Prisma.ApprovalRequestGetPayload<{ include: typeof approvalInclude }>
 
 function serializeApproval(r: ApprovalRaw) {
   const amount = Number(r.amount)
@@ -202,6 +269,20 @@ function serializeApproval(r: ApprovalRaw) {
             paymentTerms: r.quote.paymentTerms,
             validUntil: r.quote.validUntil ? r.quote.validUntil.toISOString() : null,
             status: r.quote.status,
+          }
+        : null,
+    financingOffer:
+      r.type === 'OFFER_ACCEPT' && r.financingOffer
+        ? {
+            id: r.financingOffer.id,
+            amount: Number(r.financingOffer.amount),
+            currency: r.financingOffer.currency,
+            tenorMonths: r.financingOffer.tenorMonths,
+            rateType: r.financingOffer.rateType,
+            ratePercent: r.financingOffer.ratePercent,
+            status: r.financingOffer.status,
+            requestId: r.financingOffer.requestId,
+            requestNumber: r.financingOffer.request.number,
           }
         : null,
     rfqId: r.rfqId,
@@ -260,7 +341,7 @@ export async function decideApproval(
 ) {
   const request = await db.approvalRequest.findUnique({
     where: { id: approvalId },
-    include: { order: { include: { items: true } }, quote: true, organization: true },
+    include: { order: { include: { items: true } }, quote: true, financingOffer: true, organization: true },
   })
   if (!request) throw new ApprovalServiceError('Approval request not found', 404)
   if (request.status !== 'PENDING')
@@ -290,6 +371,24 @@ export async function decideApproval(
           where: { id: approvalId },
           data: { status: 'APPROVED', decidedById: decider.id, decidedAt: now, decisionNote: decisionNote?.slice(0, 500) ?? null },
         })
+      })
+    } else if (request.type === 'OFFER_ACCEPT') {
+      // TENANT-AUDIT REPORT §8.1 — perform the financing-offer acceptance the
+      // requester asked for (validations, AGR minting, fee accrual, audits,
+      // notifications all live in the financing service). The approval row is
+      // marked after the acceptance commits; if the offer went stale the
+      // decide call fails 409 and the request stays pending for a human.
+      if (!request.financingOffer || !request.offerId)
+        throw new ApprovalServiceError('The linked financing offer no longer exists', 409)
+      const { performOfferAcceptanceForApproval } = await import('@/server/modules/financing/offers')
+      await performOfferAcceptanceForApproval(decider, {
+        offerId: request.offerId,
+        requesterId: request.requesterId,
+        organizationId: request.organizationId,
+      })
+      await db.approvalRequest.update({
+        where: { id: approvalId },
+        data: { status: 'APPROVED', decidedById: decider.id, decidedAt: now, decisionNote: decisionNote?.slice(0, 500) ?? null },
       })
     } else {
       // QUOTE_ACCEPT — perform the acceptance now (mirrors respondToQuote)
@@ -340,7 +439,8 @@ export async function decideApproval(
         })
       })
     } else {
-      // QUOTE_ACCEPT rejection: the quote simply stays open for the buyer.
+      // QUOTE_ACCEPT / OFFER_ACCEPT rejection: the quote/offer simply stays
+      // open for the buyer — no state was mutated by the routed acceptance.
       await db.approvalRequest.update({
         where: { id: approvalId },
         data: { status: 'REJECTED', decidedById: decider.id, decidedAt: now, decisionNote: decisionNote?.slice(0, 500) ?? null },
@@ -348,6 +448,8 @@ export async function decideApproval(
     }
   }
 
+  const kindLabel =
+    request.type === 'ORDER' ? 'order' : request.type === 'OFFER_ACCEPT' ? 'financing offer acceptance' : 'quote acceptance'
   await recordAudit({
     actorId: decider.id,
     actorType: 'USER',
@@ -356,8 +458,8 @@ export async function decideApproval(
     entityId: approvalId,
     summary:
       action === 'APPROVE'
-        ? `Approved ${request.type === 'ORDER' ? 'order' : 'quote acceptance'} of $${amount.toFixed(2)}`
-        : `Rejected ${request.type === 'ORDER' ? 'order' : 'quote acceptance'} of $${amount.toFixed(2)}`,
+        ? `Approved ${kindLabel} of $${amount.toFixed(2)}`
+        : `Rejected ${kindLabel} of $${amount.toFixed(2)}`,
     metadata: { organizationId: request.organizationId, requesterId: request.requesterId },
   })
 
@@ -369,13 +471,17 @@ export async function decideApproval(
       action === 'APPROVE'
         ? request.type === 'ORDER'
           ? 'Your order was approved'
-          : 'Your quote acceptance was approved'
+          : request.type === 'OFFER_ACCEPT'
+            ? 'Your financing offer acceptance was approved'
+            : 'Your quote acceptance was approved'
         : request.type === 'ORDER'
           ? 'Your order was rejected'
-          : 'Your quote acceptance was rejected',
-    body: `${decider.name} ${action === 'APPROVE' ? 'approved' : 'rejected'} the $${amount.toFixed(2)} ${request.type === 'ORDER' ? 'order' : 'quote acceptance'}${decisionNote ? ` — “${decisionNote.slice(0, 160)}”` : '.'}`,
-    linkView: request.type === 'ORDER' ? 'orders' : 'rfq',
-    linkId: request.type === 'ORDER' ? request.orderId : request.rfqId,
+          : request.type === 'OFFER_ACCEPT'
+            ? 'Your financing offer acceptance was rejected — the offer stays open'
+            : 'Your quote acceptance was rejected',
+    body: `${decider.name} ${action === 'APPROVE' ? 'approved' : 'rejected'} the $${amount.toFixed(2)} ${kindLabel}${decisionNote ? ` — “${decisionNote.slice(0, 160)}”` : '.'}`,
+    linkView: request.type === 'ORDER' ? 'orders' : request.type === 'OFFER_ACCEPT' ? 'financing' : 'rfq',
+    linkId: request.type === 'ORDER' ? request.orderId : request.type === 'OFFER_ACCEPT' ? request.financingOffer?.requestId ?? null : request.rfqId,
   })
   if (action === 'APPROVE' && request.type === 'QUOTE_ACCEPT' && request.quote) {
     // The issuing seller finally learns the acceptance went through

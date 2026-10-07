@@ -3,6 +3,7 @@ import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
 import { nextNumber } from '@/server/modules/sequences/service'
 import { needsApproval, createQuoteAcceptApprovalRequest } from '@/server/modules/approvals/service'
 import { emitNotification, emitNotifications, type EmitInput } from '@/server/modules/notifications/service'
+import { listPlatformPermissionHolders } from '@/server/modules/rbac/service'
 import { resolvePanel } from '@/server/modules/settings/service'
 import { ensurePayment } from '@/server/modules/payments/service'
 import { openDisputeCountBySeller, lostDisputeCountBySeller } from './disputes'
@@ -1145,10 +1146,11 @@ export async function createQuote(
   if (quoteStatus === 'PENDING_REVIEW') {
     // The quote waits in the admin review queue — the buyer sees nothing yet
     if (routing.notifyAdminOnQueue) {
-      const admins = await db.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })
+      // TENANT-AUDIT RISK-8: permission holders, not the legacy ADMIN badge.
+      const adminIds = await listPlatformPermissionHolders(['rfq.pipeline.view'])
       await emitNotifications(
-        admins.map((a) => ({
-          userId: a.id,
+        adminIds.map((id) => ({
+          userId: id,
           type: 'RFQ_QUOTE_REVIEW',
           title: `Quote ${number} awaits review`,
           body: `$${total.toFixed(2)} from ${quote.createdBy.name || 'a seller'} on RFQ ${rfq.number} — approve to release it to the buyer.`,

@@ -8,6 +8,7 @@ import {
   Check,
   ClipboardCheck,
   Clock,
+  HandCoins,
   Hourglass,
   Loader2,
   Pencil,
@@ -63,11 +64,13 @@ function TypeBadge({ type }: { type: string }) {
         'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold',
         type === 'ORDER'
           ? 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300'
-          : 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300'
+          : type === 'OFFER_ACCEPT'
+            ? 'bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300'
+            : 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300'
       )}
     >
-      {type === 'ORDER' ? <ClipboardCheck size={11} /> : <ReceiptText size={11} />}
-      {type === 'ORDER' ? 'Order' : 'Quote acceptance'}
+      {type === 'ORDER' ? <ClipboardCheck size={11} /> : type === 'OFFER_ACCEPT' ? <HandCoins size={11} /> : <ReceiptText size={11} />}
+      {type === 'ORDER' ? 'Order' : type === 'OFFER_ACCEPT' ? 'Financing offer' : 'Quote acceptance'}
     </span>
   )
 }
@@ -93,6 +96,20 @@ function RequestBody({ request }: { request: ApprovalRequestDTO }) {
           {request.quote.paymentTerms ? <> · {request.quote.paymentTerms}</> : null}
           {request.quote.validUntil ? (
             <> · valid until {new Date(request.quote.validUntil).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</>
+          ) : null}
+        </p>
+      ) : request.type === 'OFFER_ACCEPT' && request.financingOffer ? (
+        <p className="text-sm text-muted-foreground">
+          Accepting financing offer on request{' '}
+          <span className="font-mono font-semibold text-foreground">{request.financingOffer.requestNumber}</span> ·{' '}
+          {request.financingOffer.amount.toLocaleString()} {request.financingOffer.currency} over{' '}
+          {request.financingOffer.tenorMonths} months
+          {request.financingOffer.ratePercent != null ? (
+            <>
+              {' '}
+              · {request.financingOffer.rateType === 'FLAT_FEE' ? 'flat fee' : 'rate'}{' '}
+              {request.financingOffer.ratePercent}%
+            </>
           ) : null}
         </p>
       ) : null}
@@ -156,8 +173,8 @@ export function ApprovalsCard({
         title: dialogAction === 'APPROVE' ? 'Approved' : 'Rejected',
         description:
           dialogAction === 'APPROVE'
-            ? `${dialogOpen.requester?.name ?? 'The requester'}'s ${dialogOpen.type === 'ORDER' ? 'order' : 'quote acceptance'} of ${formatUSD(dialogOpen.amount)} was approved.`
-            : `The ${dialogOpen.type === 'ORDER' ? 'order was cancelled and restocked' : 'quote stays open for renegotiation'}.`,
+            ? `${dialogOpen.requester?.name ?? 'The requester'}'s ${dialogOpen.type === 'ORDER' ? 'order' : dialogOpen.type === 'OFFER_ACCEPT' ? 'financing offer acceptance' : 'quote acceptance'} of ${formatUSD(dialogOpen.amount)} was approved.`
+            : `The ${dialogOpen.type === 'ORDER' ? 'order was cancelled and restocked' : dialogOpen.type === 'OFFER_ACCEPT' ? 'financing offer stays open' : 'quote stays open for renegotiation'}.`,
       })
       setDialogOpen(null)
       void refetch()
@@ -386,7 +403,7 @@ export function ApprovalsCard({
                         <span className="font-medium">{request.requester?.name}</span>
                         <span className="text-muted-foreground">
                           {' '}
-                          · {request.type === 'ORDER' ? 'order' : 'quote acceptance'} ·{' '}
+                          · {request.type === 'ORDER' ? 'order' : request.type === 'OFFER_ACCEPT' ? 'financing offer' : 'quote acceptance'} ·{' '}
                         </span>
                         <span className="font-semibold tabular-nums">{formatUSD(request.amount)}</span>
                       </span>
@@ -417,13 +434,17 @@ export function ApprovalsCard({
                     <>
                       {dialogOpen?.type === 'ORDER'
                         ? "The held order will be released to the seller and charged as placed. You can't undo this."
-                        : 'The quote will be accepted on behalf of your organization and competing quotes declined automatically.'}
+                        : dialogOpen?.type === 'OFFER_ACCEPT'
+                          ? 'The financing offer will be accepted on behalf of your organization — the agreement is created, the success fee accrues, and competing offers are declined automatically.'
+                          : 'The quote will be accepted on behalf of your organization and competing quotes declined automatically.'}
                     </>
                   ) : (
                     <>
                       {dialogOpen?.type === 'ORDER'
                         ? 'The order will be cancelled and every item returned to stock.'
-                        : 'The quote stays open — the requester can keep negotiating or ask for a revised offer.'}
+                        : dialogOpen?.type === 'OFFER_ACCEPT'
+                          ? 'The financing offer stays open — the requester can keep negotiating or ask the institution for a revised offer.'
+                          : 'The quote stays open — the requester can keep negotiating or ask for a revised offer.'}
                     </>
                   )}
                 </p>

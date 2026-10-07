@@ -8,6 +8,7 @@ import { assertOfferWithinUnderwritingLimit } from './limits' // 10.7: underwrit
 import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 import { assessFee, type ResolvedFeeRule } from '@/server/modules/fees/service' // 11.1: immutable fee ledger
 import { resolveFinancingSuccessPercent } from '@/server/modules/fees/admin' // 11.1: engine-first success percent
+import { needsApproval } from '@/server/modules/approvals/service' // OFFER_ACCEPT threshold parity
 
 /**
  * FINANCING OFFERS — the financier's binding proposal (§3.9) + the acceptance
@@ -56,6 +57,8 @@ export interface FinancingOfferDTO {
   createdAt: string
   createdBy: { id: string; name: string }
   installments: OfferInstallmentDTO[]
+  /** OFFER_ACCEPT follow-up: true while this SENT offer sits in the org approval queue (applicant view). */
+  pendingApproval?: boolean | null
 }
 
 // ── Serialization ───────────────────────────────────────────────────────────
@@ -111,7 +114,22 @@ export async function serializeOffersForApplicant(requestId: string): Promise<Fi
     include: offerInclude,
     orderBy: { createdAt: 'desc' },
   })
-  return offers.map((o) => serializeOffer(o as never))
+  // TENANT-AUDIT follow-up (OFFER_ACCEPT): mark SENT offers that sit in the
+  // org approval queue so the applicant UI shows "awaiting approval" instead
+  // of a plain accept button.
+  const pendingApprovals = await db.approvalRequest.findMany({
+    where: {
+      offerId: { in: offers.filter((o) => o.status === 'SENT').map((o) => o.id) },
+      type: 'OFFER_ACCEPT',
+      status: 'PENDING',
+    },
+    select: { offerId: true },
+  })
+  const pendingOfferIds = new Set(pendingApprovals.map((p) => p.offerId))
+  return offers.map((o) => ({
+    ...serializeOffer(o as never),
+    pendingApproval: pendingOfferIds.has(o.id) || null,
+  }))
 }
 
 /** All offers incl. drafts — financier staff only. */
@@ -148,7 +166,7 @@ async function loadRequestForFinancier(userId: string, requestId: string) {
       organization: { status: 'ACTIVE' },
     },
   })
-  if (!membership) throw new FinancingError('Financier staff access required', 403)
+  if (!membership) throw new FinancingError('Request not found', 404) // F-08 uniform 404 — no existence oracle
   return request
 }
 
@@ -514,110 +532,43 @@ async function acceptOfferCore(
   return agreement.id
 }
 
-export async function acceptOffer(
-  userId: string,
-  offerId: string
-): Promise<{ offer: FinancingOfferDTO; agreementId: string }> {
-  const offer = await db.financingOffer.findUnique({
-    where: { id: offerId },
-    include: {
-      request: {
-        select: {
-          id: true,
-          number: true,
-          status: true,
-          createdById: true,
-          organizationId: true,
-          multiGroupId: true,
-          // 11.1: the financier org drives the FINANCING_SUCCESS rule context
-          service: {
-            select: {
-              financierProfile: {
-                select: { organizationId: true, organization: { select: { orgType: true } } },
-              },
-            },
-          },
-        },
-      },
-    },
-  })
-  if (!offer) throw new FinancingError('Offer not found', 404)
-  await assertApplicantActor(userId, offer.request)
-  // TENANT-AUDIT F-04: an accepted offer on an ORG-scoped request binds the
-  // whole company to a financing agreement (plus fee accrual). Only members
-  // who hold the budget — OWNER / ADMIN / APPROVER — may accept; BUYER and
-  // VIEWER members must route through their approvers (the same policy the
-  // quote-acceptance flow enforces via needsApproval in rfq/service.ts).
-  if (offer.request.organizationId) {
-    const acceptingMember = await db.organizationMember.findFirst({
-      where: {
-        userId,
-        organizationId: offer.request.organizationId,
-        role: { in: ['OWNER', 'ADMIN', 'APPROVER'] },
-        user: { status: 'ACTIVE' },
-        organization: { status: 'ACTIVE' },
-      },
-    })
-    if (!acceptingMember) {
-      throw new FinancingError(
-        'Only organization owners, admins and approvers can accept financing offers on behalf of the organization — ask an approver to sign off',
-        403
-      )
-    }
+/** Post-transaction side effects shared by the direct and approval-mediated
+ * acceptance paths: audits + financier/fee-staff notifications. */
+async function finalizeOfferAcceptance(params: {
+  actorId: string
+  approvedById?: string
+  offer: {
+    id: string
+    requestId: string
+    amount: number
+    currency: string
+    tenorMonths: number
+    request: { number: string }
   }
-  if (offer.status !== 'SENT') throw new FinancingError(`Offer is ${offer.status} — cannot accept`, 409)
-  if (offer.validUntil && offer.validUntil.getTime() < Date.now()) {
-    throw new FinancingError('This offer has expired', 409)
-  }
-  if (!['OFFERED', 'UNDER_FINANCIER_REVIEW', 'FORWARDED_TO_FINANCIER'].includes(offer.request.status)) {
-    throw new FinancingError(`The request is ${offer.request.status} — offers are closed`, 409)
-  }
-
-  // mint the AGR number + resolve the fee percent BEFORE the transaction
-  // (nextNumber opens its own tx — write-lock discipline). Phase 11.1: the
-  // success percent resolves ENGINE-FIRST against the financier's org
-  // (ORG rule → ORG_TYPE → PLATFORM, legacy rfq-settings fallback = zero
-  // change day one) so the accrued fee and its assessment share one source.
-  const [agreementNumber, feesPanel] = await Promise.all([
-    nextNumber('AGR'),
-    resolvePanel('financingFees'),
-  ])
-  const financierOrgId = offer.request.service.financierProfile.organizationId
-  const financierOrgType = offer.request.service.financierProfile.organization.orgType
-  const feeRes = await resolveFinancingSuccessPercent(
-    { orgId: financierOrgId, orgType: financierOrgType },
-    Number(feesPanel.financierSuccessPercent) || 0
-  )
-  const successPercent = feeRes.percent
-  const agreementId = await db.$transaction(async (tx) =>
-    acceptOfferCore(tx, offer, agreementNumber, successPercent, {
-      rule: feeRes.rule,
-      orgId: financierOrgId,
-      orgType: financierOrgType,
-    })
-  )
-
+  agreementId: string
+  financierOrgId: string | null
+}): Promise<void> {
+  const { actorId, approvedById, offer, agreementId, financierOrgId } = params
   await recordAudit({
-    actorId: userId,
+    actorId,
     actorType: 'USER',
     action: 'OFFER_ACCEPTED',
     entityType: 'FinancingOffer',
-    entityId: offerId,
+    entityId: offer.id,
     summary: `Offer accepted on ${offer.request.number} — agreement created, success fee accrued`,
-    metadata: { requestId: offer.requestId, amount: offer.amount },
+    metadata: { requestId: offer.requestId, amount: offer.amount, approvedBy: approvedById ?? undefined },
   })
   await recordAudit({
-    actorId: userId,
+    actorId,
     actorType: 'USER',
     action: 'FEE_ACCRUED',
     entityType: 'FinancingAgreement',
     entityId: agreementId,
     summary: `SUCCESS fee accrued on agreement for ${offer.request.number}`,
-    metadata: { baseAmount: offer.amount },
+    metadata: { baseAmount: offer.amount, approvedBy: approvedById ?? undefined },
   })
 
-  // notify financier staff + platform admins (the financier org id was
-  // already resolved engine-side above — the re-query is unnecessary)
+  // notify financier staff (OWNER/ADMIN) of the accepting institution
   if (financierOrgId) {
     const staff = await db.organizationMember.findMany({
       where: { organizationId: financierOrgId, role: { in: ['OWNER', 'ADMIN'] } },
@@ -658,12 +609,222 @@ export async function acceptOffer(
       linkId: agreementId,
     }))
   )
+}
+
+export async function acceptOffer(
+  userId: string,
+  offerId: string
+): Promise<{ offer: FinancingOfferDTO; agreementId: string | null; approvalRequested?: boolean; approvalId?: string }> {
+  const offer = await db.financingOffer.findUnique({
+    where: { id: offerId },
+    include: {
+      request: {
+        select: {
+          id: true,
+          number: true,
+          status: true,
+          createdById: true,
+          organizationId: true,
+          multiGroupId: true,
+          // 11.1: the financier org drives the FINANCING_SUCCESS rule context
+          service: {
+            select: {
+              financierProfile: {
+                select: { organizationId: true, organization: { select: { orgType: true } } },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+  if (!offer) throw new FinancingError('Offer not found', 404)
+  await assertApplicantActor(userId, offer.request)
+  // TENANT-AUDIT F-04 + REPORT §8.1 (OFFER_ACCEPT): an accepted offer on an
+  // ORG-scoped request binds the whole company to a financing agreement
+  // (plus fee accrual). Policy mirrors the quote-acceptance flow exactly:
+  //   • OWNER / ADMIN / APPROVER — accept directly (they hold the budget)
+  //   • VIEWER — always denied
+  //   • BUYER — direct below the org threshold; at/above it the acceptance is
+  //     routed through the org approval queue (OFFER_ACCEPT request) instead
+  //     of being denied outright. Fails closed, never open.
+  if (offer.request.organizationId) {
+    const membership = await db.organizationMember.findFirst({
+      where: {
+        userId,
+        organizationId: offer.request.organizationId,
+        user: { status: 'ACTIVE' },
+        organization: { status: 'ACTIVE' },
+      },
+      include: { organization: { select: { status: true, approvalThreshold: true } } },
+    })
+    if (!membership || membership.role === 'VIEWER') {
+      throw new FinancingError(
+        'Only organization owners, admins and approvers can accept financing offers on behalf of the organization — ask an approver to sign off',
+        403
+      )
+    }
+    if (membership.role === 'BUYER') {
+      if (needsApproval(membership.organization, membership.role, Number(offer.amount))) {
+        const requester = await db.user.findUnique({
+          where: { id: userId },
+          select: { id: true, name: true },
+        })
+        const { createOfferAcceptApprovalRequest } = await import('@/server/modules/approvals/service')
+        const approval = await createOfferAcceptApprovalRequest({
+          organizationId: offer.request.organizationId,
+          offerId: offer.id,
+          requester: requester ?? { id: userId, name: 'Member' },
+          amount: Number(offer.amount),
+          currency: offer.currency,
+        })
+        const asPending = await db.financingOffer.findUniqueOrThrow({
+          where: { id: offerId },
+          include: offerInclude,
+        })
+        return {
+          offer: { ...serializeOffer(asPending as never), pendingApproval: true },
+          agreementId: null,
+          approvalRequested: true,
+          approvalId: approval.id,
+        }
+      }
+      // below threshold (or org has no threshold) — BUYER accepts directly,
+      // exactly like quote acceptance
+    }
+  }
+  if (offer.status !== 'SENT') throw new FinancingError(`Offer is ${offer.status} — cannot accept`, 409)
+  if (offer.validUntil && offer.validUntil.getTime() < Date.now()) {
+    throw new FinancingError('This offer has expired', 409)
+  }
+  if (!['OFFERED', 'UNDER_FINANCIER_REVIEW', 'FORWARDED_TO_FINANCIER'].includes(offer.request.status)) {
+    throw new FinancingError(`The request is ${offer.request.status} — offers are closed`, 409)
+  }
+
+  // mint the AGR number + resolve the fee percent BEFORE the transaction
+  // (nextNumber opens its own tx — write-lock discipline). Phase 11.1: the
+  // success percent resolves ENGINE-FIRST against the financier's org
+  // (ORG rule → ORG_TYPE → PLATFORM, legacy rfq-settings fallback = zero
+  // change day one) so the accrued fee and its assessment share one source.
+  const [agreementNumber, feesPanel] = await Promise.all([
+    nextNumber('AGR'),
+    resolvePanel('financingFees'),
+  ])
+  const financierOrgId = offer.request.service.financierProfile.organizationId
+  const financierOrgType = offer.request.service.financierProfile.organization.orgType
+  const feeRes = await resolveFinancingSuccessPercent(
+    { orgId: financierOrgId, orgType: financierOrgType },
+    Number(feesPanel.financierSuccessPercent) || 0
+  )
+  const successPercent = feeRes.percent
+  const agreementId = await db.$transaction(
+    async (tx) =>
+      acceptOfferCore(tx, offer, agreementNumber, successPercent, {
+        rule: feeRes.rule,
+        orgId: financierOrgId,
+        orgType: financierOrgType,
+      }),
+    { timeout: 20_000 } // remote-Aiven latency headroom (checkout convention)
+  )
+
+  await finalizeOfferAcceptance({
+    actorId: userId,
+    offer: {
+      id: offer.id,
+      requestId: offer.requestId,
+      amount: Number(offer.amount),
+      currency: offer.currency,
+      tenorMonths: offer.tenorMonths,
+      request: { number: offer.request.number },
+    },
+    agreementId,
+    financierOrgId,
+  })
 
   const updated = await db.financingOffer.findUniqueOrThrow({
     where: { id: offerId },
     include: offerInclude,
   })
   return { offer: serializeOffer(updated as never), agreementId }
+}
+
+/**
+ * OFFER_ACCEPT approval release (REPORT §8.1): an org approver APPROVED a
+ * routed financing-offer acceptance. Performs the same acceptance the
+ * requester would have made directly — validations, AGR minting, fee accrual,
+ * audits and notifications — with the decider recorded as the authorizer.
+ * Exported for the approvals service; never exposed via a public route.
+ */
+export async function performOfferAcceptanceForApproval(
+  decider: { id: string; name: string },
+  input: { offerId: string; requesterId: string; organizationId: string }
+): Promise<{ agreementId: string }> {
+  const offer = await db.financingOffer.findUnique({
+    where: { id: input.offerId },
+    include: {
+      request: {
+        select: {
+          id: true,
+          number: true,
+          status: true,
+          createdById: true,
+          organizationId: true,
+          multiGroupId: true,
+          service: {
+            select: {
+              financierProfile: {
+                select: { organizationId: true, organization: { select: { orgType: true } } },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+  if (!offer) throw new FinancingError('Offer not found', 404)
+  if (offer.request.organizationId !== input.organizationId) {
+    throw new FinancingError('The offer belongs to a different organization', 409)
+  }
+  if (offer.status !== 'SENT') throw new FinancingError(`Offer is ${offer.status} — cannot accept`, 409)
+  if (offer.validUntil && offer.validUntil.getTime() < Date.now()) {
+    throw new FinancingError('This offer has expired', 409)
+  }
+  if (!['OFFERED', 'UNDER_FINANCIER_REVIEW', 'FORWARDED_TO_FINANCIER'].includes(offer.request.status)) {
+    throw new FinancingError(`The request is ${offer.request.status} — offers are closed`, 409)
+  }
+
+  const [agreementNumber, feesPanel] = await Promise.all([nextNumber('AGR'), resolvePanel('financingFees')])
+  const financierOrgId = offer.request.service.financierProfile.organizationId
+  const financierOrgType = offer.request.service.financierProfile.organization.orgType
+  const feeRes = await resolveFinancingSuccessPercent(
+    { orgId: financierOrgId, orgType: financierOrgType },
+    Number(feesPanel.financierSuccessPercent) || 0
+  )
+  const agreementId = await db.$transaction(
+    async (tx) =>
+      acceptOfferCore(tx, offer, agreementNumber, feeRes.percent, {
+        rule: feeRes.rule,
+        orgId: financierOrgId,
+        orgType: financierOrgType,
+      }),
+    { timeout: 20_000 } // remote-Aiven latency headroom (checkout convention)
+  )
+
+  await finalizeOfferAcceptance({
+    actorId: input.requesterId,
+    approvedById: decider.id,
+    offer: {
+      id: offer.id,
+      requestId: offer.requestId,
+      amount: Number(offer.amount),
+      currency: offer.currency,
+      tenorMonths: offer.tenorMonths,
+      request: { number: offer.request.number },
+    },
+    agreementId,
+    financierOrgId,
+  })
+  return { agreementId }
 }
 
 export async function declineOffer(userId: string, offerId: string): Promise<FinancingOfferDTO> {

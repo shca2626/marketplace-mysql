@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useApi } from '@/hooks/use-api'
+import { useMarketplace } from '@/store/marketplace'
 import type { CustomerGroupDTO, OrganizationDTO } from '@/lib/types'
 import { formatDate, formatUSD, initials, timeAgo } from '@/lib/format'
 import { Button } from '@/components/ui/button'
@@ -84,6 +85,10 @@ const FINANCIER_ORG_TYPES: Record<string, string> = {
 }
 
 export function OrganizationsTab() {
+  // TENANT-AUDIT Q5 parity: org CREATION requires orgs.update server-side —
+  // hide the button from view-only admins instead of letting them hit a 403.
+  const user = useMarketplace((s) => s.user)
+  const canCreateOrgs = !!user?.permissions?.includes('orgs.update')
   const [statusFilter, setStatusFilter] = useState('')
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounced(search)
@@ -164,9 +169,11 @@ export function OrganizationsTab() {
             ariaLabel="Search organizations"
             className="min-w-0 flex-1 md:max-w-72"
           />
-          <Button className="shrink-0 rounded-xl" onClick={openCreate}>
-            <Plus size={15} className="mr-1.5" /> New organization
-          </Button>
+          {canCreateOrgs && (
+            <Button className="shrink-0 rounded-xl" onClick={openCreate}>
+              <Plus size={15} className="mr-1.5" /> New organization
+            </Button>
+          )}
         </div>
       </div>
 
@@ -665,24 +672,43 @@ function OrgManageDialog({
               </h3>
               <div className="max-h-52 space-y-1.5 overflow-y-auto rounded-xl border p-2">
                 {(org.members ?? []).map((m) => (
-                  <div key={m.id} className="flex items-center gap-3 rounded-lg px-2 py-1.5">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-bold">
-                      {initials(m.user.name)}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{m.user.name}</p>
-                      <p className="flex min-w-0 items-center gap-1 truncate text-xs text-muted-foreground">
-                        <Mail size={11} className="shrink-0" /> {m.user.email}
-                      </p>
+                  <div key={m.id} className="rounded-lg px-2 py-1.5">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-bold">
+                        {initials(m.user.name)}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{m.user.name}</p>
+                        <p className="flex min-w-0 items-center gap-1 truncate text-xs text-muted-foreground">
+                          <Mail size={11} className="shrink-0" /> {m.user.email}
+                        </p>
+                      </div>
+                      <span
+                        className={cn(
+                          'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
+                          ROLE_BADGE[m.role] ?? 'bg-muted text-muted-foreground'
+                        )}
+                      >
+                        {m.role}
+                      </span>
                     </div>
-                    <span
-                      className={cn(
-                        'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
-                        ROLE_BADGE[m.role] ?? 'bg-muted text-muted-foreground'
-                      )}
-                    >
-                      {m.role}
-                    </span>
+                    {/* TENANT-AUDIT RISK-5: cross-family membership flag */}
+                    {!!m.conflicts?.length && (
+                      <p className="mt-1 flex items-start gap-1.5 rounded-lg bg-amber-50 px-2 py-1 text-[11px] leading-snug text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                        <ShieldAlert size={12} className="mt-0.5 shrink-0" />
+                        <span>
+                          Also staff of{' '}
+                          {m.conflicts.map((c, i) => (
+                            <span key={`${c.orgName}-${i}`}>
+                              {i > 0 && ', '}
+                              <span className="font-semibold">{c.orgName}</span>{' '}
+                              <span className="opacity-70">({FINANCIER_ORG_TYPES[c.orgType] ?? c.orgType})</span>
+                            </span>
+                          ))}{' '}
+                          — cross-family membership, review before granting financing-side access.
+                        </span>
+                      </p>
+                    )}
                   </div>
                 ))}
                 {(org.members ?? []).length === 0 && (

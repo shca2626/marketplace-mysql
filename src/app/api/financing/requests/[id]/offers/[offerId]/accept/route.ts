@@ -3,11 +3,14 @@ import { requireUser } from '@/server/guards'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { acceptOffer } from '@/server/modules/financing/offers'
 import { FinancingError } from '@/server/modules/financing/shared'
+import { ApprovalServiceError } from '@/server/modules/approvals/service'
 
 // POST /api/financing/requests/[id]/offers/[offerId]/accept — accept a SENT
 // offer: freezes it (+ installments), declines the other SENT offers here and
 // on sibling requests, creates the agreement (AGR-) and accrues the platform
-// SUCCESS fee.
+// SUCCESS fee. OFFER_ACCEPT follow-up: a BUYER member at/above the org
+// approval threshold routes through the org approval queue instead (the
+// response then carries approvalRequested + no agreementId).
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string; offerId: string }> }) {
   const { user, error } = await requireUser()
   if (error) return error
@@ -22,6 +25,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json(result)
   } catch (err) {
     if (err instanceof FinancingError) {
+      return NextResponse.json({ error: err.message }, { status: err.status })
+    }
+    if (err instanceof ApprovalServiceError) {
       return NextResponse.json({ error: err.message }, { status: err.status })
     }
     console.error('offer accept error', err)

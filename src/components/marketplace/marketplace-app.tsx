@@ -142,6 +142,44 @@ export function MarketplaceApp() {
       if (!cancelled) setAuthChecked(true)
     }
     void restore()
+
+    // TENANT-AUDIT M-1: revalidate the session on window focus (and tab
+    // re-visibility), throttled to one call per 60s — a financier approval,
+    // suspension or platform-role change granted mid-session now flips the
+    // header badges without a manual reload. Same ADM-001 semantics as boot:
+    // ONLY an explicit 401 concludes "signed out".
+    let lastMeFetch = 0
+    const revalidateMe = () => {
+      const now = Date.now()
+      if (now - lastMeFetch < 60_000) return
+      lastMeFetch = now
+      void (async () => {
+        try {
+          const res = await fetch('/api/auth/me', { cache: 'no-store' })
+          if (res.status === 401) {
+            setUser(null)
+            return
+          }
+          if (res.ok) {
+            const json = (await res.json()) as { user: SessionUser | null }
+            if (!cancelled) setUser(json.user ?? null)
+          }
+        } catch {
+          // offline — keep the current session
+        }
+      })()
+    }
+    const onFocus = () => revalidateMe()
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') revalidateMe()
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisible)
+    // plus a slow heartbeat for the leave-it-open case (visible tabs only)
+    const heartbeat = setInterval(() => {
+      if (document.visibilityState === 'visible') revalidateMe()
+    }, 120_000)
+
     // Storefront configuration (branding, hero slides, sample images) —
     // fetched once at boot so the home page renders the configured slider.
     const loadSettings = async () => {
@@ -160,6 +198,9 @@ export function MarketplaceApp() {
     return () => {
       cancelled = true
       window.removeEventListener('popstate', onPopState)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisible)
+      clearInterval(heartbeat)
     }
   }, [setUser, setAuthChecked, applyLocation, applySettings, initCurrency])
 

@@ -273,3 +273,18 @@ Automated sweep (two passes, first per-file, then per-handler-function) over all
 ## Explicit answer — "did the financier-registration report expose private data?"
 
 **No.** Evidence: the pre-approval console bootstrap (`/api/financier/context`, `shared.ts:223-236`) returns only the caller's own institution context + org list (`listFinancierMemberships`, `shared.ts:130-171`); the pre-approval screen is the applicant's own activation tracker (client gate `financier-view.tsx:212-227`); every financier data query is scoped by the caller's own membership-derived `organizationId` (§1.1, §2) with no cross-institution path (org switcher refuses non-memberships, `financier/context/route.ts:55-58`); and a pending institution cannot even receive applications (first service forced to `PENDING_REVIEW`, `services.ts:257-263`; public detail 409 for non-ACTIVE, `services.ts:662-665`). The reported symptom (buyer dashboard + "buyer" badge post-registration) was a navigation/labeling defect, fixed as UX-FIN-1 (worklog lines 1111-1133). The only related server-side gap is F-05 (pending org keeps **its own** console write access), which exposes no other tenant's data.
+
+---
+
+## RESOLUTION (follow-up round, 2026-10-07 — see REPORT.md §8)
+
+- **F-06 FIXED** — funnel `requestsReceived` counts `forwardedAt != null` only (analytics.ts).
+- **F-07 FIXED** — applicant-history factor is consent-scoped (`request.consentAt`): without consent only the assessing institution's agreements aggregate; the note names the scope. `risk.ts`, `summarizeApplicantHistory(institutionOrgId?)`.
+- **F-08 FIXED** — uniform 404: `assertFinancierCanSee` + `loadRequestForFinancier` no longer split 403/404 (existence oracle removed). fin3-smoke A8g updated accordingly.
+- **F-09 FIXED** — `getConditionTemplate` un-exported (internal-only).
+- **F-10** — already fixed with F-03.
+- **F-11 FIXED** — uploads/[id] classification notes updated to post-F-01 reality.
+- **RISK-6 FIXED** — actorType labels: conditions.ts template CRUD → 'ADMIN' (RBAC-gated fact), disputes.ts → acting principal ('USER'/'SELLER'), never derived from User.role.
+- **RISK-7 FIXED** — document scope closes on terminal financing requests (DECLINED/CANCELLED/EXPIRED) unless an agreement exists; accreditation closes on REJECTED/EXPIRED/REVOKED/CANCELLED. `documents/access.ts`.
+- **RISK-8 FIXED** — `listPlatformPermissionHolders()` replaces the three `role:'ADMIN'` fan-out sites (disputes ×2, rfq quote-review) with RBAC permission holders.
+- **OFFER_ACCEPT (REPORT §8.1) IMPLEMENTED** — full approval-type extension: schema + migration `20261006090000_offer_accept_approval`, service branches, applicant chip + approver card UI. TI-02..TI-02e + fin3-smoke 75/75 + browser E2E golden path green.

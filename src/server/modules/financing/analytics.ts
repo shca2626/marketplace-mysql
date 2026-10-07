@@ -212,13 +212,18 @@ export async function portfolioOverview(
     offer: { request: { service: { financierProfile: { organizationId: financierOrgId } } } },
   }
 
-  // ── Funnel (each stage by its own timestamp inside the range) ─────────────
+  // ── Funnel (each stage by its own timestamp inside the range) ───────────
+  // TENANT-AUDIT F-06: "requests received" counts only requests the R-4
+  // platform gate actually FORWARDED to this institution — pre-forward
+  // pipeline rows (SUBMITTED / platform review) are not this institution's
+  // business yet.
   const [requestsReceived, offersSent, offersAccepted, agreementsActive, agreementsCompleted] =
     await Promise.all([
       db.financingRequest.count({
         where: {
           service: { financierProfile: { organizationId: financierOrgId } },
           status: { not: 'DRAFT' },
+          forwardedAt: { not: null },
           ...(range.from || range.to
             ? { createdAt: { ...(range.from ? { gte: range.from } : {}), ...(range.to ? { lte: range.to } : {}) } }
             : {}),
@@ -538,16 +543,25 @@ export interface ApplicantHistorySummary {
   overdue90: number
 }
 
-/** Prior agreement performance of an applicant (by request creator). */
+/**
+ * Prior agreement performance of an applicant (by request creator).
+ * TENANT-AUDIT F-07: `institutionOrgId` scopes the aggregate to a single
+ * financing institution — used by the risk engine when the applicant has NOT
+ * consented to cross-institution data transfer, so an underwriter only ever
+ * sees repayment history their own institution is party to.
+ */
 export async function summarizeApplicantHistory(
   applicantUserId: string,
-  options?: { excludeRequestIds?: string[] }
+  options?: { excludeRequestIds?: string[]; institutionOrgId?: string }
 ): Promise<ApplicantHistorySummary> {
   const prior = await db.financingAgreement.findMany({
     where: {
       offer: {
         request: {
           createdById: applicantUserId,
+          ...(options?.institutionOrgId
+            ? { service: { financierProfile: { organizationId: options.institutionOrgId } } }
+            : {}),
           ...(options?.excludeRequestIds?.length ? { id: { notIn: options.excludeRequestIds } } : {}),
         },
       },
