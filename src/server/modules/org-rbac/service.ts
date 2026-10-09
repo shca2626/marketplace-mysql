@@ -182,7 +182,7 @@ export async function changeMemberRole(
       }
     }
     return m
-  })
+  }, { timeout: 15000 })
 
   await recordAudit({
     actorId: actorUserId,
@@ -233,7 +233,7 @@ export async function removeMember(actorUserId: string, organizationId: string, 
   await db.$transaction(async (tx) => {
     await tx.organizationMember.delete({ where: { id: target.id } })
     await tx.userRole.deleteMany({ where: { organizationId, userId: memberUserId } })
-  })
+  }, { timeout: 15000 })
 
   await recordAudit({
     actorId: actorUserId,
@@ -256,7 +256,7 @@ export async function leaveOrganization(userId: string, organizationId: string):
   await db.$transaction(async (tx) => {
     await tx.organizationMember.delete({ where: { id: membership.id } })
     await tx.userRole.deleteMany({ where: { organizationId, userId } })
-  })
+  }, { timeout: 15000 })
   await recordAudit({
     actorId: userId,
     actorType: 'USER',
@@ -401,7 +401,7 @@ export async function updateOrgRole(
       where: { id: roleId },
       include: { permissions: { select: { permissionKey: true } }, _count: { select: { assignments: true } } },
     })
-  })
+  }, { timeout: 15000 })
 
   await recordAudit({
     actorId: actorUserId,
@@ -426,7 +426,7 @@ export async function deleteOrgRole(actorUserId: string, organizationId: string,
     const removed = await tx.userRole.deleteMany({ where: { roleId } })
     await tx.role.delete({ where: { id: roleId } })
     return removed.count
-  })
+  }, { timeout: 15000 })
   await recordAudit({
     actorId: actorUserId,
     actorType: 'USER',
@@ -674,7 +674,7 @@ export async function acceptOrgInvitationLoggedIn(userId: string, email: string,
     }
     await tx.userRole.create({ data: { userId, roleId: invitation.roleId, organizationId } })
     await tx.staffInvitation.update({ where: { id: invitation.id }, data: { status: 'ACCEPTED', acceptedAt: new Date() } })
-  })
+  }, { timeout: 15000 })
   await recordAudit({
     actorId: userId,
     actorType: 'USER',

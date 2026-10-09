@@ -113,9 +113,9 @@ export function HomeView() {
                 size="lg"
                 variant="outline"
                 className="rounded-xl border-white/25 bg-transparent px-7 text-base text-white hover:bg-white/10 hover:text-white"
-                onClick={() => navigate('seller')}
+                onClick={() => navigate('business')}
               >
-                <Store size={16} className="mr-1.5" /> Start selling
+                <Store size={16} className="mr-1.5" /> Sell as a company
               </Button>
             </div>
             <div className="mt-9 flex flex-wrap gap-x-8 gap-y-3">
@@ -324,23 +324,23 @@ export function HomeView() {
           <div className="relative flex flex-col items-start justify-between gap-6 lg:flex-row lg:items-center">
             <div className="max-w-xl">
               <span className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-white/90 backdrop-blur-sm">
-                <Store size={13} aria-hidden /> Turn your craft into a business
+                <Store size={13} aria-hidden /> For companies & suppliers
               </span>
-              <h2 className="text-3xl font-extrabold tracking-tight text-white">Sell on Vendora in minutes</h2>
+              <h2 className="text-3xl font-extrabold tracking-tight text-white">Sell on the shared catalog</h2>
               <p className="mt-2 text-sm leading-relaxed text-white/75 sm:text-base">
-                Open a free storefront, list your products and reach thousands of shoppers. We only take 5%
-                when you make a sale — no listing fees, ever.
+                Offer your products on the marketplace with your own pricing, stock and lead times — or
+                propose new products to the catalog. Your company workspace has everything you need.
               </p>
             </div>
             <div className="flex flex-col gap-3">
               <Button
                 size="lg"
                 className="rounded-xl bg-bh-gold px-7 text-base font-bold text-bh-navy-deep shadow-card hover:bg-bh-gold-light"
-                onClick={() => navigate('seller')}
+                onClick={() => navigate('business')}
               >
-                Open your storefront <ArrowRight size={16} className="ml-1" />
+                Open your company workspace <ArrowRight size={16} className="ml-1" />
               </Button>
-              <p className="text-center text-xs text-white/70">Free to start · 5% flat fee</p>
+              <p className="text-center text-xs text-white/70">Offers, proposals, stores & sales in one place</p>
             </div>
           </div>
         </div>

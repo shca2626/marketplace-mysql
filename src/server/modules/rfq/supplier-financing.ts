@@ -310,7 +310,7 @@ export async function reviseSupplierRfq(
       },
     })
     return r
-  })
+  }, { timeout: 15000 })
 
   await recordAudit({
     actorId: userId,

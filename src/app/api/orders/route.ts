@@ -304,7 +304,7 @@ export async function POST(req: NextRequest) {
         }
       }
       return created
-    })
+    }, { timeout: 30_000 })
 
     // Bell event for the org's approvers (after the tx commits — no ghost pings on rollback)
     if (routeForApproval) {

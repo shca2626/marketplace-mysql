@@ -30,8 +30,8 @@ export function Footer() {
     {
       title: 'Sell',
       items: [
-        { label: 'Start Selling', onClick: () => navigate('seller') },
-        { label: 'Seller Dashboard', onClick: () => navigate('seller') },
+        { label: 'Sell as a Company', onClick: () => navigate('business') },
+        { label: 'Company Workspace', onClick: () => navigate('business') },
         { label: 'Seller Guidelines', onClick: () => navigate('account') },
       ],
     },

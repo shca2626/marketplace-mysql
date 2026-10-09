@@ -171,7 +171,7 @@ export async function createStore(
       },
     })
     return created
-  })
+  }, { timeout: 15000 })
 
   await recordAudit({
     actorId: actorUserId,
@@ -233,7 +233,7 @@ export async function archiveStore(actorUserId: string, organizationId: string, 
       const next = await tx.store.findFirst({ where: { organizationId, isArchived: false }, orderBy: { createdAt: 'asc' } })
       if (next) await tx.store.update({ where: { id: next.id }, data: { isDefault: true } })
     }
-  })
+  }, { timeout: 15000 })
   await recordAudit({
     actorId: actorUserId,
     actorType: 'USER',
@@ -507,7 +507,7 @@ export async function createOffer(
       include: { product: true, store: true, sellerOrg: true, variants: true },
     })
     return created
-  })
+  }, { timeout: 15000 })
 
   await recordAudit({
     actorId: actorUserId,
@@ -668,7 +668,7 @@ export async function proposeProduct(
       })
     }
     return created
-  })
+  }, { timeout: 15000 })
 
   await recordAudit({
     actorId: actorUserId,
@@ -759,7 +759,7 @@ export async function adminReviewProduct(
       await tx.productOffer.updateMany({ where: { productId, status: 'DRAFT' }, data: { status: 'ACTIVE' } })
     }
     return p
-  })
+  }, { timeout: 15000 })
   await recordAudit({
     actorId: actorUserId,
     actorType: 'ADMIN',
