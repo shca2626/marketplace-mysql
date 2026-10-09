@@ -1,0 +1,62 @@
+[
+ {
+  "id": "cmuvwyuqt0001ne9eezo0f447",
+  "key": "free",
+  "name": "Free",
+  "description": "The essential marketplace presence: list products, sell, get paid.",
+  "priceMonthly": 0,
+  "currency": "USD",
+  "modules": "[]",
+  "limits": "{\"maxProducts\":25,\"maxActiveOffers\":10,\"maxUsers\":2}",
+  "isActive": 1,
+  "sortOrder": 0,
+  "changedById": null,
+  "createdAt": "2026-10-06T00:01:45.510Z",
+  "updatedAt": "2026-10-06T00:01:45.510Z"
+ },
+ {
+  "id": "cmuvwyvhv0002ne9e4r6yzne8",
+  "key": "starter",
+  "name": "Starter",
+  "description": "For growing shops: RFQ pipeline + buyer reviews.",
+  "priceMonthly": 19,
+  "currency": "USD",
+  "modules": "[\"rfq\",\"reviews\"]",
+  "limits": "{\"maxProducts\":200,\"maxActiveOffers\":50,\"maxUsers\":5}",
+  "isActive": 1,
+  "sortOrder": 1,
+  "changedById": null,
+  "createdAt": "2026-10-06T00:01:46.483Z",
+  "updatedAt": "2026-10-06T00:01:46.483Z"
+ },
+ {
+  "id": "cmuvwyvyr0003ne9ekivibx3a",
+  "key": "growth",
+  "name": "Growth",
+  "description": "Scale with insights, comparison and brand presence.",
+  "priceMonthly": 49,
+  "currency": "USD",
+  "modules": "[\"rfq\",\"reviews\",\"insights\",\"compare\"]",
+  "limits": "{\"maxProducts\":1000,\"maxActiveOffers\":250,\"maxUsers\":20}",
+  "isActive": 1,
+  "sortOrder": 2,
+  "changedById": "cmuvhj2jw0000netat574v5jf",
+  "createdAt": "2026-10-06T00:01:47.092Z",
+  "updatedAt": "2026-10-06T00:42:54.826Z"
+ },
+ {
+  "id": "cmuvwywfm0004ne9ei5wv46i2",
+  "key": "pro",
+  "name": "Pro",
+  "description": "Everything: B2B org accounts, solutions spotlights and all seller modules.",
+  "priceMonthly": 99,
+  "currency": "USD",
+  "modules": "[\"rfq\",\"reviews\",\"insights\",\"compare\",\"b2b-orgs\",\"solutions\"]",
+  "limits": "{\"maxProducts\":null,\"maxActiveOffers\":null,\"maxUsers\":null}",
+  "isActive": 1,
+  "sortOrder": 3,
+  "changedById": null,
+  "createdAt": "2026-10-06T00:01:47.698Z",
+  "updatedAt": "2026-10-06T00:01:47.698Z"
+ }
+]

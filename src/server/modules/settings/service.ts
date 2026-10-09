@@ -87,9 +87,12 @@ export async function validateScope(scopeType: unknown, scopeId: unknown): Promi
       return { scopeType, scopeId: id.toUpperCase().slice(0, 64) }
     }
   }
+  // Unreachable — scopeType is validated above — but the switch needs a
+  // fallthrough return for the type checker.
+  throw new SettingsServiceError('Invalid scope type')
 }
 
-function scopeKey(s: ScopeRef): string {
+function scopeKey(s: { scopeType: string; scopeId: string }): string {
   return `${s.scopeType}:${s.scopeId}`
 }
 

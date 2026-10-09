@@ -17,7 +17,8 @@ export interface AuditEntry {
   entityType: string // Organization | Rfq | Quote | PriceList | Coupon | CustomerGroup | ...
   entityId?: string | null
   summary?: string
-  metadata?: Record<string, unknown>
+  /** Any JSON-serializable object — stored as a serialized JSON string. */
+  metadata?: object
 }
 
 export async function recordAudit(entry: AuditEntry): Promise<void> {

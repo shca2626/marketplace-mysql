@@ -15,18 +15,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = await siteBaseUrl()
   const now = new Date()
 
-  const staticRoutes: MetadataRoute.Sitemap = [
-    { url: `${base}/`, changeFrequency: 'daily', priority: 1 },
-    { url: `${base}/market`, changeFrequency: 'daily', priority: 0.9 },
-    { url: `${base}/funding`, changeFrequency: 'weekly', priority: 0.9 },
-    { url: `${base}/about`, changeFrequency: 'monthly', priority: 0.5 },
-    { url: `${base}/contact`, changeFrequency: 'monthly', priority: 0.5 },
-    { url: `${base}/how-it-works`, changeFrequency: 'monthly', priority: 0.6 },
-    { url: `${base}/solutions`, changeFrequency: 'monthly', priority: 0.7 },
-    { url: `${base}/sell`, changeFrequency: 'monthly', priority: 0.6 },
-    { url: `${base}/insights`, changeFrequency: 'weekly', priority: 0.6 },
-    { url: `${base}/faq`, changeFrequency: 'monthly', priority: 0.5 },
-  ].map((entry) => ({ ...entry, lastModified: now }))
+  const staticRoutes: MetadataRoute.Sitemap = (
+    [
+      { url: `${base}/`, changeFrequency: 'daily', priority: 1 },
+      { url: `${base}/market`, changeFrequency: 'daily', priority: 0.9 },
+      { url: `${base}/funding`, changeFrequency: 'weekly', priority: 0.9 },
+      { url: `${base}/about`, changeFrequency: 'monthly', priority: 0.5 },
+      { url: `${base}/contact`, changeFrequency: 'monthly', priority: 0.5 },
+      { url: `${base}/how-it-works`, changeFrequency: 'monthly', priority: 0.6 },
+      { url: `${base}/solutions`, changeFrequency: 'monthly', priority: 0.7 },
+      { url: `${base}/sell`, changeFrequency: 'monthly', priority: 0.6 },
+      { url: `${base}/insights`, changeFrequency: 'weekly', priority: 0.6 },
+      { url: `${base}/faq`, changeFrequency: 'monthly', priority: 0.5 },
+    ] as const
+  ).map((entry) => ({ ...entry, lastModified: now }))
 
   // ── Market: categories, products, stores (real URLs, Phase 2) ──
   const [categories, products, stores] = await Promise.all([

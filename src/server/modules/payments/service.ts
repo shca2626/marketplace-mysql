@@ -151,7 +151,7 @@ export async function ensurePayment(
         ...(input.reference ? { reference: input.reference.slice(0, 160) } : {}),
       },
     })
-    return { id: updated.id, method: updated.method, status: updated.status, instructions, dueAt }
+    return { id: updated.id, method: updated.method as PaymentMethod, status: updated.status, instructions, dueAt }
   }
 
   const created = await tx.payment.create({
@@ -164,7 +164,7 @@ export async function ensurePayment(
       dueAt,
     },
   })
-  return { id: created.id, method: created.method, status: created.status, instructions, dueAt }
+  return { id: created.id, method: created.method as PaymentMethod, status: created.status, instructions, dueAt }
 }
 
 /** Mark a payment SUCCEEDED and (unless the order runs on invoice terms) flip
@@ -224,7 +224,7 @@ export async function buyerPayOrder(
   if (order.payment && order.payment.status === 'SUCCEEDED')
     throw new PaymentServiceError('This order is already paid', 409)
 
-  const method: PaymentMethod = input.method ?? order.payment?.method ?? 'BANK_TRANSFER'
+  const method: PaymentMethod = input.method ?? (order.payment?.method as PaymentMethod | undefined) ?? 'BANK_TRANSFER'
   if (method === 'INVOICE') throw new PaymentServiceError('Invoices are settled by the platform', 400)
 
   return db.$transaction(async (tx) => {

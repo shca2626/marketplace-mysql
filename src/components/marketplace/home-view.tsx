@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import { ArrowRight, BadgeCheck, Clock, Flame, Search, ShieldCheck, Sparkles, Store, Sun, TrendingUp, X } from 'lucide-react'
 import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
-import type { HomeFeed, ProductDTO } from '@/lib/types'
+import type { CategoryDTO, HomeFeed, ProductDTO } from '@/lib/types'
 import { formatNumber, formatUSD } from '@/lib/format'
 import { HERO_COLLAGE, HERO_IMAGE } from '@/lib/constants'
 import { ProductCard, ProductCardSkeleton } from './product-card'
@@ -192,7 +192,7 @@ export function HomeView() {
             </Button>
           </div>
           <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 lg:grid-cols-6">
-            {(loading ? Array.from({ length: 6 }) : data?.categories ?? []).map((c, i) =>
+            {(loading ? (Array.from({ length: 6 }) as (CategoryDTO | undefined)[]) : data?.categories ?? []).map((c, i) =>
               loading || !c ? (
                 <div key={i} className="h-24 animate-pulse rounded-2xl bg-bh-soft-blue/70" />
               ) : (
@@ -298,7 +298,7 @@ export function HomeView() {
             </Button>
           </div>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {(loading ? Array.from({ length: 8 }) : data?.featured ?? []).map((p, i) =>
+            {(loading ? (Array.from({ length: 8 }) as (ProductDTO | undefined)[]) : data?.featured ?? []).map((p, i) =>
               loading || !p ? <ProductCardSkeleton key={i} /> : <ProductCard key={p.id} product={p} index={i} />
             )}
           </div>
@@ -359,7 +359,7 @@ export function HomeView() {
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {(loading ? Array.from({ length: 8 }) : data?.trending ?? []).map((p, i) =>
+            {(loading ? (Array.from({ length: 8 }) as (ProductDTO | undefined)[]) : data?.trending ?? []).map((p, i) =>
               loading || !p ? <ProductCardSkeleton key={i} /> : <ProductCard key={p.id} product={p} index={i} />
             )}
           </div>
@@ -385,7 +385,7 @@ export function HomeView() {
           </Button>
         </div>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {(loading ? Array.from({ length: 8 }) : data?.newArrivals ?? []).map((p, i) =>
+          {(loading ? (Array.from({ length: 8 }) as (ProductDTO | undefined)[]) : data?.newArrivals ?? []).map((p, i) =>
             loading || !p ? <ProductCardSkeleton key={i} /> : <ProductCard key={p.id} product={p} index={i} />
           )}
         </div>

@@ -1,0 +1,658 @@
+[
+ {
+  "id": "cmuimbol2008tokn0zzuq7mnr",
+  "organizationId": "cmuimbol1008rokn0mrkge7ut",
+  "userId": "cmuimbo980006okn0cu0tdngk",
+  "role": "OWNER",
+  "jobTitle": "Founder & CEO",
+  "createdAt": "2026-09-26T16:42:47.991Z"
+ },
+ {
+  "id": "cmuimbol3008vokn0rd67kmhv",
+  "organizationId": "cmuimbol1008rokn0mrkge7ut",
+  "userId": "cmuimboa40007okn0ep5w4tcn",
+  "role": "APPROVER",
+  "jobTitle": "Procurement Lead",
+  "createdAt": "2026-09-26T16:42:47.992Z"
+ },
+ {
+  "id": "cmuimbol5008xokn0hbvmkoav",
+  "organizationId": "cmuimbol1008rokn0mrkge7ut",
+  "userId": "cmuimbob20008okn0n4h3r9gb",
+  "role": "BUYER",
+  "jobTitle": "Purchasing Associate",
+  "createdAt": "2026-09-26T16:42:47.994Z"
+ },
+ {
+  "id": "cmuipydpm0004okta6bgyita7",
+  "organizationId": "cmuipydpj0002oktan3aec1vw",
+  "userId": "cmuipydom0000oktaui7s4dx9",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-09-26T18:24:25.834Z"
+ },
+ {
+  "id": "cmuipydpm0005oktakdx5en5o",
+  "organizationId": "cmuipydpl0003oktae1nwpxjg",
+  "userId": "cmuipydph0001okta7q5kme0s",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-09-26T18:24:25.834Z"
+ },
+ {
+  "id": "cmumxe8zc0002nflpt7w2jqu9",
+  "organizationId": "cmumxe8zc0000nflpxgl4v4da",
+  "userId": "cmumw8caf0000nfll9rk7d4vm",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-09-29T17:03:48.216Z"
+ },
+ {
+  "id": "cmun4vadl000nnflp0q6uq2vq",
+  "organizationId": "cmun4vadl000lnflppm3r97vd",
+  "userId": "cmun4unak000hnflpr2ku8phm",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-09-29T20:33:00.489Z"
+ },
+ {
+  "id": "cmun57afb0002nfo5zfhhwtht",
+  "organizationId": "cmuipydpl0003oktae1nwpxjg",
+  "userId": "cmun4unak000hnflpr2ku8phm",
+  "role": "ADMIN",
+  "jobTitle": null,
+  "createdAt": "2026-09-29T20:42:20.423Z"
+ },
+ {
+  "id": "cmupy8zf90006nd0fhw2y2tnl",
+  "organizationId": "cmupy8zf90004nd0fccw5s0tv",
+  "userId": "cmupy0gn60008ndzn4npdnszu",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-01T19:51:00.694Z"
+ },
+ {
+  "id": "cmupyeohj0005ndxmviiuw676",
+  "organizationId": "cmupyeohj0003ndxmr62q7eha",
+  "userId": "cmupxyoji0000ndzn6lhe7our",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-01T19:55:26.455Z"
+ },
+ {
+  "id": "cmupzi6140003nd29l8j6rv9q",
+  "organizationId": "cmupyeohj0003ndxmr62q7eha",
+  "userId": "cmuimbo980006okn0cu0tdngk",
+  "role": "APPROVER",
+  "jobTitle": "QA Test",
+  "createdAt": "2026-10-01T20:26:08.777Z"
+ },
+ {
+  "id": "cmuq06uvv000gnd29q0luv1j5",
+  "organizationId": "cmupyeohj0003ndxmr62q7eha",
+  "userId": "cmupxiprf0000ndo6ncjahfag",
+  "role": "BUYER",
+  "jobTitle": "QA Viewer",
+  "createdAt": "2026-10-01T20:45:20.731Z"
+ },
+ {
+  "id": "cmurmvhoq000nmas0fh5o7vs2",
+  "organizationId": "cmurmvhoq000lmas0b1mj56m2",
+  "userId": "cmurmtuh40006mas0r5zasjyc",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-03T00:08:07.755Z"
+ },
+ {
+  "id": "cmurmwlmf000ymas061i9pdca",
+  "organizationId": "cmurmwlmf000wmas01zh65sxz",
+  "userId": "cmurmwkdi000umas0ls4i8bzb",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-03T00:08:59.512Z"
+ },
+ {
+  "id": "cmurn65pj000bma57iavhtsb2",
+  "organizationId": "cmurn65pj0009ma577cvs3nz0",
+  "userId": "cmurn63vp0007ma57djfli0j8",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-03T00:16:25.447Z"
+ },
+ {
+  "id": "cmurncwrb0010majmutw6wggk",
+  "organizationId": "cmurncwrb000ymajmj17qco63",
+  "userId": "cmurncvck000wmajmtcfdemzb",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-03T00:21:40.439Z"
+ },
+ {
+  "id": "cmustzmn20012oijguo6ghn4f",
+  "organizationId": "cmustzmn20010oijgocuywcfs",
+  "userId": "cmustzd0z000voijgrbfxtla3",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-03T20:15:04.286Z"
+ },
+ {
+  "id": "cmusu4orc001qoijgzloe6jwe",
+  "organizationId": "cmustzmn20010oijgocuywcfs",
+  "userId": "cmusu4ni8001moijgdbwwk7x1",
+  "role": "VIEWER",
+  "jobTitle": null,
+  "createdAt": "2026-10-03T20:19:00.312Z"
+ },
+ {
+  "id": "cmuu6hy12000klwiphzvfm9j4",
+  "organizationId": "cmuu6hy12000ilwiptweerdyu",
+  "userId": "cmuu6dba90003lwipjmy9z6wz",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-04T18:53:00.423Z"
+ },
+ {
+  "id": "cmuum7wa10004lwty1z66i005",
+  "organizationId": "cmuum7v7x0000lwtykxosot4f",
+  "userId": "cmuimbo860001okn0wu3ei0r7",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-05T02:13:05.450Z"
+ },
+ {
+  "id": "cmuum7zgm000hlwtyt9k6ro4a",
+  "organizationId": "cmuum7yxi000dlwty0cwnzoub",
+  "userId": "cmuimbo870002okn0pxi0ttdo",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-05T02:13:09.574Z"
+ },
+ {
+  "id": "cmuum81o6000slwtyx0vs6ioh",
+  "organizationId": "cmuum8153000olwtyfq6f9bru",
+  "userId": "cmuimbo880003okn0no72os14",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-05T02:13:12.439Z"
+ },
+ {
+  "id": "cmuum854k001hlwtyidjnaw2y",
+  "organizationId": "cmuum84lf001dlwty42aytbyw",
+  "userId": "cmuimbo880004okn0yx6ojy3y",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-05T02:13:16.916Z"
+ },
+ {
+  "id": "cmuum87v8001wlwtyv4o7mvix",
+  "organizationId": "cmuum87c4001slwtypffivram",
+  "userId": "cmuimbo8a0005okn0bec6d2u4",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-05T02:13:20.468Z"
+ },
+ {
+  "id": "cmuum8ctu002hlwtyoxauhz9p",
+  "organizationId": "cmuum8cap002dlwtykndm3e3p",
+  "userId": "cmurabkps0000maa9xpcjisem",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-05T02:13:26.899Z"
+ },
+ {
+  "id": "cmuum8ec1002mlwtyu9watqhe",
+  "organizationId": "cmuum8dsx002ilwty4byns9nm",
+  "userId": "cmurlsdro000hmava9404al67",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-05T02:13:28.850Z"
+ },
+ {
+  "id": "cmuum8iep002zlwtyz7aiw8fw",
+  "organizationId": "cmuum8hvl002vlwtyfzg8hqiz",
+  "userId": "cmuruxda3000cmarojs2dn033",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-05T02:13:34.130Z"
+ },
+ {
+  "id": "cmuum8k350034lwtypid1513x",
+  "organizationId": "cmuum8jjy0030lwtyy24nhxnk",
+  "userId": "cmuruyklc000imaroanxkkuah",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-05T02:13:36.306Z"
+ },
+ {
+  "id": "cmuum8m19003dlwty17llkglo",
+  "organizationId": "cmuum8li50039lwty4c7gprbd",
+  "userId": "cmurv2i1j001omaro95fa0rby",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-05T02:13:38.829Z"
+ },
+ {
+  "id": "cmuvnjyri000cnejwlilomqd4",
+  "organizationId": "cmuvnjx4u0007nejwk73wyguu",
+  "userId": "cmuvnjxom0008nejw4ey6cqyd",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-05T19:38:14.334Z"
+ },
+ {
+  "id": "cmuvnjza2000enejw18o91pyp",
+  "organizationId": "cmuvnjx4u0007nejwk73wyguu",
+  "userId": "cmuvnjy1w0009nejwq01a3378",
+  "role": "VIEWER",
+  "jobTitle": null,
+  "createdAt": "2026-10-05T19:38:15.002Z"
+ },
+ {
+  "id": "cmuvnjzme000gnejwew69c5sr",
+  "organizationId": "cmuvnjx4u0007nejwk73wyguu",
+  "userId": "cmuvnjyf5000anejw0qa818gi",
+  "role": "APPROVER",
+  "jobTitle": null,
+  "createdAt": "2026-10-05T19:38:15.447Z"
+ },
+ {
+  "id": "cmuvnk0ol000knejwkr7xevo0",
+  "organizationId": "cmuvnjzyy000hnejwn7ysawpd",
+  "userId": "cmuvnk0c7000inejwmlkr5ptd",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-05T19:38:16.821Z"
+ },
+ {
+  "id": "cmux0gb470009q05lr1z87a2p",
+  "organizationId": "cmux0gb460007q05l5nlpu9iy",
+  "userId": "cmux0g8s00003q05l92tixv9u",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T18:27:04.903Z"
+ },
+ {
+  "id": "cmux4aaz0000xq01jtv6616nn",
+  "organizationId": "cmux4aaz0000vq01jeifz485u",
+  "userId": "cmux4a8og000rq01jgdgat36y",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T20:14:23.244Z"
+ },
+ {
+  "id": "cmux7i3wq0003q0notonnh4pg",
+  "organizationId": "cmux7i3c50001q0no1vldux8c",
+  "userId": "cmux7i2ro0000q0noqk7l566f",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T21:44:26.186Z"
+ },
+ {
+  "id": "cmux7jyll0003q002h2mxbsdh",
+  "organizationId": "cmux7jy1e0001q0024yd1qugw",
+  "userId": "cmux7jxh70000q0026omq5b73",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T21:45:52.618Z"
+ },
+ {
+  "id": "cmuxb93g10005q0tasgua5xby",
+  "organizationId": "cmuxb91j20000q0ta8twskxld",
+  "userId": "cmuxb923y0001q0tajfn05lhd",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:29:24.145Z"
+ },
+ {
+  "id": "cmuxb94d40009q0tayf8pd3lj",
+  "organizationId": "cmuxb91j20000q0ta8twskxld",
+  "userId": "cmuxb932s0003q0talmb0a5fo",
+  "role": "BUYER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:29:25.336Z"
+ },
+ {
+  "id": "cmuxb95hl000dq0ta53712w3m",
+  "organizationId": "cmuxb94qc000aq0taxp0eiul3",
+  "userId": "cmuxb954d000bq0taz07xjnhn",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:29:26.793Z"
+ },
+ {
+  "id": "cmuxb97pt000lq0tabty8pxme",
+  "organizationId": "cmuxb96yi000iq0taxis4ywts",
+  "userId": "cmuxb97cl000jq0tah2gl7r7a",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:29:29.682Z"
+ },
+ {
+  "id": "cmuxb99kz000tq0taj9zpcwah",
+  "organizationId": "cmuxb98ti000qq0tak4hsi6fo",
+  "userId": "cmuxb997p000rq0taoganbvh0",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:29:32.099Z"
+ },
+ {
+  "id": "cmuxb9bfy0011q0tax6xnuw12",
+  "organizationId": "cmuxb9aon000yq0takv6it80n",
+  "userId": "cmuxb9b2q000zq0tayggbavst",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:29:34.511Z"
+ },
+ {
+  "id": "cmuxbbtev0005q01np2id86ak",
+  "organizationId": "cmuxbbrk20000q01nth0x9c3j",
+  "userId": "cmuxbbs4a0001q01n83qmecm0",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:31:31.111Z"
+ },
+ {
+  "id": "cmuxbbty10007q01n7qal5oyr",
+  "organizationId": "cmuxbbrk20000q01nth0x9c3j",
+  "userId": "cmuxbbsod0002q01nesrv1obm",
+  "role": "VIEWER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:31:31.802Z"
+ },
+ {
+  "id": "cmuxbbuau0009q01n205e457r",
+  "organizationId": "cmuxbbrk20000q01nth0x9c3j",
+  "userId": "cmuxbbt210003q01nbo3fkmoi",
+  "role": "BUYER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:31:32.263Z"
+ },
+ {
+  "id": "cmuxbbve4000dq01nd9f56akc",
+  "organizationId": "cmuxbbunn000aq01ntmddalri",
+  "userId": "cmuxbbv1a000bq01ndapqqi95",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:31:33.676Z"
+ },
+ {
+  "id": "cmuxbbxjs000lq01nahjfaqan",
+  "organizationId": "cmuxbbwtc000iq01nf0h16fjz",
+  "userId": "cmuxbbx6z000jq01nyobyqi0a",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:31:36.472Z"
+ },
+ {
+  "id": "cmuxbbzcu000tq01ndqbyl2ha",
+  "organizationId": "cmuxbbym8000qq01n1ao1i5gf",
+  "userId": "cmuxbbz01000rq01nt877kfdx",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:31:38.815Z"
+ },
+ {
+  "id": "cmuxbc15s0011q01n59ie1q5h",
+  "organizationId": "cmuxbc0fb000yq01n6b0chw5v",
+  "userId": "cmuxbc0sz000zq01n407yvvyl",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:31:41.152Z"
+ },
+ {
+  "id": "cmuxbcc9g0005q02pjply0cls",
+  "organizationId": "cmuxbca800000q02pgmu8xe4c",
+  "userId": "cmuxbcau70001q02pw3mwz3th",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:31:55.540Z"
+ },
+ {
+  "id": "cmuxbccum0007q02puijdi2cu",
+  "organizationId": "cmuxbca800000q02pgmu8xe4c",
+  "userId": "cmuxbcbga0002q02po8dwic5o",
+  "role": "VIEWER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:31:56.303Z"
+ },
+ {
+  "id": "cmuxbcd8r0009q02prb74ukul",
+  "organizationId": "cmuxbca800000q02pgmu8xe4c",
+  "userId": "cmuxbcbvb0003q02pw9bxvyze",
+  "role": "BUYER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:31:56.811Z"
+ },
+ {
+  "id": "cmuxbcegm000dq02puxb1pjs0",
+  "organizationId": "cmuxbcdmv000aq02pyckg2yxm",
+  "userId": "cmuxbce2h000bq02pbt5y4avo",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:31:58.390Z"
+ },
+ {
+  "id": "cmuxbcgu8000lq02p52j13uup",
+  "organizationId": "cmuxbcg13000iq02p9tt12336",
+  "userId": "cmuxbcgg4000jq02poilnnayq",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:32:01.472Z"
+ },
+ {
+  "id": "cmuxbcitx000tq02plyrs28a2",
+  "organizationId": "cmuxbci0l000qq02pmf32rosf",
+  "userId": "cmuxbcift000rq02pq5tul1ym",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:32:04.054Z"
+ },
+ {
+  "id": "cmuxbckte0011q02p8yih4ppv",
+  "organizationId": "cmuxbck0b000yq02p3ubt0olv",
+  "userId": "cmuxbckfa000zq02pm534exjv",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:32:06.626Z"
+ },
+ {
+  "id": "cmuxbd3ok0005q03rj3101ess",
+  "organizationId": "cmuxbd1lg0000q03ra08lgtef",
+  "userId": "cmuxbd2870001q03r5b9o5tpw",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:32:31.076Z"
+ },
+ {
+  "id": "cmuxbd4a60007q03r4y9udu4e",
+  "organizationId": "cmuxbd1lg0000q03ra08lgtef",
+  "userId": "cmuxbd2uq0002q03r2rs1f691",
+  "role": "VIEWER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:32:31.854Z"
+ },
+ {
+  "id": "cmuxbd4ol0009q03r4lctwaf5",
+  "organizationId": "cmuxbd1lg0000q03ra08lgtef",
+  "userId": "cmuxbd3a50003q03r7d5huusz",
+  "role": "BUYER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:32:32.374Z"
+ },
+ {
+  "id": "cmuxbd5wu000dq03rqfltzzt3",
+  "organizationId": "cmuxbd530000aq03rcj98d9sc",
+  "userId": "cmuxbd5if000bq03r7t23qp8s",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:32:33.967Z"
+ },
+ {
+  "id": "cmuxbd8c9000lq03ra7h2tara",
+  "organizationId": "cmuxbd7ik000iq03rxlkuhkfk",
+  "userId": "cmuxbd7xu000jq03r6nanal98",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:32:37.113Z"
+ },
+ {
+  "id": "cmuxbdadc000tq03r1ewj0gsi",
+  "organizationId": "cmuxbd9jh000qq03rl9xgj29p",
+  "userId": "cmuxbd9yw000rq03r80pe2ppu",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:32:39.744Z"
+ },
+ {
+  "id": "cmuxbdcec0011q03rs5tvh7ix",
+  "organizationId": "cmuxbdbkn000yq03rdi4hc40r",
+  "userId": "cmuxbdbzx000zq03rd658l880",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:32:42.372Z"
+ },
+ {
+  "id": "cmuxbe05r0005q05ml74tzpdj",
+  "organizationId": "cmuxbdw9i0000q05mqtuzxtj5",
+  "userId": "cmuxbdxft0001q05m6iedw361",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:33:13.167Z"
+ },
+ {
+  "id": "cmuxbe22g0009q05myusx9xzz",
+  "organizationId": "cmuxbdw9i0000q05mqtuzxtj5",
+  "userId": "cmuxbdze80003q05mfiu08hsd",
+  "role": "BUYER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:33:15.641Z"
+ },
+ {
+  "id": "cmuxbe4dx000dq05m9t4cuttz",
+  "organizationId": "cmuxbe2ty000aq05myeb3t6n3",
+  "userId": "cmuxbe3mg000bq05mo85zo7b9",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:33:18.646Z"
+ },
+ {
+  "id": "cmuxbe96o000lq05mnbdhzf69",
+  "organizationId": "cmuxbe7fy000iq05myx0b5nyv",
+  "userId": "cmuxbe8f6000jq05mt3fy1vqy",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:33:24.865Z"
+ },
+ {
+  "id": "cmuxbed11000tq05magbfwtc6",
+  "organizationId": "cmuxbebh7000qq05mvqclk1mv",
+  "userId": "cmuxbec9j000rq05mqub7h3be",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:33:29.845Z"
+ },
+ {
+  "id": "cmuxbegvo0011q05mlp86ix50",
+  "organizationId": "cmuxbefbj000yq05msrfi9muv",
+  "userId": "cmuxbeg46000zq05m5cu1ghea",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-06T23:33:34.836Z"
+ },
+ {
+  "id": "cmuxckalp0005q0uibo5xn9t7",
+  "organizationId": "cmuxck6yf0000q0uiei40rdow",
+  "userId": "cmuxck82c0001q0ui8f76agk6",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-07T00:06:06.254Z"
+ },
+ {
+  "id": "cmuxckbol0007q0uit4xupyhm",
+  "organizationId": "cmuxck6yf0000q0uiei40rdow",
+  "userId": "cmuxck95u0002q0uin3i6n9vt",
+  "role": "BUYER",
+  "jobTitle": null,
+  "createdAt": "2026-10-07T00:06:07.653Z"
+ },
+ {
+  "id": "cmuxckceg0009q0uieiexlnrg",
+  "organizationId": "cmuxck6yf0000q0uiei40rdow",
+  "userId": "cmuxck9vs0003q0uia1vi1kkr",
+  "role": "VIEWER",
+  "jobTitle": null,
+  "createdAt": "2026-10-07T00:06:08.584Z"
+ },
+ {
+  "id": "cmuxckeqn000dq0ui6zmn1r0x",
+  "organizationId": "cmuxckd4h000aq0uixy1b1lh3",
+  "userId": "cmuxcke0s000bq0ui76bfqv21",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-07T00:06:11.615Z"
+ },
+ {
+  "id": "cmuxckoka0005q0w3m9mekr5p",
+  "organizationId": "cmuxckkor0000q0w30eyfeype",
+  "userId": "cmuxcklun0001q0w3icuel67g",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-07T00:06:24.347Z"
+ },
+ {
+  "id": "cmuxckpq50007q0w362pzsa3z",
+  "organizationId": "cmuxckkor0000q0w30eyfeype",
+  "userId": "cmuxckn0h0002q0w3qazpj274",
+  "role": "BUYER",
+  "jobTitle": null,
+  "createdAt": "2026-10-07T00:06:25.853Z"
+ },
+ {
+  "id": "cmuxckqi20009q0w35ackwrwc",
+  "organizationId": "cmuxckkor0000q0w30eyfeype",
+  "userId": "cmuxcknse0003q0w3nvf4eraw",
+  "role": "VIEWER",
+  "jobTitle": null,
+  "createdAt": "2026-10-07T00:06:26.858Z"
+ },
+ {
+  "id": "cmuxckt0s000dq0w3o3p261rf",
+  "organizationId": "cmuxckr9z000aq0w3t71rcnt4",
+  "userId": "cmuxcks8v000bq0w3cpqueyiz",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-07T00:06:30.124Z"
+ },
+ {
+  "id": "cmuxcl34q0005q0x0jqq9g72h",
+  "organizationId": "cmuxckzdb0000q0x05c4s3le1",
+  "userId": "cmuxcl0hz0001q0x06vsilvgo",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-07T00:06:43.226Z"
+ },
+ {
+  "id": "cmuxcl49b0007q0x0k7kyh47u",
+  "organizationId": "cmuxckzdb0000q0x05c4s3le1",
+  "userId": "cmuxcl1ml0002q0x0kd6ff77s",
+  "role": "BUYER",
+  "jobTitle": null,
+  "createdAt": "2026-10-07T00:06:44.688Z"
+ },
+ {
+  "id": "cmuxcl50e0009q0x0awwbicn7",
+  "organizationId": "cmuxckzdb0000q0x05c4s3le1",
+  "userId": "cmuxcl2do0003q0x04hgm5xxj",
+  "role": "VIEWER",
+  "jobTitle": null,
+  "createdAt": "2026-10-07T00:06:45.663Z"
+ },
+ {
+  "id": "cmuxcl7ge000dq0x0x3ba1q47",
+  "organizationId": "cmuxcl5rh000aq0x0aylz6qdu",
+  "userId": "cmuxcl6pb000bq0x03atske2x",
+  "role": "OWNER",
+  "jobTitle": null,
+  "createdAt": "2026-10-07T00:06:48.830Z"
+ }
+]

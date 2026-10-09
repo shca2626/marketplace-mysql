@@ -290,6 +290,7 @@ export function CheckoutView() {
             productId: i.productId,
             quantity: i.quantity,
             variantId: i.variantId ?? null,
+            offerId: i.offerId ?? null,
           })),
           ...form,
           phone: form.phone || null,

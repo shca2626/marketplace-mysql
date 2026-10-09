@@ -319,7 +319,7 @@ export function IconTile({ name, accent, className, dark = false, size = 'md' }:
 }
 
 /** Monogram tile for entities & partners (navy deep surface, gold initials). */
-export function Monogram({ name, monogram, accent, size = 'md', dark = false }: { name: string; monogram?: string | null; accent?: string | null; size?: 'sm' | 'md' | 'lg' | 'xl'; dark?: boolean }) {
+export function Monogram({ name, monogram, accent, size = 'md', dark = false, className }: { name: string; monogram?: string | null; accent?: string | null; size?: 'sm' | 'md' | 'lg' | 'xl'; dark?: boolean; className?: string }) {
   const initials =
     monogram?.trim() ||
     name
@@ -339,6 +339,7 @@ export function Monogram({ name, monogram, accent, size = 'md', dark = false }: 
         size === 'lg' && 'h-16 w-16 text-lg rounded-xl',
         size === 'xl' && 'h-20 w-20 text-2xl rounded-2xl',
         dark && 'ring-1 ring-white/15',
+        className
       )}
       style={
         accent
@@ -390,6 +391,7 @@ export function StatTile({
   suffix,
   prefix,
   decimals,
+  compact,
   dark = false,
   sub,
 }: {
@@ -399,6 +401,7 @@ export function StatTile({
   suffix?: string
   prefix?: string
   decimals?: number
+  compact?: boolean
   dark?: boolean
   sub?: string
 }) {
@@ -408,7 +411,7 @@ export function StatTile({
         {icon && <IconTile name={icon} dark={dark} size="sm" />}
         <div className="min-w-0">
           <p className={cn('text-2xl font-bold tabular-nums', dark ? 'text-white' : 'text-bh-navy')}>
-            <CountUp value={value} suffix={suffix} prefix={prefix} decimals={decimals} />
+            <CountUp value={value} suffix={suffix} prefix={prefix} decimals={decimals} compact={compact} />
           </p>
           <p className={cn('truncate text-xs font-medium', dark ? 'text-white/65' : 'text-bh-muted')}>{label}</p>
           {sub && <p className={cn('mt-0.5 text-[11px]', dark ? 'text-white/45' : 'text-bh-faded')}>{sub}</p>}

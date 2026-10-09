@@ -143,6 +143,42 @@ export interface ProductDTO {
   metaTitle?: string | null
   metaDescription?: string | null
   variants?: ProductVariantDTO[]
+
+  // ── Legacy import/export fields (bulk CSV/JSON round-trip; older rows /
+  // partial selects may omit them — all optional) ──
+  brand?: string | null
+  condition?: string
+  tags?: string[]
+  shippingNote?: string | null
+  handlingDays?: number | null
+  weightKg?: number | null
+  minOrderQty?: number | null
+  maxPerOrder?: number | null
+  warrantyMonths?: number | null
+  /** Category-specific attribute values keyed by attribute key (attr.* columns). */
+  attributes?: Record<string, string | number | boolean | string[] | undefined>
+
+  // ── Shared-catalog offer aggregation (multi-vendor B2B2C) ──
+  offers?: ProductOfferSummaryDTO[]
+  /** Lowest ACTIVE offer price (null when no company offers the product). */
+  minOfferPrice?: number | null
+  offerCount?: number
+  approvalState?: string
+}
+
+/** Compact offer summary attached to public product payloads. */
+export interface ProductOfferSummaryDTO {
+  id: string
+  price: number
+  stock: number
+  moq: number | null
+  processingDays: number | null
+  freeShipping: boolean
+  shippingFee: number | null
+  sellerOrgId: string | null
+  sellerOrgName: string | null
+  sellerOrgSlug: string | null
+  storeName: string | null
 }
 
 export interface ReviewDTO {
@@ -208,6 +244,11 @@ export interface CartItem {
   variantId?: string | null
   variantLabel?: string | null
   sku?: string | null
+  // ── Shared-catalog offer purchase (B2B2C) ──
+  offerId?: string | null
+  sellerOrgId?: string | null
+  sellerOrgName?: string | null
+  leadTimeDays?: number | null
 }
 
 export interface StoreDTO {

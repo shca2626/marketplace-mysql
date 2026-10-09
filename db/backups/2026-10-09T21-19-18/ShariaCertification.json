@@ -1,0 +1,44 @@
+[
+ {
+  "id": "cmuvuaxce0082nehoub1g7yf4",
+  "financierProfileId": "cmuipydpn0007oktajlh7xad4",
+  "scholarName": "Sheikh Abdulrahman Al-Marani",
+  "scholarInstitution": "Yemeni Sharia Supervisory Board",
+  "certificateRef": "SSB-2026-114",
+  "scope": "Murabaha financing, SME facilities",
+  "issuedAt": "2024-10-01T00:00:00.000Z",
+  "expiresAt": "2026-10-15T22:47:08.000Z",
+  "reminderSentAt": "2026-10-05T22:47:26.045Z",
+  "documentUrl": null,
+  "createdAt": "2026-10-05T22:47:09.903Z",
+  "updatedAt": "2026-10-05T22:47:28.043Z"
+ },
+ {
+  "id": "cmuvuayzz0087neho3l3z0bku",
+  "financierProfileId": "cmuipydpn0007oktajlh7xad4",
+  "scholarName": "Dr. Mohammed Al-Hakimi",
+  "scholarInstitution": "Sanaa Center for Islamic Finance",
+  "certificateRef": "SCIF-2025-077",
+  "scope": "Ijara structures",
+  "issuedAt": "2023-01-01T00:00:00.000Z",
+  "expiresAt": "2025-09-01T00:00:00.000Z",
+  "reminderSentAt": "2026-10-05T22:47:26.045Z",
+  "documentUrl": null,
+  "createdAt": "2026-10-05T22:47:12.047Z",
+  "updatedAt": "2026-10-05T22:47:26.751Z"
+ },
+ {
+  "id": "cmuvub0gv008dnehoh7ut6vkc",
+  "financierProfileId": "cmuipydpn0007oktajlh7xad4",
+  "scholarName": "Sheikh Yahya Al-Shami",
+  "scholarInstitution": "Grand Mufti Council",
+  "certificateRef": "GMC-2026-002",
+  "scope": "General Sharia oversight",
+  "issuedAt": "2026-01-01T00:00:00.000Z",
+  "expiresAt": "2027-06-01T00:00:00.000Z",
+  "reminderSentAt": null,
+  "documentUrl": null,
+  "createdAt": "2026-10-05T22:47:13.952Z",
+  "updatedAt": "2026-10-05T22:47:13.952Z"
+ }
+]

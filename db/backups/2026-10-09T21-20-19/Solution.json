@@ -1,0 +1,50 @@
+[
+ {
+  "id": "cmuod0tue002hluj3qwbdnkci",
+  "slug": "home",
+  "title": "Solar for your home",
+  "tagline": "Lights that stay on. Bills that shrink.",
+  "description": "Complete home systems — panels, battery and inverter — sized by engineers for real Yemeni rooftops, with financing from 80,000 YER a month-equivalent.",
+  "audience": "HOME",
+  "icon": "Home",
+  "imageUrl": "/api/media/2026/09/90800a13-gf060o.full.png",
+  "accentColor": "#d97706",
+  "categorySlug": "solar-panels",
+  "position": 0,
+  "isActive": 1,
+  "createdAt": "2026-09-30T17:09:02.102Z",
+  "updatedAt": "2026-09-30T17:09:02.102Z"
+ },
+ {
+  "id": "cmuod0tug002mluj304mkm5bq",
+  "slug": "farm",
+  "title": "Farm & irrigation",
+  "tagline": "Pump water with sunlight, not diesel.",
+  "description": "Solar pumping systems sized for well depth and daily water demand — with crop-aligned financing that waits for harvest.",
+  "audience": "FARM",
+  "icon": "Sprout",
+  "imageUrl": "/api/media/2026/09/8d1f1aa7-kt1o6m.full.png",
+  "accentColor": "#059669",
+  "categorySlug": "solar-pumps",
+  "position": 1,
+  "isActive": 1,
+  "createdAt": "2026-09-30T17:09:02.104Z",
+  "updatedAt": "2026-09-30T17:09:02.104Z"
+ },
+ {
+  "id": "cmuod0tuh002rluj3ekjj0ci5",
+  "slug": "business",
+  "title": "Business & institutions",
+  "tagline": "Power your operation without generators.",
+  "description": "From corner shops to cold chains and clinics — commercial-scale systems with B2B procurement and fixed-rate financing up to 40M YER.",
+  "audience": "BUSINESS",
+  "icon": "Building2",
+  "imageUrl": "/api/media/2026/09/810405ec-z83xoh.full.png",
+  "accentColor": "#b45309",
+  "categorySlug": "batteries-storage",
+  "position": 2,
+  "isActive": 1,
+  "createdAt": "2026-09-30T17:09:02.105Z",
+  "updatedAt": "2026-09-30T17:09:02.105Z"
+ }
+]

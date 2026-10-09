@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/auth'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { invalidateTags } from '@/lib/cache'
 import { mediaUrlSchema } from '@/lib/catalog/validation'
@@ -24,11 +25,15 @@ const slideUpdateSchema = z.object({
   move: z.enum(['up', 'down']).optional(),
 })
 
-async function requireAdmin() {
+async function requireAdmin(permission?: string) {
   const user = await getSessionUser()
   if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
-  if (user.role !== 'ADMIN') return { error: NextResponse.json({ error: 'Admin access required' }, { status: 403 }) }
-  return { user }
+  if (user.role === 'ADMIN') return { user }
+  if (permission) {
+    const allowed = await userHasPlatformPermission(user.id, permission)
+    if (allowed) return { user }
+  }
+  return { error: NextResponse.json({ error: 'Admin access required' }, { status: 403 }) }
 }
 
 type RouteContext = { params: Promise<{ id: string }> }

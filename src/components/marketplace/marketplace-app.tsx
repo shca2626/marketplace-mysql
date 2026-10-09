@@ -93,7 +93,7 @@ export function MarketplaceApp() {
   // and keep state in sync when the user navigates with back/forward.
   useEffect(() => {
     let cancelled = false
-    void useMarketplace.persist.rehydrate().then(markStoreHydrated)
+    void Promise.resolve(useMarketplace.persist.rehydrate()).then(markStoreHydrated)
     if (parseLocation().view !== 'home') applyLocation()
     const onPopState = () => applyLocation()
     window.addEventListener('popstate', onPopState)

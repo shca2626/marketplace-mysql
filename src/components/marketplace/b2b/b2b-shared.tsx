@@ -11,6 +11,24 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
+// ── Active-context API contract (GET /api/context) ───────────────────────────
+
+export interface ContextOrgDTO {
+  id: string
+  name: string
+  slug: string
+  orgType: string
+  status: string
+  membershipRole: string
+  verified: boolean
+}
+
+export interface AuthzContextResponse {
+  orgs: ContextOrgDTO[]
+  activeOrg: ContextOrgDTO | null
+  isPlatformStaff: boolean
+}
+
 // ── API mutation helper ─────────────────────────────────────────────────────
 // Wraps fetch + JSON parsing; never throws. Toasts are left to callers so
 // success/UX copy stays contextual (same pattern as the admin console).

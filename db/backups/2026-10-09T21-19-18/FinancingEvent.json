@@ -1,0 +1,132 @@
+[
+ {
+  "id": "cmuixjrbv0005ok1b8bbpird0",
+  "agreementId": "cmuiutbz20001ok0ftbfq7pkf",
+  "type": "DISBURSEMENT",
+  "eventDate": "2026-09-26T10:00:00.000Z",
+  "amount": 6400000,
+  "note": "First tranche disbursed to Acme",
+  "reportedById": "cmuipydph0001okta7q5kme0s",
+  "createdAt": "2026-09-26T21:57:00.571Z"
+ },
+ {
+  "id": "cmuixk1hi0008ok1bth4lpzor",
+  "agreementId": "cmuiutbz20001ok0ftbfq7pkf",
+  "type": "DISBURSEMENT",
+  "eventDate": "2026-09-26T21:57:13.732Z",
+  "amount": 6400000,
+  "note": "First tranche disbursed to Acme",
+  "reportedById": "cmuipydph0001okta7q5kme0s",
+  "createdAt": "2026-09-26T21:57:13.734Z"
+ },
+ {
+  "id": "cmun5iqn2001ynfo5qpa95dcl",
+  "agreementId": "cmun5hdcy001mnfo5qgvgfw7b",
+  "type": "DISBURSEMENT",
+  "eventDate": "2026-09-29T20:51:13.827Z",
+  "amount": null,
+  "note": "Funding reported by the financier",
+  "reportedById": "cmun4unak000hnflpr2ku8phm",
+  "createdAt": "2026-09-29T20:51:14.655Z"
+ },
+ {
+  "id": "cmun5jpn70023nfo5hy6vxmnp",
+  "agreementId": "cmun5hdcy001mnfo5qgvgfw7b",
+  "type": "DISBURSEMENT",
+  "eventDate": "2026-09-29T12:00:00.000Z",
+  "amount": 2400000,
+  "note": "Full disbursement via Kuraimi branch transfer to applicant account — TTB-4417.",
+  "reportedById": "cmun4unak000hnflpr2ku8phm",
+  "createdAt": "2026-09-29T20:52:00.019Z"
+ },
+ {
+  "id": "cmuvuagsn007dnehomp16sa4t",
+  "agreementId": "cmuvu7m1d004ineho6wswzatz",
+  "type": "DISBURSEMENT",
+  "eventDate": "2026-10-05T22:46:47.042Z",
+  "amount": 400,
+  "note": "Disbursement confirmed via BANK (ref TEST-RAIL-001) — E2E probe A disbursement",
+  "reportedById": "cmuipydom0000oktaui7s4dx9",
+  "createdAt": "2026-10-05T22:46:48.456Z"
+ },
+ {
+  "id": "cmuvub4bm008jnehoqh6fvebq",
+  "agreementId": "cmuvu9l7x006inehoc6839sqs",
+  "type": "DISBURSEMENT",
+  "eventDate": "2026-10-05T22:47:17.672Z",
+  "amount": 1,
+  "note": "Disbursement confirmed via BANK (ref TEST-RAIL-FX-001) — FX snapshot YER→USD",
+  "reportedById": "cmuipydom0000oktaui7s4dx9",
+  "createdAt": "2026-10-05T22:47:18.946Z"
+ },
+ {
+  "id": "cmuvvqt480025ne9z3mpxusnn",
+  "agreementId": "cmuvvpnss001kne9z4zljegd2",
+  "type": "DISBURSEMENT",
+  "eventDate": "2026-10-05T23:27:29.044Z",
+  "amount": 104406.44,
+  "note": "Disbursement confirmed via BANK (ref MURABAHA-E2E-001) — Financier purchased the solar goods on the buyer's behalf (Murabaha step 6)",
+  "reportedById": "cmuipydom0000oktaui7s4dx9",
+  "createdAt": "2026-10-05T23:27:30.537Z"
+ },
+ {
+  "id": "cmuxbvklg002fq0x7gr4cgju8",
+  "agreementId": "cmuxbv4i6001xq0x7tderdviz",
+  "type": "DISBURSEMENT",
+  "eventDate": "2026-10-06T23:46:52.560Z",
+  "amount": 5000000,
+  "note": "Disbursed to Acme account",
+  "reportedById": "cmuipydph0001okta7q5kme0s",
+  "createdAt": "2026-10-06T23:46:52.805Z"
+ },
+ {
+  "id": "cmuxbvtl1002mq0x7xe2hgwac",
+  "agreementId": "cmuxbv4i6001xq0x7tderdviz",
+  "type": "EARLY_SETTLEMENT",
+  "eventDate": "2026-10-06T23:47:04.210Z",
+  "amount": 5200000,
+  "note": "Early settlement",
+  "reportedById": "cmuipydph0001okta7q5kme0s",
+  "createdAt": "2026-10-06T23:47:04.454Z"
+ },
+ {
+  "id": "cmuxbw1n2002tq0x7witqkxap",
+  "agreementId": "cmuxbv4i6001xq0x7tderdviz",
+  "type": "REPAYMENT",
+  "eventDate": "2026-10-06T23:47:14.893Z",
+  "amount": 1700000,
+  "note": null,
+  "reportedById": "cmuipydph0001okta7q5kme0s",
+  "createdAt": "2026-10-06T23:47:14.895Z"
+ },
+ {
+  "id": "cmuxc7lv9002fq03ja760pr2k",
+  "agreementId": "cmuxc7522001xq03jzmk4oyrx",
+  "type": "DISBURSEMENT",
+  "eventDate": "2026-10-06T23:56:14.083Z",
+  "amount": 5000000,
+  "note": "Disbursed to Acme account",
+  "reportedById": "cmuipydph0001okta7q5kme0s",
+  "createdAt": "2026-10-06T23:56:14.325Z"
+ },
+ {
+  "id": "cmuxc7w3y002mq03jf2rgnpka",
+  "agreementId": "cmuxc7522001xq03jzmk4oyrx",
+  "type": "EARLY_SETTLEMENT",
+  "eventDate": "2026-10-06T23:56:27.345Z",
+  "amount": 5200000,
+  "note": "Early settlement",
+  "reportedById": "cmuipydph0001okta7q5kme0s",
+  "createdAt": "2026-10-06T23:56:27.599Z"
+ },
+ {
+  "id": "cmuxc856x002tq03jrt6jar7w",
+  "agreementId": "cmuxc7522001xq03jzmk4oyrx",
+  "type": "REPAYMENT",
+  "eventDate": "2026-10-06T23:56:39.368Z",
+  "amount": 1700000,
+  "note": null,
+  "reportedById": "cmuipydph0001okta7q5kme0s",
+  "createdAt": "2026-10-06T23:56:39.369Z"
+ }
+]

@@ -87,7 +87,7 @@ export function SiteHeader() {
   // the session and load admin-controlled announcement text. All setState
   // calls live inside async callbacks (external-system sync).
   useEffect(() => {
-    void useMarketplace.persist.rehydrate().then(markStoreHydrated)
+    void Promise.resolve(useMarketplace.persist.rehydrate()).then(markStoreHydrated)
     let cancelled = false
     void (async () => {
       try {

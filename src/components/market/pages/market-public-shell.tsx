@@ -39,7 +39,7 @@ export function MarketPublicShell({ children }: { children: React.ReactNode }) {
     let cancelled = false
     // Persisted cart (skipHydration) — rehydrate after mount to avoid
     // SSR mismatch, exactly like MarketplaceApp does.
-    void useMarketplace.persist.rehydrate().then(markStoreHydrated)
+    void Promise.resolve(useMarketplace.persist.rehydrate()).then(markStoreHydrated)
 
     // Session restore with the SPA's ADM-001 resilience: only an explicit
     // 401 concludes "signed out"; transient failures retry briefly and keep

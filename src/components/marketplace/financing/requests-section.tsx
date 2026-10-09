@@ -664,6 +664,15 @@ interface ResupplyAnswer {
   multi: string[]
 }
 
+const EMPTY_RESUPPLY_ANSWER: ResupplyAnswer = {
+  valueText: '',
+  valueNumber: '',
+  valueDate: '',
+  accountDocumentId: '',
+  confirmed: false,
+  multi: [],
+}
+
 function ResupplyDialog({
   open,
   onOpenChange,
@@ -682,7 +691,7 @@ function ResupplyDialog({
   const { data: vaultData } = useApi<{ documents: import('@/lib/types').AccountDocumentDTO[] }>(open ? '/api/documents' : null)
 
   const setAnswer = (id: string, patch: Partial<ResupplyAnswer>) =>
-    setAnswers((prev) => ({ ...prev, [id]: { valueText: '', valueNumber: '', valueDate: '', accountDocumentId: '', confirmed: false, multi: [], ...prev[id], ...patch } }))
+    setAnswers((prev) => ({ ...prev, [id]: { ...EMPTY_RESUPPLY_ANSWER, ...prev[id], ...patch } }))
 
   const submit = async () => {
     const payload = items.map((s) => {

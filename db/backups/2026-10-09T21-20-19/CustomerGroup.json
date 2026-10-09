@@ -1,0 +1,20 @@
+[
+ {
+  "id": "cmuimbokw008nokn06jm7qpbr",
+  "key": "retail",
+  "name": "Retail (default)",
+  "description": null,
+  "priority": 0,
+  "isDefault": 1,
+  "createdAt": "2026-09-26T16:42:47.985Z"
+ },
+ {
+  "id": "cmuimbokx008ookn08kmxq7sw",
+  "key": "wholesale-tier-1",
+  "name": "Wholesale Tier 1",
+  "description": "Verified wholesale buyers — tier 1 contract pricing",
+  "priority": 10,
+  "isDefault": 0,
+  "createdAt": "2026-09-26T16:42:47.986Z"
+ }
+]

@@ -461,7 +461,7 @@ function SellerQuoteCard({ quote, onChanged }: { quote: QuoteDTO; onChanged: () 
             {validity && quote.status === 'SENT' && (
               <span className={validity.urgent ? ' font-semibold text-destructive' : ''}>
                 {' '}
-                · {validity.label}
+                · {validity.text}
               </span>
             )}
           </p>

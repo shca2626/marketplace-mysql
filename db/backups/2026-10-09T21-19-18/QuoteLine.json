@@ -1,0 +1,28 @@
+[
+ {
+  "id": "cmupykvet0003ndnn98pi3pih",
+  "quoteId": "cmupykvet0001ndnnrakfhzgy",
+  "rfqLineId": "cmupygox4000andxm8m2u2em2",
+  "productId": "cmupyb60z0009nd0fekbjhb9v",
+  "variantId": null,
+  "variantName": null,
+  "quantity": 25,
+  "unitPrice": 108,
+  "availableStock": null,
+  "offerId": null,
+  "offerVariantId": null
+ },
+ {
+  "id": "cmurb8kxd0003ma9kppupgrpk",
+  "quoteId": "cmurb8kxd0001ma9k17z25mkz",
+  "rfqLineId": "cmurayvas001zmaa9znh0exln",
+  "productId": "cmupyxt4l000hndv0ab8eb5q3",
+  "variantId": null,
+  "variantName": null,
+  "quantity": 30,
+  "unitPrice": 95,
+  "availableStock": null,
+  "offerId": null,
+  "offerVariantId": null
+ }
+]

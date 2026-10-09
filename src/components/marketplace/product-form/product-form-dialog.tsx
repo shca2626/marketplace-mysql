@@ -18,7 +18,7 @@ import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
 import type { AttributeValue } from '@/lib/catalog/definitions'
 import { attributesForCategory, CONDITIONS } from '@/lib/catalog/definitions'
-import type { CategoryDTO, ProductDTO } from '@/lib/types'
+import type { CategoryDTO, ProductDTO, ProductVariantDTO } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -133,7 +133,7 @@ function fromProduct(p: ProductDTO): FormState {
     categoryId: p.categoryId,
     brand: p.brand ?? '',
     condition: p.condition || 'NEW',
-    tags: [...p.tags],
+    tags: [...(p.tags ?? [])],
     price: String(p.price),
     compareAtPrice: p.compareAtPrice ? String(p.compareAtPrice) : '',
     stock: String(p.stock),
@@ -144,15 +144,15 @@ function fromProduct(p: ProductDTO): FormState {
     status: p.status,
     images: [...p.images],
     videoUrl: p.videoUrl ?? '',
-    variants: p.variants.map((v) => ({
+    variants: (p.variants ?? []).map((v) => ({
       id: v.id,
       options: v.options,
       stock: v.stock,
-      priceDelta: v.priceDelta,
+      priceDelta: (v as ProductVariantDTO & { priceDelta?: number }).priceDelta ?? 0,
       sku: v.sku ?? '',
     })),
-    variantGroups: groupsFromVariants(p.variants),
-    freeShipping: p.freeShipping,
+    variantGroups: groupsFromVariants(p.variants ?? []),
+    freeShipping: p.freeShipping ?? false,
     shippingNote: p.shippingNote ?? '',
     handlingDays: String(p.handlingDays ?? 2),
     weightKg: p.weightKg != null ? String(p.weightKg) : '',

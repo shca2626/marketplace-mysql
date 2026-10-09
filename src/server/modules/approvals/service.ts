@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import type { Prisma } from '@prisma/client'
 import { recordAudit } from '@/server/modules/audit/service'
 import { emitNotification, emitNotifications, type EmitInput } from '@/server/modules/notifications/service'
 
@@ -160,7 +161,7 @@ const approvalInclude = {
   quote: { select: { id: true, number: true, total: true, paymentTerms: true, validUntil: true, status: true } },
 } as const
 
-type ApprovalRaw = Awaited<ReturnType<typeof db.approvalRequest.findFirstOrThrow>>
+type ApprovalRaw = Prisma.ApprovalRequestGetPayload<{ include: typeof approvalInclude }>
 
 function serializeApproval(r: ApprovalRaw) {
   const amount = Number(r.amount)

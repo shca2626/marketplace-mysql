@@ -238,6 +238,20 @@ export const PERMISSION_DOMAINS: PermissionDomain[] = [
     ],
   },
   {
+    key: 'org-selling',
+    label: 'Selling & Catalog',
+    scope: 'ORG',
+    description: 'Company offers on the shared catalog, product proposals, stores and sales.',
+    permissions: [
+      { key: 'org.selling.view', label: 'View selling workspace', description: 'See the company selling dashboard, offers and sales KPIs.' },
+      { key: 'org.offers.manage', label: 'Manage offers', description: 'Create and edit the company\'s offers (price, stock, variants, lead time) on shared-catalog products.' },
+      { key: 'org.proposals.manage', label: 'Propose products', description: 'Submit new product proposals and manage them until platform approval.' },
+      { key: 'org.stores.manage', label: 'Manage stores', description: 'Create and manage the company\'s store(s) within the platform store limit.' },
+      { key: 'org.sales.view', label: 'View sales orders', description: 'See incoming sales orders and fulfillment queues for company offers.' },
+      { key: 'org.sales.fulfill', label: 'Fulfill sales orders', description: 'Advance fulfillment status on orders for company offers.' },
+    ],
+  },
+  {
     key: 'org-finance',
     label: 'Financing (applicant)',
     scope: 'ORG',
@@ -477,3 +491,66 @@ export const PROTECTED_ROLE_KEYS: string[] = ['platform.super-admin', 'org.owner
 export function isProtectedRoleKey(key: string): boolean {
   return PROTECTED_ROLE_KEYS.includes(key)
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ORG-TYPE PERMISSION ALLOWLISTS (Phase 2 canonical RBAC)
+//
+// Which ORG-scope permissions make sense for which organization type.
+// Enforced server-side by the authz evaluator — a COMPANY owner cannot grant
+// financier.* permissions and a BANK owner cannot grant selling/procurement
+// permissions. PLATFORM permissions are never grantable by org owners.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Permissions any organization type may hold (institution-neutral basics). */
+const ORG_UNIVERSAL_PERMISSIONS = ['org.profile.view', 'org.profile.update', 'org.members.invite', 'org.members.manage']
+
+/** COMPANY: commerce (buy + sell) + procurement + financing-as-applicant. */
+export const COMPANY_ORG_PERMISSIONS: string[] = [
+  ...ORG_UNIVERSAL_PERMISSIONS,
+  'org.orders.view',
+  'org.rfq.view',
+  'org.rfq.create',
+  'org.approvals.manage',
+  'org.pricelists.view',
+  'org.pricelists.manage',
+  'org.finance.view',
+  'org.finance.apply',
+  'org.selling.view',
+  'org.offers.manage',
+  'org.proposals.manage',
+  'org.stores.manage',
+  'org.sales.view',
+  'org.sales.fulfill',
+]
+
+/** BANK / MFI / EWALLET: financing institution operations only — no selling, no procurement. */
+export const FINANCIER_ORG_PERMISSIONS: string[] = [
+  ...ORG_UNIVERSAL_PERMISSIONS,
+  'org.finance.view',
+  'financier.services.manage',
+  'financier.services.publish',
+  'financier.requests.view',
+  'financier.offers.manage',
+  'financier.agreements.manage',
+  'financier.accreditations.manage',
+  'financier.team.manage',
+]
+
+export function orgTypeAllowlist(orgType: string): string[] {
+  switch (orgType) {
+    case 'BANK':
+    case 'MFI':
+    case 'EWALLET':
+      return FINANCIER_ORG_PERMISSIONS
+    case 'COMPANY':
+    default:
+      return COMPANY_ORG_PERMISSIONS
+  }
+}
+
+export function isPlatformPermission(key: string): boolean {
+  return ALL_PLATFORM_PERMISSIONS.includes(key)
+}
+
+/** Organization types that may sell on the shared catalog. */
+export const SELLING_ORG_TYPES = new Set(['COMPANY'])

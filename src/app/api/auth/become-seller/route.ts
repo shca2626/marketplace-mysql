@@ -1,72 +1,33 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import { db } from '@/lib/db'
-import { getSessionUser, toSessionUser } from '@/lib/auth'
-import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
+import { NextResponse } from 'next/server'
 import { recordAudit } from '@/server/modules/audit/service'
-import { buildSessionRbac } from '@/server/modules/rbac/service'
+import { getSessionUser } from '@/lib/auth'
 
-const schema = z.object({
-  storeName: z.string().min(2, 'Store name must be at least 2 characters').max(60),
-  storeBio: z.string().max(300).optional().nullable(),
-})
+// POST /api/auth/become-seller — RETIRED (B2C + B2B2C model, no C2C).
+//
+// Individuals are customers only and can never open a personal storefront.
+// Selling on Vendora happens through COMPANY organizations offering on the
+// shared catalog (company workspace → Selling). This endpoint now answers 403
+// for every caller so the old C2C flow is dead at the API level, not just
+// hidden in the UI.
+export async function POST() {
+  const user = await getSessionUser()
+  if (!user) return NextResponse.json({ error: 'Please sign in first' }, { status: 401 })
 
-// POST /api/auth/become-seller — upgrade buyer account to seller
-export async function POST(req: NextRequest) {
-  try {
-    const csrf = assertSameOrigin(req)
-    if (csrf) return csrf
+  await recordAudit({
+    actorId: user.id,
+    actorType: 'USER',
+    action: 'BECOME_SELLER_BLOCKED',
+    entityType: 'User',
+    entityId: user.id,
+    summary: 'Personal seller signup blocked — selling moved to company organizations',
+  })
 
-    const user = await getSessionUser()
-    if (!user) return NextResponse.json({ error: 'Please sign in first' }, { status: 401 })
-
-    const rl = enforceRateLimit(req, 'become-seller', { limit: 5, windowMs: 10 * 60_000 }, user.id)
-    if (rl) return rl
-
-    if (user.role === 'SELLER') {
-      const rbac = await buildSessionRbac(user)
-      return NextResponse.json({ user: toSessionUser(user, rbac) })
-    }
-    // Admins must not lose their platform role through the storefront flow —
-    // this guard prevents the "admin downgraded to seller" regression.
-    if (user.role === 'ADMIN') {
-      return NextResponse.json(
-        { error: 'Admin accounts already have full marketplace access' },
-        { status: 403 }
-      )
-    }
-
-    const body = await req.json()
-    const parsed = schema.safeParse(body)
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0]?.message ?? 'Invalid input' },
-        { status: 400 }
-      )
-    }
-
-    const updated = await db.user.update({
-      where: { id: user.id },
-      data: {
-        role: 'SELLER',
-        storeName: parsed.data.storeName,
-        storeBio: parsed.data.storeBio ?? null,
-      },
-    })
-
-    await recordAudit({
-      actorId: user.id,
-      actorType: 'USER',
-      action: 'USER_BECAME_SELLER',
-      entityType: 'User',
-      entityId: user.id,
-      summary: `Account upgraded to seller: "${updated.storeName}"`,
-    })
-
-    const rbac = await buildSessionRbac(updated)
-    return NextResponse.json({ user: toSessionUser(updated, rbac) })
-  } catch (err) {
-    console.error('become-seller error', err)
-    return NextResponse.json({ error: 'Failed to upgrade account' }, { status: 500 })
-  }
+  return NextResponse.json(
+    {
+      error:
+        'Personal storefronts are retired. Selling on Vendora happens through a company organization — open your Company workspace to manage offers on the shared catalog.',
+      code: 'SELLING_NOT_ALLOWED',
+    },
+    { status: 403, headers: { 'X-Authz-Deny': 'SELLING_NOT_ALLOWED' } }
+  )
 }

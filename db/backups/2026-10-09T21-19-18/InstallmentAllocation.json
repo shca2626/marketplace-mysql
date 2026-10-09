@@ -1,0 +1,44 @@
+[
+ {
+  "id": "cmuvuokrf000kne5snhp5mamz",
+  "paymentId": "cmuvuodkz0005ne5swqak7fpe",
+  "installmentId": "cmuvu7die0047nehonuhempk6",
+  "amount": 60,
+  "createdAt": "2026-10-05T22:57:46.779Z"
+ },
+ {
+  "id": "cmuvup225000pne5sv6u5ezy6",
+  "paymentId": "cmuvuovsv000nne5s1saujcw6",
+  "installmentId": "cmuvu7die0047nehonuhempk6",
+  "amount": 40,
+  "createdAt": "2026-10-05T22:58:09.197Z"
+ },
+ {
+  "id": "cmuvup225000qne5snwox44x5",
+  "paymentId": "cmuvuovsv000nne5s1saujcw6",
+  "installmentId": "cmuvu7die0048nehowecl78yf",
+  "amount": 100,
+  "createdAt": "2026-10-05T22:58:09.197Z"
+ },
+ {
+  "id": "cmuvup225000rne5sevmj51j8",
+  "paymentId": "cmuvuovsv000nne5s1saujcw6",
+  "installmentId": "cmuvu7die0049neho9fmys72x",
+  "amount": 10,
+  "createdAt": "2026-10-05T22:58:09.197Z"
+ },
+ {
+  "id": "cmuvurak4000yne5sb65oh80y",
+  "paymentId": "cmuvura9y000xne5sexws4hg8",
+  "installmentId": "cmuvu7die0047nehonuhempk6",
+  "amount": 40,
+  "createdAt": "2026-10-05T22:59:53.525Z"
+ },
+ {
+  "id": "cmuvurak4000zne5s61tdo8m8",
+  "paymentId": "cmuvura9y000xne5sexws4hg8",
+  "installmentId": "cmuvu7die0048nehowecl78yf",
+  "amount": 10,
+  "createdAt": "2026-10-05T22:59:53.525Z"
+ }
+]

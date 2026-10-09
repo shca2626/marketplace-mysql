@@ -16,6 +16,7 @@ import {
   Plus,
   ReceiptText,
   ShieldAlert,
+  Store,
   UserPlus,
   Users,
   Wallet,
@@ -39,9 +40,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
-import { apiRequest, ORG_ROLE_MAP, ORG_STATUS_MAP, StatusBadge } from './b2b-shared'
+import { apiRequest, ORG_ROLE_MAP, ORG_STATUS_MAP, StatusBadge, type AuthzContextResponse } from './b2b-shared'
 import { ApprovalsCard } from './approvals-card'
+import { SellingContextGate, SellingSection } from './selling-section'
 
 // ── Register-form state ─────────────────────────────────────────────────────
 
@@ -93,6 +96,52 @@ export function BusinessView() {
   const openAuth = useMarketplace((s) => s.openAuth)
   const navigate = useMarketplace((s) => s.navigate)
 
+  // Active context (authz): the orgs the user belongs to + the server-validated
+  // active organization. The Selling console targets the active COMPANY org;
+  // the overview follows it too (falling back to the first org until the user
+  // has ever picked a context).
+  const { data: ctxData, refetch: refetchContext } = useApi<AuthzContextResponse>(
+    user ? '/api/context' : null,
+    { skip: !user }
+  )
+  const contextOrgs = ctxData?.orgs ?? []
+  const activeContextOrg = ctxData?.activeOrg ?? null
+  const companyOrgs = useMemo(
+    () => contextOrgs.filter((o) => o.orgType === 'COMPANY'),
+    [contextOrgs]
+  )
+
+  // Context switching — same endpoint the header switcher uses (server-side
+  // membership validation; the cookie is only a selector).
+  const [switching, setSwitching] = useState(false)
+  const switchContext = async (organizationId: string) => {
+    if (switching) return
+    setSwitching(true)
+    try {
+      const res = await fetch('/api/context/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ organizationId }),
+      })
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { error?: string }
+        toast({
+          title: 'Could not switch context',
+          description: json.error ?? 'Please try again in a moment.',
+          variant: 'destructive',
+        })
+        return false
+      }
+      await refetchContext()
+      return true
+    } catch {
+      toast({ title: 'Could not switch context', description: 'Network error — please try again.', variant: 'destructive' })
+      return false
+    } finally {
+      setSwitching(false)
+    }
+  }
+
   const {
     data: orgListData,
     loading: orgsLoading,
@@ -102,8 +151,10 @@ export function BusinessView() {
   })
 
   const orgs = useMemo(() => orgListData?.organizations ?? [], [orgListData])
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const activeOrgId = selectedId && orgs.some((o) => o.id === selectedId) ? selectedId : orgs[0]?.id ?? null
+  // Local fallback selection — only used while no context has been chosen (or
+  // if a context switch ever fails), so the overview never goes blank.
+  const [localOrgId, setLocalOrgId] = useState<string | null>(null)
+  const activeOrgId = activeContextOrg?.id ?? (localOrgId && orgs.some((o) => o.id === localOrgId) ? localOrgId : orgs[0]?.id) ?? null
   const selected = orgs.find((o) => o.id === activeOrgId) ?? null
 
   // Detail (members + groups) for the selected organization
@@ -160,7 +211,9 @@ export function BusinessView() {
       return
     }
     setForm(EMPTY_FORM)
-    setSelectedId(res.data.organization.id)
+    // Jump the console (and the active context) to the freshly created org
+    const switched = await switchContext(res.data.organization.id)
+    if (!switched) setLocalOrgId(res.data.organization.id)
     void refetchOrgs()
     toast({
       title: `Welcome aboard, ${res.data.organization.name}!`,
@@ -398,15 +451,23 @@ export function BusinessView() {
           </section>
         </div>
       ) : (
-        /* ── Has organization: status card + members ── */
+        /* ── Has organization: company workspace (Overview + Selling tabs) ── */
         <div className="mt-8 space-y-6">
-          {/* Org selector when a user belongs to several businesses */}
+          {/* Org selector when a user belongs to several businesses — switching
+              also switches the ACTIVE CONTEXT (same endpoint as the header) so
+              the Selling console always targets the org being viewed. */}
           {orgs.length > 1 && (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Viewing
               </span>
-              <Select value={activeOrgId ?? undefined} onValueChange={setSelectedId}>
+              <Select
+                value={activeOrgId ?? undefined}
+                onValueChange={(v) => {
+                  if (v !== activeContextOrg?.id) void switchContext(v)
+                }}
+                disabled={switching}
+              >
                 <SelectTrigger className="h-9 w-64 rounded-full text-sm" aria-label="Select organization">
                   <SelectValue placeholder="Select organization" />
                 </SelectTrigger>
@@ -421,177 +482,212 @@ export function BusinessView() {
             </div>
           )}
 
-          <OrgStatusCard org={detail} loading={detailLoading && !detailData} />
+          <Tabs defaultValue="overview">
+            <TabsList className="h-auto w-full justify-start overflow-x-auto rounded-xl bg-muted/60 p-1 sm:w-auto">
+              <TabsTrigger value="overview" className="gap-1.5 rounded-lg px-3.5 py-1.5">
+                <Building2 size={14} /> Overview
+              </TabsTrigger>
+              {companyOrgs.length > 0 && (
+                <TabsTrigger value="selling" className="gap-1.5 rounded-lg px-3.5 py-1.5">
+                  <Store size={14} /> Selling
+                </TabsTrigger>
+              )}
+            </TabsList>
 
-          {/* Purchase-approval workflow (ACTIVE orgs) */}
-          {detail?.status === 'ACTIVE' && (
-            <ApprovalsCard org={detail} myRole={detail.myRole} onChanged={() => void refetchDetail()} />
-          )}
+            <TabsContent value="overview" className="mt-6 space-y-6">
+              <OrgStatusCard org={detail} loading={detailLoading && !detailData} />
 
-          {/* Members */}
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center justify-between gap-2 text-base">
-                <span className="flex items-center gap-2">
-                  <Users size={16} className="text-primary" /> Team members
-                  <span className="rounded-full bg-muted px-1.5 text-[11px] font-bold tabular-nums text-muted-foreground">
-                    {detail?.members?.length ?? orgs.find((o) => o.id === activeOrgId)?.memberCount ?? 0}
-                  </span>
-                </span>
-                {detail?.myRole && (
-                  <span className="text-xs font-normal text-muted-foreground">
-                    You are <StatusBadge status={detail.myRole} map={ORG_ROLE_MAP} />
-                  </span>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {detailLoading && !detailData ? (
-                <div className="space-y-3">
-                  {Array.from({ length: 2 }).map((_, i) => (
-                    <Skeleton key={i} className="h-14 w-full rounded-xl" />
-                  ))}
-                </div>
-              ) : (detail?.members ?? []).length === 0 ? (
-                <p className="rounded-xl border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
-                  No members yet — invite your team below.
-                </p>
-              ) : (
-                <ul className="divide-y rounded-xl border">
-                  {(detail?.members ?? []).map((m) => (
-                    <li key={m.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                      <Avatar className="h-9 w-9 border">
-                        <AvatarFallback className="bg-primary/10 text-xs font-bold text-primary">
-                          {initials(m.user.name)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold">{m.user.name}</p>
-                        <p className="flex min-w-0 items-center gap-1 truncate text-xs text-muted-foreground">
-                          <Mail size={11} className="shrink-0" /> {m.user.email}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        {m.jobTitle && (
-                          <span className="hidden text-xs text-muted-foreground sm:inline">{m.jobTitle}</span>
-                        )}
-                        <StatusBadge status={m.role} map={ORG_ROLE_MAP} />
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+              {/* Purchase-approval workflow (ACTIVE orgs) */}
+              {detail?.status === 'ACTIVE' && (
+                <ApprovalsCard org={detail} myRole={detail.myRole} onChanged={() => void refetchDetail()} />
               )}
 
-              <Separator />
-
-              {canManageMembers ? (
-                <form onSubmit={submitAddMember} className="space-y-3" noValidate>
-                  <p className="text-sm font-semibold">Add a member</p>
-                  <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="member-email" className="sr-only">
-                        Email
-                      </Label>
-                      <Input
-                        id="member-email"
-                        type="email"
-                        value={memberForm.email}
-                        onChange={(e) => {
-                          setMemberForm((f) => ({ ...f, email: e.target.value }))
-                          if (memberError) setMemberError(null)
-                        }}
-                        placeholder="colleague@company.com"
-                        className="rounded-xl"
-                        aria-invalid={!!memberError}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="member-role" className="sr-only">
-                        Role
-                      </Label>
-                      <Select
-                        value={memberForm.role}
-                        onValueChange={(v) => setMemberForm((f) => ({ ...f, role: v }))}
-                      >
-                        <SelectTrigger id="member-role" className="h-10 w-full rounded-xl sm:w-36" aria-label="Member role">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ADMIN">Admin</SelectItem>
-                          <SelectItem value="BUYER">Buyer</SelectItem>
-                          <SelectItem value="APPROVER">Approver</SelectItem>
-                          <SelectItem value="VIEWER">Viewer</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="member-title" className="sr-only">
-                        Job title
-                      </Label>
-                      <Input
-                        id="member-title"
-                        value={memberForm.jobTitle}
-                        onChange={(e) => setMemberForm((f) => ({ ...f, jobTitle: e.target.value }))}
-                        placeholder="Job title (optional)"
-                        className="rounded-xl"
-                        maxLength={80}
-                      />
-                    </div>
-                  </div>
-                  {memberError && (
-                    <p
-                      role="alert"
-                      className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive"
-                    >
-                      <ShieldAlert size={14} className="mt-px shrink-0" />
-                      <span className="min-w-0 break-words">{memberError}</span>
-                    </p>
+            {/* Members */}
+            <Card>
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center justify-between gap-2 text-base">
+                  <span className="flex items-center gap-2">
+                    <Users size={16} className="text-primary" /> Team members
+                    <span className="rounded-full bg-muted px-1.5 text-[11px] font-bold tabular-nums text-muted-foreground">
+                      {detail?.members?.length ?? orgs.find((o) => o.id === activeOrgId)?.memberCount ?? 0}
+                    </span>
+                  </span>
+                  {detail?.myRole && (
+                    <span className="text-xs font-normal text-muted-foreground">
+                      You are <StatusBadge status={detail.myRole} map={ORG_ROLE_MAP} />
+                    </span>
                   )}
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <p className="text-xs text-muted-foreground">
-                      They need an existing Vendora account with that email.
-                    </p>
-                    <Button type="submit" variant="outline" className="rounded-xl" disabled={addingMember}>
-                      {addingMember ? (
-                        <>
-                          <Loader2 size={14} className="mr-1.5 animate-spin" /> Adding…
-                        </>
-                      ) : (
-                        <>
-                          <Plus size={14} className="mr-1.5" /> Add member
-                        </>
-                      )}
-                    </Button>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {detailLoading && !detailData ? (
+                  <div className="space-y-3">
+                    {Array.from({ length: 2 }).map((_, i) => (
+                      <Skeleton key={i} className="h-14 w-full rounded-xl" />
+                    ))}
                   </div>
-                </form>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  Only owners and admins can add members — ask {detail?.name}&apos;s owner to invite
-                  new colleagues.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Where B2B actually happens */}
-          <Card className="border-primary/30 bg-primary/5">
-            <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
-                  <FileText size={18} />
-                </span>
-                <div>
-                  <p className="text-sm font-semibold">Request bulk pricing</p>
-                  <p className="text-xs text-muted-foreground">
-                    Send a request for quote on behalf of {detail?.name ?? 'your business'}.
+                ) : (detail?.members ?? []).length === 0 ? (
+                  <p className="rounded-xl border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
+                    No members yet — invite your team below.
                   </p>
+                ) : (
+                  <ul className="divide-y rounded-xl border">
+                    {(detail?.members ?? []).map((m) => (
+                      <li key={m.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                        <Avatar className="h-9 w-9 border">
+                          <AvatarFallback className="bg-primary/10 text-xs font-bold text-primary">
+                            {initials(m.user.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold">{m.user.name}</p>
+                          <p className="flex min-w-0 items-center gap-1 truncate text-xs text-muted-foreground">
+                            <Mail size={11} className="shrink-0" /> {m.user.email}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {m.jobTitle && (
+                            <span className="hidden text-xs text-muted-foreground sm:inline">{m.jobTitle}</span>
+                          )}
+                          <StatusBadge status={m.role} map={ORG_ROLE_MAP} />
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <Separator />
+
+                {canManageMembers ? (
+                  <form onSubmit={submitAddMember} className="space-y-3" noValidate>
+                    <p className="text-sm font-semibold">Add a member</p>
+                    <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="member-email" className="sr-only">
+                          Email
+                        </Label>
+                        <Input
+                          id="member-email"
+                          type="email"
+                          value={memberForm.email}
+                          onChange={(e) => {
+                            setMemberForm((f) => ({ ...f, email: e.target.value }))
+                            if (memberError) setMemberError(null)
+                          }}
+                          placeholder="colleague@company.com"
+                          className="rounded-xl"
+                          aria-invalid={!!memberError}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="member-role" className="sr-only">
+                          Role
+                        </Label>
+                        <Select
+                          value={memberForm.role}
+                          onValueChange={(v) => setMemberForm((f) => ({ ...f, role: v }))}
+                        >
+                          <SelectTrigger id="member-role" className="h-10 w-full rounded-xl sm:w-36" aria-label="Member role">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="ADMIN">Admin</SelectItem>
+                            <SelectItem value="BUYER">Buyer</SelectItem>
+                            <SelectItem value="APPROVER">Approver</SelectItem>
+                            <SelectItem value="VIEWER">Viewer</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="member-title" className="sr-only">
+                          Job title
+                        </Label>
+                        <Input
+                          id="member-title"
+                          value={memberForm.jobTitle}
+                          onChange={(e) => setMemberForm((f) => ({ ...f, jobTitle: e.target.value }))}
+                          placeholder="Job title (optional)"
+                          className="rounded-xl"
+                          maxLength={80}
+                        />
+                      </div>
+                    </div>
+                    {memberError && (
+                      <p
+                        role="alert"
+                        className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive"
+                      >
+                        <ShieldAlert size={14} className="mt-px shrink-0" />
+                        <span className="min-w-0 break-words">{memberError}</span>
+                      </p>
+                    )}
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-xs text-muted-foreground">
+                        They need an existing Vendora account with that email.
+                      </p>
+                      <Button type="submit" variant="outline" className="rounded-xl" disabled={addingMember}>
+                        {addingMember ? (
+                          <>
+                            <Loader2 size={14} className="mr-1.5 animate-spin" /> Adding…
+                          </>
+                        ) : (
+                          <>
+                            <Plus size={14} className="mr-1.5" /> Add member
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </form>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Only owners and admins can add members — ask {detail?.name}&apos;s owner to invite
+                    new colleagues.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Where B2B actually happens */}
+            <Card className="border-primary/30 bg-primary/5">
+              <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                    <FileText size={18} />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold">Request bulk pricing</p>
+                    <p className="text-xs text-muted-foreground">
+                      Send a request for quote on behalf of {detail?.name ?? 'your business'}.
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <Button className="rounded-xl" onClick={() => navigate('rfqs')}>
-                Go to RFQs
-              </Button>
-            </CardContent>
-          </Card>
+                <Button className="rounded-xl" onClick={() => navigate('rfqs')}>
+                  Go to RFQs
+                </Button>
+              </CardContent>
+            </Card>
+            </TabsContent>
+
+            {/* ── Selling (company orgs) — offers, proposals, stores, sales ── */}
+            {companyOrgs.length > 0 && (
+              <TabsContent value="selling" className="mt-6">
+                {activeContextOrg?.orgType === 'COMPANY' ? (
+                  <SellingSection organizationId={activeContextOrg.id} orgName={activeContextOrg.name} />
+                ) : (
+                  <SellingContextGate
+                    companyOrgs={companyOrgs}
+                    activeLabel={
+                      activeContextOrg
+                        ? `working as ${activeContextOrg.name}`
+                        : 'in your personal context'
+                    }
+                    switching={switching}
+                    onSwitch={(id) => void switchContext(id)}
+                  />
+                )}
+              </TabsContent>
+            )}
+          </Tabs>
         </div>
       )}
     </div>

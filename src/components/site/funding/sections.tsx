@@ -634,7 +634,7 @@ export function ProgramHero({ service }: { service: ProgramDetailData }) {
             <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 font-semibold text-emerald-700">Sharia-compliant</span>
           )}
           {SEGMENT_LABELS[service.targetSegment ?? ''] && (
-            <span className="rounded border border-bh-border bg-bh-page px-2 py-1 text-bh-muted">{SEGMENT_LABELS[service.targetSegment]}</span>
+            <span className="rounded border border-bh-border bg-bh-page px-2 py-1 text-bh-muted">{SEGMENT_LABELS[service.targetSegment ?? '']}</span>
           )}
           {service.entity.name && (
             <span className="rounded border border-bh-border bg-bh-page px-2 py-1 text-bh-muted">by {service.entity.name}</span>
@@ -663,7 +663,7 @@ export function KeyFactsPanel({ service }: { service: ProgramDetailData }) {
     if (service.gracePeriodDays != null) rows.push({ label: 'Grace period', value: `up to ${Math.round(service.gracePeriodDays / 30)} months` })
     const tenor = tenorLabel(service.tenorMinMonths, service.tenorMaxMonths)
     if (tenor) rows.push({ label: 'Repayment period', value: tenor })
-    if (REPAYMENT_LABELS[service.repaymentFrequency ?? '']) rows.push({ label: 'Repayment', value: REPAYMENT_LABELS[service.repaymentFrequency] })
+    if (REPAYMENT_LABELS[service.repaymentFrequency ?? '']) rows.push({ label: 'Repayment', value: REPAYMENT_LABELS[service.repaymentFrequency ?? ''] })
     if (service.processingDays != null) rows.push({ label: 'Decision time', value: `≈ ${service.processingDays} days` })
     rows.push({ label: 'Currency', value: service.currency === 'YER' ? 'Yemeni Rial (YER)' : service.currency })
   }

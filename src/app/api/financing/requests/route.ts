@@ -6,6 +6,7 @@ import {
   createFinancingRequest,
   createMultiFinancingRequests,
   listMyFinancingRequests,
+  type FinancingRequestDetailDTO,
 } from '@/server/modules/financing/requests'
 import { FinancingError } from '@/server/modules/financing/shared'
 
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest) {
       : [await createFinancingRequest(user.id, { ...rest, serviceId: serviceId! })]
     if (doSubmit) {
       const { submitFinancingRequest } = await import('@/server/modules/financing/requests')
-      const submitted = []
+      const submitted: FinancingRequestDetailDTO[] = []
       for (const r of created) {
         submitted.push(await submitFinancingRequest(user.id, r.id, { consent, answers }))
       }

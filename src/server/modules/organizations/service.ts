@@ -50,7 +50,17 @@ function serializeOrg(
     members?: (Awaited<ReturnType<typeof db.organizationMember.findFirstOrThrow>> & {
       user: { id: string; name: string; email: string }
     })[]
-    groups?: { id: string; key: string; name: string; description: string | null; priority: number; isDefault: boolean; createdAt: Date }[]
+    groups?: {
+      customerGroup: {
+        id: string
+        key: string
+        name: string
+        description: string | null
+        priority: number
+        isDefault: boolean
+        createdAt: Date
+      }
+    }[]
   },
   myRole?: OrgRole
 ): OrganizationDTO {

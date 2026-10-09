@@ -74,7 +74,7 @@ export function CartView() {
                     size="sm"
                     className="h-8 rounded-full px-3 text-xs"
                     onClick={() => {
-                      const res = moveToCart(cartLineKey(item.productId, item.variantId))
+                      const res = moveToCart(cartLineKey(item.productId, item.variantId, item.offerId))
                       if (res.ok) toast({ title: 'Moved to cart', description: item.title })
                       else
                         toast({
@@ -90,7 +90,7 @@ export function CartView() {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                    onClick={() => removeFromSaved(cartLineKey(item.productId, item.variantId))}
+                    onClick={() => removeFromSaved(cartLineKey(item.productId, item.variantId, item.offerId))}
                     aria-label={`Remove ${item.title} from saved items`}
                   >
                     <Trash2 size={14} />
@@ -159,7 +159,7 @@ export function CartView() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-muted-foreground hover:text-primary"
-                          onClick={() => saveForLater(cartLineKey(item.productId, item.variantId))}
+                          onClick={() => saveForLater(cartLineKey(item.productId, item.variantId, item.offerId))}
                           aria-label={`Save ${item.title} for later`}
                         >
                           <BookmarkPlus size={15} />
@@ -168,7 +168,7 @@ export function CartView() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          onClick={() => removeFromCart(cartLineKey(item.productId, item.variantId))}
+                          onClick={() => removeFromCart(cartLineKey(item.productId, item.variantId, item.offerId))}
                           aria-label={`Remove ${item.title}`}
                         >
                           <Trash2 size={15} />
@@ -182,7 +182,7 @@ export function CartView() {
                           size="icon"
                           className="h-8 w-8 rounded-lg"
                           disabled={item.quantity <= 1}
-                          onClick={() => updateQuantity(cartLineKey(item.productId, item.variantId), item.quantity - 1)}
+                          onClick={() => updateQuantity(cartLineKey(item.productId, item.variantId, item.offerId), item.quantity - 1)}
                           aria-label="Decrease quantity"
                         >
                           <Minus size={13} />
@@ -195,7 +195,7 @@ export function CartView() {
                           size="icon"
                           className="h-8 w-8 rounded-lg"
                           disabled={item.quantity >= item.stock}
-                          onClick={() => updateQuantity(cartLineKey(item.productId, item.variantId), item.quantity + 1)}
+                          onClick={() => updateQuantity(cartLineKey(item.productId, item.variantId, item.offerId), item.quantity + 1)}
                           aria-label="Increase quantity"
                         >
                           <Plus size={13} />
@@ -246,7 +246,7 @@ export function CartView() {
                       size="sm"
                       className="h-8 rounded-full px-3 text-xs"
                       onClick={() => {
-                        const res = moveToCart(cartLineKey(item.productId, item.variantId))
+                        const res = moveToCart(cartLineKey(item.productId, item.variantId, item.offerId))
                         if (res.ok) toast({ title: 'Moved to cart', description: item.title })
                         else
                           toast({
@@ -262,7 +262,7 @@ export function CartView() {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                      onClick={() => removeFromSaved(cartLineKey(item.productId, item.variantId))}
+                      onClick={() => removeFromSaved(cartLineKey(item.productId, item.variantId, item.offerId))}
                       aria-label={`Remove ${item.title} from saved items`}
                     >
                       <Trash2 size={14} />

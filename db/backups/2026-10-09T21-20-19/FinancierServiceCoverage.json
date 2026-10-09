@@ -1,0 +1,212 @@
+[
+ {
+  "id": "cmuipydq8001sokta54qjkdcw",
+  "serviceId": "cmuipydq3001bokta5oej27jg",
+  "regionName": "Aden"
+ },
+ {
+  "id": "cmuipydq8001roktatqt0opoq",
+  "serviceId": "cmuipydq3001bokta5oej27jg",
+  "regionName": "Sana'a"
+ },
+ {
+  "id": "cmuipydq9001toktaqxa7rdh4",
+  "serviceId": "cmuipydq3001bokta5oej27jg",
+  "regionName": "Taiz"
+ },
+ {
+  "id": "cmuipydq9001uoktad01oe784",
+  "serviceId": "cmuipydq4001doktaupowsvd4",
+  "regionName": "Sana'a"
+ },
+ {
+  "id": "cmuipydq9001wokta21b83p7s",
+  "serviceId": "cmuipydq6001foktag789pw89",
+  "regionName": "Aden"
+ },
+ {
+  "id": "cmuipydq9001yoktati57jog1",
+  "serviceId": "cmuipydq6001foktag789pw89",
+  "regionName": "Hodeidah"
+ },
+ {
+  "id": "cmuipydq9001vokta2laydb37",
+  "serviceId": "cmuipydq6001foktag789pw89",
+  "regionName": "Sana'a"
+ },
+ {
+  "id": "cmuipydq9001xoktajvqucrpy",
+  "serviceId": "cmuipydq6001foktag789pw89",
+  "regionName": "Taiz"
+ },
+ {
+  "id": "cmuipydq9001zokta3g197ysa",
+  "serviceId": "cmuipydq7001hoktachlmwkav",
+  "regionName": "Sana'a"
+ },
+ {
+  "id": "cmuomjf0c000eluz6ee7irlqm",
+  "serviceId": "cmun580al0005nfo5z485a8n5",
+  "regionName": "Aden"
+ },
+ {
+  "id": "cmuomjf0c000gluz65lsgezz0",
+  "serviceId": "cmun580al0005nfo5z485a8n5",
+  "regionName": "Al-Hudaydah"
+ },
+ {
+  "id": "cmuomjf0c000hluz6db7xvzv7",
+  "serviceId": "cmun580al0005nfo5z485a8n5",
+  "regionName": "Amanat Al-Asimah"
+ },
+ {
+  "id": "cmuomjf0c000jluz6v9sey18s",
+  "serviceId": "cmun580al0005nfo5z485a8n5",
+  "regionName": "Amran"
+ },
+ {
+  "id": "cmuomjf0c000iluz6begxc6uv",
+  "serviceId": "cmun580al0005nfo5z485a8n5",
+  "regionName": "Dhamar"
+ },
+ {
+  "id": "cmuomjf0c000nluz6l5jmj0d3",
+  "serviceId": "cmun580al0005nfo5z485a8n5",
+  "regionName": "Hadramaut"
+ },
+ {
+  "id": "cmuomjf0c000kluz6sdvk9j3b",
+  "serviceId": "cmun580al0005nfo5z485a8n5",
+  "regionName": "Hajjah"
+ },
+ {
+  "id": "cmuomjf0c000lluz6x4gvdnl9",
+  "serviceId": "cmun580al0005nfo5z485a8n5",
+  "regionName": "Ibb"
+ },
+ {
+  "id": "cmuomjf0c000mluz6edyc19qi",
+  "serviceId": "cmun580al0005nfo5z485a8n5",
+  "regionName": "Marib"
+ },
+ {
+  "id": "cmuomjf0c000dluz6j2vf6jk6",
+  "serviceId": "cmun580al0005nfo5z485a8n5",
+  "regionName": "Sana'a"
+ },
+ {
+  "id": "cmuomjf0c000fluz6nzyjwyyj",
+  "serviceId": "cmun580al0005nfo5z485a8n5",
+  "regionName": "Taiz"
+ },
+ {
+  "id": "cmuod0ifw001cluhrp06unr3w",
+  "serviceId": "cmuod0ifu0013luhrltxg0vpf",
+  "regionName": "Aden"
+ },
+ {
+  "id": "cmuod0ifw001fluhrqsct44m3",
+  "serviceId": "cmuod0ifu0013luhrltxg0vpf",
+  "regionName": "Dhamar"
+ },
+ {
+  "id": "cmuod0ifw001eluhr5u4wtvur",
+  "serviceId": "cmuod0ifu0013luhrltxg0vpf",
+  "regionName": "Ibb"
+ },
+ {
+  "id": "cmuod0ifw001bluhr76z871ad",
+  "serviceId": "cmuod0ifu0013luhrltxg0vpf",
+  "regionName": "Sana'a"
+ },
+ {
+  "id": "cmuod0ifw001dluhrqhv4w5gz",
+  "serviceId": "cmuod0ifu0013luhrltxg0vpf",
+  "regionName": "Taiz"
+ },
+ {
+  "id": "cmuod0ig1001zluhrfnffho56",
+  "serviceId": "cmuod0ifz001lluhrakb7aow5",
+  "regionName": "Aden"
+ },
+ {
+  "id": "cmuod0ig1001xluhrtl9zh75r",
+  "serviceId": "cmuod0ifz001lluhrakb7aow5",
+  "regionName": "Dhamar"
+ },
+ {
+  "id": "cmuod0ig1001yluhrjoi6jkhz",
+  "serviceId": "cmuod0ifz001lluhrakb7aow5",
+  "regionName": "Hajjah"
+ },
+ {
+  "id": "cmuod0ig1001uluhr2pii7wdj",
+  "serviceId": "cmuod0ifz001lluhrakb7aow5",
+  "regionName": "Hodeidah"
+ },
+ {
+  "id": "cmuod0ig1001wluhruyypt0us",
+  "serviceId": "cmuod0ifz001lluhrakb7aow5",
+  "regionName": "Ibb"
+ },
+ {
+  "id": "cmuod0ig1001tluhrgylbq15b",
+  "serviceId": "cmuod0ifz001lluhrakb7aow5",
+  "regionName": "Sana'a"
+ },
+ {
+  "id": "cmuod0ig1001vluhrjnoykp3a",
+  "serviceId": "cmuod0ifz001lluhrakb7aow5",
+  "regionName": "Taiz"
+ },
+ {
+  "id": "cmuod0ig9002jluhr60clwaxx",
+  "serviceId": "cmuod0ig70027luhrbefhlpn0",
+  "regionName": "Hajjah"
+ },
+ {
+  "id": "cmuod0ig9002gluhr03zu41dt",
+  "serviceId": "cmuod0ig70027luhrbefhlpn0",
+  "regionName": "Hodeidah"
+ },
+ {
+  "id": "cmuod0ig9002iluhrz2y3m8jq",
+  "serviceId": "cmuod0ig70027luhrbefhlpn0",
+  "regionName": "Ibb"
+ },
+ {
+  "id": "cmuod0ig9002fluhrebj2u4pl",
+  "serviceId": "cmuod0ig70027luhrbefhlpn0",
+  "regionName": "Sana'a"
+ },
+ {
+  "id": "cmuod0ig9002hluhrbbq14yig",
+  "serviceId": "cmuod0ig70027luhrbefhlpn0",
+  "regionName": "Taiz"
+ },
+ {
+  "id": "cmuod0tu00011luj3vm400g9d",
+  "serviceId": "cmuod0tty000pluj3q7a1c6fr",
+  "regionName": "Al-Mahwit"
+ },
+ {
+  "id": "cmuod0tu00010luj3zs7uasrh",
+  "serviceId": "cmuod0tty000pluj3q7a1c6fr",
+  "regionName": "Hajjah"
+ },
+ {
+  "id": "cmuod0tu0000xluj35c6hh09w",
+  "serviceId": "cmuod0tty000pluj3q7a1c6fr",
+  "regionName": "Hodeidah"
+ },
+ {
+  "id": "cmuod0tu0000zluj3juoxi08a",
+  "serviceId": "cmuod0tty000pluj3q7a1c6fr",
+  "regionName": "Ibb"
+ },
+ {
+  "id": "cmuod0tu0000yluj3wjrxcd8u",
+  "serviceId": "cmuod0tty000pluj3q7a1c6fr",
+  "regionName": "Taiz"
+ }
+]

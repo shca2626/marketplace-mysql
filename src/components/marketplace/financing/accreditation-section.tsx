@@ -342,7 +342,7 @@ function AccreditationApplyDialog({
     if (kind === 'DECLARATION') return !a?.confirmed
     if (kind === 'NUMBER') return a?.valueNumber == null
     if (kind === 'DATE') return !a?.valueDate
-    if (kind === 'MULTI_SELECT') return (a?.multi ?? []).length === 0
+    if (kind === 'MULTI_SELECT') return ((a?.multi as string[] | undefined) ?? []).length === 0
     if (kind === 'SELECT') return !a?.valueText
     return !a?.valueText
   })
@@ -369,7 +369,7 @@ function AccreditationApplyDialog({
         if (kind === 'DECLARATION') return { conditionTemplateId: r.conditionTemplateId, confirmed: !!a?.confirmed }
         if (kind === 'NUMBER') return { conditionTemplateId: r.conditionTemplateId, valueNumber: a?.valueNumber ?? null }
         if (kind === 'DATE') return { conditionTemplateId: r.conditionTemplateId, valueDate: a?.valueDate ?? null }
-        if (kind === 'MULTI_SELECT') return { conditionTemplateId: r.conditionTemplateId, valueText: (a?.multi ?? []).join(', ') }
+        if (kind === 'MULTI_SELECT') return { conditionTemplateId: r.conditionTemplateId, valueText: ((a?.multi as string[] | undefined) ?? []).join(', ') }
         return { conditionTemplateId: r.conditionTemplateId, valueText: a?.valueText ?? null }
       })
     const submitRes = await apiRequest<{ request: AccreditationRequestDetailDTO }>(

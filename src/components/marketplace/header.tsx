@@ -6,11 +6,13 @@ import { useTheme } from 'next-themes'
 import {
   BarChart3,
   Building2,
+  Check,
   ChevronDown,
   FileText,
   Heart,
   Landmark,
   LayoutDashboard,
+  Loader2,
   LogIn,
   LogOut,
   Menu,
@@ -21,10 +23,12 @@ import {
   Store,
   Sun,
   User,
+  Wallet,
 } from 'lucide-react'
 import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
-import type { CategoryDTO, OrganizationDTO } from '@/lib/types'
+import { toast } from '@/hooks/use-toast'
+import type { CategoryDTO } from '@/lib/types'
 import { initials } from '@/lib/format'
 import { SearchBox } from './search-box'
 import { NotificationsBell } from './notifications-bell'
@@ -47,6 +51,34 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
+import { type AuthzContextResponse } from './b2b/b2b-shared'
+
+// ── Org-type presentation (context switcher badges) ──────────────────────
+
+const ORG_TYPE_META: Record<string, { label: string; badge: string; icon: typeof Building2 }> = {
+  COMPANY: {
+    label: 'Company',
+    badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+    icon: Building2,
+  },
+  BANK: {
+    label: 'Bank',
+    badge: 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300',
+    icon: Landmark,
+  },
+  MFI: {
+    label: 'MFI',
+    badge: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
+    icon: Landmark,
+  },
+  EWALLET: {
+    label: 'E-Wallet',
+    badge: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+    icon: Wallet,
+  },
+}
+
+const orgTypeMeta = (t: string) => ORG_TYPE_META[t] ?? { label: t, badge: 'bg-muted text-muted-foreground', icon: Building2 }
 
 export function Header() {
   const navigate = useMarketplace((s) => s.navigate)
@@ -64,17 +96,62 @@ export function Header() {
   const { data: catData } = useApi<{ categories: CategoryDTO[] }>('/api/categories')
   const categories = catData?.categories ?? []
 
-  // Financier console entry (FIN-005): visible for OWNER/ADMIN members of a
+  // Active context (authz): the orgs the user belongs to + the server-validated
+  // active organization (httpOnly cookie selector). Refetched after every switch.
+  const {
+    data: ctxData,
+    loading: ctxLoading,
+    refetch: refetchContext,
+  } = useApi<AuthzContextResponse>(user ? '/api/context' : null, { skip: !user })
+  const orgs = ctxData?.orgs ?? []
+  const activeOrg = ctxData?.activeOrg ?? null
+
+  // Financier console entry (FIN-005): OWNER/ADMIN members of a
   // BANK/MFI/EWALLET org — same membership the console guard checks.
-  const { data: myOrgsData } = useApi<{ organizations: OrganizationDTO[] }>(
-    user ? '/api/organizations' : null,
-    { skip: !user }
-  )
-  const isFinancierStaff = (myOrgsData?.organizations ?? []).some(
+  const isFinancierStaff = orgs.some(
     (o) =>
-      ['BANK', 'MFI', 'EWALLET'].includes(o.orgType ?? '') &&
-      (o.myRole === 'OWNER' || o.myRole === 'ADMIN')
+      ['BANK', 'MFI', 'EWALLET'].includes(o.orgType) &&
+      (o.membershipRole === 'OWNER' || o.membershipRole === 'ADMIN')
   )
+
+  // B2B2C: the company workspace (selling console) is for COMPANY org members.
+  const isCompanyMember = orgs.some((o) => o.orgType === 'COMPANY')
+
+  // Context switching (POST /api/context/switch validates membership on the
+  // server; the cookie is only a selector). One in-flight switch at a time.
+  const [switchingTo, setSwitchingTo] = useState<string | null>(null)
+  const switchContext = async (organizationId: string, label: string) => {
+    if (switchingTo) return
+    setSwitchingTo(organizationId)
+    try {
+      const res = await fetch('/api/context/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ organizationId }),
+      })
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { error?: string }
+        toast({
+          title: 'Could not switch context',
+          description: json.error ?? 'Please try again in a moment.',
+          variant: 'destructive',
+        })
+        return
+      }
+      await refetchContext()
+      toast({
+        title: `Now working as ${label}`,
+        description:
+          organizationId === 'personal'
+            ? 'Personal context — buying and browsing only.'
+            : 'Organization context is active for workspace actions.',
+      })
+    } catch {
+      toast({ title: 'Could not switch context', description: 'Network error — please try again.', variant: 'destructive' })
+    } finally {
+      setSwitchingTo(null)
+    }
+  }
 
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -227,7 +304,7 @@ export function Header() {
                   </Avatar>
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-60">
+              <DropdownMenuContent align="end" className="w-72">
                 <DropdownMenuLabel>
                   <p className="truncate text-sm font-semibold text-bh-navy">{user.name}</p>
                   <p className="truncate text-xs font-normal text-bh-muted">{user.email}</p>
@@ -257,6 +334,62 @@ export function Header() {
                     <Landmark size={15} className="mr-2" /> Financier console
                   </DropdownMenuItem>
                 )}
+                {isCompanyMember && (
+                  <DropdownMenuItem onClick={() => navigate('business')} className="cursor-pointer font-medium">
+                    <Building2 size={15} className="mr-2" /> Company workspace
+                  </DropdownMenuItem>
+                )}
+
+                {/* ── Active context switcher ──
+                    Personal + every org the user belongs to; the server validates
+                    membership on switch (the cookie is only a selector). */}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Active context
+                  {ctxLoading && !ctxData && <Loader2 size={11} className="ml-1.5 inline animate-spin" />}
+                </DropdownMenuLabel>
+                <DropdownMenuItem
+                  onClick={() => switchContext('personal', 'yourself')}
+                  disabled={!!switchingTo}
+                  className="cursor-pointer"
+                >
+                  <User size={15} className="mr-2 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">Personal</span>
+                  {switchingTo === 'personal' ? (
+                    <Loader2 size={14} className="ml-auto shrink-0 animate-spin text-muted-foreground" />
+                  ) : !activeOrg ? (
+                    <Check size={14} className="ml-auto shrink-0 text-primary" />
+                  ) : null}
+                </DropdownMenuItem>
+                {orgs.map((o) => {
+                  const meta = orgTypeMeta(o.orgType)
+                  const OrgIcon = meta.icon
+                  const isActive = activeOrg?.id === o.id
+                  return (
+                    <DropdownMenuItem
+                      key={o.id}
+                      onClick={() => switchContext(o.id, o.name)}
+                      disabled={!!switchingTo}
+                      className="cursor-pointer"
+                    >
+                      <OrgIcon size={15} className="mr-2 shrink-0" />
+                      <span className="min-w-0 flex-1 truncate">{o.name}</span>
+                      <span
+                        className={cn(
+                          'ml-1.5 shrink-0 rounded-full px-1.5 py-px text-[10px] font-bold uppercase tracking-wide',
+                          meta.badge
+                        )}
+                      >
+                        {meta.label}
+                      </span>
+                      {switchingTo === o.id ? (
+                        <Loader2 size={14} className="ml-1 shrink-0 animate-spin text-muted-foreground" />
+                      ) : isActive ? (
+                        <Check size={14} className="ml-1 shrink-0 text-primary" />
+                      ) : null}
+                    </DropdownMenuItem>
+                  )
+                })}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => navigate('orders')} className="cursor-pointer">
                   <Package size={15} className="mr-2" /> My Orders
@@ -267,9 +400,6 @@ export function Header() {
                 <DropdownMenuItem onClick={() => navigate('favorites')} className="cursor-pointer">
                   <Heart size={15} className="mr-2" /> Favorites
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate('business')} className="cursor-pointer">
-                  <Building2 size={15} className="mr-2" /> Business Account
-                </DropdownMenuItem>
                 {/* IA-100: "Account settings" opens the dedicated Profile &
                     Security tab; "My dashboard" above keeps the overview. */}
                 <DropdownMenuItem
@@ -278,11 +408,6 @@ export function Header() {
                 >
                   <Settings size={15} className="mr-2" /> Account settings
                 </DropdownMenuItem>
-                {(user.role === 'BUYER' || !user.role) && (
-                  <DropdownMenuItem onClick={() => navigate('seller')} className="cursor-pointer">
-                    <Store size={15} className="mr-2" /> Start selling
-                  </DropdownMenuItem>
-                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={logout} className="cursor-pointer text-destructive focus:text-destructive">
                   <LogOut size={15} className="mr-2" /> Sign out
@@ -337,15 +462,6 @@ export function Header() {
               </span>
             </button>
           ))}
-          <span className="mx-1 h-4 w-px bg-bh-border" />
-          {user?.role !== 'ADMIN' && (
-            <button
-              onClick={() => navigate('seller')}
-              className="rounded-full px-3 py-1 text-[13px] font-semibold text-bh-gold-dark transition-colors hover:bg-bh-bg-gold/60 hover:text-bh-navy"
-            >
-              Sell on Vendora
-            </button>
-          )}
         </div>
       </nav>
     </header>

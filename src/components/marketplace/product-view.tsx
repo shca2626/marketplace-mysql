@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   BadgeCheck,
   BadgePercent,
+  Building2,
   Check,
   ChevronRight,
   FileText,
@@ -26,7 +27,7 @@ import {
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
-import type { OrganizationDTO, ProductDTO, ResolvedPriceDTO, ReviewDTO } from '@/lib/types'
+import type { OrganizationDTO, ProductDTO, ProductOfferSummaryDTO, ResolvedPriceDTO, ReviewDTO } from '@/lib/types'
 import { discountPercent, formatDate, formatNumber, formatUSD, initials, timeAgo } from '@/lib/format'
 import { StarPicker } from './star-rating'
 import { QuantityInput } from './quantity-input'
@@ -233,9 +234,28 @@ export function ProductView() {
     )
   }, [activeVariants, variantGroups, selectedOptions])
 
-  const effectivePrice = selectedVariant?.price ?? product?.price ?? 0
-  const effectiveCompareAt = selectedVariant?.compareAtPrice ?? product?.compareAtPrice ?? null
-  const effectiveStock = selectedVariant ? selectedVariant.stock : (product?.stock ?? 0)
+  // ── Multi-vendor offers (B2B2C shared catalog) ────────────────────────────
+  // Company offers ride on the product payload (cheapest first). The selected
+  // offer drives the buy panel price/stock/MOQ and is passed to addToCart so
+  // the cart line is scoped to the chosen company. Defaults to the cheapest.
+  const offers = useMemo(() => product?.offers ?? [], [product])
+  const [selectedOfferId, setSelectedOfferId] = useState<string | null>(null)
+  const selectedOffer: ProductOfferSummaryDTO | null = useMemo(
+    () => offers.find((o) => o.id === selectedOfferId) ?? offers[0] ?? null,
+    [offers, selectedOfferId]
+  )
+  // A stale selection (offer removed after a refresh) falls back to the cheapest
+  const activeOfferId = selectedOffer?.id ?? null
+
+  const effectivePrice = selectedOffer
+    ? selectedOffer.price
+    : (selectedVariant?.price ?? product?.price ?? 0)
+  const effectiveCompareAt = selectedOffer ? null : (selectedVariant?.compareAtPrice ?? product?.compareAtPrice ?? null)
+  const effectiveStock = selectedOffer
+    ? selectedOffer.stock
+    : selectedVariant
+      ? selectedVariant.stock
+      : (product?.stock ?? 0)
   const effectiveSku = selectedVariant?.sku ?? product?.sku ?? null
   const videoEmbed = useMemo(() => videoEmbedFor(product?.videoUrl), [product?.videoUrl])
 
@@ -269,11 +289,13 @@ export function ProductView() {
 
   const handleAddToCart = (openDrawer = false) => {
     if (!product) return
-    const res = addToCart(product, quantity, selectedVariant)
+    const res = addToCart(product, quantity, selectedVariant, selectedOffer)
     if (res.ok) {
       toast({
         title: 'Added to cart',
-        description: `${quantity} × ${product.title}${selectedVariant ? ` (${selectedVariant.name})` : ''}`,
+        description: `${quantity} × ${product.title}${selectedVariant ? ` (${selectedVariant.name})` : ''}${
+          selectedOffer ? ` — from ${selectedOffer.sellerOrgName ?? selectedOffer.storeName ?? 'the selected seller'}` : ''
+        }`,
       })
       if (openDrawer) setCartOpen(true)
     } else {
@@ -283,7 +305,7 @@ export function ProductView() {
 
   const handleBuyNow = () => {
     if (!product) return
-    const res = addToCart(product, quantity, selectedVariant)
+    const res = addToCart(product, quantity, selectedVariant, selectedOffer)
     if (res.ok) navigate('checkout')
     else toast({ title: 'Cannot add to cart', description: res.message, variant: 'destructive' })
   }
@@ -579,8 +601,110 @@ export function ProductView() {
             <span className="text-bh-muted">{formatNumber(product.soldCount)} sold</span>
           </div>
 
-          {/* Price — contract pricing for verified businesses, retail otherwise */}
-          {contract ? (
+          {/* ── Multi-vendor offers selector (B2B2C shared catalog) ──
+              Company offers on this product, cheapest first. The chosen offer
+              drives price/stock/MOQ and scopes the cart line to that company. */}
+          {offers.length > 0 && (
+            <div
+              className="mt-5 rounded-2xl border border-bh-border bg-bh-card p-4 shadow-card"
+              data-testid="offers-panel"
+            >
+              <p className="flex flex-wrap items-center justify-between gap-2 text-sm font-semibold text-bh-navy">
+                <span className="flex items-center gap-1.5">
+                  <Building2 size={15} className="text-bh-gold-dark" /> Offers from {offers.length}{' '}
+                  seller{offers.length === 1 ? '' : 's'}
+                </span>
+                {product.minOfferPrice != null && (
+                  <span className="text-xs font-normal text-bh-muted">
+                    from {formatUSD(product.minOfferPrice)}
+                  </span>
+                )}
+              </p>
+              <div className="mt-3 space-y-2" role="radiogroup" aria-label="Choose a seller">
+                {offers.map((o) => {
+                  const active = o.id === activeOfferId
+                  const sellerName = o.sellerOrgName ?? o.storeName ?? 'Marketplace seller'
+                  return (
+                    <motion.button
+                      key={o.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      onClick={() => setSelectedOfferId(o.id)}
+                      initial={false}
+                      animate={{ scale: active ? 1 : 0.995 }}
+                      transition={{ duration: 0.15 }}
+                      className={cn(
+                        'block w-full rounded-xl border p-3 text-left transition-all',
+                        active
+                          ? 'border-bh-gold bg-bh-gold-pale/70 ring-1 ring-bh-gold/40'
+                          : 'border-bh-border-dark bg-bh-card hover:border-bh-gold/50 hover:bg-bh-soft-blue/40'
+                      )}
+                    >
+                      <span className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="flex min-w-0 items-center gap-2.5">
+                          <span
+                            className={cn(
+                              'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
+                              active ? 'bg-bh-navy text-bh-gold' : 'bg-bh-soft-blue text-bh-navy'
+                            )}
+                          >
+                            <Building2 size={16} />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-semibold text-bh-navy" title={sellerName}>
+                              {sellerName}
+                              {active && <Check size={13} className="ml-1.5 inline text-bh-gold-dark" aria-hidden />}
+                            </span>
+                            <span className="block truncate text-xs text-bh-muted">
+                              {o.storeName ? `Ships from ${o.storeName}` : 'Verified company'}
+                              {o.processingDays != null ? ` · ships in ${o.processingDays}d` : ''}
+                            </span>
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-right">
+                          <span className="block text-sm font-bold text-bh-navy" data-testid="offer-price">
+                            {formatUSD(o.price)}
+                          </span>
+                          <span
+                            className={cn(
+                              'block text-[11px]',
+                              o.stock <= 0 ? 'font-semibold text-destructive' : o.stock <= 5 ? 'font-semibold text-bh-gold-dark' : 'text-bh-muted'
+                            )}
+                          >
+                            {o.stock <= 0 ? 'Out of stock' : `${o.stock} in stock`}
+                          </span>
+                        </span>
+                      </span>
+                      {(o.freeShipping || (o.moq != null && o.moq > 1) || (o.shippingFee != null && o.shippingFee > 0)) && (
+                        <span className="mt-2 flex flex-wrap gap-1.5">
+                          {o.freeShipping && (
+                            <Badge className="rounded-full border-0 bg-emerald-100 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                              Free shipping
+                            </Badge>
+                          )}
+                          {!o.freeShipping && o.shippingFee != null && o.shippingFee > 0 && (
+                            <Badge className="rounded-full border-0 bg-bh-soft-blue text-[10px] font-bold text-bh-navy">
+                              {formatUSD(o.shippingFee)} shipping
+                            </Badge>
+                          )}
+                          {o.moq != null && o.moq > 1 && (
+                            <Badge className="rounded-full border-0 bg-bh-bg-gold text-[10px] font-bold text-bh-gold-dark">
+                              Min. {o.moq} units
+                            </Badge>
+                          )}
+                        </span>
+                      )}
+                    </motion.button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Price — contract pricing for verified businesses, retail otherwise.
+              An explicitly selected company offer wins over contract pricing. */}
+          {contract && !selectedOffer ? (
             <motion.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
@@ -701,6 +825,12 @@ export function ProductView() {
                 <span className="text-bh-muted">
                   SKU <span className="font-mono text-xs">{effectiveSku}</span>
                 </span>
+              </>
+            )}
+            {selectedOffer?.moq != null && selectedOffer.moq > 1 && (
+              <>
+                <span className="text-bh-faded">·</span>
+                <span className="font-medium text-bh-navy">Min. order {selectedOffer.moq} units</span>
               </>
             )}
           </div>

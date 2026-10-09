@@ -1,0 +1,40 @@
+[
+ {
+  "id": "cmuvihyqk000fneij0ljzecea",
+  "name": "QA — buyers blast",
+  "templateId": null,
+  "body": "Hi {{name}}, your order {{order}} ({{total}}) is confirmed. {{unknown}} stays.",
+  "audience": "BUYERS",
+  "phones": "[\"+967733555010\",\"+967771000111\",\"+967772000222\",\"+967773555120\",\"+967773555902\",\"+967776987654\",\"+967777001155\",\"+967777001166\",\"+967774555666\",\"+967778112233\"]",
+  "status": "DRAFT",
+  "total": 10,
+  "sent": 0,
+  "failed": 0,
+  "startedAt": null,
+  "createdAt": "2026-10-05T17:16:42.909Z",
+  "updatedAt": "2026-10-05T17:16:42.909Z",
+  "completedAt": null,
+  "createdBy": null,
+  "scheduledAt": null,
+  "variables": null
+ },
+ {
+  "id": "cmuvmy59f0022ne3wvlgbr205",
+  "name": "test",
+  "templateId": null,
+  "body": "{{name}} hi{{first_name}} {{time}} {{date}} {{phone}} {{email}}{{store_name}} {{role}}",
+  "audience": "CUSTOM",
+  "phones": "+967772228289",
+  "status": "COMPLETED",
+  "total": 1,
+  "sent": 1,
+  "failed": 0,
+  "startedAt": "2026-10-05T19:21:30.563Z",
+  "createdAt": "2026-10-05T19:21:16.324Z",
+  "updatedAt": "2026-10-05T19:21:36.717Z",
+  "completedAt": "2026-10-05T19:21:36.716Z",
+  "createdBy": "cmuimbo3q0000okn0nee7f55d",
+  "scheduledAt": null,
+  "variables": null
+ }
+]

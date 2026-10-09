@@ -17,8 +17,8 @@ import type { ProductDTO } from '@/lib/types'
 
 // ── Products ─────────────────────────────────────────────────────────────────
 
-/** Raw row shape used by the product detail query (productInclude + reviews). */
-type ProductWithRelations = Awaited<ReturnType<typeof db.product.findFirst>> & { reviews?: unknown[] }
+/** Raw row shape used by the product detail query (productInclude + variants + reviews). */
+type ProductWithRelations = NonNullable<Awaited<ReturnType<typeof getPublicProduct>>>
 
 /** Public product detail by id (with category, seller, active variants + latest reviews). */
 export const getPublicProduct = cache(async (id: string) => {
@@ -50,7 +50,7 @@ export const getPublicProduct = cache(async (id: string) => {
 })
 
 /** Serialize the fetched product into the canonical ProductDTO used across the app. */
-export function toProductDTO(product: NonNullable<ProductWithRelations>): ProductDTO {
+export function toProductDTO(product: ProductWithRelations): ProductDTO {
   return serializeProduct(product)
 }
 

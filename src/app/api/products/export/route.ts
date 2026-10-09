@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
 }
 
 function attrCell(p: ProductDTO, key: string): string | number | boolean | null {
-  const v = p.attributes[key]
+  const v = p.attributes?.[key]
   if (v === undefined || v === null) return ''
   if (Array.isArray(v)) return v.join('|')
   return v as string | number | boolean
@@ -95,17 +95,17 @@ function productCell(p: ProductDTO, col: string): string | number | boolean | nu
     case 'brand': return p.brand ?? ''
     case 'sku': return p.sku ?? ''
     case 'barcode': return p.barcode ?? ''
-    case 'condition': return p.condition
-    case 'tags': return p.tags.join('|')
+    case 'condition': return p.condition ?? ''
+    case 'tags': return (p.tags ?? []).join('|')
     case 'videoUrl': return p.videoUrl ?? ''
     case 'freeShipping': return csvBool(p.freeShipping)
     case 'shippingNote': return p.shippingNote ?? ''
-    case 'handlingDays': return p.handlingDays
+    case 'handlingDays': return p.handlingDays ?? ''
     case 'weightKg': return p.weightKg ?? ''
     case 'lengthCm': return p.lengthCm ?? ''
     case 'widthCm': return p.widthCm ?? ''
     case 'heightCm': return p.heightCm ?? ''
-    case 'minOrderQty': return p.minOrderQty
+    case 'minOrderQty': return p.minOrderQty ?? ''
     case 'maxPerOrder': return p.maxPerOrder ?? ''
     case 'warrantyMonths': return p.warrantyMonths ?? ''
     case 'metaTitle': return p.metaTitle ?? ''

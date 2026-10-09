@@ -30,7 +30,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
     const request = await decideAccreditation(user.id, id, {
       action: 'GRANT',
-      note: body.note,
+      note: body.note ?? undefined,
       validMonths: body.validMonths,
     })
     return NextResponse.json({ request })

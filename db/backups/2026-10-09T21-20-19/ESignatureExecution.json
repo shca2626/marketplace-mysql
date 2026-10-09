@@ -1,0 +1,17 @@
+[
+ {
+  "id": "cmuvu9qpu006wnehoz3qh9cdi",
+  "agreementId": "cmuvu6o3u0039neho3d6xjgaj",
+  "contractTemplateId": "cmuvu8tlb005vnehosm9zsdh1",
+  "documentSha256": "f7e81d2c2c1ab120453e79559561697e46e1fcb81872a72c83f72097d3e57ff4",
+  "signerId": "cmuimbo980006okn0cu0tdngk",
+  "signerMfaVerifiedAt": "2026-10-05T22:46:14.000Z",
+  "consentText": "I, Alex Rivera, have read financing agreement AGR-2026-000004 and consent to be bound by its terms; I understand the installment schedule and my obligation to pay on time.",
+  "acceptedAt": "2026-10-05T22:46:14.000Z",
+  "ipAddress": "::1",
+  "userAgent": "curl/8.14.1",
+  "signatureImageId": null,
+  "evidence": "{\"agreementNumber\":\"AGR-2026-000004\",\"offerTerms\":{\"amount\":750000,\"currency\":\"YER\",\"tenorMonths\":12,\"rateType\":\"MURABAHA_ANNUAL\",\"ratePercent\":14.5},\"template\":{\"id\":\"cmuvu8tlb005vnehosm9zsdh1\",\"kind\":\"FINANCING_AGREEMENT\",\"version\":3,\"sha256\":\"f7e81d2c2c1ab120453e79559561697e46e1fcb81872a72c83f72097d3e57ff4\"},\"checks\":{\"applicantVerified\":true,\"hashVerified\":true,\"consentVerified\":true,\"mfaVerified\":true},\"acceptedAt\":\"2026-10-05T22:46:14.000Z\",\"serverTimeSource\":\"db-now\",\"typedName\":\"Alex Rivera\",\"signatureMethod\":\"typed-name\",\"consentText\":\"I, Alex Rivera, have read financing agreement AGR-2026-000004 and consent to be bound by its terms; I understand the installment schedule and my obligation to pay on time.\",\"mfaVerifiedVia\":\"TOTP\",\"ipAddress\":\"::1\",\"userAgent\":\"curl/8.14.1\"}",
+  "createdAt": "2026-10-05T22:46:14.658Z"
+ }
+]

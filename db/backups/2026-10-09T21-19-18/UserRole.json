@@ -1,0 +1,298 @@
+[
+ {
+  "id": "cmuq667gf000eokzegr7tfix6",
+  "userId": "cmuimbo3q0000okn0nee7f55d",
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "organizationId": "",
+  "assignedAt": "2026-10-01T23:32:48.064Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuq668u6000gokzeei0z7ndc",
+  "userId": "cmuimbo980006okn0cu0tdngk",
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "organizationId": "cmuimbol1008rokn0mrkge7ut",
+  "assignedAt": "2026-10-01T23:32:49.854Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuq669aq000iokzefnowb2fh",
+  "userId": "cmuimboa40007okn0ep5w4tcn",
+  "roleId": "cmuq663ep0008okze6njue98c",
+  "organizationId": "cmuimbol1008rokn0mrkge7ut",
+  "assignedAt": "2026-10-01T23:32:50.450Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuq669r9000kokzezh7k1kqf",
+  "userId": "cmuimbob20008okn0n4h3r9gb",
+  "roleId": "cmuq662ri0007okze6m9q9ojn",
+  "organizationId": "cmuimbol1008rokn0mrkge7ut",
+  "assignedAt": "2026-10-01T23:32:51.046Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuq66a7t000mokzeyqyyqs1x",
+  "userId": "cmuipydom0000oktaui7s4dx9",
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "organizationId": "cmuipydpj0002oktan3aec1vw",
+  "assignedAt": "2026-10-01T23:32:51.642Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuq66aod000ookzelcmdc4k1",
+  "userId": "cmuipydph0001okta7q5kme0s",
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "organizationId": "cmuipydpl0003oktae1nwpxjg",
+  "assignedAt": "2026-10-01T23:32:52.237Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuq66b4w000qokzew8bryi6e",
+  "userId": "cmumw8caf0000nfll9rk7d4vm",
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "organizationId": "cmumxe8zc0000nflpxgl4v4da",
+  "assignedAt": "2026-10-01T23:32:52.832Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuq66blg000sokzel0uor08k",
+  "userId": "cmun4unak000hnflpr2ku8phm",
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "organizationId": "cmun4vadl000lnflppm3r97vd",
+  "assignedAt": "2026-10-01T23:32:53.428Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuq66c1z000uokze59t65zmo",
+  "userId": "cmun4unak000hnflpr2ku8phm",
+  "roleId": "cmuq6624a0006okze3ijghd5a",
+  "organizationId": "cmuipydpl0003oktae1nwpxjg",
+  "assignedAt": "2026-10-01T23:32:54.024Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuq66cin000wokzef474fkki",
+  "userId": "cmupy0gn60008ndzn4npdnszu",
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "organizationId": "cmupy8zf90004nd0fccw5s0tv",
+  "assignedAt": "2026-10-01T23:32:54.623Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuq66cz6000yokzeynro5ajp",
+  "userId": "cmupxyoji0000ndzn6lhe7our",
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "organizationId": "cmupyeohj0003ndxmr62q7eha",
+  "assignedAt": "2026-10-01T23:32:55.219Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuq66dfq0010okze3w49orvg",
+  "userId": "cmuimbo980006okn0cu0tdngk",
+  "roleId": "cmuq663ep0008okze6njue98c",
+  "organizationId": "cmupyeohj0003ndxmr62q7eha",
+  "assignedAt": "2026-10-01T23:32:55.815Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuq66dwa0012okze8e8iffvv",
+  "userId": "cmupxiprf0000ndo6ncjahfag",
+  "roleId": "cmuq662ri0007okze6m9q9ojn",
+  "organizationId": "cmupyeohj0003ndxmr62q7eha",
+  "assignedAt": "2026-10-01T23:32:56.411Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuq6cb6h0004ok3bp4xrmvx0",
+  "userId": "cmupxiprf0000ndo6ncjahfag",
+  "roleId": "cmuq660qk0004okzej737acmr",
+  "organizationId": "",
+  "assignedAt": "2026-10-01T23:37:32.825Z",
+  "assignedBy": "cmuimbo3q0000okn0nee7f55d"
+ },
+ {
+  "id": "cmuqc9lw30007okfc80povybm",
+  "userId": "cmuqc9lbg0005okfcvuwk2b61",
+  "roleId": "cmuq660qk0004okzej737acmr",
+  "organizationId": "",
+  "assignedAt": "2026-10-02T02:23:24.435Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuspeot20015oildtip7lizq",
+  "userId": "cmurmtuh40006mas0r5zasjyc",
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "organizationId": "cmurmvhoq000lmas0b1mj56m2",
+  "assignedAt": "2026-10-03T18:06:48.733Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuspepdf0017oildbo6mnpa9",
+  "userId": "cmurmwkdi000umas0ls4i8bzb",
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "organizationId": "cmurmwlmf000wmas01zh65sxz",
+  "assignedAt": "2026-10-03T18:06:49.587Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuspepud0019oildx9n94d1e",
+  "userId": "cmurn63vp0007ma57djfli0j8",
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "organizationId": "cmurn65pj0009ma577cvs3nz0",
+  "assignedAt": "2026-10-03T18:06:50.198Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuspeqbc001boild5740eyxy",
+  "userId": "cmurncvck000wmajmtcfdemzb",
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "organizationId": "cmurncwrb000ymajmj17qco63",
+  "assignedAt": "2026-10-03T18:06:50.809Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmusu4o6i001ooijgx66v7o3n",
+  "userId": "cmusu4ni8001moijgdbwwk7x1",
+  "roleId": "cmuq665pg000bokzefry47qsr",
+  "organizationId": "cmustzmn20010oijgocuywcfs",
+  "assignedAt": "2026-10-03T20:18:59.438Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmut5lodx001doijr1xxa9a2i",
+  "userId": "cmustzd0z000voijgrbfxtla3",
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "organizationId": "cmustzmn20010oijgocuywcfs",
+  "assignedAt": "2026-10-04T01:40:08.758Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmut5lowt001foijrmvx6i0rz",
+  "userId": "cmusu4ni8001moijgdbwwk7x1",
+  "roleId": "cmuq664560009okze392x0hxr",
+  "organizationId": "cmustzmn20010oijgocuywcfs",
+  "assignedAt": "2026-10-04T01:40:09.437Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuvla6p2000hneedhru42ly6",
+  "userId": "cmuvhj2jw0000netat574v5jf",
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "organizationId": "",
+  "assignedAt": "2026-10-05T18:34:38.823Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuvlaen8001jneedgj4eoqmz",
+  "userId": "cmuu6dba90003lwipjmy9z6wz",
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "organizationId": "cmuu6hy12000ilwiptweerdyu",
+  "assignedAt": "2026-10-05T18:34:49.124Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuvlaf3v001lneedz8s4qgcb",
+  "userId": "cmuimbo860001okn0wu3ei0r7",
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "organizationId": "cmuum7v7x0000lwtykxosot4f",
+  "assignedAt": "2026-10-05T18:34:49.724Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuvlafki001nneedcvbq424p",
+  "userId": "cmuimbo870002okn0pxi0ttdo",
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "organizationId": "cmuum7yxi000dlwty0cwnzoub",
+  "assignedAt": "2026-10-05T18:34:50.323Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuvlag16001pneed90j0j6ci",
+  "userId": "cmuimbo880003okn0no72os14",
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "organizationId": "cmuum8153000olwtyfq6f9bru",
+  "assignedAt": "2026-10-05T18:34:50.922Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuvlaght001rneed3bjt5ldk",
+  "userId": "cmuimbo880004okn0yx6ojy3y",
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "organizationId": "cmuum84lf001dlwty42aytbyw",
+  "assignedAt": "2026-10-05T18:34:51.522Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuvlagyi001tneedlen4oluc",
+  "userId": "cmuimbo8a0005okn0bec6d2u4",
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "organizationId": "cmuum87c4001slwtypffivram",
+  "assignedAt": "2026-10-05T18:34:52.122Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuvlahf6001vneedg8b4twad",
+  "userId": "cmurabkps0000maa9xpcjisem",
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "organizationId": "cmuum8cap002dlwtykndm3e3p",
+  "assignedAt": "2026-10-05T18:34:52.722Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuvlahvu001xneedldkf3s5q",
+  "userId": "cmurlsdro000hmava9404al67",
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "organizationId": "cmuum8dsx002ilwty4byns9nm",
+  "assignedAt": "2026-10-05T18:34:53.322Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuvlaicg001zneedesralxbt",
+  "userId": "cmuruxda3000cmarojs2dn033",
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "organizationId": "cmuum8hvl002vlwtyfzg8hqiz",
+  "assignedAt": "2026-10-05T18:34:53.920Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuvlait30021needh5bibvoh",
+  "userId": "cmuruyklc000imaroanxkkuah",
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "organizationId": "cmuum8jjy0030lwtyy24nhxnk",
+  "assignedAt": "2026-10-05T18:34:54.519Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuvlaj9p0023needgw2wf73o",
+  "userId": "cmurv2i1j001omaro95fa0rby",
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "organizationId": "cmuum8li50039lwty4c7gprbd",
+  "assignedAt": "2026-10-05T18:34:55.118Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuvnjv8p0002nejw70hjhk0d",
+  "userId": "cmuvnjupv0000nejwsbl44j57",
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "organizationId": "",
+  "assignedAt": "2026-10-05T19:38:09.769Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuvnk2mi000qnejwlrt2zrtj",
+  "userId": "cmuvnk29f000onejwrrsettw0",
+  "roleId": "cmuvnk1jm000nnejwp3p97n38",
+  "organizationId": "",
+  "assignedAt": "2026-10-05T19:38:19.338Z",
+  "assignedBy": null
+ },
+ {
+  "id": "cmuvnk3rl000unejwc61fknpg",
+  "userId": "cmuvnk3f7000snejw0urvaum4",
+  "roleId": "cmuvnk2yu000rnejwhysm9g3x",
+  "organizationId": "",
+  "assignedAt": "2026-10-05T19:38:20.817Z",
+  "assignedBy": null
+ }
+]

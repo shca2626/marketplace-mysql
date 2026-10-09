@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/auth'
+import { resolveAuthzContext } from '@/server/authz/context'
 import { serializeOrder } from '@/lib/serialize'
 import { computePricing } from '@/lib/pricing'
 import { findActiveCoupon, type ActiveCoupon } from '@/server/modules/coupons/service'
@@ -17,6 +18,7 @@ const checkoutSchema = z.object({
         productId: z.string(),
         quantity: z.number().int().min(1).max(99),
         variantId: z.string().optional().nullable(), // purchased ProductVariant, if any
+        offerId: z.string().optional().nullable(), // the ProductOffer being purchased (shared catalog)
       })
     )
     .min(1, 'Your cart is empty'),
@@ -54,6 +56,24 @@ export async function POST(req: NextRequest) {
     const { items, couponCode: rawCouponCode, paymentMethod, ...shipping } = parsed.data
     const method = paymentMethod ?? 'CARD'
 
+    // Offer lines: resolve the authoritative offer (price/stock/seller) server-side.
+    const offerIds = [...new Set(items.map((i) => i.offerId).filter((v): v is string => !!v))]
+    const offerRows = offerIds.length
+      ? await db.productOffer.findMany({
+          where: { id: { in: offerIds }, status: 'ACTIVE' },
+          include: { sellerOrg: { select: { id: true, status: true, name: true } } },
+        })
+      : []
+    const offerMap = new Map(offerRows.map((o) => [o.id, o]))
+    for (const o of offerRows) {
+      if (o.sellerOrg && o.sellerOrg.status !== 'ACTIVE') {
+        return NextResponse.json(
+          { error: `"${o.sellerOrg.name}" is currently unavailable — remove their items from your cart to continue` },
+          { status: 400 }
+        )
+      }
+    }
+
     // Deduplicate + validate stock (product-level and, when selected, variant-level)
     const productIds = [...new Set(items.map((i) => i.productId))]
     const products = await db.product.findMany({ where: { id: { in: productIds } } })
@@ -79,8 +99,12 @@ export async function POST(req: NextRequest) {
       : []
     const variantMap = new Map(variantRows.map((v) => [v.id, v]))
 
-    // Resolve the authoritative unit price per cart line (variant price overrides retail)
+    // Resolve the authoritative unit price per cart line (offer price > variant price > retail)
     const linePrice = (item: (typeof items)[number]): number | null => {
+      if (item.offerId) {
+        const o = offerMap.get(item.offerId)
+        return o && o.productId === item.productId ? o.price : null
+      }
       if (!item.variantId) return null
       const v = variantMap.get(item.variantId)
       return v && v.productId === item.productId ? (v.price ?? null) : null
@@ -89,9 +113,23 @@ export async function POST(req: NextRequest) {
     for (const item of items) {
       const p = productMap.get(item.productId)
       if (!p) return NextResponse.json({ error: 'A product in your cart no longer exists' }, { status: 400 })
-      if (p.status !== 'ACTIVE')
+      if (p.status !== 'ACTIVE' || p.approvalState !== 'APPROVED')
         return NextResponse.json({ error: `"${p.title}" is no longer available` }, { status: 400 })
-      if (item.variantId) {
+      if (item.offerId) {
+        const o = offerMap.get(item.offerId)
+        if (!o || o.productId !== item.productId)
+          return NextResponse.json({ error: `The offer for "${p.title}" is no longer available` }, { status: 400 })
+        if (o.stock < item.quantity)
+          return NextResponse.json(
+            { error: `Only ${o.stock} left in stock for "${p.title}"` },
+            { status: 400 }
+          )
+        if (o.moq && item.quantity < o.moq)
+          return NextResponse.json(
+            { error: `Minimum order for "${p.title}" is ${o.moq} units` },
+            { status: 400 }
+          )
+      } else if (item.variantId) {
         const v = variantMap.get(item.variantId)
         if (!v || v.productId !== item.productId || !v.isActive)
           return NextResponse.json(
@@ -144,12 +182,17 @@ export async function POST(req: NextRequest) {
     // ── Server-authoritative pricing (matches lib/pricing used by the UI) ──
     const pricing = computePricing(subtotal, coupon)
 
-    // ── B2B context: attach the buyer's active organization, and route the
-    // order for approval when a BUYER-role member reaches the org threshold ──
-    const membership = await db.organizationMember.findFirst({
-      where: { userId: user.id, organization: { status: 'ACTIVE' } },
-      include: { organization: true },
-    })
+    // ── B2B context: the buyer's ACTIVE organization (server-validated
+    // selector from the authz context — never a client-supplied id), and
+    // approval routing when a BUYER-role member reaches the org threshold ──
+    const authzContext = await resolveAuthzContext()
+    const activeOrg = authzContext.activeOrg
+    const membership = activeOrg
+      ? await db.organizationMember.findUnique({
+          where: { organizationId_userId: { organizationId: activeOrg.id, userId: user.id } },
+          include: { organization: true },
+        })
+      : null
     const orgId = membership?.organizationId ?? null
     const routeForApproval =
       !!membership &&
@@ -187,15 +230,18 @@ export async function POST(req: NextRequest) {
                 image = null
               }
               const variant = i.variantId ? variantMap.get(i.variantId) : undefined
+              const offer = i.offerId ? offerMap.get(i.offerId) : undefined
               return {
                 productId: p.id,
-                sellerId: p.sellerId,
+                sellerId: offer ? offer.sellerId : p.sellerId,
                 quantity: i.quantity,
                 price: linePrice(i) ?? p.price,
                 title: p.title,
                 image,
                 variantId: variant?.id ?? null,
                 variantName: variant?.name ?? null,
+                offerId: offer?.id ?? null,
+                sellerOrgId: offer?.sellerOrgId ?? null,
               }
             }),
           },
@@ -205,6 +251,19 @@ export async function POST(req: NextRequest) {
 
       for (const i of items) {
         const p = productMap.get(i.productId)!
+        if (i.offerId) {
+          // Offer stock is authoritative; product.stock tracks the aggregate
+          const o = offerMap.get(i.offerId)!
+          await tx.productOffer.update({
+            where: { id: o.id },
+            data: { stock: { decrement: i.quantity }, soldCount: { increment: i.quantity } },
+          })
+          await tx.product.update({
+            where: { id: p.id },
+            data: { soldCount: { increment: i.quantity } },
+          })
+          continue
+        }
         // Variant stock is authoritative per combination; product.stock tracks the total
         if (i.variantId && variantMap.has(i.variantId)) {
           await tx.productVariant.update({

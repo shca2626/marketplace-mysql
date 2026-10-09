@@ -1,0 +1,110 @@
+[
+ {
+  "id": "cmuod0tti0001luj3y23fd80v",
+  "financierProfileId": "cmuipydpn0007oktajlh7xad4",
+  "platform": "WEBSITE",
+  "url": "https://www.alamalbank.example.com",
+  "label": "alamalbank.example.com",
+  "position": 0,
+  "createdAt": "2026-09-30T17:09:02.071Z"
+ },
+ {
+  "id": "cmuod0ttj0003luj3vvbtryw2",
+  "financierProfileId": "cmuipydpn0007oktajlh7xad4",
+  "platform": "FACEBOOK",
+  "url": "https://facebook.com/alamalbank",
+  "label": "Facebook",
+  "position": 1,
+  "createdAt": "2026-09-30T17:09:02.072Z"
+ },
+ {
+  "id": "cmuod0ttk0005luj3xb8gjcwr",
+  "financierProfileId": "cmuipydpn0007oktajlh7xad4",
+  "platform": "X",
+  "url": "https://x.com/alamalbank",
+  "label": "X (Twitter)",
+  "position": 2,
+  "createdAt": "2026-09-30T17:09:02.072Z"
+ },
+ {
+  "id": "cmuod0ttl0007luj3movsnjhc",
+  "financierProfileId": "cmuipydpn0007oktajlh7xad4",
+  "platform": "LINKEDIN",
+  "url": "https://linkedin.com/company/alamalbank",
+  "label": "LinkedIn",
+  "position": 3,
+  "createdAt": "2026-09-30T17:09:02.073Z"
+ },
+ {
+  "id": "cmuod0ttl0009luj34wl4wmy6",
+  "financierProfileId": "cmuipydpo0009oktauty610lp",
+  "platform": "WEBSITE",
+  "url": "https://www.alkuraimi.example.com",
+  "label": "alkuraimi.example.com",
+  "position": 4,
+  "createdAt": "2026-09-30T17:09:02.074Z"
+ },
+ {
+  "id": "cmuod0ttm000bluj3cem8sx0f",
+  "financierProfileId": "cmuipydpo0009oktauty610lp",
+  "platform": "FACEBOOK",
+  "url": "https://facebook.com/alkuraimi",
+  "label": "Facebook",
+  "position": 5,
+  "createdAt": "2026-09-30T17:09:02.074Z"
+ },
+ {
+  "id": "cmuod0ttm000dluj3p6i7k3h9",
+  "financierProfileId": "cmuipydpo0009oktauty610lp",
+  "platform": "INSTAGRAM",
+  "url": "https://instagram.com/alkuraimi",
+  "label": "Instagram",
+  "position": 6,
+  "createdAt": "2026-09-30T17:09:02.074Z"
+ },
+ {
+  "id": "cmuod0ttm000fluj3o83uqkrk",
+  "financierProfileId": "cmuipydpo0009oktauty610lp",
+  "platform": "X",
+  "url": "https://x.com/alkuraimi",
+  "label": "X (Twitter)",
+  "position": 7,
+  "createdAt": "2026-09-30T17:09:02.075Z"
+ },
+ {
+  "id": "cmuod0ttn000hluj35huj7oez",
+  "financierProfileId": "cmuipydpo0009oktauty610lp",
+  "platform": "YOUTUBE",
+  "url": "https://youtube.com/@alkuraimi",
+  "label": "YouTube",
+  "position": 8,
+  "createdAt": "2026-09-30T17:09:02.076Z"
+ },
+ {
+  "id": "cmuod0tto000jluj38n1i6153",
+  "financierProfileId": "cmuod0iff000hluhr7ah8yhiz",
+  "platform": "WEBSITE",
+  "url": "https://www.tihamamfi.example.com",
+  "label": "tihamamfi.example.com",
+  "position": 9,
+  "createdAt": "2026-09-30T17:09:02.076Z"
+ },
+ {
+  "id": "cmuod0tto000lluj33jf7msu8",
+  "financierProfileId": "cmuod0iff000hluhr7ah8yhiz",
+  "platform": "FACEBOOK",
+  "url": "https://facebook.com/tihamamfi",
+  "label": "Facebook",
+  "position": 10,
+  "createdAt": "2026-09-30T17:09:02.077Z"
+ },
+ {
+  "id": "cmuod0ttp000nluj3798nrh7v",
+  "financierProfileId": "cmuod0iff000hluhr7ah8yhiz",
+  "platform": "WHATSAPP",
+  "url": "https://wa.me/9673000000",
+  "label": "WhatsApp",
+  "position": 11,
+  "createdAt": "2026-09-30T17:09:02.077Z"
+ }
+]

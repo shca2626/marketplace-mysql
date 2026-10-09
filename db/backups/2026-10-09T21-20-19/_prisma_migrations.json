@@ -1,0 +1,22 @@
+[
+ {
+  "id": "3baa025f-0f3f-4031-bf6c-ec4975852e46",
+  "checksum": "adfcc8bcb86d25465bb392981b14509c0ae00e53ede32a98d8f8fbb061ee35d0",
+  "finished_at": "2026-10-06T22:54:46.335Z",
+  "migration_name": "20261006090000_offer_accept_approval",
+  "logs": null,
+  "rolled_back_at": null,
+  "started_at": "2026-10-06T22:54:45.122Z",
+  "applied_steps_count": "1"
+ },
+ {
+  "id": "a4e453c6-9d36-4752-bdbd-2611e160b90a",
+  "checksum": "f3356171142a06fd8d07287cd4f452018f0c8b431aa1a7211718943fa8744ec9",
+  "finished_at": "2026-10-06T16:24:24.043Z",
+  "migration_name": "0_init",
+  "logs": "",
+  "rolled_back_at": null,
+  "started_at": "2026-10-06T16:24:24.043Z",
+  "applied_steps_count": "0"
+ }
+]

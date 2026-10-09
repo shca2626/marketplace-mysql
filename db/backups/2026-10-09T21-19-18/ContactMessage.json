@@ -1,0 +1,38 @@
+[
+ {
+  "id": "cmun6e2qd0000nfpaoilvdx14",
+  "name": "Curl Test",
+  "email": "curl@test.com",
+  "topic": "general",
+  "message": "Testing the contact endpoint directly.",
+  "handled": 0,
+  "createdAt": "2026-09-29T21:15:36.661Z"
+ },
+ {
+  "id": "cmun6enx40001nfpadlzssh6k",
+  "name": "Test User",
+  "email": "test@example.com",
+  "topic": "general",
+  "message": "Hello, I would like to learn about financing options for a 10kW rooftop installation.",
+  "handled": 0,
+  "createdAt": "2026-09-29T21:16:04.120Z"
+ },
+ {
+  "id": "cmun6g4da0002nfpap84wl1mk",
+  "name": "Newsletter",
+  "email": "newsletter-subscriber@test.com",
+  "topic": "newsletter",
+  "message": "Newsletter subscription from the website footer/homepage.",
+  "handled": 0,
+  "createdAt": "2026-09-29T21:17:12.095Z"
+ },
+ {
+  "id": "cmun6gq1q0003nfpamwb1dsr0",
+  "name": "Sel Tester",
+  "email": "select@test.com",
+  "topic": "funding",
+  "message": "Verifying the funding topic selection end to end.",
+  "handled": 0,
+  "createdAt": "2026-09-29T21:17:40.190Z"
+ }
+]

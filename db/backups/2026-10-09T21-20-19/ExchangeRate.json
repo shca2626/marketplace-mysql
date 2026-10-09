@@ -1,0 +1,582 @@
+[
+ {
+  "id": "cmuvl2k2e0004nez8rn0pdhpg",
+  "baseCode": "USD",
+  "quoteCode": "YER",
+  "rate": 530,
+  "source": "SEED",
+  "validFrom": "2026-10-05T18:28:42.902Z",
+  "createdBy": null,
+  "createdAt": "2026-10-05T18:28:42.902Z"
+ },
+ {
+  "id": "cmuvl2kqm0006nez8xji52doa",
+  "baseCode": "YER",
+  "quoteCode": "USD",
+  "rate": 0.00189,
+  "source": "SEED",
+  "validFrom": "2026-10-05T18:28:43.775Z",
+  "createdBy": null,
+  "createdAt": "2026-10-05T18:28:43.775Z"
+ },
+ {
+  "id": "cmuvl2l7z0008nez8vcwf5coe",
+  "baseCode": "USD",
+  "quoteCode": "SAR",
+  "rate": 3.75,
+  "source": "SEED",
+  "validFrom": "2026-10-05T18:28:44.399Z",
+  "createdBy": null,
+  "createdAt": "2026-10-05T18:28:44.399Z"
+ },
+ {
+  "id": "cmuvl2lpb000anez8k6majyrs",
+  "baseCode": "SAR",
+  "quoteCode": "USD",
+  "rate": 0.26667,
+  "source": "SEED",
+  "validFrom": "2026-10-05T18:28:45.023Z",
+  "createdBy": null,
+  "createdAt": "2026-10-05T18:28:45.023Z"
+ },
+ {
+  "id": "cmuvl2m6m000cnez831amfata",
+  "baseCode": "SAR",
+  "quoteCode": "YER",
+  "rate": 141.5,
+  "source": "SEED",
+  "validFrom": "2026-10-05T18:28:45.647Z",
+  "createdBy": null,
+  "createdAt": "2026-10-05T18:28:45.647Z"
+ },
+ {
+  "id": "cmuvl2mny000enez8wm4dsdjb",
+  "baseCode": "YER",
+  "quoteCode": "SAR",
+  "rate": 0.00707,
+  "source": "SEED",
+  "validFrom": "2026-10-05T18:28:46.270Z",
+  "createdBy": null,
+  "createdAt": "2026-10-05T18:28:46.270Z"
+ },
+ {
+  "id": "cmuvlazup000zne7t7x9pn0lu",
+  "baseCode": "USD",
+  "quoteCode": "YER",
+  "rate": 236.904274,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-05T18:35:16.608Z",
+  "createdBy": null,
+  "createdAt": "2026-10-05T18:35:16.609Z"
+ },
+ {
+  "id": "cmuvlb0ja0011ne7ttipu9x3w",
+  "baseCode": "USD",
+  "quoteCode": "SAR",
+  "rate": 3.75,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-05T18:35:17.493Z",
+  "createdBy": null,
+  "createdAt": "2026-10-05T18:35:17.495Z"
+ },
+ {
+  "id": "cmuvlb10t0013ne7tffss2ixw",
+  "baseCode": "USD",
+  "quoteCode": "AED",
+  "rate": 3.6725,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-05T18:35:18.124Z",
+  "createdBy": null,
+  "createdAt": "2026-10-05T18:35:18.126Z"
+ },
+ {
+  "id": "cmuvlb1id0015ne7t9ab32437",
+  "baseCode": "USD",
+  "quoteCode": "EGP",
+  "rate": 52.24751,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-05T18:35:18.756Z",
+  "createdBy": null,
+  "createdAt": "2026-10-05T18:35:18.757Z"
+ },
+ {
+  "id": "cmuvlb1zw0017ne7tfnzf167s",
+  "baseCode": "USD",
+  "quoteCode": "JOD",
+  "rate": 0.709,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-05T18:35:19.387Z",
+  "createdBy": null,
+  "createdAt": "2026-10-05T18:35:19.388Z"
+ },
+ {
+  "id": "cmuvlb2hl0019ne7thkg6uwy3",
+  "baseCode": "USD",
+  "quoteCode": "KWD",
+  "rate": 0.309182,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-05T18:35:20.024Z",
+  "createdBy": null,
+  "createdAt": "2026-10-05T18:35:20.026Z"
+ },
+ {
+  "id": "cmuvlb2z4001bne7tdz3jr8d1",
+  "baseCode": "USD",
+  "quoteCode": "QAR",
+  "rate": 3.64,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-05T18:35:20.655Z",
+  "createdBy": null,
+  "createdAt": "2026-10-05T18:35:20.656Z"
+ },
+ {
+  "id": "cmuvlb3gm001dne7tbaf7i4w2",
+  "baseCode": "USD",
+  "quoteCode": "BHD",
+  "rate": 0.376,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-05T18:35:21.285Z",
+  "createdBy": null,
+  "createdAt": "2026-10-05T18:35:21.287Z"
+ },
+ {
+  "id": "cmuvlb3y3001fne7tfsuhu5aq",
+  "baseCode": "USD",
+  "quoteCode": "OMR",
+  "rate": 0.384497,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-05T18:35:21.914Z",
+  "createdBy": null,
+  "createdAt": "2026-10-05T18:35:21.915Z"
+ },
+ {
+  "id": "cmuvlb4j0001hne7tcjwhkl7u",
+  "baseCode": "USD",
+  "quoteCode": "EUR",
+  "rate": 0.88889,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-05T18:35:22.542Z",
+  "createdBy": null,
+  "createdAt": "2026-10-05T18:35:22.543Z"
+ },
+ {
+  "id": "cmuvlb50g001jne7t9yuraa53",
+  "baseCode": "USD",
+  "quoteCode": "GBP",
+  "rate": 0.755727,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-05T18:35:23.295Z",
+  "createdBy": null,
+  "createdAt": "2026-10-05T18:35:23.297Z"
+ },
+ {
+  "id": "cmuvlb5r4001lne7t91msjpa2",
+  "baseCode": "USD",
+  "quoteCode": "TRY",
+  "rate": 49.161928,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-05T18:35:24.255Z",
+  "createdBy": null,
+  "createdAt": "2026-10-05T18:35:24.257Z"
+ },
+ {
+  "id": "cmuvlb68k001nne7tf0wu01fg",
+  "baseCode": "USD",
+  "quoteCode": "CNY",
+  "rate": 6.710363,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-05T18:35:24.883Z",
+  "createdBy": null,
+  "createdAt": "2026-10-05T18:35:24.884Z"
+ },
+ {
+  "id": "cmuvlb74h001pne7txz1xipyw",
+  "baseCode": "USD",
+  "quoteCode": "YER",
+  "rate": 535.5,
+  "source": "ADMIN",
+  "validFrom": "2026-10-05T18:35:26.032Z",
+  "createdBy": null,
+  "createdAt": "2026-10-05T18:35:26.033Z"
+ },
+ {
+  "id": "cmuvo5b1c0043nemhi457xzhb",
+  "baseCode": "USD",
+  "quoteCode": "YER",
+  "rate": 535.5,
+  "source": "ADMIN",
+  "validFrom": "2026-10-05T19:54:50.014Z",
+  "createdBy": null,
+  "createdAt": "2026-10-05T19:54:50.016Z"
+ },
+ {
+  "id": "cmuvub9cj008qnehogyvw56zj",
+  "baseCode": "YER",
+  "quoteCode": "USD",
+  "rate": 0.0018674,
+  "source": "ADMIN",
+  "validFrom": "2026-10-05T22:47:25.458Z",
+  "createdBy": "cmuvhj2jw0000netat574v5jf",
+  "createdAt": "2026-10-05T22:47:25.459Z"
+ },
+ {
+  "id": "cmuwwoe1d008zq0li5a2qjtra",
+  "baseCode": "USD",
+  "quoteCode": "SAR",
+  "rate": 3.75,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T16:41:23.472Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T16:41:23.474Z"
+ },
+ {
+  "id": "cmuwwoeqi0091q0li9qet5e5z",
+  "baseCode": "USD",
+  "quoteCode": "AED",
+  "rate": 3.6725,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T16:41:24.377Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T16:41:24.378Z"
+ },
+ {
+  "id": "cmuwwof810093q0li3ae05dbx",
+  "baseCode": "USD",
+  "quoteCode": "EGP",
+  "rate": 52.431625,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T16:41:25.008Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T16:41:25.009Z"
+ },
+ {
+  "id": "cmuwwofpk0095q0libis6z7cl",
+  "baseCode": "USD",
+  "quoteCode": "JOD",
+  "rate": 0.709,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T16:41:25.639Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T16:41:25.640Z"
+ },
+ {
+  "id": "cmuwwog730097q0li5t1d7i47",
+  "baseCode": "USD",
+  "quoteCode": "KWD",
+  "rate": 0.309205,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T16:41:26.270Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T16:41:26.272Z"
+ },
+ {
+  "id": "cmuwwogon0099q0li24ktk21t",
+  "baseCode": "USD",
+  "quoteCode": "QAR",
+  "rate": 3.64,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T16:41:26.903Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T16:41:26.904Z"
+ },
+ {
+  "id": "cmuwwoh67009bq0li2mjvx6i1",
+  "baseCode": "USD",
+  "quoteCode": "BHD",
+  "rate": 0.376,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T16:41:27.534Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T16:41:27.535Z"
+ },
+ {
+  "id": "cmuwwohnq009dq0liob70b4h9",
+  "baseCode": "USD",
+  "quoteCode": "OMR",
+  "rate": 0.384497,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T16:41:28.165Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T16:41:28.167Z"
+ },
+ {
+  "id": "cmuwwoi5a009fq0li3if71txh",
+  "baseCode": "USD",
+  "quoteCode": "EUR",
+  "rate": 0.892111,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T16:41:28.797Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T16:41:28.798Z"
+ },
+ {
+  "id": "cmuwwoimu009hq0li6quwoghr",
+  "baseCode": "USD",
+  "quoteCode": "GBP",
+  "rate": 0.756485,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T16:41:29.428Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T16:41:29.430Z"
+ },
+ {
+  "id": "cmuwwoj4f009jq0li9dmnfcdg",
+  "baseCode": "USD",
+  "quoteCode": "TRY",
+  "rate": 49.164125,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T16:41:30.062Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T16:41:30.063Z"
+ },
+ {
+  "id": "cmuwwojm2009lq0lik3z5k0dl",
+  "baseCode": "USD",
+  "quoteCode": "CNY",
+  "rate": 6.714466,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T16:41:30.697Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T16:41:30.699Z"
+ },
+ {
+  "id": "cmux46w5a0001q01jld0zeryg",
+  "baseCode": "USD",
+  "quoteCode": "SAR",
+  "rate": 3.75,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T20:11:44.060Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T20:11:44.061Z"
+ },
+ {
+  "id": "cmux46www0003q01jrm0z8222",
+  "baseCode": "USD",
+  "quoteCode": "AED",
+  "rate": 3.6725,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T20:11:45.055Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T20:11:45.057Z"
+ },
+ {
+  "id": "cmux46xfm0005q01j6zlnqfmk",
+  "baseCode": "USD",
+  "quoteCode": "EGP",
+  "rate": 52.431625,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T20:11:45.729Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T20:11:45.731Z"
+ },
+ {
+  "id": "cmux46xxm0007q01juzk1ufag",
+  "baseCode": "USD",
+  "quoteCode": "JOD",
+  "rate": 0.709,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T20:11:46.377Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T20:11:46.378Z"
+ },
+ {
+  "id": "cmux46yfm0009q01jkd02yr21",
+  "baseCode": "USD",
+  "quoteCode": "KWD",
+  "rate": 0.309205,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T20:11:47.025Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T20:11:47.026Z"
+ },
+ {
+  "id": "cmux46yxk000bq01jrbcw62uy",
+  "baseCode": "USD",
+  "quoteCode": "QAR",
+  "rate": 3.64,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T20:11:47.671Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T20:11:47.672Z"
+ },
+ {
+  "id": "cmux46zfj000dq01jwnl2croh",
+  "baseCode": "USD",
+  "quoteCode": "BHD",
+  "rate": 0.376,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T20:11:48.318Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T20:11:48.319Z"
+ },
+ {
+  "id": "cmux46zxi000fq01jlic94r2i",
+  "baseCode": "USD",
+  "quoteCode": "OMR",
+  "rate": 0.384497,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T20:11:48.966Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T20:11:48.967Z"
+ },
+ {
+  "id": "cmux470fi000hq01jkb5stsd9",
+  "baseCode": "USD",
+  "quoteCode": "EUR",
+  "rate": 0.892111,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T20:11:49.613Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T20:11:49.614Z"
+ },
+ {
+  "id": "cmux4716y000jq01jvg48j3hh",
+  "baseCode": "USD",
+  "quoteCode": "GBP",
+  "rate": 0.756485,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T20:11:50.601Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T20:11:50.602Z"
+ },
+ {
+  "id": "cmux471nu000lq01jch6t7dys",
+  "baseCode": "USD",
+  "quoteCode": "TRY",
+  "rate": 49.164125,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T20:11:51.209Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T20:11:51.210Z"
+ },
+ {
+  "id": "cmux4724m000nq01jiaqk32ik",
+  "baseCode": "USD",
+  "quoteCode": "CNY",
+  "rate": 6.714466,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T20:11:51.813Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T20:11:51.814Z"
+ },
+ {
+  "id": "cmuxamv5o0001q0zzodggcqvm",
+  "baseCode": "USD",
+  "quoteCode": "SAR",
+  "rate": 3.75,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T23:12:06.972Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T23:12:06.973Z"
+ },
+ {
+  "id": "cmuxamvuq0003q0zz1wzgxhbd",
+  "baseCode": "USD",
+  "quoteCode": "AED",
+  "rate": 3.6725,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T23:12:07.873Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T23:12:07.874Z"
+ },
+ {
+  "id": "cmuxamwoq0005q0zzinqsxvre",
+  "baseCode": "USD",
+  "quoteCode": "EGP",
+  "rate": 52.431625,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T23:12:08.953Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T23:12:08.954Z"
+ },
+ {
+  "id": "cmuxamxh40007q0zz8dz56ui0",
+  "baseCode": "USD",
+  "quoteCode": "JOD",
+  "rate": 0.709,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T23:12:09.976Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T23:12:09.977Z"
+ },
+ {
+  "id": "cmuxamxzx0009q0zzixsbg21p",
+  "baseCode": "USD",
+  "quoteCode": "KWD",
+  "rate": 0.309205,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T23:12:10.652Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T23:12:10.653Z"
+ },
+ {
+  "id": "cmuxamyip000bq0zz8zwlywec",
+  "baseCode": "USD",
+  "quoteCode": "QAR",
+  "rate": 3.64,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T23:12:11.328Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T23:12:11.329Z"
+ },
+ {
+  "id": "cmuxamz1j000dq0zzsweejyd4",
+  "baseCode": "USD",
+  "quoteCode": "BHD",
+  "rate": 0.376,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T23:12:12.006Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T23:12:12.007Z"
+ },
+ {
+  "id": "cmuxamzkd000fq0zzbwxgb2vi",
+  "baseCode": "USD",
+  "quoteCode": "OMR",
+  "rate": 0.384497,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T23:12:12.684Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T23:12:12.685Z"
+ },
+ {
+  "id": "cmuxan036000hq0zzl6y7uefn",
+  "baseCode": "USD",
+  "quoteCode": "EUR",
+  "rate": 0.892111,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T23:12:13.361Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T23:12:13.362Z"
+ },
+ {
+  "id": "cmuxan0lz000jq0zz7jjevfjb",
+  "baseCode": "USD",
+  "quoteCode": "GBP",
+  "rate": 0.756485,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T23:12:14.038Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T23:12:14.039Z"
+ },
+ {
+  "id": "cmuxan14s000lq0zzfm4cuxji",
+  "baseCode": "USD",
+  "quoteCode": "TRY",
+  "rate": 49.164125,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T23:12:14.715Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T23:12:14.716Z"
+ },
+ {
+  "id": "cmuxan1no000nq0zzt508ftus",
+  "baseCode": "USD",
+  "quoteCode": "CNY",
+  "rate": 6.714466,
+  "source": "LIVE:er-api",
+  "validFrom": "2026-10-06T23:12:15.395Z",
+  "createdBy": null,
+  "createdAt": "2026-10-06T23:12:15.396Z"
+ }
+]

@@ -1,0 +1,24 @@
+[
+ {
+  "id": "cmuxbb5k2005aq0pqvkhw1iju",
+  "documentId": "cmuxb9hm0001qq0tamicn89fa",
+  "userId": "cmuxb954d000bq0taz07xjnhn",
+  "nonce": "a5d53d96a2ea630d5613d6fca7f8af3fa3a0d29676784c81",
+  "basis": "FINANCIER_SCOPE",
+  "expiresAt": "2026-10-06T23:36:00.000Z",
+  "consumedAt": null,
+  "issuedIp": "::1",
+  "createdAt": "2026-10-06T23:31:00.195Z"
+ },
+ {
+  "id": "cmuxbhqfs007gq0pq6epdd0hb",
+  "documentId": "cmuxbetla001qq05m8oy6cyso",
+  "userId": "cmuxbe3mg000bq05mo85zo7b9",
+  "nonce": "fe873e45ae3cb38c0c596aa82a47f7afa413dfd4c5508a01",
+  "basis": "FINANCIER_SCOPE",
+  "expiresAt": "2026-10-06T23:41:07.000Z",
+  "consumedAt": null,
+  "issuedIp": "::1",
+  "createdAt": "2026-10-06T23:36:07.192Z"
+ }
+]

@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { ArrowRight } from 'lucide-react'
 import { useMarketplace } from '@/store/marketplace'
 import { useApi } from '@/hooks/use-api'
-import type { HomeFeed } from '@/lib/types'
+import type { CategoryDTO, HomeFeed } from '@/lib/types'
 import { ProductCard, ProductCardSkeleton } from '@/components/marketplace/product-card'
 import { Button } from '@/components/ui/button'
 
@@ -45,7 +45,7 @@ export function MarketPreview() {
 
         {/* Category tiles — same style as the market home */}
         <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 lg:grid-cols-6">
-          {(loading ? Array.from({ length: 6 }) : categories).map((c, i) =>
+          {(loading ? (Array.from({ length: 6 }) as (CategoryDTO | undefined)[]) : categories).map((c, i) =>
             loading || !c ? (
               <div key={i} className="h-24 animate-pulse rounded-2xl bg-bh-soft-blue" />
             ) : (
@@ -77,7 +77,7 @@ export function MarketPreview() {
 
         {/* Featured products — the market's own ProductCard */}
         <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {(loading ? Array.from({ length: 8 }) : featured).map((p, i) =>
+          {(loading ? (Array.from({ length: 8 }) as (HomeFeed['featured'][number] | undefined)[]) : featured).map((p, i) =>
             loading || !p ? <ProductCardSkeleton key={i} /> : <ProductCard key={p.id} product={p} index={i} />
           )}
         </div>

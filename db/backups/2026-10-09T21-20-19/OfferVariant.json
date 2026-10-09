@@ -1,0 +1,24 @@
+[
+ {
+  "id": "cmuvl5lmm0001ne2891yqwhxy",
+  "offerId": "cmuvl3i3w001vne0u5e3u00xx",
+  "variantId": "cmupybttf000cnd0fu79fqw4o",
+  "price": 120,
+  "stock": 12,
+  "sku": null,
+  "isActive": 1,
+  "createdAt": "2026-10-05T18:31:04.895Z",
+  "updatedAt": "2026-10-05T18:31:04.895Z"
+ },
+ {
+  "id": "cmuvl5m7q0003ne283dd2nk62",
+  "offerId": "cmuvl3i3w001vne0u5e3u00xx",
+  "variantId": "cmupybttg000dnd0fse8erbtr",
+  "price": 140,
+  "stock": 13,
+  "sku": null,
+  "isActive": 1,
+  "createdAt": "2026-10-05T18:31:05.655Z",
+  "updatedAt": "2026-10-05T18:31:05.655Z"
+ }
+]

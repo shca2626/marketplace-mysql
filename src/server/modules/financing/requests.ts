@@ -75,6 +75,8 @@ export interface FinancingRequestSummaryDTO {
   multiGroupId: string | null
   amountRequested: number
   currency: string
+  /** The tenor the applicant asked for (FIN-9 prefill source) */
+  tenorRequestedMonths: number | null
   activityName: string | null
   activityCity: string | null
   purpose: string | null
@@ -238,7 +240,7 @@ async function assertServiceApplicable(serviceId: string, amount: number): Promi
   }
 }
 
-function parseFields(input: CreateFinancingRequestInput) {
+function parseFields(input: Omit<CreateFinancingRequestInput, 'serviceId'>) {
   const parseDate = (v: string | null | undefined): Date | null => {
     if (!v) return null
     const d = new Date(v)
@@ -313,7 +315,7 @@ export async function createFinancingRequest(
  */
 export async function createMultiFinancingRequests(
   userId: string,
-  input: CreateFinancingRequestInput & { serviceIds: string[] }
+  input: Omit<CreateFinancingRequestInput, 'serviceId'> & { serviceIds: string[] }
 ): Promise<FinancingRequestSummaryDTO[]> {
   const serviceIds = [...new Set(input.serviceIds)]
   if (serviceIds.length < 2) throw new FinancingError('Multi-financier applications need at least two services')

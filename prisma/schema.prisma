@@ -9,7 +9,12 @@
 // on MySQL 8.4), explicit composite-@@id M2M join models (Aiven enforces
 // sql_require_primary_key=1).
 //
-// Schema/DB sync:  bun run db:push    (prisma db push --accept-data-loss)
+// Schema/DB sync:  ⚠ NEVER run `prisma db push` against this database — the
+// live DB intentionally carries 51 legacy tables + columns from the
+// pre-rollback implementation that this schema does not declare, and db push
+// would DROP them. Use the surgical additive migration scripts instead
+// (scripts/migrate-*.ts). `bun run db:push` routes through a guard that
+// aborts on any destructive diff.
 // Client:          bun run db:generate
 // Health:          bun scripts/db-status.ts
 
@@ -54,6 +59,9 @@ model User {
   emailVerificationTokens EmailVerificationToken[]
 
   products           Product[]
+  productsReviewed   Product[]          @relation("ProductReviewedBy")
+  offersCreated      ProductOffer[]     @relation("ProductOfferSeller")
+  sellerProfiles     SellerProfile[]    @relation("SellerProfileOwner")
   orders             Order[]
   reviews            Review[]
   favorites          Favorite[]
@@ -164,6 +172,15 @@ model Product {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  // ── Shared-catalog ownership & platform approval (B2B selling) ──
+  organizationId  String? // owning company; null = platform-created / legacy individual listing
+  organization   Organization? @relation("OrganizationProducts", fields: [organizationId], references: [id])
+  approvalState  String   @default("APPROVED") // PENDING_APPROVAL | APPROVED | REJECTED — company proposals stay private until platform approval
+  reviewNote     String?  @db.Text // platform review note shown to the proposing company
+  reviewedAt     DateTime?
+  reviewedById   String?
+  reviewedBy     User?    @relation("ProductReviewedBy", fields: [reviewedById], references: [id])
+
   reviews          Review[]
   favorites        Favorite[]
   orderItems       OrderItem[]
@@ -171,11 +188,14 @@ model Product {
   rfqLines         RfqLine[]
   quoteLines       QuoteLine[]
   variants         ProductVariant[]
+  offers           ProductOffer[]
 
   @@index([categoryId])
   @@index([sellerId, status])
   @@index([status, soldCount])
   @@index([featured])
+  @@index([organizationId, approvalState])
+  @@index([approvalState, status])
 }
 
 model Order {
@@ -226,11 +246,20 @@ model OrderItem {
   payoutId    String? // set when this item's revenue was settled into a seller payout
   payout      Payout? @relation(fields: [payoutId], references: [id])
 
+  // ── Shared-catalog offer snapshot (B2B2C) ──
+  offerId        String? // ProductOffer purchased (loose FK — indexed, no DB constraint)
+  offerVariantId String? // OfferVariant purchased (FK constraint in DB)
+  sellerOrgId    String? // selling organization snapshot
+  offerVariant   OfferVariant? @relation("OrderItemOfferVariant", fields: [offerVariantId], references: [id])
+  sellerOrg      Organization? @relation("OrderItemSellerOrg", fields: [sellerOrgId], references: [id])
+
   @@index([orderId])
   @@index([productId])
   @@index([sellerId])
   @@index([sellerId, payoutId])
   @@index([payoutId]) // MYSQL-FK-INDEX: payoutId relation needs its own leftmost index
+  @@index([offerId])
+  @@index([sellerOrgId])
 }
 
 model ProductVariant {
@@ -247,6 +276,7 @@ model ProductVariant {
   isActive       Boolean  @default(true)
   image          String? // uploaded-media variant image URL
   createdAt      DateTime @default(now())
+  offerVariants  OfferVariant[]
 
   @@index([productId, isActive])
 }
@@ -319,6 +349,13 @@ model Organization {
   financingRequests     FinancingRequest[]     @relation("FinancingRequestsByOrg")
   accreditationRequests AccreditationRequest[] @relation("AccreditationRequestsByOrg")
 
+  // ── shared-catalog selling (B2B) ──
+  stores         Store[]          @relation("OrganizationStores")
+  products       Product[]        @relation("OrganizationProducts")
+  offers         ProductOffer[]   @relation("ProductOfferSellerOrg")
+  sellerProfile  SellerProfile?   @relation("SellerProfileOrg")
+  orderItemsSold OrderItem[]      @relation("OrderItemSellerOrg")
+
   @@index([status])
   @@index([createdAt])
 }
@@ -335,6 +372,149 @@ model OrganizationMember {
 
   @@unique([organizationId, userId])
   @@index([userId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SHARED CATALOG & MULTI-STORE SELLING (B2B) — one catalog, many company offers.
+// A Store belongs to a company and NEVER creates a private catalog. Companies
+// offer existing (platform-approved) catalog products with their own price,
+// stock, variants and lead time; new-product proposals stay private until the
+// platform approves them into the shared catalog (Product.approvalState).
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── The company store (multi-store is a platform-togglable capability) ──
+model Store {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  slug           String       @unique
+  description    String?      @db.Text // MYSQL: free-form store description
+  logoUrl        String?
+  city           String?
+  phone          String?
+  isActive       Boolean      @default(true)
+  isDefault      Boolean      @default(false) // every company has exactly one default store
+  isArchived     Boolean      @default(false) // soft-delete; history attribution preserved
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization  @relation("OrganizationStores", fields: [organizationId], references: [id], onDelete: Cascade)
+  offers       ProductOffer[] @relation("ProductOfferStore")
+
+  @@index([organizationId, isActive])
+  @@index([organizationId, isDefault])
+}
+
+// ── A company's offer on a shared-catalog product (adopted table — live data) ──
+model ProductOffer {
+  id             String   @id @default(cuid())
+  productId      String
+  sellerId       String // creator/staff user who maintains this offer
+  sellerOrgId    String? // owning company (the selling organization)
+  storeId        String? // store attribution (multi-store)
+  price          Float
+  compareAtPrice Float?
+  stock          Int      @default(0)
+  moq            Int?
+  sku            String?
+  priceTiers     String?  @db.Text // MYSQL: JSON [{from,to,price}] quantity-break ladder
+  freeShipping   Boolean  @default(false)
+  shippingFee    Float?
+  processingDays Int? // lead time before dispatch
+  leadTimeNote   String?
+  status         String   @default("ACTIVE") // DRAFT | ACTIVE | PAUSED | ARCHIVED
+  soldCount      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  product   Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  seller    User          @relation("ProductOfferSeller", fields: [sellerId], references: [id])
+  sellerOrg Organization? @relation("ProductOfferSellerOrg", fields: [sellerOrgId], references: [id])
+  store     Store?        @relation("ProductOfferStore", fields: [storeId], references: [id])
+  variants  OfferVariant[]
+
+  @@unique([productId, sellerId])
+  @@index([productId, status])
+  @@index([sellerId, status])
+  @@index([sellerOrgId])
+  @@index([storeId])
+}
+
+// ── Per-offer variant pricing (offer × catalog variant) ──
+model OfferVariant {
+  id        String   @id @default(cuid())
+  offerId   String
+  variantId String
+  price     Float? // null = inherit offer price
+  stock     Int      @default(0)
+  sku       String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  offer      ProductOffer   @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  variant    ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]    @relation("OrderItemOfferVariant")
+
+  @@unique([offerId, variantId])
+  @@index([variantId])
+}
+
+// ── Seller qualification of a company (adopted table — live data) ──
+model SellerProfile {
+  id                String   @id @default(cuid())
+  organizationId    String   @unique // 1:1 — a company qualifies once
+  ownerUserId       String
+  verificationState String   @default("UNVERIFIED") // UNVERIFIED | PENDING | VERIFIED | REJECTED
+  verificationNote  String?  @db.Text // MYSQL: free-form platform note
+  verifiedAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  organization Organization @relation("SellerProfileOrg", fields: [organizationId], references: [id])
+  owner         User         @relation("SellerProfileOwner", fields: [ownerUserId], references: [id])
+
+  @@index([ownerUserId])
+  @@index([verificationState])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MODULE SYSTEM (adopted tables — live data) — platform-togglable capabilities.
+// Activation precedence (most specific wins): ORG/STORE > ORG_TYPE > PLATFORM;
+// absent rows fall back to ModuleDefinition.defaultOn.
+// ═══════════════════════════════════════════════════════════════════════════
+
+model ModuleDefinition {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String?  @db.Text // MYSQL: free-form description
+  domain      String   @default("STOREFRONT")
+  core        Boolean  @default(false) // core modules cannot be deactivated
+  defaultOn   Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  activations ModuleActivation[]
+}
+
+model ModuleActivation {
+  id          String   @id @default(cuid())
+  moduleKey   String
+  scopeType   String // PLATFORM | ORG_TYPE | ORG | STORE
+  scopeId     String   @default("")
+  enabled     Boolean  @default(true)
+  note        String?  @db.Text // MYSQL: free-form note
+  changedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  module ModuleDefinition @relation(fields: [moduleKey], references: [key], onDelete: Cascade)
+
+  @@unique([moduleKey, scopeType, scopeId])
+  @@index([scopeType, scopeId])
 }
 
 // Buyer segmentation that pricing and future promotions hang off. Works for
@@ -447,6 +627,13 @@ model Rfq {
   user              User          @relation(fields: [userId], references: [id])
   organization      Organization? @relation(fields: [organizationId], references: [id])
 
+  // ── Financing-linked supplier RFQ (B2B2C sourcing) ──
+  kind               String    @default("PROCUREMENT") // PROCUREMENT | SUPPLIER_FINANCING — sourcing for a financing request
+  financingRequestId String? // the FinancingRequest this RFQ sources goods for (loose FK)
+  version            Int       @default(1) // revision chain: material changes version up
+  consentAt          DateTime? // applicant consent captured for THIS version (consent ≠ agreement)
+  supersededById     String? // previous-version chain (loose FK)
+
   lines    RfqLine[]
   quotes   Quote[]
   messages RfqMessage[]
@@ -454,6 +641,8 @@ model Rfq {
   @@index([userId, createdAt])
   @@index([organizationId])
   @@index([status, createdAt])
+  @@index([financingRequestId])
+  @@index([kind, status])
 }
 
 model RfqLine {
@@ -860,6 +1049,7 @@ model Role {
   name        String
   description String?           @db.Text // MYSQL: free-form description
   scope       String            // PLATFORM | ORG
+  organizationId String          @default("") // "" = platform/global role; set = org-owned custom role (loose FK)
   isSystem    Boolean           @default(false) // seeded, undeletable
   isProtected Boolean           @default(false) // RBACSEC-1: hidden & untouchable for non-super-admins (super-admin, org.owner)
   createdAt   DateTime          @default(now())
@@ -869,6 +1059,7 @@ model Role {
   invitations StaffInvitation[]
 
   @@index([scope])
+  @@index([organizationId])
 }
 
 model RolePermission {
@@ -885,14 +1076,16 @@ model UserRole {
   userId         String
   roleId         String
   organizationId String   @default("") // "" = platform scope; otherwise org id (loose FK — keeps composite unique simple on MySQL)
+  storeId      String   @default("") // "" = org-wide; otherwise store id (store-scoped assignment, loose FK)
   assignedAt     DateTime @default(now())
   assignedBy     String? // admin user id (loose FK)
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   role           Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, roleId, organizationId])
+  @@unique([userId, roleId, organizationId, storeId])
   @@index([userId])
   @@index([organizationId])
+  @@index([storeId])
 }
 
 model StaffInvitation {

@@ -6,6 +6,23 @@ export const productInclude: Prisma.ProductInclude = {
   category: true,
   seller: { select: { id: true, name: true, storeName: true } },
   variants: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
+  offers: {
+    where: { status: 'ACTIVE', OR: [{ sellerOrgId: null }, { sellerOrg: { status: 'ACTIVE' } }] },
+    orderBy: { price: 'asc' },
+    select: {
+      id: true,
+      price: true,
+      stock: true,
+      moq: true,
+      processingDays: true,
+      freeShipping: true,
+      shippingFee: true,
+      sellerOrgId: true,
+      storeId: true,
+      sellerOrg: { select: { id: true, name: true, slug: true } },
+      store: { select: { name: true } },
+    },
+  },
 }
 
 export type ProductVariantRaw = {
@@ -60,6 +77,19 @@ type ProductRaw = {
   moq?: number | null
   priceTiers?: string | null
   variants?: ProductVariantRaw[]
+  // ── Shared-catalog offer aggregation (optional — partial selects may omit) ──
+  offers?: {
+    id: string
+    price: number
+    stock: number
+    moq: number | null
+    processingDays: number | null
+    freeShipping: boolean
+    shippingFee: number | null
+    sellerOrgId: string | null
+    sellerOrg?: { id: string; name: string; slug: string } | null
+    store?: { name: string } | null
+  }[]
 }
 
 function parseJsonArray<T>(raw: string | null | undefined, guard: (x: unknown) => x is T): T[] {
@@ -151,6 +181,23 @@ export function serializeProduct(p: ProductRaw, favorited = false): ProductDTO {
     moq: (p as { moq?: number | null }).moq ?? null,
     priceTiers: parseJsonArray((p as { priceTiers?: string | null }).priceTiers, isTier),
     variants: (p.variants ?? []).map(serializeVariant),
+    // ── Shared-catalog offer aggregation (multi-vendor) ──
+    offers: (p.offers ?? []).map((o) => ({
+      id: o.id,
+      price: o.price,
+      stock: o.stock,
+      moq: o.moq,
+      processingDays: o.processingDays,
+      freeShipping: o.freeShipping,
+      shippingFee: o.shippingFee,
+      sellerOrgId: o.sellerOrgId,
+      sellerOrgName: o.sellerOrg?.name ?? null,
+      sellerOrgSlug: o.sellerOrg?.slug ?? null,
+      storeName: o.store?.name ?? null,
+    })),
+    minOfferPrice: (p.offers ?? []).length > 0 ? Math.min(...(p.offers ?? []).map((o) => o.price)) : null,
+    offerCount: (p.offers ?? []).length,
+    approvalState: (p as { approvalState?: string }).approvalState ?? 'APPROVED',
   }
 }
 

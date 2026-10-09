@@ -1,0 +1,50 @@
+[
+ {
+  "id": "cmumx6v3n0000nfeh0yyid1fy",
+  "name": "Controllers & Accessories",
+  "slug": "controllers-accessories",
+  "icon": "Cable",
+  "description": null,
+  "sortOrder": 0
+ },
+ {
+  "id": "cmumx6v3n0001nfeheol12yu5",
+  "name": "Solar Panels",
+  "slug": "solar-panels",
+  "icon": "Sun",
+  "description": null,
+  "sortOrder": 0
+ },
+ {
+  "id": "cmumx6v3p0002nfehhgu57g7t",
+  "name": "Batteries & Storage",
+  "slug": "batteries-storage",
+  "icon": "BatteryCharging",
+  "description": null,
+  "sortOrder": 0
+ },
+ {
+  "id": "cmumx6v3p0003nfehocxrliql",
+  "name": "Inverters & Power",
+  "slug": "inverters-power",
+  "icon": "Zap",
+  "description": null,
+  "sortOrder": 0
+ },
+ {
+  "id": "cmumx6v3p0004nfehqao11l7y",
+  "name": "Solar Pumps",
+  "slug": "solar-pumps",
+  "icon": "Droplets",
+  "description": null,
+  "sortOrder": 0
+ },
+ {
+  "id": "cmumx6v3p0005nfeh5j5rx1ms",
+  "name": "Solar Lighting",
+  "slug": "solar-lighting",
+  "icon": "Lightbulb",
+  "description": null,
+  "sortOrder": 0
+ }
+]

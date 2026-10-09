@@ -547,7 +547,9 @@ export async function assignRole(
   }
 
   const existing = await db.userRole.findUnique({
-    where: { userId_roleId_organizationId: { userId: user.id, roleId: role.id, organizationId } },
+    where: {
+      userId_roleId_organizationId_storeId: { userId: user.id, roleId: role.id, organizationId, storeId: '' },
+    },
   })
   if (existing) {
     throw new RbacServiceError(

@@ -1,0 +1,33 @@
+[
+ {
+  "id": "cmuipye1s004woktasbpi07fi",
+  "number": "ACC-2026-000001",
+  "organizationId": "cmuimbol1008rokn0mrkge7ut",
+  "submittedById": "cmuimbo980006okn0cu0tdngk",
+  "serviceId": "cmuipydq4001doktaupowsvd4",
+  "multiGroupId": null,
+  "scopeNotes": "Hotel & hospitality supplies — cleaning equipment and small appliances.",
+  "consentAt": "2026-09-24T18:24:26.272Z",
+  "platformReviewedById": null,
+  "platformReviewedAt": null,
+  "platformNote": null,
+  "returnedAt": null,
+  "returnedReason": null,
+  "forwardedAt": null,
+  "status": "UNDER_PLATFORM_REVIEW",
+  "submittedAt": "2026-09-24T18:24:26.272Z",
+  "decidedById": null,
+  "decidedAt": null,
+  "decisionNote": null,
+  "accreditedAt": null,
+  "validUntil": null,
+  "revokedById": null,
+  "revokedAt": null,
+  "revocationReason": null,
+  "expiresAt": null,
+  "createdAt": "2026-09-26T18:24:26.273Z",
+  "updatedAt": "2026-10-07T00:27:55.587Z",
+  "activeKey": 1,
+  "supersedesId": null
+ }
+]

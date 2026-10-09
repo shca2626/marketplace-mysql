@@ -75,10 +75,10 @@ async function main() {
   for (const a of admins) {
     await db.userRole.upsert({
       where: {
-        userId_roleId_organizationId: { userId: a.id, roleId: superAdmin.id, organizationId: '' },
+        userId_roleId_organizationId_storeId: { userId: a.id, roleId: superAdmin.id, organizationId: '', storeId: '' },
       },
       update: {},
-      create: { userId: a.id, roleId: superAdmin.id, organizationId: '' },
+      create: { userId: a.id, roleId: superAdmin.id, organizationId: '', storeId: '' },
     })
   }
   console.log(`✓ legacy admins migrated: ${admins.length} (${admins.map((a) => a.email).join(', ') || 'none'})`)
@@ -99,10 +99,10 @@ async function main() {
     if (!roleId) continue
     await db.userRole.upsert({
       where: {
-        userId_roleId_organizationId: { userId: m.userId, roleId, organizationId: m.organizationId },
+        userId_roleId_organizationId_storeId: { userId: m.userId, roleId, organizationId: m.organizationId, storeId: '' },
       },
       update: {},
-      create: { userId: m.userId, roleId, organizationId: m.organizationId },
+      create: { userId: m.userId, roleId, organizationId: m.organizationId, storeId: '' },
     })
     migrated++
   }

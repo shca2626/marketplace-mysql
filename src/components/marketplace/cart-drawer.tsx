@@ -72,7 +72,7 @@ export function CartDrawer() {
               <Button
                 className="rounded-full"
                 onClick={() => {
-                  const res = moveToCart(cartLineKey(savedForLater[0].productId, savedForLater[0].variantId))
+                  const res = moveToCart(cartLineKey(savedForLater[0].productId, savedForLater[0].variantId, savedForLater[0].offerId))
                   if (res.ok) toast({ title: 'Moved to cart', description: savedForLater[0].title })
                   else
                     toast({
@@ -165,7 +165,7 @@ export function CartDrawer() {
                             size="icon"
                             className="h-7 w-7 rounded-lg"
                             disabled={item.quantity <= 1}
-                            onClick={() => updateQuantity(cartLineKey(item.productId, item.variantId), item.quantity - 1)}
+                            onClick={() => updateQuantity(cartLineKey(item.productId, item.variantId, item.offerId), item.quantity - 1)}
                             aria-label="Decrease quantity"
                           >
                             <Minus size={12} />
@@ -178,7 +178,7 @@ export function CartDrawer() {
                             size="icon"
                             className="h-7 w-7 rounded-lg"
                             disabled={item.quantity >= item.stock}
-                            onClick={() => updateQuantity(cartLineKey(item.productId, item.variantId), item.quantity + 1)}
+                            onClick={() => updateQuantity(cartLineKey(item.productId, item.variantId, item.offerId), item.quantity + 1)}
                             aria-label="Increase quantity"
                           >
                             <Plus size={12} />
@@ -192,7 +192,7 @@ export function CartDrawer() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-muted-foreground hover:text-primary"
-                            onClick={() => saveForLater(cartLineKey(item.productId, item.variantId))}
+                            onClick={() => saveForLater(cartLineKey(item.productId, item.variantId, item.offerId))}
                             aria-label={`Save ${item.title} for later`}
                           >
                             <BookmarkPlus size={14} />
@@ -201,7 +201,7 @@ export function CartDrawer() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                            onClick={() => removeFromCart(cartLineKey(item.productId, item.variantId))}
+                            onClick={() => removeFromCart(cartLineKey(item.productId, item.variantId, item.offerId))}
                             aria-label={`Remove ${item.title} from cart`}
                           >
                             <Trash2 size={14} />
@@ -247,7 +247,7 @@ export function CartDrawer() {
                           size="icon"
                           className="h-7 w-7 rounded-lg"
                           onClick={() => {
-                            const res = moveToCart(cartLineKey(item.productId, item.variantId))
+                            const res = moveToCart(cartLineKey(item.productId, item.variantId, item.offerId))
                             if (!res.ok) {
                               toast({
                                 title: 'Cannot move to cart',
@@ -264,7 +264,7 @@ export function CartDrawer() {
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                          onClick={() => removeFromSaved(cartLineKey(item.productId, item.variantId))}
+                          onClick={() => removeFromSaved(cartLineKey(item.productId, item.variantId, item.offerId))}
                           aria-label={`Remove ${item.title} from saved items`}
                         >
                           <Trash2 size={13} />

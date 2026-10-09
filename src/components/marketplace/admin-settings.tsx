@@ -23,6 +23,7 @@ import {
   Save,
   Settings2,
   Sparkles,
+  Store,
   Sun,
   Image as ImageIcon,
 } from 'lucide-react'
@@ -44,10 +45,11 @@ import { Separator } from '@/components/ui/separator'
 import { SlideEditor } from './slide-editor'
 import { cn } from '@/lib/utils'
 
-type SubTab = 'general' | 'theme' | 'layout' | 'slider' | 'slides'
+type SubTab = 'general' | 'marketplace' | 'theme' | 'layout' | 'slider' | 'slides'
 
 const SUB_TABS: { id: SubTab; label: string; icon: typeof Settings2; hint: string }[] = [
   { id: 'general', label: 'General', icon: Settings2, hint: 'Branding & announcement bar' },
+  { id: 'marketplace', label: 'Marketplace', icon: Store, hint: 'Multi-store & commerce policy' },
   { id: 'theme', label: 'Theme', icon: Palette, hint: 'Default mode, accent & radius' },
   { id: 'layout', label: 'Layout', icon: PanelLeft, hint: 'Content width & grid density' },
   { id: 'slider', label: 'Hero slider', icon: ImageIcon, hint: 'Orientation & playback' },
@@ -262,6 +264,9 @@ export function AdminSettings() {
         </div>
       )}
 
+      {/* ── Marketplace (multi-store & commerce policy) ── */}
+      {subTab === 'marketplace' && <MultiStoreCard />}
+
       {/* ── Theme ── */}
       {subTab === 'theme' && (
         <div className="grid gap-5 lg:grid-cols-2">
@@ -475,6 +480,164 @@ export function AdminSettings() {
 }
 
 // ── shared bits ─────────────────────────────────────────────────────────────
+
+// ── Multi-store platform settings (Marketplace sub-tab) ──────────────────────
+// Owns its own /api/admin/store-settings document (separate from the
+// StorefrontSettings doc above) — a switch for org-side multi-store plus the
+// per-company cap. Requires the storefront.manage permission server-side.
+
+function MultiStoreCard() {
+  const { data, loading, error, refetch } = useApi<{ settings: { multiStoreEnabled: boolean; maxStoresPerCompany: number } }>(
+    '/api/admin/store-settings'
+  )
+  const [enabled, setEnabled] = useState<boolean | null>(null)
+  const [maxStores, setMaxStores] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [savedAt, setSavedAt] = useState<string | null>(null)
+
+  // Seed the editable fields once the document arrives
+  const [seeded, setSeeded] = useState(false)
+  if (data?.settings && !seeded) {
+    setSeeded(true)
+    setEnabled(data.settings.multiStoreEnabled)
+    setMaxStores(String(data.settings.maxStoresPerCompany))
+  }
+
+  const save = async () => {
+    if (enabled == null) return
+    const max = Math.min(20, Math.max(1, Math.floor(Number(maxStores) || 1)))
+    setSaving(true)
+    try {
+      const res = await fetch('/api/admin/store-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ multiStoreEnabled: enabled, maxStoresPerCompany: max }),
+      })
+      const json = (await res.json()) as { settings?: { multiStoreEnabled: boolean; maxStoresPerCompany: number }; error?: string }
+      if (!res.ok || !json.settings) throw new Error(json.error ?? 'Save failed')
+      setEnabled(json.settings.multiStoreEnabled)
+      setMaxStores(String(json.settings.maxStoresPerCompany))
+      setSavedAt(new Date().toISOString())
+      toast({
+        title: 'Multi-store settings saved',
+        description: json.settings.multiStoreEnabled
+          ? `Companies can now operate up to ${json.settings.maxStoresPerCompany} store${json.settings.maxStoresPerCompany === 1 ? '' : 's'}.`
+          : 'Each company operates a single store.',
+      })
+    } catch (err) {
+      toast({ title: 'Save failed', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16 text-muted-foreground">
+        <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading marketplace settings…
+      </div>
+    )
+  }
+
+  if (error || !data?.settings) {
+    return (
+      <section className="rounded-2xl border border-dashed bg-card/60 p-6 text-center">
+        <p className="text-sm font-semibold">Couldn't load multi-store settings</p>
+        <p className="mt-1 text-xs text-muted-foreground">{error ?? 'Please try again.'}</p>
+        <Button variant="outline" className="mt-4 rounded-xl" onClick={() => void refetch()}>
+          Try again
+        </Button>
+      </section>
+    )
+  }
+
+  const dirty = enabled != null && (enabled !== data.settings.multiStoreEnabled || Number(maxStores) !== data.settings.maxStoresPerCompany)
+
+  return (
+    <div className="grid gap-5 lg:grid-cols-2">
+      <FieldCard
+        title="Multi-store"
+        desc="Let verified companies operate several stores (branches / fulfilment points) instead of a single store."
+      >
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-4 rounded-xl border bg-card px-3.5 py-3">
+            <div>
+              <p className="text-sm font-medium">Enable multi-store</p>
+              <p className="text-xs text-muted-foreground">
+                {enabled ? 'Companies can create additional stores' : 'Each company operates one store'}
+              </p>
+            </div>
+            <Switch
+              checked={enabled ?? false}
+              onCheckedChange={(v) => setEnabled(v)}
+              disabled={saving}
+              aria-label="Toggle multi-store"
+            />
+          </div>
+          <div>
+            <Label htmlFor="max-stores">Max stores per company</Label>
+            <Input
+              id="max-stores"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={20}
+              value={maxStores}
+              onChange={(e) => setMaxStores(e.target.value)}
+              disabled={saving}
+              className="mt-1.5"
+            />
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Between 1 and 20 — applies when multi-store is enabled; new stores are rejected beyond the cap.
+            </p>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              {savedAt ? `Saved ${new Date(savedAt).toLocaleTimeString()}` : 'Changes apply to every company immediately.'}
+            </p>
+            <Button className="rounded-xl" onClick={() => void save()} disabled={saving || !dirty || enabled == null}>
+              {saving ? (
+                <>
+                  <Loader2 size={14} className="mr-1.5 animate-spin" /> Saving…
+                </>
+              ) : (
+                <>
+                  <Save size={14} className="mr-1.5" /> Save changes
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </FieldCard>
+
+      <FieldCard title="How multi-store behaves" desc="What companies experience with this policy.">
+        <ul className="space-y-2.5 text-sm text-muted-foreground">
+          <li className="flex items-start gap-2.5">
+            <Store size={15} className="mt-0.5 shrink-0 text-primary" />
+            <span>
+              <span className="font-medium text-foreground">Disabled:</span> every company keeps exactly one store —
+              the &ldquo;Add store&rdquo; action is hidden in their workspace and the API rejects extra stores.
+            </span>
+          </li>
+          <li className="flex items-start gap-2.5">
+            <Store size={15} className="mt-0.5 shrink-0 text-primary" />
+            <span>
+              <span className="font-medium text-foreground">Enabled:</span> companies create up to the cap; one store
+              stays the default, offers can name their fulfilment store, and staff can be scoped per store.
+            </span>
+          </li>
+          <li className="flex items-start gap-2.5">
+            <Store size={15} className="mt-0.5 shrink-0 text-primary" />
+            <span>
+              <span className="font-medium text-foreground">Safety:</span> a company always keeps at least one active
+              store — archiving the last one is refused, and archived stores pause their offers.
+            </span>
+          </li>
+        </ul>
+      </FieldCard>
+    </div>
+  )
+}
 
 function FieldCard({
   title,

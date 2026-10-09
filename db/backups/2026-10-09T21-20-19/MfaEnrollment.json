@@ -1,0 +1,22 @@
+[
+ {
+  "id": "cmuvnjvxj0004nejwrbe95e9d",
+  "userId": "cmuvnjupv0000nejwsbl44j57",
+  "method": "TOTP",
+  "secretEnc": "v1.Iqolu_5AMtOaAd0_.mQdXV2u0uCEP6Wra62nZYOmVpbJ0HDYSpBAN.KJNZJ97pjBLZLC9VzdCaWQ",
+  "confirmedAt": "2026-10-05T19:38:10.661Z",
+  "lastTotpStep": null,
+  "createdAt": "2026-10-05T19:38:10.663Z",
+  "updatedAt": "2026-10-05T19:38:10.663Z"
+ },
+ {
+  "id": "cmuvxqe0h0001ney2uxvzv3yl",
+  "userId": "cmuvhj2jw0000netat574v5jf",
+  "method": "TOTP",
+  "secretEnc": "v1.s_TpcosezfvFvRSH.XUzR5slHk0CLk4z7xplXwQ.4p97-JGe__5Oa8R9fJg4ag",
+  "confirmedAt": "2026-10-06T00:23:10.191Z",
+  "lastTotpStep": 59708521,
+  "createdAt": "2026-10-06T00:23:10.193Z",
+  "updatedAt": "2026-10-06T03:00:57.490Z"
+ }
+]

@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { PackageCheck, ShoppingCart, Truck, Zap } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { Building2, Check, PackageCheck, ShoppingCart, Truck, Zap } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
-import type { ProductDTO, ProductVariantDTO } from '@/lib/types'
+import type { ProductDTO, ProductOfferSummaryDTO, ProductVariantDTO } from '@/lib/types'
 import { discountPercent, formatUSD } from '@/lib/format'
 import { QuantityInput } from '@/components/marketplace/quantity-input'
 import { Badge } from '@/components/ui/badge'
@@ -34,6 +35,17 @@ export function ProductBuyPanel({ product, variants }: { product: ProductDTO; va
   const [quantity, setQuantity] = useState(1)
   const [variantId, setVariantId] = useState<string>(variants.length === 1 ? variants[0]!.id : '')
 
+  // ── Multi-vendor offers (B2B2C shared catalog) ──────────────────────────
+  // Company offers ride on the product DTO (cheapest first); the selected one
+  // drives price/stock/MOQ here and scopes the cart line to that company.
+  const offers = useMemo(() => product.offers ?? [], [product])
+  const [selectedOfferId, setSelectedOfferId] = useState<string | null>(null)
+  const selectedOffer: ProductOfferSummaryDTO | null = useMemo(
+    () => offers.find((o) => o.id === selectedOfferId) ?? offers[0] ?? null,
+    [offers, selectedOfferId]
+  )
+  const activeOfferId = selectedOffer?.id ?? null
+
   // Recently viewed (global store — same list the SPA home page shows).
   // IMPORTANT: wait for the persisted state to rehydrate first. Effects run
   // children-first, so firing this set() before the shell's rehydrate() would
@@ -55,18 +67,20 @@ export function ProductBuyPanel({ product, variants }: { product: ProductDTO; va
   const hasVariants = variants.length > 0
   const variantPending = hasVariants && !selectedVariant
 
-  const effectivePrice = selectedVariant?.price ?? product.price
-  const effectiveCompareAt = selectedVariant?.compareAtPrice ?? product.compareAtPrice
-  const effectiveStock = selectedVariant ? selectedVariant.stock : product.stock
+  const effectivePrice = selectedOffer ? selectedOffer.price : (selectedVariant?.price ?? product.price)
+  const effectiveCompareAt = selectedOffer ? null : (selectedVariant?.compareAtPrice ?? product.compareAtPrice)
+  const effectiveStock = selectedOffer ? selectedOffer.stock : (selectedVariant ? selectedVariant.stock : product.stock)
   const effectiveSku = selectedVariant?.sku ?? product.sku ?? null
   const discount = discountPercent(effectivePrice, effectiveCompareAt)
 
   const handleAddToCart = (openDrawer: boolean) => {
-    const res = addToCart(product, quantity, selectedVariant)
+    const res = addToCart(product, quantity, selectedVariant, selectedOffer)
     if (res.ok) {
       toast({
         title: 'Added to cart',
-        description: `${quantity} × ${product.title}${selectedVariant ? ` (${selectedVariant.name})` : ''}`,
+        description: `${quantity} × ${product.title}${selectedVariant ? ` (${selectedVariant.name})` : ''}${
+          selectedOffer ? ` — from ${selectedOffer.sellerOrgName ?? selectedOffer.storeName ?? 'the selected seller'}` : ''
+        }`,
       })
       if (openDrawer) setCartOpen(true)
     } else {
@@ -77,7 +91,7 @@ export function ProductBuyPanel({ product, variants }: { product: ProductDTO; va
   const handleBuyNow = () => {
     // Outside the SPA a full navigation boots /market on the checkout view —
     // the middleware leaves ?view=checkout untouched by design.
-    const res = addToCart(product, quantity, selectedVariant)
+    const res = addToCart(product, quantity, selectedVariant, selectedOffer)
     if (res.ok) window.location.assign('/market?view=checkout')
     else toast({ title: 'Cannot add to cart', description: res.message, variant: 'destructive' })
   }
@@ -119,6 +133,102 @@ export function ProductBuyPanel({ product, variants }: { product: ProductDTO; va
           </>
         )}
       </div>
+
+      {/* ── Multi-vendor offers selector (B2B2C shared catalog) ──
+          Company offers on this product, cheapest first; the chosen one drives
+          the price/stock above and scopes the cart line to that company. */}
+      {offers.length > 0 && (
+        <div className="mt-4" data-testid="offers-panel">
+          <p className="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wide text-bh-muted">
+            <span className="flex items-center gap-1.5">
+              <Building2 size={13} className="text-bh-gold-dark" /> Offers from {offers.length} seller
+              {offers.length === 1 ? '' : 's'}
+            </span>
+            {product.minOfferPrice != null && (
+              <span className="font-normal normal-case tracking-normal">from {formatUSD(product.minOfferPrice)}</span>
+            )}
+          </p>
+          <div className="mt-2 space-y-2" role="radiogroup" aria-label="Choose a seller">
+            {offers.map((o) => {
+              const active = o.id === activeOfferId
+              const sellerName = o.sellerOrgName ?? o.storeName ?? 'Marketplace seller'
+              return (
+                <motion.button
+                  key={o.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => setSelectedOfferId(o.id)}
+                  initial={false}
+                  animate={{ scale: active ? 1 : 0.995 }}
+                  transition={{ duration: 0.15 }}
+                  className={cn(
+                    'block w-full rounded-xl border p-3 text-left transition-all',
+                    active
+                      ? 'border-bh-gold bg-bh-gold-pale/70 ring-1 ring-bh-gold/40'
+                      : 'border-bh-border-dark bg-bh-card hover:border-bh-gold/50 hover:bg-bh-soft-blue/40'
+                  )}
+                >
+                  <span className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="flex min-w-0 items-center gap-2.5">
+                      <span
+                        className={cn(
+                          'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
+                          active ? 'bg-bh-navy text-bh-gold' : 'bg-bh-soft-blue text-bh-navy'
+                        )}
+                      >
+                        <Building2 size={16} />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold text-bh-navy" title={sellerName}>
+                          {sellerName}
+                          {active && <Check size={13} className="ml-1.5 inline text-bh-gold-dark" aria-hidden />}
+                        </span>
+                        <span className="block truncate text-xs text-bh-muted">
+                          {o.storeName ? `Ships from ${o.storeName}` : 'Verified company'}
+                          {o.processingDays != null ? ` · ships in ${o.processingDays}d` : ''}
+                        </span>
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-right">
+                      <span className="block text-sm font-bold text-bh-navy" data-testid="offer-price">
+                        {formatUSD(o.price)}
+                      </span>
+                      <span
+                        className={cn(
+                          'block text-[11px]',
+                          o.stock <= 0 ? 'font-semibold text-destructive' : o.stock <= 5 ? 'font-semibold text-bh-gold-dark' : 'text-bh-muted'
+                        )}
+                      >
+                        {o.stock <= 0 ? 'Out of stock' : `${o.stock} in stock`}
+                      </span>
+                    </span>
+                  </span>
+                  {(o.freeShipping || (o.moq != null && o.moq > 1) || (o.shippingFee != null && o.shippingFee > 0)) && (
+                    <span className="mt-2 flex flex-wrap gap-1.5">
+                      {o.freeShipping && (
+                        <Badge className="rounded-full border-0 bg-emerald-100 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                          Free shipping
+                        </Badge>
+                      )}
+                      {!o.freeShipping && o.shippingFee != null && o.shippingFee > 0 && (
+                        <Badge className="rounded-full border-0 bg-bh-soft-blue text-[10px] font-bold text-bh-navy">
+                          {formatUSD(o.shippingFee)} shipping
+                        </Badge>
+                      )}
+                      {o.moq != null && o.moq > 1 && (
+                        <Badge className="rounded-full border-0 bg-bh-bg-gold text-[10px] font-bold text-bh-gold-dark">
+                          Min. {o.moq} units
+                        </Badge>
+                      )}
+                    </span>
+                  )}
+                </motion.button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Variant selector */}
       {hasVariants && (
@@ -173,32 +283,53 @@ export function ProductBuyPanel({ product, variants }: { product: ProductDTO; va
         </p>
       )}
 
-      {/* Shipping / fulfilment facts */}
+      {/* Shipping / fulfilment facts — offer-aware while a company offer is selected */}
       <div className="mt-5 space-y-2 border-t border-bh-border pt-4 text-sm">
+        {selectedOffer && (
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-bh-subtle">Sold &amp; shipped by</span>
+            <span className="text-right font-medium">
+              {selectedOffer.sellerOrgName ?? selectedOffer.storeName ?? 'Marketplace seller'}
+            </span>
+          </div>
+        )}
         <div className="flex items-center justify-between gap-3">
           <span className="inline-flex items-center gap-2 text-bh-subtle">
             <Truck size={15} className="text-bh-gold-dark" /> Shipping
           </span>
-          <span className={cn('text-right font-medium', product.freeShipping && 'text-bh-gold-dark')}>
-            {product.freeShipping
-              ? 'Free shipping'
-              : product.shippingFee != null
-                ? `${formatUSD(product.shippingFee)} flat rate`
-                : 'Calculated at checkout'}
+          <span
+            className={cn(
+              'text-right font-medium',
+              (selectedOffer ? selectedOffer.freeShipping : product.freeShipping) && 'text-bh-gold-dark'
+            )}
+          >
+            {selectedOffer
+              ? selectedOffer.freeShipping
+                ? 'Free shipping'
+                : selectedOffer.shippingFee != null
+                  ? `${formatUSD(selectedOffer.shippingFee)} flat rate`
+                  : 'Calculated at checkout'
+              : product.freeShipping
+                ? 'Free shipping'
+                : product.shippingFee != null
+                  ? `${formatUSD(product.shippingFee)} flat rate`
+                  : 'Calculated at checkout'}
           </span>
         </div>
-        {product.processingDays != null && (
+        {(selectedOffer ? selectedOffer.processingDays : product.processingDays) != null && (
           <div className="flex items-center justify-between gap-3">
-            <span className="text-bh-subtle">Handling time</span>
+            <span className="text-bh-subtle">{selectedOffer ? 'Lead time' : 'Handling time'}</span>
             <span className="font-medium">
-              {product.processingDays === 1 ? '1 business day' : `${product.processingDays} business days`}
+              {(selectedOffer ? selectedOffer.processingDays : product.processingDays) === 1
+                ? '1 business day'
+                : `${selectedOffer ? selectedOffer.processingDays : product.processingDays} business days`}
             </span>
           </div>
         )}
-        {product.moq != null && product.moq > 1 && (
+        {(selectedOffer ? selectedOffer.moq : product.moq) != null && (selectedOffer ? selectedOffer.moq : product.moq)! > 1 && (
           <div className="flex items-center justify-between gap-3">
             <span className="text-bh-subtle">Minimum order (B2B)</span>
-            <span className="font-medium">{product.moq} units</span>
+            <span className="font-medium">{selectedOffer ? selectedOffer.moq : product.moq} units</span>
           </div>
         )}
       </div>

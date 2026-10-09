@@ -1,0 +1,352 @@
+[
+ {
+  "id": "cmuipydq8001ioktaae1jqiaw",
+  "serviceId": "cmuipydq3001bokta5oej27jg",
+  "kind": "FEATURE",
+  "position": 0,
+  "text": "Decisions within 5 working days after verification"
+ },
+ {
+  "id": "cmuipydq8001jokta1obmzq9f",
+  "serviceId": "cmuipydq3001bokta5oej27jg",
+  "kind": "FEATURE",
+  "position": 1,
+  "text": "No collateral for facilities under YER 5,000,000"
+ },
+ {
+  "id": "cmuipydq8001kokta41dqeaa9",
+  "serviceId": "cmuipydq3001bokta5oej27jg",
+  "kind": "ELIGIBILITY_CONDITION",
+  "position": 0,
+  "text": "Business operating for at least 1 year"
+ },
+ {
+  "id": "cmuipydq8001loktanph6uwef",
+  "serviceId": "cmuipydq3001bokta5oej27jg",
+  "kind": "ELIGIBILITY_CONDITION",
+  "position": 1,
+  "text": "Bank account with 6 months of activity"
+ },
+ {
+  "id": "cmuipydq8001moktaiqg933i0",
+  "serviceId": "cmuipydq4001doktaupowsvd4",
+  "kind": "FEATURE",
+  "position": 0,
+  "text": "Listed as a qualified vendor for institutional RFQs"
+ },
+ {
+  "id": "cmuipydq8001noktaeoazh8kx",
+  "serviceId": "cmuipydq4001doktaupowsvd4",
+  "kind": "FEATURE",
+  "position": 1,
+  "text": "Auto-pass on covered financing requirements"
+ },
+ {
+  "id": "cmuipydq8001ookta8o49mdnk",
+  "serviceId": "cmuipydq6001foktag789pw89",
+  "kind": "FEATURE",
+  "position": 0,
+  "text": "Up to 80% of confirmed invoice value"
+ },
+ {
+  "id": "cmuipydq8001pokta8bbuxlug",
+  "serviceId": "cmuipydq6001foktag789pw89",
+  "kind": "FEATURE",
+  "position": 1,
+  "text": "Settlement directly from buyer payment"
+ },
+ {
+  "id": "cmuipydq8001qoktavw1rw4r4",
+  "serviceId": "cmuipydq7001hoktachlmwkav",
+  "kind": "FEATURE",
+  "position": 0,
+  "text": "24-month accreditation validity"
+ },
+ {
+  "id": "cmuod0ifv0014luhrusw718c9",
+  "serviceId": "cmuod0ifu0013luhrltxg0vpf",
+  "kind": "FEATURE",
+  "position": 0,
+  "text": "Sharia-compliant murabaha — fixed total price at signing"
+ },
+ {
+  "id": "cmuod0ifv0015luhrd868xmlj",
+  "serviceId": "cmuod0ifu0013luhrltxg0vpf",
+  "kind": "FEATURE",
+  "position": 1,
+  "text": "Free technical site survey before approval"
+ },
+ {
+  "id": "cmuod0ifv0016luhr708tdl4r",
+  "serviceId": "cmuod0ifu0013luhrltxg0vpf",
+  "kind": "FEATURE",
+  "position": 2,
+  "text": "System insured for the full tenor"
+ },
+ {
+  "id": "cmuod0ifv0017luhrvhasbyo1",
+  "serviceId": "cmuod0ifu0013luhrltxg0vpf",
+  "kind": "FEATURE",
+  "position": 3,
+  "text": "Early settlement with rebate of unearned markup"
+ },
+ {
+  "id": "cmuod0ifv0018luhr5kadz3jg",
+  "serviceId": "cmuod0ifu0013luhrltxg0vpf",
+  "kind": "ELIGIBILITY_CONDITION",
+  "position": 0,
+  "text": "Salaried employees or documented household income"
+ },
+ {
+  "id": "cmuod0ifv0019luhr7sm0av8p",
+  "serviceId": "cmuod0ifu0013luhrltxg0vpf",
+  "kind": "ELIGIBILITY_CONDITION",
+  "position": 1,
+  "text": "National ID + proof of address"
+ },
+ {
+  "id": "cmuod0ifv001aluhriugeyr78",
+  "serviceId": "cmuod0ifu0013luhrltxg0vpf",
+  "kind": "ELIGIBILITY_CONDITION",
+  "position": 2,
+  "text": "No active default with any Yemeni lender"
+ },
+ {
+  "id": "cmuod0ig0001mluhrgm9e1cb1",
+  "serviceId": "cmuod0ifz001lluhrakb7aow5",
+  "kind": "FEATURE",
+  "position": 0,
+  "text": "Crop-aligned repayment calendar with up to 90 days grace"
+ },
+ {
+  "id": "cmuod0ig0001nluhr1ju7oj6t",
+  "serviceId": "cmuod0ifz001lluhrakb7aow5",
+  "kind": "FEATURE",
+  "position": 1,
+  "text": "Sharia-compliant murabaha structure"
+ },
+ {
+  "id": "cmuod0ig0001oluhrt7vjnuvi",
+  "serviceId": "cmuod0ifz001lluhrakb7aow5",
+  "kind": "FEATURE",
+  "position": 2,
+  "text": "Financing covers equipment, installation and first-year service"
+ },
+ {
+  "id": "cmuod0ig0001pluhr2o5mr6bk",
+  "serviceId": "cmuod0ifz001lluhrakb7aow5",
+  "kind": "FEATURE",
+  "position": 3,
+  "text": "Top-up facility after 12 months of on-time repayment"
+ },
+ {
+  "id": "cmuod0ig0001qluhroio5djob",
+  "serviceId": "cmuod0ifz001lluhrakb7aow5",
+  "kind": "ELIGIBILITY_CONDITION",
+  "position": 0,
+  "text": "Farm or cooperative registered for 12+ months"
+ },
+ {
+  "id": "cmuod0ig0001rluhrzdyg7gtn",
+  "serviceId": "cmuod0ifz001lluhrakb7aow5",
+  "kind": "ELIGIBILITY_CONDITION",
+  "position": 1,
+  "text": "Land use rights or lease for the installation site"
+ },
+ {
+  "id": "cmuod0ig0001sluhrwzivt91o",
+  "serviceId": "cmuod0ifz001lluhrakb7aow5",
+  "kind": "ELIGIBILITY_CONDITION",
+  "position": 2,
+  "text": "Bank statements for the last 6 months"
+ },
+ {
+  "id": "cmuod0ig80028luhr6pcpvgsd",
+  "serviceId": "cmuod0ig70027luhrbefhlpn0",
+  "kind": "FEATURE",
+  "position": 0,
+  "text": "48-hour decisions for returning customers"
+ },
+ {
+  "id": "cmuod0ig80029luhro2ymkknm",
+  "serviceId": "cmuod0ig70027luhrbefhlpn0",
+  "kind": "FEATURE",
+  "position": 1,
+  "text": "Group guarantee accepted instead of collateral"
+ },
+ {
+  "id": "cmuod0ig8002aluhroy6e6a89",
+  "serviceId": "cmuod0ig70027luhrbefhlpn0",
+  "kind": "FEATURE",
+  "position": 2,
+  "text": "Automatic credit limit growth with repayment history"
+ },
+ {
+  "id": "cmuod0ig8002bluhr5omejumy",
+  "serviceId": "cmuod0ig70027luhrbefhlpn0",
+  "kind": "FEATURE",
+  "position": 3,
+  "text": "Payments at any Kuraimi branch or agent"
+ },
+ {
+  "id": "cmuod0ig8002cluhrzw4dyana",
+  "serviceId": "cmuod0ig70027luhrbefhlpn0",
+  "kind": "ELIGIBILITY_CONDITION",
+  "position": 0,
+  "text": "6+ months of business activity"
+ },
+ {
+  "id": "cmuod0ig8002dluhrlzp3sjpu",
+  "serviceId": "cmuod0ig70027luhrbefhlpn0",
+  "kind": "ELIGIBILITY_CONDITION",
+  "position": 1,
+  "text": "Two trade references or a group guarantee"
+ },
+ {
+  "id": "cmuod0ig8002eluhru0zhb3gc",
+  "serviceId": "cmuod0ig70027luhrbefhlpn0",
+  "kind": "ELIGIBILITY_CONDITION",
+  "position": 2,
+  "text": "Valid national ID of the owner"
+ },
+ {
+  "id": "cmuod0ttz000qluj38pyprego",
+  "serviceId": "cmuod0tty000pluj3q7a1c6fr",
+  "kind": "FEATURE",
+  "position": 0,
+  "text": "Turnkey: design, equipment, install and finance in one contract"
+ },
+ {
+  "id": "cmuod0ttz000rluj345il1cnf",
+  "serviceId": "cmuod0tty000pluj3q7a1c6fr",
+  "kind": "FEATURE",
+  "position": 1,
+  "text": "Diesel replacement analysis before you commit"
+ },
+ {
+  "id": "cmuod0ttz000sluj38mlzltx8",
+  "serviceId": "cmuod0tty000pluj3q7a1c6fr",
+  "kind": "FEATURE",
+  "position": 2,
+  "text": "Fixed annual rate — payments never change"
+ },
+ {
+  "id": "cmuod0ttz000tluj3dcpvlfrx",
+  "serviceId": "cmuod0tty000pluj3q7a1c6fr",
+  "kind": "FEATURE",
+  "position": 3,
+  "text": "Remote monitoring included for the first year"
+ },
+ {
+  "id": "cmuod0ttz000uluj3qjgdsush",
+  "serviceId": "cmuod0tty000pluj3q7a1c6fr",
+  "kind": "ELIGIBILITY_CONDITION",
+  "position": 0,
+  "text": "Registered SME with 12+ months of operations"
+ },
+ {
+  "id": "cmuod0ttz000vluj3hzk0aj2d",
+  "serviceId": "cmuod0tty000pluj3q7a1c6fr",
+  "kind": "ELIGIBILITY_CONDITION",
+  "position": 1,
+  "text": "Audited or bank-statement financials for the last fiscal year"
+ },
+ {
+  "id": "cmuod0ttz000wluj36r2ugpbs",
+  "serviceId": "cmuod0tty000pluj3q7a1c6fr",
+  "kind": "ELIGIBILITY_CONDITION",
+  "position": 2,
+  "text": "Commercial registration and tax card"
+ },
+ {
+  "id": "cmuomjf080000luz6w3rw55ds",
+  "serviceId": "cmun580al0005nfo5z485a8n5",
+  "kind": "FEATURE",
+  "position": 0,
+  "text": "Islamic Murabaha financing"
+ },
+ {
+  "id": "cmuomjf080001luz6l030da6z",
+  "serviceId": "cmun580al0005nfo5z485a8n5",
+  "kind": "FEATURE",
+  "position": 1,
+  "text": "Financing in Yemeni Rials"
+ },
+ {
+  "id": "cmuomjf080002luz65pgste48",
+  "serviceId": "cmun580al0005nfo5z485a8n5",
+  "kind": "FEATURE",
+  "position": 2,
+  "text": "Takaful insurance covering total disability or death"
+ },
+ {
+  "id": "cmuomjf080003luz6brkwhdna",
+  "serviceId": "cmun580al0005nfo5z485a8n5",
+  "kind": "FEATURE",
+  "position": 3,
+  "text": "Flexible installment repayment"
+ },
+ {
+  "id": "cmuomjf080004luz6vdeb0d4a",
+  "serviceId": "cmun580al0005nfo5z485a8n5",
+  "kind": "FEATURE",
+  "position": 4,
+  "text": "Grace period of up to 3 months"
+ },
+ {
+  "id": "cmuomjf080005luz67tvx6yi6",
+  "serviceId": "cmun580al0005nfo5z485a8n5",
+  "kind": "FEATURE",
+  "position": 5,
+  "text": "Repayment period of up to 24 months"
+ },
+ {
+  "id": "cmuomjf080006luz625sy84bb",
+  "serviceId": "cmun580al0005nfo5z485a8n5",
+  "kind": "FEATURE",
+  "position": 6,
+  "text": "Repayment via bank branches or agents"
+ },
+ {
+  "id": "cmuomjf0b0007luz6nfl5k0xy",
+  "serviceId": "cmun580al0005nfo5z485a8n5",
+  "kind": "ELIGIBILITY_CONDITION",
+  "position": 0,
+  "text": "Yemeni nationality"
+ },
+ {
+  "id": "cmuomjf0b0008luz6xye5i2gp",
+  "serviceId": "cmun580al0005nfo5z485a8n5",
+  "kind": "ELIGIBILITY_CONDITION",
+  "position": 1,
+  "text": "Valid identification document"
+ },
+ {
+  "id": "cmuomjf0b0009luz60vq24ttn",
+  "serviceId": "cmun580al0005nfo5z485a8n5",
+  "kind": "ELIGIBILITY_CONDITION",
+  "position": 2,
+  "text": "Age not exceeding 60 years"
+ },
+ {
+  "id": "cmuomjf0b000aluz6nei571sh",
+  "serviceId": "cmun580al0005nfo5z485a8n5",
+  "kind": "ELIGIBILITY_CONDITION",
+  "position": 3,
+  "text": "Good credit reputation"
+ },
+ {
+  "id": "cmuomjf0b000bluz6b45ff44e",
+  "serviceId": "cmun580al0005nfo5z485a8n5",
+  "kind": "ELIGIBILITY_CONDITION",
+  "position": 4,
+  "text": "Provision of necessary guarantees"
+ },
+ {
+  "id": "cmuomjf0b000cluz61n99808m",
+  "serviceId": "cmun580al0005nfo5z485a8n5",
+  "kind": "ELIGIBILITY_CONDITION",
+  "position": 5,
+  "text": "Financing compliant with Islamic Sharia"
+ }
+]
