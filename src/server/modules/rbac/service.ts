@@ -1,4 +1,4 @@
-import { randomBytes } from 'crypto'
+import { randomBytes, createHash } from 'crypto'
 import { db } from '@/lib/db'
 import {
   ALL_ORG_PERMISSIONS,
@@ -723,14 +723,15 @@ export interface InvitationDTO {
   invitedByName: string | null
   expiresAt: string
   createdAt: string
-  token: string
+  /** Raw token — present ONLY in the creation response (hashed at rest). */
+  token: string | null
 }
 
 type InvitationRow = {
   id: string
   email: string
   name: string | null
-  token: string
+  tokenHash: string
   status: string
   invitedByName: string | null
   expiresAt: Date
@@ -751,7 +752,7 @@ function toInvitationDTO(inv: InvitationRow): InvitationDTO {
     invitedByName: inv.invitedByName,
     expiresAt: inv.expiresAt.toISOString(),
     createdAt: inv.createdAt.toISOString(),
-    token: inv.token,
+    token: null,
   }
 }
 
@@ -793,13 +794,14 @@ export async function createInvitation(
   })
   if (openInvite) throw new RbacServiceError('An open invitation for this email already exists', 409)
 
+  const rawToken = randomBytes(24).toString('hex')
   const invitation = await db.staffInvitation.create({
     data: {
       email,
       name: input.name?.trim() || null,
       roleId: role.id,
       organizationId: '',
-      token: randomBytes(24).toString('hex'),
+      tokenHash: createHash('sha256').update(rawToken).digest('hex'),
       status: 'PENDING',
       invitedBy: actor.id,
       invitedByName: actor.name,
@@ -817,7 +819,7 @@ export async function createInvitation(
     summary: `Staff invitation sent to ${email} for role "${role.name}"`,
     metadata: { email, roleKey: role.key, expiresAt: invitation.expiresAt.toISOString() },
   })
-  return toInvitationDTO(invitation)
+  return { ...toInvitationDTO(invitation), token: rawToken }
 }
 
 export async function revokeInvitation(actor: RbacActor, id: string): Promise<void> {
@@ -848,7 +850,7 @@ export async function consumeInvitation(
   token: string
 ): Promise<{ roleId: string; roleName: string } | null> {
   const invitation = await db.staffInvitation.findUnique({
-    where: { token },
+    where: { tokenHash: createHash('sha256').update(token).digest('hex') },
     include: { role: { select: { id: true, name: true, scope: true } } },
   })
   if (

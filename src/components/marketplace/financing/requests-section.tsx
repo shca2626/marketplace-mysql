@@ -52,6 +52,7 @@ import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
+import { SupplierSourcingPanel } from '@/components/marketplace/financing/supplier-sourcing-section'
 import {
   apiRequest,
   ConditionTypeBadge,
@@ -562,6 +563,10 @@ export function RequestDetail({ requestId, onBack }: { requestId: string; onBack
           )}
         </CardContent>
       </Card>
+
+      {/* supplier sourcing (financing-linked RFQ) — creates/consents/revises the
+          sourcing RFQ routed to the financier's accredited suppliers */}
+      <SupplierSourcingPanel requestId={requestId} />
 
       {/* accept confirmation */}
       <Dialog open={!!acceptOffer} onOpenChange={(open) => !open && setAcceptOffer(null)}>

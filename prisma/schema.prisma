@@ -353,6 +353,7 @@ model Organization {
   stores         Store[]          @relation("OrganizationStores")
   products       Product[]        @relation("OrganizationProducts")
   offers         ProductOffer[]   @relation("ProductOfferSellerOrg")
+  quotesIssued   Quote[]           @relation("QuoteSellerOrg")
   sellerProfile  SellerProfile?   @relation("SellerProfileOrg")
   orderItemsSold OrderItem[]      @relation("OrderItemSellerOrg")
 
@@ -671,7 +672,8 @@ model Quote {
   number        String    @unique
   rfqId         String
   createdById   String // admin or seller who issued the quote
-  sellerId      String? // fulfilling seller (null = platform-facilitated)
+  sellerId      String? // fulfilling staff user (null = platform-facilitated)
+  sellerOrgId   String? // quoting company (org-context quotes; loose FK — live column Quote_sellerOrgId_idx)
   status        String    @default("SENT") // DRAFT | SENT | PENDING_REVIEW | ACCEPTED | DECLINED | REJECTED | EXPIRED | CONVERTED | WITHDRAWN
   currency      String    @default("USD")
   subtotal      Float
@@ -693,10 +695,12 @@ model Quote {
 
   lines            QuoteLine[]
   approvalRequests ApprovalRequest[] @relation("ApprovalQuote")
+  sellerOrg        Organization?    @relation("QuoteSellerOrg", fields: [sellerOrgId], references: [id])
 
   @@index([rfqId])
   @@index([status])
   @@index([createdById]) // MYSQL-FK-INDEX: createdById relation needs its own leftmost index
+  @@index([sellerOrgId])
 }
 
 // B2B purchase-approval workflow: BUYER-role members trigger a request when an
@@ -1094,7 +1098,7 @@ model StaffInvitation {
   name           String?
   roleId         String
   organizationId String    @default("") // "" = platform staff
-  token          String    @unique
+  tokenHash      String    @unique // sha256(raw token) — the raw token is shown ONCE at creation (SEC: hashed at rest)
   status         String    @default("PENDING") // PENDING | ACCEPTED | REVOKED
   invitedBy      String // admin user id (loose FK)
   invitedByName  String?

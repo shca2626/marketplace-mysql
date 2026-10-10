@@ -18,6 +18,7 @@ import {
   CalendarDays,
   ClipboardCheck,
   Inbox,
+  Landmark,
   Loader2,
   MapPin,
   Package,
@@ -37,6 +38,7 @@ import { useApi } from '@/hooks/use-api'
 import type { CategoryDTO } from '@/lib/types'
 import { formatDate, formatNumber, formatUSD, timeAgo } from '@/lib/format'
 import { cardImage } from '@/lib/storage/url'
+import { FinancingRfqInboxSub } from '@/components/marketplace/b2b/financing-rfq-inbox'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -278,6 +280,9 @@ export function SellingSection({ organizationId, orgName }: { organizationId: st
           <TabsTrigger value="orders" className="gap-1.5 rounded-lg px-3.5 py-1.5">
             <Receipt size={14} /> Sales orders
           </TabsTrigger>
+          <TabsTrigger value="financing-rfqs" className="gap-1.5 rounded-lg px-3.5 py-1.5">
+            <Landmark size={14} /> Financing RFQs
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="offers" className="mt-5">
@@ -291,6 +296,9 @@ export function SellingSection({ organizationId, orgName }: { organizationId: st
         </TabsContent>
         <TabsContent value="orders" className="mt-5">
           <SalesOrdersSub organizationId={organizationId} />
+        </TabsContent>
+        <TabsContent value="financing-rfqs" className="mt-5">
+          <FinancingRfqInboxSub organizationId={organizationId} />
         </TabsContent>
       </Tabs>
     </section>

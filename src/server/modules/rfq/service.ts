@@ -6,6 +6,7 @@ import { emitNotification, emitNotifications, type EmitInput } from '@/server/mo
 import { resolvePanel } from '@/server/modules/settings/service'
 import { ensurePayment } from '@/server/modules/payments/service'
 import { openDisputeCountBySeller, lostDisputeCountBySeller } from './disputes'
+import { userHasOrgPermission } from '@/server/authz/evaluator'
 import type { RfqDTO, QuoteDTO, RfqLineDTO, QuoteLineDTO, RfqMessageDTO } from '@/lib/types'
 
 /**
@@ -142,6 +143,8 @@ function serializeQuote(q: {
   declinedAt: Date | null
   createdAt: Date
   sellerId: string | null
+  sellerOrgId?: string | null
+  sellerOrg?: { id: string; name: string } | null
   createdBy: { id: string; name: string }
   lines: {
     id: string
@@ -173,6 +176,8 @@ function serializeQuote(q: {
     createdAt: q.createdAt.toISOString(),
     createdBy: { id: q.createdBy.id, name: q.createdBy.name },
     sellerId: q.sellerId,
+    sellerOrgId: q.sellerOrgId ?? null,
+    sellerOrgName: q.sellerOrg?.name ?? null,
     lines: q.lines.map((l): QuoteLineDTO => {
       const unitPrice = l.unitPrice
       return {
@@ -626,15 +631,75 @@ export async function getRfq(rfqId: string, viewer: { id: string; role: string }
   // (they need this to discover requests and respond with quotes).
   const isLineSeller = rfq.lines.some((l) => l.product && l.product.sellerId === viewer.id)
   const isInvolvedSeller = rfq.quotes.some((q) => q.sellerId === viewer.id)
-  if (!isOwner && !isAdmin && !isLineSeller && !isInvolvedSeller) {
+  // ── Org-context visibility (shared-catalog model) ──
+  //   • members of the RFQ's own organization see their org's RFQ;
+  //   • companies that OFFER a referenced product may view it (supplier
+  //     discovery for procurement RFQs);
+  //   • accredited suppliers may view financing-linked RFQs AFTER the
+  //     applicant consented to routing (minimum disclosure below).
+  let isOrgViewer = false
+  if (!isOwner && !isAdmin) {
+    if (rfq.organizationId) {
+      const member = await db.organizationMember.findUnique({
+        where: { organizationId_userId: { organizationId: rfq.organizationId, userId: viewer.id } },
+      })
+      if (member) isOrgViewer = true
+    }
+    if (!isOrgViewer) {
+      if (rfq.kind === 'SUPPLIER_FINANCING') {
+        if (rfq.consentAt && rfq.financingRequestId) {
+          const memberOrgs = await db.organizationMember.findMany({
+            where: { userId: viewer.id },
+            select: { organizationId: true },
+          })
+          if (memberOrgs.length) {
+            const fr = await db.financingRequest.findUnique({
+              where: { id: rfq.financingRequestId },
+              select: { service: { select: { financierProfile: { select: { organizationId: true } } } } },
+            })
+            if (fr) {
+              const { liveAccreditedOrgIds } = await import('./supplier-financing')
+              const accredited = await liveAccreditedOrgIds(fr.service.financierProfile.organizationId)
+              isOrgViewer = memberOrgs.some((m) => accredited.includes(m.organizationId))
+            }
+          }
+        }
+      } else {
+        const count = await db.productOffer.count({
+          where: {
+            productId: { in: rfq.lines.map((l) => l.productId).filter((x): x is string => !!x) },
+            sellerOrg: { members: { some: { userId: viewer.id } } },
+            status: 'ACTIVE',
+          },
+        })
+        if (count > 0) isOrgViewer = true
+      }
+    }
+  }
+  if (!isOwner && !isAdmin && !isLineSeller && !isInvolvedSeller && !isOrgViewer) {
     throw new RfqServiceError('Access denied', 403)
   }
 
   const dto = serializeRfq(rfq as never, true)
+  // Suppliers viewing a financing-linked RFQ get MINIMUM DISCLOSURE — the
+  // applicant's identity/organization is never revealed to suppliers.
+  if (rfq.kind === 'SUPPLIER_FINANCING' && !isOwner && !isAdmin) {
+    if (dto.requester) dto.requester = { id: '', name: 'Applicant', email: '' }
+    if (dto.organizationName) dto.organizationName = null
+  }
   // Sellers never see competitors' quotes or platform-facilitated pricing —
-  // only their own quotes on this RFQ.
+  // only their own quotes on this RFQ. Org-context viewers see their
+  // organization's quotes (any staff member of the quoting company).
   if (!isOwner && !isAdmin && dto.quotes) {
-    dto.quotes = dto.quotes.filter((q) => q.sellerId === viewer.id)
+    if (isOrgViewer && !isLineSeller && !isInvolvedSeller) {
+      // org-scoped view: keep quotes issued by the viewer's own organizations
+      const myOrgIds = new Set(
+        (await db.organizationMember.findMany({ where: { userId: viewer.id }, select: { organizationId: true } })).map((m) => m.organizationId)
+      )
+      dto.quotes = dto.quotes.filter((q) => (q.sellerOrgId ? myOrgIds.has(q.sellerOrgId) : q.sellerId === viewer.id))
+    } else {
+      dto.quotes = dto.quotes.filter((q) => q.sellerId === viewer.id)
+    }
   }
   // The buyer never sees quotes still in platform review (or review-rejected ones)
   if (isOwner && !isAdmin && dto.quotes) {
@@ -790,7 +855,8 @@ export async function createQuote(
     discountTotal?: number
     shippingTotal?: number
     taxTotal?: number
-  }
+  },
+  actorOrg?: { id: string; orgType: string } | null
 ): Promise<QuoteDTO> {
   if (!input.lines?.length) throw new RfqServiceError('A quote needs at least one line')
 
@@ -809,21 +875,83 @@ export async function createQuote(
   })
   const productMap = new Map(products.map((p) => [p.id, p]))
 
+  // ── Quoting authority (deny-by-default) ─────────────────────────────────
+  //   • ADMIN: platform-facilitated quotes (unchanged legacy path).
+  //   • actorOrg (COMPANY workspace): org-context quoting — the org quotes
+  //     products it OFFERS on the shared catalog; financing-linked RFQs are
+  //     restricted to the financier's accredited supplier pool, require the
+  //     applicant's consent for the current version, and never accept the
+  //     applicant's own organization or a financier organization.
+  //   • Everyone else (individuals, financier staff outside org context):
+  //     individuals cannot quote since the C2C retirement; financier orgs
+  //     never act as suppliers.
   let sellerId: string | null = null
+  let sellerOrgId: string | null = null
+  let orgOffers = new Map<string, { id: string; stock: number }>()
+
+  if (!isAdmin) {
+    if (!actorOrg) {
+      throw new RfqServiceError(
+        'Companies quote from their organization workspace — switch to your company context first',
+        403
+      )
+    }
+    if (actorOrg.orgType !== 'COMPANY') {
+      throw new RfqServiceError('Financing institutions do not supply goods — they cannot quote', 403)
+    }
+    if (rfq.organizationId && rfq.organizationId === actorOrg.id) {
+      throw new RfqServiceError('Your organization issued this RFQ — it cannot quote on its own request', 409)
+    }
+    const permitted = await userHasOrgPermission(actor.id, actorOrg.id, 'org.offers.manage')
+    if (!permitted) {
+      throw new RfqServiceError('This action requires the "org.offers.manage" permission in your organization', 403)
+    }
+
+    // Financing-linked RFQs: consent gate + accredited-supplier routing only.
+    if (rfq.kind === 'SUPPLIER_FINANCING') {
+      if (!rfq.consentAt) {
+        throw new RfqServiceError('The applicant has not consented to supplier routing for this version yet', 409)
+      }
+      if (!rfq.financingRequestId) throw new RfqServiceError('This RFQ is not linked to a financing request', 409)
+      const fr = await db.financingRequest.findUnique({
+        where: { id: rfq.financingRequestId },
+        select: { service: { select: { financierProfile: { select: { organizationId: true } } } } },
+      })
+      if (!fr) throw new RfqServiceError('The linked financing request no longer exists', 409)
+      const { liveAccreditedOrgIds } = await import('./supplier-financing')
+      const accredited = await liveAccreditedOrgIds(fr.service.financierProfile.organizationId)
+      if (!accredited.includes(actorOrg.id)) {
+        throw new RfqServiceError(
+          'Only suppliers accredited by the financing institution may quote on this RFQ',
+          403
+        )
+      }
+    }
+
+    // Shared-catalog authority: the org must hold an offer on every quoted product.
+    const offers = await db.productOffer.findMany({
+      where: { productId: { in: [...productMap.keys()] }, sellerOrgId: actorOrg.id, status: 'ACTIVE' },
+      select: { productId: true, id: true, stock: true },
+    })
+    orgOffers = new Map(offers.map((o) => [o.productId, { id: o.id, stock: o.stock }]))
+    for (const line of input.lines) {
+      const offer = orgOffers.get(line.productId)
+      if (!offer) {
+        throw new RfqServiceError(
+          `Your company does not actively offer "${productMap.get(line.productId)?.title ?? 'this product'}" — create an offer first`,
+          403
+        )
+      }
+    }
+    sellerId = actor.id
+    sellerOrgId = actorOrg.id
+  }
+
   for (const line of input.lines) {
     const p = productMap.get(line.productId)
     if (!p) throw new RfqServiceError('A quoted product does not exist')
     if (line.quantity < 1) throw new RfqServiceError('Quantities must be ≥ 1')
     if (line.unitPrice < 0) throw new RfqServiceError('Unit prices cannot be negative')
-    if (!isAdmin) {
-      if (actor.role !== 'SELLER') {
-        throw new RfqServiceError('Only sellers or admins can issue quotes', 403)
-      }
-      if (p.sellerId !== actor.id) {
-        throw new RfqServiceError('You can only quote your own products', 403)
-      }
-      sellerId = actor.id
-    }
   }
 
   const validUntil = input.validUntil ? new Date(input.validUntil) : null
@@ -852,9 +980,15 @@ export async function createQuote(
     }
   }
 
-  // Stock hold: block quoting on zero-stock products
+  // Stock hold: block quoting on zero-stock products. Org-context quotes
+  // check the company's OWN offer stock on the shared catalog; legacy/admin
+  // quotes keep the catalog product stock.
   if (stockHold.enabled && stockHold.blockQuotesZeroStock) {
-    const zero = input.lines.find((l) => (productMap.get(l.productId)?.stock ?? 1) <= 0)
+    const zero = input.lines.find((l) =>
+      sellerOrgId
+        ? (orgOffers.get(l.productId)?.stock ?? 0) <= 0
+        : (productMap.get(l.productId)?.stock ?? 1) <= 0
+    )
     if (zero) {
       throw new RfqServiceError(
         `“${productMap.get(zero.productId)!.title}” is out of stock — it cannot be quoted right now.`,
@@ -873,9 +1007,10 @@ export async function createQuote(
     }
     for (const [productId, qty] of perProduct) {
       const p = productMap.get(productId)
-      if (p && p.stock < qty) {
+      const available = sellerOrgId ? (orgOffers.get(productId)?.stock ?? 0) : (p?.stock ?? 0)
+      if (available < qty) {
         throw new RfqServiceError(
-          `“${p.title}” only has ${p.stock} in stock — quote at most ${p.stock} unit${p.stock === 1 ? '' : 's'} or restock first.`,
+          `“${p?.title}” only has ${available} in stock — quote at most ${available} unit${available === 1 ? '' : 's'} or restock first.`,
           409
         )
       }
@@ -939,6 +1074,7 @@ export async function createQuote(
         rfqId,
         createdById: actor.id,
         sellerId,
+        sellerOrgId,
         status: quoteStatus,
         subtotal,
         discountTotal,
@@ -984,8 +1120,8 @@ export async function createQuote(
     action: 'QUOTE_SENT',
     entityType: 'Quote',
     entityId: quote.id,
-    summary: `Quote ${number} issued for RFQ ${rfq.number} (total ${total.toFixed(2)})`,
-    metadata: { rfqId, total },
+    summary: `Quote ${number} issued for RFQ ${rfq.number} (total ${total.toFixed(2)})${sellerOrgId ? ` — company quote` : ''}`,
+    metadata: { rfqId, total, sellerOrgId, financingLinked: rfq.kind === 'SUPPLIER_FINANCING' },
   })
 
   if (quoteStatus === 'PENDING_REVIEW') {
@@ -1117,7 +1253,21 @@ export async function respondToQuote(
     },
   })
   if (!quote) throw new RfqServiceError('Quote not found', 404)
-  if (quote.rfq.userId !== userId) throw new RfqServiceError('Access denied', 403)
+
+  // The RFQ requester themself, or an active member of the requesting
+  // organization holding the org RFQ permission (server-side membership
+  // check — the client never proves organization by assertion).
+  let isRequester = quote.rfq.userId === userId
+  if (!isRequester && quote.rfq.organizationId) {
+    const member = await db.organizationMember.findUnique({
+      where: { organizationId_userId: { organizationId: quote.rfq.organizationId, userId } },
+      include: { organization: { select: { status: true } } },
+    })
+    if (member && member.organization.status === 'ACTIVE') {
+      isRequester = await userHasOrgPermission(userId, quote.rfq.organizationId, 'org.rfq.create')
+    }
+  }
+  if (!isRequester) throw new RfqServiceError('Access denied', 403)
 
   if (quote.status !== 'SENT') {
     throw new RfqServiceError(`Quote is ${quote.status.toLowerCase()} — cannot ${action.toLowerCase()}`, 409)
@@ -1505,7 +1655,7 @@ interface ConvertedOrderShape {
   paymentTerms: string | null
   sourceType: string | null
   createdAt: Date
-  items: { id: string; productId: string; sellerId: string; title: string; price: number; quantity: number }[]
+  items: { id: string; productId: string; sellerId: string; sellerOrgId: string | null; offerId: string | null; title: string; price: number; quantity: number }[]
 }
 
 export async function convertQuoteToOrder(
@@ -1522,8 +1672,19 @@ export async function convertQuoteToOrder(
   })
   if (!quote) throw new RfqServiceError('Quote not found', 404)
 
-  const isOwner = quote.rfq.userId === viewer.id
+  // The requester themself, or an active member of the requesting organization
+  // holding the org RFQ permission (mirrors respondToQuote).
+  let isOwner = quote.rfq.userId === viewer.id
   const isAdmin = viewer.role === 'ADMIN'
+  if (!isOwner && quote.rfq.organizationId) {
+    const member = await db.organizationMember.findUnique({
+      where: { organizationId_userId: { organizationId: quote.rfq.organizationId, userId: viewer.id } },
+      include: { organization: { select: { status: true } } },
+    })
+    if (member && member.organization.status === 'ACTIVE') {
+      isOwner = await userHasOrgPermission(viewer.id, quote.rfq.organizationId, 'org.rfq.create')
+    }
+  }
   if (!isOwner && !isAdmin) throw new RfqServiceError('Only the requester can convert this quote', 403)
   if (quote.status !== 'ACCEPTED') {
     throw new RfqServiceError(
@@ -1535,15 +1696,48 @@ export async function convertQuoteToOrder(
     throw new RfqServiceError('This RFQ has already been converted to an order', 409)
   }
 
+  // ── Financing-linked RFQs: a selected quote is NOT financing approval ──
+  // The order (the financed purchase) may only be created after the financier
+  // issued its final offer, the applicant accepted it, and an ACTIVE financing
+  // agreement exists for the linked request.
+  if (quote.rfq.kind === 'SUPPLIER_FINANCING' && quote.rfq.financingRequestId) {
+    const agreement = await db.financingAgreement.findFirst({
+      where: {
+        offer: { requestId: quote.rfq.financingRequestId, status: 'ACCEPTED' },
+        status: 'ACTIVE',
+      },
+      select: { id: true, number: true },
+    })
+    if (!agreement) {
+      throw new RfqServiceError(
+        'Financing is not finalized yet — accept a financier offer and complete the agreement before creating this order',
+        409
+      )
+    }
+  }
+
+  // Org-context quotes: resolve the quoting company's offers so stock checks
+  // and order attribution use the OFFER (price/stock authority), not the
+  // legacy catalog product fields.
+  const orgOfferByProduct = new Map<string, { id: string; stock: number }>()
+  if (quote.sellerOrgId) {
+    const offers = await db.productOffer.findMany({
+      where: { productId: { in: [...new Set(quote.lines.map((l) => l.productId))] }, sellerOrgId: quote.sellerOrgId },
+      select: { productId: true, id: true, stock: true },
+    })
+    for (const o of offers) orgOfferByProduct.set(o.productId, { id: o.id, stock: o.stock })
+  }
+
   // Stock re-check (acceptance may predate stock changes). Variant lines check
   // the variant's own stock; product-level lines check the product stock.
   const needed = new Map<string, number>()
   for (const l of quote.lines) needed.set(l.productId, (needed.get(l.productId) ?? 0) + l.quantity)
   for (const [productId, qty] of needed) {
     const p = quote.lines.find((l) => l.productId === productId)!.product
-    if (p.stock < qty) {
+    const available = quote.sellerOrgId ? (orgOfferByProduct.get(productId)?.stock ?? 0) : p.stock
+    if (available < qty) {
       throw new RfqServiceError(
-        `Not enough stock for "${p.title}" — ${p.stock} available, ${qty} needed. Request a revised quote.`,
+        `Not enough stock for "${p.title}" — ${available} available, ${qty} needed. Request a revised quote.`,
         409
       )
     }
@@ -1634,7 +1828,9 @@ export async function convertQuoteToOrder(
         items: {
           create: quote.lines.map((l) => ({
             productId: l.productId,
-            sellerId: l.product.sellerId,
+            sellerId: quote.sellerId ?? l.product.sellerId,
+            sellerOrgId: quote.sellerOrgId,
+            offerId: quote.sellerOrgId ? (orgOfferByProduct.get(l.productId)?.id ?? null) : null,
             variantId: l.variantId ?? null,
             variantName: l.variantName ?? null,
             quantity: l.quantity,
@@ -1652,6 +1848,17 @@ export async function convertQuoteToOrder(
         where: { id: productId },
         data: { stock: { decrement: qty }, soldCount: { increment: qty } },
       })
+      // Company quotes settle against the quoting org's OFFER stock too —
+      // the shared-catalog offer is the stock authority for company sales.
+      if (quote.sellerOrgId) {
+        const offer = orgOfferByProduct.get(productId)
+        if (offer) {
+          await tx.productOffer.update({
+            where: { id: offer.id },
+            data: { stock: { decrement: qty }, soldCount: { increment: qty } },
+          })
+        }
+      }
     }
     for (const [variantId, qty] of neededVariants) {
       await tx.productVariant
@@ -1679,7 +1886,7 @@ export async function convertQuoteToOrder(
     })
 
     return created
-  })
+  }, { timeout: 15000 }) // high-latency Aiven DB — default 5s is too short for this multi-write tx
 
   await recordAudit({
     actorId: viewer.id,
@@ -1740,6 +1947,8 @@ function serializeOrderForDto(o: ConvertedOrderShape) {
       id: i.id,
       productId: i.productId,
       sellerId: i.sellerId,
+      sellerOrgId: i.sellerOrgId,
+      offerId: i.offerId,
       title: i.title,
       price: i.price,
       quantity: i.quantity,

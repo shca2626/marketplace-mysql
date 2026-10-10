@@ -77,7 +77,8 @@ export interface RbacInvitationDTO {
   invitedByName: string | null
   expiresAt: string
   createdAt: string
-  token: string
+  /** Raw token — present ONLY in the creation response (hashed at rest). */
+  token: string | null
 }
 
 export interface CategoryDTO {
@@ -480,6 +481,8 @@ export interface QuoteDTO {
   createdAt: string
   createdBy: { id: string; name: string }
   sellerId?: string | null
+  sellerOrgId?: string | null
+  sellerOrgName?: string | null
   sellerMeta?: QuoteSellerMeta | null
   lines: QuoteLineDTO[]
 }

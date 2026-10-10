@@ -1,4 +1,4 @@
-import { randomBytes } from 'crypto'
+import { randomBytes, createHash } from 'crypto'
 import { db } from '@/lib/db'
 import { isPlatformPermission, orgTypeAllowlist, ORG_ROLE_BY_LEGACY } from '@/lib/rbac-catalog'
 import { recordAudit } from '@/server/modules/audit/service'
@@ -50,7 +50,9 @@ async function requireOrgManage(userId: string, organizationId: string, permissi
   const held = await db.userRole.count({
     where: { userId, organizationId, role: { permissions: { some: { permissionKey: permission } } } },
   })
-  if (held === 0) {
+  // Legacy bridge — same mapping the authz evaluator applies, so a legacy
+  // ADMIN member keeps managing the team until canonical assignments exist.
+  if (held === 0 && !legacyMembershipGrants(membership.role).includes(permission)) {
     await recordAudit({
       actorId: userId,
       actorType: 'USER',
@@ -63,6 +65,22 @@ async function requireOrgManage(userId: string, organizationId: string, permissi
     throw new OrgRbacError('This action requires the "' + permission + '" permission', 403)
   }
   return membership
+}
+
+/** Legacy OrganizationMember.role → permissions (mirrors the authz evaluator bridge). */
+function legacyMembershipGrants(role: string): string[] {
+  switch (role) {
+    case 'ADMIN':
+      return ['org.profile.view', 'org.profile.update', 'org.members.invite', 'org.orders.view', 'org.rfq.view', 'org.rfq.create', 'org.approvals.manage', 'org.pricelists.view', 'org.finance.view', 'org.finance.apply']
+    case 'BUYER':
+      return ['org.profile.view', 'org.orders.view', 'org.rfq.view', 'org.rfq.create', 'org.pricelists.view', 'org.finance.view', 'org.finance.apply']
+    case 'APPROVER':
+      return ['org.profile.view', 'org.approvals.manage', 'org.orders.view', 'org.rfq.view']
+    case 'VIEWER':
+      return ['org.profile.view', 'org.orders.view', 'org.rfq.view']
+    default:
+      return []
+  }
 }
 
 async function countActiveOwners(organizationId: string): Promise<number> {
@@ -510,7 +528,8 @@ export interface OrgInvitationDTO {
   invitedByName: string | null
   expiresAt: string
   createdAt: string
-  token: string
+  /** Raw token — returned exactly ONCE at creation; null on list rows (hash at rest). */
+  token: string | null
 }
 
 export async function listOrgInvitations(actorUserId: string, organizationId: string): Promise<OrgInvitationDTO[]> {
@@ -532,7 +551,7 @@ export async function listOrgInvitations(actorUserId: string, organizationId: st
     invitedByName: i.invitedByName,
     expiresAt: i.expiresAt.toISOString(),
     createdAt: i.createdAt.toISOString(),
-    token: i.token,
+    token: null, // hashed at rest — the raw token only exists at creation time
   }))
 }
 
@@ -569,13 +588,14 @@ export async function createOrgInvitation(
   if (open) throw new OrgRbacError('An open invitation for this email already exists', 409)
 
   const inviter = await db.user.findUnique({ where: { id: actorUserId }, select: { name: true } })
+  const rawToken = randomBytes(24).toString('hex')
   const invitation = await db.staffInvitation.create({
     data: {
       email,
       name: input.name?.trim() || null,
       roleId: role.id,
       organizationId,
-      token: randomBytes(24).toString('hex'),
+      tokenHash: createHash('sha256').update(rawToken).digest('hex'),
       status: 'PENDING',
       invitedBy: actorUserId,
       invitedByName: inviter?.name ?? null,
@@ -602,7 +622,7 @@ export async function createOrgInvitation(
     invitedByName: invitation.invitedByName,
     expiresAt: invitation.expiresAt.toISOString(),
     createdAt: invitation.createdAt.toISOString(),
-    token: invitation.token,
+    token: rawToken, // shown ONCE to the inviter
   }
 }
 
@@ -632,7 +652,7 @@ export async function consumeOrgInvitation(
   token: string
 ): Promise<{ roleId: string; roleKey: string; roleName: string; organizationId: string } | null> {
   const invitation = await db.staffInvitation.findUnique({
-    where: { token },
+    where: { tokenHash: createHash('sha256').update(token).digest('hex') },
     include: { role: { select: { id: true, key: true, name: true, scope: true } } },
   })
   if (
@@ -651,7 +671,10 @@ export async function consumeOrgInvitation(
 
 /** Grant an org invitation's role to an EXISTING user (accept-by-link when logged in). */
 export async function acceptOrgInvitationLoggedIn(userId: string, email: string, token: string): Promise<{ organizationName: string } | null> {
-  const invitation = await db.staffInvitation.findUnique({ where: { token }, include: { role: true } })
+  const invitation = await db.staffInvitation.findUnique({
+    where: { tokenHash: createHash('sha256').update(token).digest('hex') },
+    include: { role: true },
+  })
   if (
     !invitation ||
     invitation.status !== 'PENDING' ||

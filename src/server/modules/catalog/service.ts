@@ -148,6 +148,11 @@ export async function createStore(
 
   const settings = await getStoreSettings()
   const store = await db.$transaction(async (tx) => {
+    // Serialize concurrent store creation for the SAME org: a locking read on
+    // the organization row makes the count below authoritative under MySQL's
+    // REPEATABLE READ (two parallel createStore calls cannot both pass the cap
+    // check — the second blocks until the first commits).
+    await tx.$queryRaw`SELECT id FROM \`Organization\` WHERE id = ${organizationId} FOR UPDATE`
     const count = await tx.store.count({ where: { organizationId, isArchived: false } })
     if (count >= 1 && !settings.multiStoreEnabled) {
       throw new CatalogServiceError('Multi-store is currently disabled by the platform — each company operates one store', 403)
@@ -249,31 +254,53 @@ export async function archiveStore(actorUserId: string, organizationId: string, 
 export async function ensureDefaultStore(organizationId: string): Promise<{ id: string; name: string; slug: string }> {
   const existing = await db.store.findFirst({ where: { organizationId, isArchived: false, isDefault: true } })
   if (existing) return { id: existing.id, name: existing.name, slug: existing.slug }
-  const any = await db.store.findFirst({ where: { organizationId, isArchived: false }, orderBy: { createdAt: 'asc' } })
-  if (any) {
-    await db.store.update({ where: { id: any.id }, data: { isDefault: true } })
-    return { id: any.id, name: any.name, slug: any.slug }
-  }
   const org = await db.organization.findUnique({ where: { id: organizationId } })
   if (!org) throw new CatalogServiceError('Organization not found', 404)
-  const created = await db.store.create({
-    data: {
-      organizationId,
-      name: `${org.name} Store`,
-      slug: await uniqueStoreSlug(`${org.name} Store`, organizationId),
-      isDefault: true,
-    },
-  })
-  await recordAudit({
-    actorId: null,
-    actorType: 'SYSTEM',
-    action: 'STORE_AUTO_CREATED',
-    entityType: 'Store',
-    entityId: created.id,
-    summary: `Default store auto-created for ${org.name}`,
-    metadata: { organizationId },
-  })
+
+  // Locking read serializes concurrent ensureDefaultStore/createStore calls for
+  // the same org — without it two parallel first-offer paths both see "no store"
+  // and create twin defaults under REPEATABLE READ.
+  const created = await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM \`Organization\` WHERE id = ${organizationId} FOR UPDATE`
+    const any = await tx.store.findFirst({ where: { organizationId, isArchived: false }, orderBy: { createdAt: 'asc' } })
+    if (any) {
+      if (!any.isDefault) await tx.store.update({ where: { id: any.id }, data: { isDefault: true } })
+      return { id: any.id, name: any.name, slug: any.slug, created: false }
+    }
+    const createdRow = await tx.store.create({
+      data: {
+        organizationId,
+        name: `${org.name} Store`,
+        slug: await uniqueStoreSlugTx(tx, `${org.name} Store`),
+        isDefault: true,
+      },
+    })
+    return { id: createdRow.id, name: createdRow.name, slug: createdRow.slug, created: true }
+  }, { timeout: 15000 })
+
+  if (created.created) {
+    await recordAudit({
+      actorId: null,
+      actorType: 'SYSTEM',
+      action: 'STORE_AUTO_CREATED',
+      entityType: 'Store',
+      entityId: created.id,
+      summary: `Default store auto-created for ${org.name}`,
+      metadata: { organizationId },
+    })
+  }
   return { id: created.id, name: created.name, slug: created.slug }
+}
+
+/** uniqueStoreSlug bound to the caller's transaction (race-safe with the org lock). */
+async function uniqueStoreSlugTx(tx: { store: { findUnique(args: { where: { slug: string } }): Promise<unknown> } }, name: string): Promise<string> {
+  const base = slugify(name) || 'store'
+  let slug = base
+  for (let i = 2; i < 60; i++) {
+    if (!(await tx.store.findUnique({ where: { slug } }))) return slug
+    slug = `${base}-${i}`
+  }
+  return `${base}-${Date.now().toString(36)}`
 }
 
 // ── Offers ──────────────────────────────────────────────────────────────────
@@ -630,6 +657,12 @@ export async function proposeProduct(
   const category = await db.category.findUnique({ where: { id: input.categoryId } })
   if (!category) throw new CatalogServiceError('Category not found', 404)
 
+  // Resolve the default store BEFORE opening the transaction: the product
+  // INSERT takes an FK shared lock on the Organization row, and
+  // ensureDefaultStore takes the org-row FOR UPDATE lock — nesting them
+  // self-deadlocks under MySQL InnoDB.
+  const defaultStore = input.initialOffer ? await ensureDefaultStore(organizationId) : null
+
   const product = await db.$transaction(async (tx) => {
     const created = await tx.product.create({
       data: {
@@ -652,14 +685,13 @@ export async function proposeProduct(
     })
     // The proposing company prepares its own offer immediately — it activates
     // when the platform approves the product.
-    if (input.initialOffer) {
-      const store = await ensureDefaultStore(organizationId)
+    if (input.initialOffer && defaultStore) {
       await tx.productOffer.create({
         data: {
           productId: created.id,
           sellerId: actorUserId,
           sellerOrgId: organizationId,
-          storeId: store.id,
+          storeId: defaultStore.id,
           price: input.initialOffer.price ?? input.price,
           stock: input.initialOffer.stock ?? 0,
           processingDays: input.initialOffer.leadTimeDays ?? null,

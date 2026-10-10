@@ -32,8 +32,8 @@ export interface SupplierRfqLineInput {
   notes?: string | null
 }
 
-/** Financing statuses that may still be paired with an active supplier RFQ. */
-const ACTIVE_REQUEST_STATUSES = ['SUBMITTED', 'UNDER_PLATFORM_REVIEW', 'FORWARDED_TO_FINANCIER', 'UNDER_FINANCIER_REVIEW']
+/** Financing statuses whose platform completeness gate has PASSED (routing allowed). */
+const GATE_PASSED_STATUSES = ['FORWARDED_TO_FINANCIER', 'UNDER_FINANCIER_REVIEW', 'OFFERED', 'ACCEPTED']
 
 async function loadFinancingRequest(userId: string, requestId: string) {
   const request = await db.financingRequest.findUnique({
@@ -121,7 +121,7 @@ export async function supplierFinancingInbox(actorUserId: string, organizationId
     if (!fr) continue
     if (!financierOrgIds.includes(fr.service.financierProfile.organizationId)) continue
     if (fr.service.financierProfile.organization.status !== 'ACTIVE') continue
-    if (!ACTIVE_REQUEST_STATUSES.includes(fr.status) && fr.status !== 'CLOSED') continue
+    if (!GATE_PASSED_STATUSES.includes(fr.status)) continue
     result.push({
       id: rfq.id,
       number: rfq.number,
@@ -162,15 +162,15 @@ export async function createSupplierRfq(
 ): Promise<{ rfqId: string; number: string; routedOrgCount: number; routedOrgNames: string[] }> {
   const request = await loadFinancingRequest(userId, input.financingRequestId)
 
-  // Platform gate: routing happens only after the completeness gate passes.
-  if (!request.forwardedAt && !ACTIVE_REQUEST_STATUSES.includes(request.status)) {
+  // Platform gate: routing happens only after the completeness gate passes
+  // (forwarded to at least one financier — SUBMITTED alone has NOT passed).
+  const gatePassed =
+    !!request.forwardedAt || GATE_PASSED_STATUSES.includes(request.status)
+  if (!gatePassed) {
     throw new RfqServiceError(
       `The platform document gate must pass before a supplier RFQ can be routed (request is ${request.status})`,
       409
     )
-  }
-  if (request.status === 'RETURNED_FOR_COMPLETION' || request.status === 'DRAFT') {
-    throw new RfqServiceError('Complete and resubmit the financing application first — the platform gate has not passed', 409)
   }
 
   // One live supplier RFQ per financing request (revise, don't duplicate).
@@ -204,7 +204,8 @@ export async function createSupplierRfq(
     expiresInDays: input.expiresInDays ?? 14,
   })
 
-  // Stamp the financing linkage + applicant consent for version 1.
+  // Stamp the financing linkage + applicant consent for version 1, and OPEN
+  // the RFQ (a DRAFT supplier RFQ would be invisible to suppliers and quotes).
   const financierOrgId = request.service.financierProfile.organizationId
   const stamped = await db.rfq.update({
     where: { id: rfq.id },
@@ -213,6 +214,8 @@ export async function createSupplierRfq(
       financingRequestId: request.id,
       version: 1,
       consentAt: new Date(),
+      status: 'SUBMITTED',
+      submittedAt: new Date(),
     },
   })
 
@@ -307,6 +310,10 @@ export async function reviseSupplierRfq(
         version: previous.version + 1,
         consentAt: null, // renewed consent required before routing
         supersededById: rfqId,
+        // the new version opens immediately — the CONSENT gate, not DRAFT
+        // status, controls whether suppliers see it
+        status: 'SUBMITTED',
+        submittedAt: new Date(),
       },
     })
     return r

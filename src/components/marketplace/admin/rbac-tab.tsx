@@ -448,9 +448,20 @@ export function RbacTab({ user }: { user: SessionUser | null }) {
         toastApiError(res.error)
         return
       }
+      // The raw token exists ONLY in this response (hashed at rest afterwards) —
+      // copy it to the clipboard immediately so the inviter can hand it over.
+      if (res.data.invitation.token) {
+        try {
+          await navigator.clipboard.writeText(res.data.invitation.token)
+        } catch {
+          /* clipboard unavailable — the token still shows in the toast */
+        }
+      }
       toast({
         title: 'Invitation created',
-        description: `${res.data.invitation.email} can now register with the invitation token to join as ${res.data.invitation.roleName}.`,
+        description: res.data.invitation.token
+          ? `Token (copied — shown ONCE): ${res.data.invitation.token}`
+          : `${res.data.invitation.email} can register with the invitation token to join as ${res.data.invitation.roleName}.`,
       })
       setInviteOpen(false)
       setInviteEmail('')
@@ -473,7 +484,11 @@ export function RbacTab({ user }: { user: SessionUser | null }) {
     void invitesQ.refetch()
   }
 
-  const copyToken = async (token: string) => {
+  const copyToken = async (token: string | null) => {
+    if (!token) {
+      toastApiError('Tokens are hashed at rest — only the creation response shows the raw token once')
+      return
+    }
     try {
       await navigator.clipboard.writeText(token)
       toast({ title: 'Token copied', description: 'Registration consumes it automatically via the inviteToken field.' })
