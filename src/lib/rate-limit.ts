@@ -70,4 +70,5 @@ export const RATE_LIMITS = {
   passwordForgot: { limit: 5, windowMs: 30 * 60_000 }, // per IP — email-send damping (AUTHSEC-1)
   passwordReset: { limit: 10, windowMs: 30 * 60_000 }, // per IP — token consumption attempts (AUTHSEC-1)
   emailVerify: { limit: 5, windowMs: 60 * 60_000 }, // per user — verification send requests (AUTHSEC-1)
+  document: { limit: 30, windowMs: 10 * 60_000 }, // per user — document uploads (RFQ attachments, settlement evidence)
 } as const

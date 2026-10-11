@@ -1,0 +1,32 @@
+[
+ {
+  "id": "cmuvmp25o001one3wkav7xxnr",
+  "phone": "+967772228289",
+  "waJid": null,
+  "source": "WEBCHAT",
+  "name": "company1",
+  "publicToken": "f55f3bd1bdedc043518a6fc9f17c2adea1d977215a43aff108adb49b03a5769f",
+  "userId": "cmuu6dba90003lwipjmy9z6wz",
+  "unreadCount": 0,
+  "lastMessageAt": "2026-10-05T19:16:04.089Z",
+  "lastMessageBody": "pdh",
+  "autoReply": 1,
+  "createdAt": "2026-10-05T19:14:12.397Z",
+  "updatedAt": "2026-10-05T19:16:04.090Z"
+ },
+ {
+  "id": "cmuvnj95m002xne3w1mdihfxx",
+  "phone": "+967777555444",
+  "waJid": null,
+  "source": "WEBCHAT",
+  "name": "علوي",
+  "publicToken": "01b42d8aa6eb66f7e293b501d66b7518192704266ec1af3181fd954d8ad1f637",
+  "userId": null,
+  "unreadCount": 3,
+  "lastMessageAt": "2026-10-06T22:04:47.184Z",
+  "lastMessageBody": "l;sa",
+  "autoReply": 1,
+  "createdAt": "2026-10-05T19:37:41.146Z",
+  "updatedAt": "2026-10-06T22:04:47.186Z"
+ }
+]

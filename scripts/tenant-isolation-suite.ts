@@ -656,7 +656,10 @@ async function main() {
       for (const k of Object.values(processed.variants)) {
         await storage.delete(k).catch(() => {})
       }
-      await db.order.deleteMany({ where: { id: { in: [order1.id, order2.id] } } })
+      // TI-13 performs a REAL checkout via the API (buyer1) — delete every
+      // order the fixture buyers own (items/payments cascade), not just the
+      // two direct fixture rows, or the leftover user rows hit User FK RESTRICT.
+      await db.order.deleteMany({ where: { buyerId: { in: fixtureUserIds } } })
       await db.notification.deleteMany({ where: { userId: { in: fixtureUserIds } } })
       await db.organizationMember.deleteMany({
         where: { organizationId: { in: [orgC.id, instX.id, instY.id, instZ.id, instW.id] } },

@@ -128,6 +128,12 @@ model User {
   mediaAssets        MediaAsset[]         @relation("MediaAssets")
   paymentsCaptured   Payment[]             @relation("PaymentsCapturedBy")
   payouts            Payout[]             @relation("PayoutSeller")
+  settlementsDeclared      ExternalSettlementReference[] @relation("SettlementDeclarer")
+  settlementsConfirmed     ExternalSettlementReference[] @relation("SettlementConfirmer")
+  paymentEvidenceUploaded  PaymentEvidence[]             @relation("PaymentEvidenceUploadedBy")
+  commissionObligations    CommissionObligation[]       @relation("CommissionObligationSeller")
+  commissionStatements     CommissionStatement[]        @relation("CommissionStatementSeller")
+  commissionInvoices       CommissionInvoice[]           @relation("CommissionInvoiceSeller")
 
   // ── Applicant profile (FINANCIER_SCHEMA v5 §3.1) — additive, ALL nullable;
   //    B2C buyers unaffected until they apply for financing (DP-14) ──
@@ -271,6 +277,8 @@ model Order {
   approvalRequest ApprovalRequest?
   payment         Payment?
   disputes        Dispute[]
+  externalSettlement      ExternalSettlementReference?
+  commissionObligations   CommissionObligation[]
 
   @@index([buyerId, createdAt])
   @@index([status])
@@ -1045,6 +1053,135 @@ model Payout {
 
   @@index([sellerId, status])
   @@index([status, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INTERMEDIARY MODEL (§8 C2C gap analysis) — external settlement references.
+// Vendora is a third-party process orchestrator, NOT a merchant of record:
+// buyer↔supplier money settles OUTSIDE the platform. One reference per order
+// records THAT settlement as evidence, with proof documents (PaymentEvidence)
+// and a trust flow:
+//   DECLARED ──confirm (counterparty or admin)──▶ CONFIRMED
+//      └──dispute (either party)──▶ DISPUTED ──confirm (admin)──▶ CONFIRMED
+// The platform never touches the money — it tracks lifecycle + evidence.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ExternalSettlementReference {
+  id            String   @id @default(cuid())
+  orderId       String   @unique
+  order         Order    @relation(fields: [orderId], references: [id])
+  method        String // WIRE | TRANSFER | CHEQUE | CASH | OTHER
+  reference     String?  @db.VarChar(160) // bank/transfer reference supplied by the declarer
+  status        String   @default("DECLARED") // DECLARED | CONFIRMED | DISPUTED
+  declaredById  String
+  declaredBy    User     @relation("SettlementDeclarer", fields: [declaredById], references: [id])
+  declaredAt    DateTime @default(now())
+  settledAt     DateTime? // when the parties say money moved
+  confirmedById String?
+  confirmedBy   User?    @relation("SettlementConfirmer", fields: [confirmedById], references: [id])
+  confirmedAt   DateTime?
+  note          String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  evidence PaymentEvidence[]
+
+  @@index([status, createdAt])
+  @@index([declaredById])
+}
+
+// Proof documents attached to an external settlement (bank slips, receipts).
+// mediaKey is a loose FK to MediaAsset.key — storage is content-addressed and
+// assets may be garbage-collected independently of the settlement trail.
+model PaymentEvidence {
+  id           String                      @id @default(cuid())
+  settlementId String
+  settlement   ExternalSettlementReference @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  mediaKey     String
+  name         String // original filename snapshot
+  mime         String
+  size         Int
+  uploadedById String
+  uploadedBy   User                        @relation("PaymentEvidenceUploadedBy", fields: [uploadedById], references: [id])
+  createdAt    DateTime                    @default(now())
+
+  @@unique([settlementId, mediaKey])
+  @@index([uploadedById])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INTERMEDIARY MODEL (§8) — commission obligations, statements, invoices.
+// What the platform EARNS: an obligation is born per (order, seller) when the
+// order reaches the SUCCESSFUL STAGE (DELIVERED). Lifecycle:
+//   obligation PENDING ── statement grouping (OPEN) ── invoice issue (INVOICED)
+//     ── partial/full collection (PARTIALLY_COLLECTED / COLLECTED)
+//     ── or WAIVED / WRITE_OFF. Statements SETTLE when every obligation is
+//     final; invoices flip PAID when fully collected.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model CommissionObligation {
+  id              String              @id @default(cuid())
+  orderId         String
+  order           Order               @relation(fields: [orderId], references: [id])
+  sellerId        String
+  seller          User                @relation("CommissionObligationSeller", fields: [sellerId], references: [id])
+  baseAmount      Decimal             @default(0) @db.Decimal(12, 2) // Σ price×qty of this seller's items
+  commissionRate  Float // percent snapshot at trigger time (vendor override → platform default)
+  amount          Decimal             @default(0) @db.Decimal(12, 2)
+  collectedAmount Decimal             @default(0) @db.Decimal(12, 2)
+  status          String              @default("PENDING") // PENDING | INVOICED | PARTIALLY_COLLECTED | COLLECTED | WAIVED | WRITE_OFF
+  triggerStage    String              @default("DELIVERED") // owner-defined SUCCESSFUL STAGE
+  statementId     String?
+  statement       CommissionStatement? @relation(fields: [statementId], references: [id])
+  note            String?             @db.Text
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@unique([orderId, sellerId]) // idempotent trigger: one obligation per pair
+  @@index([sellerId, status])
+  @@index([statementId])
+  @@index([status, createdAt])
+}
+
+model CommissionStatement {
+  id              String   @id @default(cuid())
+  number          String   @unique // CS-2026-000001
+  sellerId        String
+  seller          User     @relation("CommissionStatementSeller", fields: [sellerId], references: [id])
+  periodStart     DateTime
+  periodEnd       DateTime
+  obligationCount Int      @default(0)
+  baseAmount      Decimal  @default(0) @db.Decimal(12, 2)
+  amount          Decimal  @default(0) @db.Decimal(12, 2)
+  status          String   @default("OPEN") // OPEN | ISSUED | SETTLED | CANCELLED
+  issuedAt        DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  obligations CommissionObligation[]
+  invoices    CommissionInvoice[]
+
+  @@index([sellerId, status])
+  @@index([status, createdAt])
+}
+
+model CommissionInvoice {
+  id          String              @id @default(cuid())
+  number      String              @unique // CIV-2026-000001
+  statementId String
+  statement   CommissionStatement @relation(fields: [statementId], references: [id])
+  sellerId    String
+  seller      User               @relation("CommissionInvoiceSeller", fields: [sellerId], references: [id])
+  amount      Decimal             @default(0) @db.Decimal(12, 2)
+  status      String              @default("ISSUED") // ISSUED | PAID | VOID
+  dueAt       DateTime?
+  paidAt      DateTime?
+  note        String?             @db.Text
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([statementId])
+  @@index([sellerId, status])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -1,0 +1,58 @@
+[
+ {
+  "id": "cmupybttf000cnd0fu79fqw4o",
+  "productId": "cmupyb60z0009nd0fekbjhb9v",
+  "name": "450W",
+  "options": "{\"Wattage\":\"450W\"}",
+  "price": 120,
+  "compareAtPrice": null,
+  "stock": 12,
+  "sku": null,
+  "position": 0,
+  "isActive": 1,
+  "image": null,
+  "createdAt": "2026-10-01T19:53:13.395Z"
+ },
+ {
+  "id": "cmupybttg000dnd0fse8erbtr",
+  "productId": "cmupyb60z0009nd0fekbjhb9v",
+  "name": "550W",
+  "options": "{\"Wattage\":\"550W\"}",
+  "price": 140,
+  "compareAtPrice": null,
+  "stock": 13,
+  "sku": null,
+  "position": 1,
+  "isActive": 1,
+  "image": null,
+  "createdAt": "2026-10-01T19:53:13.395Z"
+ },
+ {
+  "id": "cmuvqo7qm002ane90dzrenzsr",
+  "productId": "cmupyxt4l000hndv0ab8eb5q3",
+  "name": "500W",
+  "options": "{\"Power\":\"500W\"}",
+  "price": null,
+  "compareAtPrice": null,
+  "stock": 20,
+  "sku": null,
+  "position": 0,
+  "isActive": 1,
+  "image": null,
+  "createdAt": "2026-10-05T21:05:31.438Z"
+ },
+ {
+  "id": "cmuvqo7qm002bne90gqd5q86b",
+  "productId": "cmupyxt4l000hndv0ab8eb5q3",
+  "name": "550W",
+  "options": "{\"Power\":\"550W\"}",
+  "price": null,
+  "compareAtPrice": null,
+  "stock": 10,
+  "sku": null,
+  "position": 1,
+  "isActive": 1,
+  "image": null,
+  "createdAt": "2026-10-05T21:05:31.438Z"
+ }
+]

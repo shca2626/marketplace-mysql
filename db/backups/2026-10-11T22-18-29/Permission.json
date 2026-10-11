@@ -1,0 +1,367 @@
+[
+ {
+  "key": "audit.view",
+  "domain": "audit",
+  "description": "Read the immutable audit trail."
+ },
+ {
+  "key": "catalog.products.create",
+  "domain": "catalog",
+  "description": "Create platform-managed listings."
+ },
+ {
+  "key": "catalog.products.delete",
+  "domain": "catalog",
+  "description": "Hard-delete listings without order history."
+ },
+ {
+  "key": "catalog.products.moderate",
+  "domain": "catalog",
+  "description": "Feature, archive, restore and take down listings."
+ },
+ {
+  "key": "catalog.products.update",
+  "domain": "catalog",
+  "description": "Edit listing content and pricing (name fixes, dedup)."
+ },
+ {
+  "key": "catalog.products.view",
+  "domain": "catalog",
+  "description": "Browse all listings, including drafts and archived rows."
+ },
+ {
+  "key": "coupons.manage",
+  "domain": "coupons",
+  "description": "Create, edit and delete discount codes."
+ },
+ {
+  "key": "coupons.view",
+  "domain": "coupons",
+  "description": "Browse promotions and their usage."
+ },
+ {
+  "key": "disputes.resolve",
+  "domain": "disputes",
+  "description": "Decide outcomes and close disputes."
+ },
+ {
+  "key": "disputes.view",
+  "domain": "disputes",
+  "description": "Browse the dispute queue."
+ },
+ {
+  "key": "financier.accreditations.manage",
+  "domain": "financier-pipeline",
+  "description": "Grant, reject and revoke accreditation programs."
+ },
+ {
+  "key": "financier.agreements.manage",
+  "domain": "financier-pipeline",
+  "description": "Report funding progress and money events on agreements."
+ },
+ {
+  "key": "financier.offers.manage",
+  "domain": "financier-pipeline",
+  "description": "Compose, send and withdraw binding offers."
+ },
+ {
+  "key": "financier.requests.view",
+  "domain": "financier-pipeline",
+  "description": "See forwarded financing requests in the inbox."
+ },
+ {
+  "key": "financier.services.manage",
+  "domain": "financier-services",
+  "description": "Create and edit financing programs and services."
+ },
+ {
+  "key": "financier.services.publish",
+  "domain": "financier-services",
+  "description": "Publish and unpublish services to the public hub."
+ },
+ {
+  "key": "financier.team.manage",
+  "domain": "financier-team",
+  "description": "Invite and manage lender staff (underwriters, reviewers)."
+ },
+ {
+  "key": "financing.documents.verify",
+  "domain": "financing",
+  "description": "Verify and reject KYC documents in the queue."
+ },
+ {
+  "key": "financing.fees.manage",
+  "domain": "financing",
+  "description": "View the fee ledger and mark fees invoiced/paid."
+ },
+ {
+  "key": "financing.gate.review",
+  "domain": "financing",
+  "description": "Approve, reject, return and forward financing applications."
+ },
+ {
+  "key": "financing.gate.view",
+  "domain": "financing",
+  "description": "See the financing application gate queue."
+ },
+ {
+  "key": "financing.institutions.manage",
+  "domain": "financing",
+  "description": "Verify and suspend financier institutions."
+ },
+ {
+  "key": "financing.requirements.manage",
+  "domain": "financing",
+  "description": "Curate the shared financing requirements library."
+ },
+ {
+  "key": "modules.manage",
+  "domain": "staff",
+  "description": "Switch platform modules on/off per platform, organization-type and organization scope (Phase 5)."
+ },
+ {
+  "key": "orders.update",
+  "domain": "orders",
+  "description": "Change order status and manage fulfillment events."
+ },
+ {
+  "key": "orders.view",
+  "domain": "orders",
+  "description": "Browse every order across buyers and sellers."
+ },
+ {
+  "key": "org.approvals.manage",
+  "domain": "org-procurement",
+  "description": "Approve or reject purchase requests above the threshold."
+ },
+ {
+  "key": "org.finance.apply",
+  "domain": "org-finance",
+  "description": "Submit financing applications on behalf of the organization."
+ },
+ {
+  "key": "org.finance.view",
+  "domain": "org-finance",
+  "description": "See financing and accreditation applications."
+ },
+ {
+  "key": "org.members.invite",
+  "domain": "org-members",
+  "description": "Invite users to the organization by email."
+ },
+ {
+  "key": "org.members.manage",
+  "domain": "org-members",
+  "description": "Change member roles and remove members."
+ },
+ {
+  "key": "org.offers.manage",
+  "domain": "org-selling",
+  "description": "Create and edit the company's offers (price, stock, variants, lead time) on shared-catalog products."
+ },
+ {
+  "key": "org.orders.view",
+  "domain": "org-procurement",
+  "description": "See organization orders and invoices."
+ },
+ {
+  "key": "org.pricelists.manage",
+  "domain": "org-pricing",
+  "description": "Maintain the organization price list."
+ },
+ {
+  "key": "org.pricelists.view",
+  "domain": "org-pricing",
+  "description": "See contract prices available to the organization."
+ },
+ {
+  "key": "org.profile.update",
+  "domain": "org-profile",
+  "description": "Update organization details and settings."
+ },
+ {
+  "key": "org.profile.view",
+  "domain": "org-profile",
+  "description": "See the organization profile and facts."
+ },
+ {
+  "key": "org.proposals.manage",
+  "domain": "org-selling",
+  "description": "Submit new product proposals and manage them until platform approval."
+ },
+ {
+  "key": "org.rfq.create",
+  "domain": "org-procurement",
+  "description": "Submit RFQs on behalf of the organization."
+ },
+ {
+  "key": "org.rfq.view",
+  "domain": "org-procurement",
+  "description": "See organization RFQs and negotiations."
+ },
+ {
+  "key": "org.sales.fulfill",
+  "domain": "org-selling",
+  "description": "Advance fulfillment status on orders for company offers."
+ },
+ {
+  "key": "org.sales.view",
+  "domain": "org-selling",
+  "description": "See incoming sales orders and fulfillment queues for company offers."
+ },
+ {
+  "key": "org.selling.view",
+  "domain": "org-selling",
+  "description": "See the company selling dashboard, offers and sales KPIs."
+ },
+ {
+  "key": "org.stores.manage",
+  "domain": "org-selling",
+  "description": "Create and manage the company's store(s) within the platform store limit."
+ },
+ {
+  "key": "orgs.create",
+  "domain": "organizations",
+  "description": "Create business accounts on behalf of the platform."
+ },
+ {
+  "key": "orgs.suspend",
+  "domain": "organizations",
+  "description": "Suspend and reactivate organizations."
+ },
+ {
+  "key": "orgs.update",
+  "domain": "organizations",
+  "description": "Update org facts, credit terms and settings."
+ },
+ {
+  "key": "orgs.verify",
+  "domain": "organizations",
+  "description": "Approve, reject and re-verify business accounts."
+ },
+ {
+  "key": "orgs.view",
+  "domain": "organizations",
+  "description": "Browse organizations and their members."
+ },
+ {
+  "key": "payments.capture",
+  "domain": "payments",
+  "description": "Capture, fail and configure payment methods."
+ },
+ {
+  "key": "payments.view",
+  "domain": "payments",
+  "description": "Browse payments and bank-transfer details."
+ },
+ {
+  "key": "payouts.manage",
+  "domain": "payouts",
+  "description": "Generate batches, mark paid, cancel and configure commissions."
+ },
+ {
+  "key": "payouts.view",
+  "domain": "payouts",
+  "description": "Browse settlement batches and history."
+ },
+ {
+  "key": "platform.overview.view",
+  "domain": "overview",
+  "description": "See marketplace KPIs, revenue charts and activity."
+ },
+ {
+  "key": "pricing.manage",
+  "domain": "pricing",
+  "description": "Create, edit and delete price lists and groups."
+ },
+ {
+  "key": "pricing.view",
+  "domain": "pricing",
+  "description": "Browse price lists and customer groups."
+ },
+ {
+  "key": "rbac.manage",
+  "domain": "staff",
+  "description": "Umbrella: create, update and delete roles. Grant the granular keys above to delegate partial control instead."
+ },
+ {
+  "key": "rbac.roles.create",
+  "domain": "staff",
+  "description": "Create custom roles — the permission set can never exceed your own access."
+ },
+ {
+  "key": "rbac.roles.delete",
+  "domain": "staff",
+  "description": "Delete custom roles and un-assign their members."
+ },
+ {
+  "key": "rbac.roles.update",
+  "domain": "staff",
+  "description": "Rename and re-permission custom roles — never beyond your own access."
+ },
+ {
+  "key": "rbac.roles.view",
+  "domain": "staff",
+  "description": "Browse the role catalog with permission matrices. Protected roles (Super Admin) stay hidden unless you hold them."
+ },
+ {
+  "key": "rfq.pipeline.view",
+  "domain": "rfq",
+  "description": "Browse every RFQ, quote and negotiation."
+ },
+ {
+  "key": "rfq.quotes.review",
+  "domain": "rfq",
+  "description": "Approve or reject seller quotes queued for platform review (Phase 6: explicit key for the quote-routing review route)."
+ },
+ {
+  "key": "rfq.settings.manage",
+  "domain": "rfq",
+  "description": "Edit scoped behavior panels and roll back changes."
+ },
+ {
+  "key": "staff.invite",
+  "domain": "staff",
+  "description": "Send and revoke staff invitations (only for roles within your own access)."
+ },
+ {
+  "key": "staff.manage",
+  "domain": "staff",
+  "description": "Grant and revoke role assignments — only for roles within your own permissions."
+ },
+ {
+  "key": "staff.view",
+  "domain": "staff",
+  "description": "See staff members, role assignments and the permission catalog."
+ },
+ {
+  "key": "storefront.manage",
+  "domain": "storefront",
+  "description": "Edit site name, theme, hero slides and announcements."
+ },
+ {
+  "key": "vendors.commission.manage",
+  "domain": "vendors",
+  "description": "Set per-vendor commission overrides."
+ },
+ {
+  "key": "vendors.verify",
+  "domain": "vendors",
+  "description": "Grant/revoke seller verification and suspend accounts."
+ },
+ {
+  "key": "vendors.view",
+  "domain": "vendors",
+  "description": "Browse the seller directory and their stores."
+ },
+ {
+  "key": "whatsapp.manage",
+  "domain": "whatsapp",
+  "description": "Pair new sender numbers, set the default line, disconnect, remove and send test messages."
+ },
+ {
+  "key": "whatsapp.view",
+  "domain": "whatsapp",
+  "description": "See sender numbers, pairing state and the outbound message ledger."
+ }
+]

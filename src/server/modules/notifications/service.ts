@@ -34,6 +34,10 @@ export type NotificationType =
   | 'VENDOR_STATUS' // seller: platform verified / suspended / reactivated your account
   | 'PAYMENT_STATUS' // buyer: payment captured, failed or awaiting confirmation
   | 'PAYOUT_STATUS' // seller: a payout was created or marked paid
+  // ── intermediary model (§8) + §9.5 order-event trail ──
+  | 'ORDER_STATUS' // order parties: fulfillment advanced (processing/shipped/delivered)
+  | 'SETTLEMENT_STATUS' // settlement parties: declared / confirmed / disputed / evidence
+  | 'COMMISSION_STATUS' // seller: obligation recorded / statement / invoice / collection
   // ── financier module (FINANCIER_SCHEMA v5 §6) ──
   | 'PLATFORM_RETURNED_REQUEST' // applicant: gate returned the request for completion
   | 'PLATFORM_FORWARDED_REQUEST' // applicant: gate passed, financier will review

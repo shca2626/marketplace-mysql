@@ -1,0 +1,18 @@
+[
+ {
+  "id": "cmuvu4ase000nnehowaf9miv4",
+  "financierProfileId": "cmuipydpn0007oktajlh7xad4",
+  "autoDecisionEnabled": 0,
+  "autoApproveThreshold": 80,
+  "autoDeclineThreshold": 30,
+  "weightAmount": 20,
+  "weightTenor": 10,
+  "weightGuarantee": 20,
+  "weightCapacity": 20,
+  "weightHistory": 15,
+  "weightDocuments": 15,
+  "updatedById": "cmuipydom0000oktaui7s4dx9",
+  "createdAt": "2026-10-05T22:42:00.735Z",
+  "updatedAt": "2026-10-05T22:42:14.478Z"
+ }
+]

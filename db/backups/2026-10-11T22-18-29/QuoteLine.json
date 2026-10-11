@@ -1,0 +1,67 @@
+[
+ {
+  "id": "cmupykvet0003ndnn98pi3pih",
+  "quoteId": "cmupykvet0001ndnnrakfhzgy",
+  "rfqLineId": "cmupygox4000andxm8m2u2em2",
+  "productId": "cmupyb60z0009nd0fekbjhb9v",
+  "variantId": null,
+  "variantName": null,
+  "quantity": 25,
+  "unitPrice": 108,
+  "availableStock": null,
+  "offerId": null,
+  "offerVariantId": null
+ },
+ {
+  "id": "cmv2pg70s0011pi6v6rxa7qeu",
+  "quoteId": "cmv2pg70s000zpi6vvqgbbgww",
+  "rfqLineId": null,
+  "productId": "cmumx77fg001znfehd5f7xg4b",
+  "variantId": null,
+  "variantName": null,
+  "quantity": 4,
+  "unitPrice": 92,
+  "availableStock": null,
+  "offerId": null,
+  "offerVariantId": null
+ },
+ {
+  "id": "cmv438s83006jmwdeit5z8o88",
+  "quoteId": "cmv438s83006hmwde5o28xoo3",
+  "rfqLineId": null,
+  "productId": "cmv42olvk000pmwz8ctj4nwy2",
+  "variantId": null,
+  "variantName": null,
+  "quantity": 2,
+  "unitPrice": 490,
+  "availableStock": null,
+  "offerId": null,
+  "offerVariantId": null
+ },
+ {
+  "id": "cmv48fudz000dne5twuldmahu",
+  "quoteId": "cmv48fudz000bne5tni8xnug6",
+  "rfqLineId": null,
+  "productId": "cmv42olvk000pmwz8ctj4nwy2",
+  "variantId": null,
+  "variantName": null,
+  "quantity": 3,
+  "unitPrice": 445,
+  "availableStock": null,
+  "offerId": null,
+  "offerVariantId": null
+ },
+ {
+  "id": "cmv48gfb8000kne5tyvnybouj",
+  "quoteId": "cmv48gfb8000ine5t7977765p",
+  "rfqLineId": null,
+  "productId": "cmv42olvk000pmwz8ctj4nwy2",
+  "variantId": null,
+  "variantName": null,
+  "quantity": 3,
+  "unitPrice": 445,
+  "availableStock": null,
+  "offerId": null,
+  "offerVariantId": null
+ }
+]

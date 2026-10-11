@@ -1,0 +1,41 @@
+[
+ {
+  "id": "cmuvu4uk30013nehodq382ohi",
+  "financierProfileId": "cmuipydpn0007oktajlh7xad4",
+  "kind": "FINANCING_AGREEMENT",
+  "version": 1,
+  "title": "Standard financing agreement — 2026 wording",
+  "body": "FINANCING AGREEMENT {{agreementNumber}} (rev. A)\n\nThis financing agreement is entered into on {{date}} between {{financierOrgName}} (the Financier) and {{applicantName}} (the Applicant).\n\n1. FACILITY\nThe Financier extends financing of {{amount}} {{currency}}, repayable over {{tenorMonths}} months ({{rateType}}; rate: {{ratePercent}}).\n\n2. REPAYMENT SCHEDULE\n{{installmentSchedule}}\n\n3. OFFER NOTES\n{{offerNotes}}\n\n4. GENERAL\nThe Applicant consents to be bound by the terms of this Agreement and understands the installment schedule and the obligation to pay on time.\n",
+  "sha256": "651363a8fb10bf6fd9e32ff91e8db71c1c3325d70d7a7e238c57b3764ef03135",
+  "status": "RETIRED",
+  "createdById": "cmuipydom0000oktaui7s4dx9",
+  "createdAt": "2026-10-05T22:42:26.356Z",
+  "updatedAt": "2026-10-05T22:42:41.291Z"
+ },
+ {
+  "id": "cmuvu53n2001hneho1ip4eh6b",
+  "financierProfileId": "cmuipydpn0007oktajlh7xad4",
+  "kind": "FINANCING_AGREEMENT",
+  "version": 2,
+  "title": "Standard financing agreement — 2026 wording (v2 tightening)",
+  "body": "FINANCING AGREEMENT {{agreementNumber}}\n\nExecuted on {{date}} between {{financierOrgName}} (the Financier) and {{applicantName}} (the Applicant).\n\n1. FACILITY\nFinancing of {{amount}} {{currency}}, repayable over {{tenorMonths}} months ({{rateType}}; rate: {{ratePercent}}).\n\n2. REPAYMENT SCHEDULE\n{{installmentSchedule}}\n\n3. OFFER NOTES\n{{offerNotes}}\n\n4. GENERAL\nThe Applicant consents to be bound by the terms of this Agreement, understands the installment schedule and the obligation to pay on time, and accepts electronic execution with two-factor verification.\n",
+  "sha256": "c75e4660adea9c60b382cff4faf82f45936c1d4606ea1fafdc735cafeeb2ebc5",
+  "status": "RETIRED",
+  "createdById": "cmuipydom0000oktaui7s4dx9",
+  "createdAt": "2026-10-05T22:42:38.126Z",
+  "updatedAt": "2026-10-05T22:45:35.352Z"
+ },
+ {
+  "id": "cmuvu8tlb005vnehosm9zsdh1",
+  "financierProfileId": "cmuipydpn0007oktajlh7xad4",
+  "kind": "FINANCING_AGREEMENT",
+  "version": 3,
+  "title": "Standard financing agreement — 2026 wording (v3 final)",
+  "body": "FINANCING AGREEMENT {{agreementNumber}}\n\nExecuted on {{date}} between {{financierOrgName}} (the Financier) and {{applicantName}} (the Applicant).\n\n1. FACILITY\nFinancing of {{amount}} {{currency}}, repayable over {{tenorMonths}} months ({{rateType}}; rate: {{ratePercent}}).\n\n2. REPAYMENT SCHEDULE\n{{installmentSchedule}}\n\n3. OFFER NOTES\n{{offerNotes}}\n\n4. GENERAL\nThe Applicant consents to be bound by the terms of this Agreement, understands the installment schedule and the obligation to pay on time, and accepts electronic execution with two-factor verification. This version clarifies early-settlement rights (rev. v3).\n",
+  "sha256": "f7e81d2c2c1ab120453e79559561697e46e1fcb81872a72c83f72097d3e57ff4",
+  "status": "ACTIVE",
+  "createdById": "cmuipydom0000oktaui7s4dx9",
+  "createdAt": "2026-10-05T22:45:31.727Z",
+  "updatedAt": "2026-10-05T22:45:35.615Z"
+ }
+]

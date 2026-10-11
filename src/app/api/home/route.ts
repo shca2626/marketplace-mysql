@@ -31,7 +31,15 @@ export async function GET() {
           include: { products: { where: { status: 'ACTIVE', seller: { status: 'ACTIVE' } }, select: { images: true } } },
         }),
         db.product.count({ where: { status: 'ACTIVE', seller: { status: 'ACTIVE' } } }),
-        db.user.count({ where: { role: 'SELLER', status: 'ACTIVE' } }),
+        // C2C retirement: "stores" are now the companies selling on the shared
+        // catalog — count distinct ACTIVE orgs holding an ACTIVE offer.
+        db.organization.count({
+          where: {
+            orgType: 'COMPANY',
+            status: 'ACTIVE',
+            offers: { some: { status: 'ACTIVE' } },
+          },
+        }),
         db.review.count(),
         db.order.count(),
       ])

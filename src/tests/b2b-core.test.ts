@@ -52,12 +52,15 @@ import {
   createFixtureOrder,
   createFixtureProduct,
   createFixtureUser,
+  createSellingCompany,
   getReq,
   params,
   patchReq,
   postReq,
+  setOrgSession,
   setSession,
   trackOrder,
+  type SellingCompany,
   trackOrganization,
   trackRfq,
 } from '@/tests/fixtures'
@@ -99,9 +102,17 @@ async function submittedRfq(quantity = 10) {
   return { ...rfq, status: after.status }
 }
 
-/** Seller issues a quote on an RFQ. Returns the quote JSON. */
-async function sellerQuote(rfqId: string, lineId: string, unitPrice: number, opts: { paymentTerms?: string } = {}) {
-  setSession(seller.id)
+/** Seller issues a quote on an RFQ from the given selling company's org context.
+ * (Individual sellers were retired with C2C — companies quote through their
+ * workspace, holding an ACTIVE offer on every quoted product.) */
+async function sellerQuote(
+  co: SellingCompany,
+  rfqId: string,
+  lineId: string,
+  unitPrice: number,
+  opts: { paymentTerms?: string } = {}
+) {
+  setOrgSession(co.ownerId, co.orgId)
   const res = await quotePOST(postReq(`/api/rfqs/${rfqId}/quotes`, {
     lines: [{ rfqLineId: lineId, productId: product.id, quantity: 10, unitPrice }],
     paymentTerms: opts.paymentTerms ?? 'NET-30',
@@ -186,19 +197,22 @@ describe('B2B core — RFQ lifecycle', () => {
 })
 
 describe('B2B core — quote lifecycle & platform review queue', () => {
+  let co: SellingCompany // the quoting company (org context)
+
   beforeAll(async () => {
     admin = await createFixtureUser({ role: 'ADMIN' })
     buyer = await createFixtureUser({ role: 'BUYER' })
-    seller = await createFixtureUser({ role: 'SELLER' })
+    seller = await createFixtureUser({ role: 'SELLER' }) // catalog product owner
     const category = await createFixtureCategory()
     product = await createFixtureProduct({ sellerId: seller.id, categoryId: category.id, price: 50, stock: 500 })
+    co = await createSellingCompany(product) // unverified owner → review queue applies
   })
   beforeEach(() => cookieJar.clear())
   afterAll(() => cleanupFixtures())
 
   it('sends a below-threshold quote straight to the buyer (DIRECT routing)', async () => {
     const rfq = await submittedRfq()
-    const res = await sellerQuote(rfq.id, rfq.lines[0].id, 10) // total 100 < 5000 threshold
+    const res = await sellerQuote(co, rfq.id, rfq.lines[0].id, 10) // total 100 < 5000 threshold
     expect(res.status).toBe(201)
     const quote = (await res.json()).quote as { id: string; status: string }
     expect(quote.status).toBe('SENT')
@@ -214,7 +228,7 @@ describe('B2B core — quote lifecycle & platform review queue', () => {
 
   it('routes an above-threshold unverified seller into the platform review queue', async () => {
     const rfq = await submittedRfq()
-    const res = await sellerQuote(rfq.id, rfq.lines[0].id, 800) // total 8000 > 5000
+    const res = await sellerQuote(co, rfq.id, rfq.lines[0].id, 800) // total 8000 > 5000
     expect(res.status).toBe(201)
     const quote = (await res.json()).quote as { id: string; status: string }
     expect(quote.status).toBe('PENDING_REVIEW')
@@ -244,7 +258,7 @@ describe('B2B core — quote lifecycle & platform review queue', () => {
 
   it('admin review can reject a queued quote and the buyer then sees it rejected', async () => {
     const rfq = await submittedRfq()
-    const res = await sellerQuote(rfq.id, rfq.lines[0].id, 900)
+    const res = await sellerQuote(co, rfq.id, rfq.lines[0].id, 900)
     const quote = (await res.json()).quote as { id: string }
 
     setSession(admin.id)
@@ -258,15 +272,15 @@ describe('B2B core — quote lifecycle & platform review queue', () => {
 
   it('buyer declines one quote and the seller withdraws a fresh one', async () => {
     const rfq = await submittedRfq()
-    const first = (await (await sellerQuote(rfq.id, rfq.lines[0].id, 12)).json()).quote as { id: string }
-    const second = (await (await sellerQuote(rfq.id, rfq.lines[0].id, 13)).json()).quote as { id: string }
+    const first = (await (await sellerQuote(co, rfq.id, rfq.lines[0].id, 12)).json()).quote as { id: string }
+    const second = (await (await sellerQuote(co, rfq.id, rfq.lines[0].id, 13)).json()).quote as { id: string }
 
     setSession(buyer.id)
     const declined = await quoteDeclinePOST(postReq(`/api/quotes/${first.id}/decline`, {}), params({ id: first.id }))
     expect(declined.status).toBe(200)
     expect(((await declined.json()).quote as { status: string }).status).toBe('DECLINED')
 
-    setSession(seller.id)
+    setOrgSession(co.ownerId, co.orgId)
     const withdrawn = await quoteWithdrawPOST(postReq(`/api/quotes/${second.id}/withdraw`, {}), params({ id: second.id }))
     expect(withdrawn.status).toBe(200)
     expect(((await withdrawn.json()).quote as { status: string }).status).toBe('WITHDRAWN')
@@ -274,19 +288,22 @@ describe('B2B core — quote lifecycle & platform review queue', () => {
 })
 
 describe('B2B core — quote → order conversion (award)', () => {
+  let co: SellingCompany
+
   beforeAll(async () => {
     admin = await createFixtureUser({ role: 'ADMIN' })
     buyer = await createFixtureUser({ role: 'BUYER' })
-    seller = await createFixtureUser({ role: 'SELLER' })
+    seller = await createFixtureUser({ role: 'SELLER' }) // catalog product owner
     const category = await createFixtureCategory()
     product = await createFixtureProduct({ sellerId: seller.id, categoryId: category.id, price: 50, stock: 500 })
+    co = await createSellingCompany(product)
   })
   beforeEach(() => cookieJar.clear())
   afterAll(() => cleanupFixtures())
 
   it('converts an accepted quote into a NET-terms B2B order atomically', async () => {
     const rfq = await submittedRfq(4)
-    const quote = (await (await sellerQuote(rfq.id, rfq.lines[0].id, 25, { paymentTerms: 'NET-45' })).json()).quote as {
+    const quote = (await (await sellerQuote(co, rfq.id, rfq.lines[0].id, 25, { paymentTerms: 'NET-45' })).json()).quote as {
       id: string
     }
 
@@ -365,7 +382,7 @@ describe('B2B core — organization purchase approvals', () => {
   afterAll(() => cleanupFixtures())
 
   it('routes a BUYER member above the threshold into PENDING_APPROVAL, blocks self-approval, and releases on approve', async () => {
-    setSession(procurement.id)
+    setOrgSession(procurement.id, orgId) // org context — the checkout routes through the membership
     const res = await ordersPOST(postReq('/api/orders', checkoutBody(product.id, 2))) // 400 > 300
     expect(res.status).toBe(201)
     const body = (await res.json()) as { order: { id: string; status: string }; pendingApproval: boolean }
@@ -402,7 +419,7 @@ describe('B2B core — organization purchase approvals', () => {
   })
 
   it('below-threshold BUYER checkouts skip approval entirely', async () => {
-    setSession(procurement.id)
+    setOrgSession(procurement.id, orgId)
     const res = await ordersPOST(postReq('/api/orders', checkoutBody(product.id, 1))) // 200 < 300
     expect(res.status).toBe(201)
     const body = (await res.json()) as { order: { id: string; status: string }; pendingApproval: boolean }
@@ -412,7 +429,7 @@ describe('B2B core — organization purchase approvals', () => {
   })
 
   it('an approved EXTERNAL-settlement order releases straight to PROCESSING', async () => {
-    setSession(procurement.id)
+    setOrgSession(procurement.id, orgId)
     const res = await ordersPOST(postReq('/api/orders', checkoutBody(product.id, 2, 'EXTERNAL')))
     expect(res.status).toBe(201)
     const body = (await res.json()) as { order: { id: string }; pendingApproval: boolean }
@@ -527,6 +544,7 @@ describe('Intermediary model — external settlement references', () => {
     trackOrganization(orgId)
     await db.organization.update({ where: { id: orgId }, data: { status: 'ACTIVE' } })
 
+    setOrgSession(buyer.id, orgId)
     const res = await ordersPOST(postReq('/api/orders', checkoutBody(product.id, 2, 'EXTERNAL')))
     expect(res.status).toBe(201)
     const body = (await res.json()) as { order: { id: string; status: string } }
@@ -551,7 +569,7 @@ describe('Intermediary model — external settlement references', () => {
       params({ id: order.id })
     )
     expect(declared.status).toBe(201)
-    let settlement = (await declared.json()).settlement as { id: string; status: string; reference: string | null }
+    let settlement = (await declared.json()).settlement as { id: string; status: string; reference: string | null; evidence: { name: string }[] }
     expect(settlement.status).toBe('DECLARED')
     expect(settlement.reference).toBe('TRX-9911')
 

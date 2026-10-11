@@ -1,0 +1,53 @@
+[
+ {
+  "id": "cmuvuodkz0005ne5swqak7fpe",
+  "agreementId": "cmuvu7m1d004ineho6wswzatz",
+  "receivedAt": "2026-10-05T10:00:00.000Z",
+  "channel": "CASH",
+  "reference": "E2E-PAY-1",
+  "amount": 60,
+  "currency": "YER",
+  "fxRateToAgreement": null,
+  "status": "ALLOCATED",
+  "note": null,
+  "recordedById": "cmuipydom0000oktaui7s4dx9",
+  "reversalOfId": null,
+  "reconciledAt": "2026-10-05T23:00:14.631Z",
+  "createdAt": "2026-10-05T22:57:37.475Z",
+  "updatedAt": "2026-10-05T23:00:14.632Z"
+ },
+ {
+  "id": "cmuvuovsv000nne5s1saujcw6",
+  "agreementId": "cmuvu7m1d004ineho6wswzatz",
+  "receivedAt": "2026-10-05T11:00:00.000Z",
+  "channel": "BANK_TRANSFER",
+  "reference": "E2E-PAY-2",
+  "amount": 150,
+  "currency": "YER",
+  "fxRateToAgreement": null,
+  "status": "PARTIALLY_REVERSED",
+  "note": null,
+  "recordedById": "cmuipydom0000oktaui7s4dx9",
+  "reversalOfId": null,
+  "reconciledAt": "2026-10-05T23:00:14.631Z",
+  "createdAt": "2026-10-05T22:58:01.087Z",
+  "updatedAt": "2026-10-05T23:00:14.632Z"
+ },
+ {
+  "id": "cmuvura9y000xne5sexws4hg8",
+  "agreementId": "cmuvu7m1d004ineho6wswzatz",
+  "receivedAt": "2026-10-05T22:59:53.033Z",
+  "channel": "REVERSAL",
+  "reference": "E2E-PAY-2",
+  "amount": 50,
+  "currency": "YER",
+  "fxRateToAgreement": null,
+  "status": "ALLOCATED",
+  "note": "Reversal of payment cmuvuovsv000nne5s1saujcw6: E2E partial reversal probe",
+  "recordedById": "cmuipydom0000oktaui7s4dx9",
+  "reversalOfId": "cmuvuovsv000nne5s1saujcw6",
+  "reconciledAt": "2026-10-05T23:00:14.631Z",
+  "createdAt": "2026-10-05T22:59:53.158Z",
+  "updatedAt": "2026-10-05T23:00:14.632Z"
+ }
+]

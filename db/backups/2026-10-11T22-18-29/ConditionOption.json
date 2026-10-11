@@ -1,0 +1,26 @@
+[
+ {
+  "id": "cmuipydpz000uoktasea8mahw",
+  "conditionTemplateId": "cmuipydpx000toktaqdi6ww4p",
+  "value": "Less than 1 year",
+  "position": 0
+ },
+ {
+  "id": "cmuipydpz000voktaatz8h67w",
+  "conditionTemplateId": "cmuipydpx000toktaqdi6ww4p",
+  "value": "1–3 years",
+  "position": 1
+ },
+ {
+  "id": "cmuipydpz000woktadapkyho8",
+  "conditionTemplateId": "cmuipydpx000toktaqdi6ww4p",
+  "value": "3–5 years",
+  "position": 2
+ },
+ {
+  "id": "cmuipydpz000xoktar7c1zptf",
+  "conditionTemplateId": "cmuipydpx000toktaqdi6ww4p",
+  "value": "More than 5 years",
+  "position": 3
+ }
+]

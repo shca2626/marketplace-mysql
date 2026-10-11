@@ -283,10 +283,19 @@ export async function decideApproval(
       if (!request.order) throw new ApprovalServiceError('The linked order no longer exists', 409)
       if (request.order.status !== 'PENDING_APPROVAL')
         throw new ApprovalServiceError('The linked order is no longer awaiting approval', 409)
+      // Settlement-aware release: an order with an external settlement
+      // reference settles between the parties — there is no platform payment
+      // step, so it releases straight to PROCESSING. Everything else waits
+      // for the buyer's payment (card or bank transfer).
+      const external = await db.externalSettlementReference.findUnique({
+        where: { orderId: request.orderId! },
+        select: { id: true },
+      })
       await db.$transaction(async (tx) => {
-        // Payment comes AFTER org approval now — the buyer settles the approved
-        // order from their orders page (card or bank transfer).
-        await tx.order.update({ where: { id: request.orderId! }, data: { status: 'PENDING_PAYMENT' } })
+        await tx.order.update({
+          where: { id: request.orderId! },
+          data: { status: external ? 'PROCESSING' : 'PENDING_PAYMENT' },
+        })
         await tx.approvalRequest.update({
           where: { id: approvalId },
           data: { status: 'APPROVED', decidedById: decider.id, decidedAt: now, decisionNote: decisionNote?.slice(0, 500) ?? null },

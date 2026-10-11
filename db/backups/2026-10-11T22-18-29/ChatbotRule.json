@@ -1,0 +1,50 @@
+[
+ {
+  "id": "cmuvl2opn0000neznxw23j3vg",
+  "name": "ساعات العمل",
+  "matchType": "CONTAINS",
+  "pattern": "ساعات",
+  "reply": "ساعات عملنا في سوق فيندورا:\nالسبت – الخميس: 8 صباحاً – 9 مساءً\nالجمعة: 4 عصراً – 9 مساءً\nونحن معك على الواتساب على مدار الأسبوع 🌞",
+  "active": 1,
+  "priority": 10,
+  "hits": 0,
+  "createdAt": "2026-10-05T18:28:48.923Z",
+  "updatedAt": "2026-10-05T18:28:48.923Z"
+ },
+ {
+  "id": "cmuvl2pda0001neznuyy04g4t",
+  "name": "الأسعار",
+  "matchType": "CONTAINS",
+  "pattern": "سعر",
+  "reply": "أسعارنا في سوق فيندورا تنافسية ومحدّثة يومياً 🌞\nتصفّح المنتجات وأسعارها مباشرة من الموقع أو التطبيق، أو أرسل لنا اسم المنتج وسنرد عليك بسعره فوراً.",
+  "active": 1,
+  "priority": 20,
+  "hits": 0,
+  "createdAt": "2026-10-05T18:28:49.774Z",
+  "updatedAt": "2026-10-05T18:28:49.774Z"
+ },
+ {
+  "id": "cmuvl2pu50002neznpkgvmjg8",
+  "name": "hello",
+  "matchType": "CONTAINS",
+  "pattern": "hello",
+  "reply": "Hello and welcome to Vendora! 👋\nأهلاً بك في سوق فيندورا — تصفّح منتجاتنا من الموقع أو أرسل استفسارك هنا وسنرد عليك بأسرع وقت.",
+  "active": 1,
+  "priority": 30,
+  "hits": 0,
+  "createdAt": "2026-10-05T18:28:50.382Z",
+  "updatedAt": "2026-10-05T18:28:50.382Z"
+ },
+ {
+  "id": "cmuvl2qb10003neznt6zxumbi",
+  "name": "شكرا",
+  "matchType": "CONTAINS",
+  "pattern": "شكرا",
+  "reply": "العفو، نسعد بخدمتك دائماً 🌞\nسوق فيندورا — شريكك الموثوق في حلول الطاقة الشمسية.",
+  "active": 1,
+  "priority": 40,
+  "hits": 0,
+  "createdAt": "2026-10-05T18:28:50.989Z",
+  "updatedAt": "2026-10-05T18:28:50.989Z"
+ }
+]

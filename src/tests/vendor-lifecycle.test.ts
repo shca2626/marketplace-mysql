@@ -151,10 +151,13 @@ describe('vendor lifecycle API', () => {
       expect((await anonRes.json()).user).toBeNull()
     })
 
-    it('seller self-registration: register (SELLER) → 201, user is ACTIVE, can POST a product (201)', async () => {
+    it('seller self-registration is RETIRED: role SELLER → 400; individuals register as buyers only', async () => {
       const email = `${uniq('seller')}@t.dev`
       const storeName = uniq('Lifecycle Store')
 
+      // The legacy personal-SELLER signup was retired with the C2C model —
+      // selling belongs to COMPANY organizations (shared-catalog offers).
+      // The register contract rejects the role outright.
       const res = await registerPOST(
         postReq('/api/auth/register', {
           name: uniq('Lifecycle Seller'),
@@ -164,23 +167,22 @@ describe('vendor lifecycle API', () => {
           storeName,
         }),
       )
-      expect(res.status).toBe(201)
+      expect(res.status).toBe(400)
+      expect(await db.user.findUnique({ where: { email } })).toBeNull()
 
-      const body = await res.json()
-      expect(body.user).toMatchObject({ email, role: 'SELLER', storeName })
+      // The same user can still register as a buyer…
+      const buyerRes = await registerPOST(
+        postReq('/api/auth/register', {
+          name: uniq('Lifecycle Buyer'),
+          email,
+          password: 'Passw0rd!123',
+          role: 'BUYER',
+        }),
+      )
+      expect(buyerRes.status).toBe(201)
+      const body = await buyerRes.json()
+      expect(body.user).toMatchObject({ email, role: 'BUYER' })
       trackUser(body.user.id)
-
-      // Freshly self-registered sellers start in good standing.
-      const row = await db.user.findUnique({ where: { id: body.user.id } })
-      expect(row?.status).toBe('ACTIVE')
-
-      // An active seller can publish a product through the API.
-      setSession(body.user.id)
-      const postRes = await productsPOST(postReq('/api/products', validProductForm(category.id)))
-      expect(postRes.status).toBe(201)
-      const created = await postRes.json()
-      expect(created.product).toMatchObject({ sellerId: body.user.id, status: 'ACTIVE' })
-      trackProduct(created.product.id)
     })
   })
 

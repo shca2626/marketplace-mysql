@@ -1,0 +1,46 @@
+[
+ {
+  "id": "cmuw3h2cj000mnekgs1ltr7gx",
+  "phone": "+967771234599",
+  "purpose": "REGISTER",
+  "codeHash": "23ae9fa2b5960fa64f76d1fd00caa53027f34c8eca4a84289174a4713dd65e8b",
+  "expiresAt": "2026-10-06T03:08:52.619Z",
+  "attempts": 1,
+  "consumedAt": "2026-10-06T03:03:55.274Z",
+  "ip": "::1",
+  "createdAt": "2026-10-06T03:03:52.868Z"
+ },
+ {
+  "id": "cmux0egb50000q05l7q7pwpfg",
+  "phone": "+967777444222",
+  "purpose": "REGISTER",
+  "codeHash": "788a61e49524d0906db26f6fc6e0f3d3eb3382433369b5ec4bc0dec28ab3b677",
+  "expiresAt": "2026-10-06T18:30:37.997Z",
+  "attempts": 1,
+  "consumedAt": "2026-10-06T18:25:49.628Z",
+  "ip": "21.0.0.1",
+  "createdAt": "2026-10-06T18:25:38.320Z"
+ },
+ {
+  "id": "cmux48ldx000oq01j0ulyldvt",
+  "phone": "+967771234902",
+  "purpose": "REGISTER",
+  "codeHash": "127054725de54c019894519bd582dd85fa77d02ce4c52f4f2ccf181d20f5a704",
+  "expiresAt": "2026-10-06T20:18:03.178Z",
+  "attempts": 1,
+  "consumedAt": "2026-10-06T20:14:10.085Z",
+  "ip": "::1",
+  "createdAt": "2026-10-06T20:13:03.429Z"
+ },
+ {
+  "id": "cmux7gk43002jq0h2ogh4hnry",
+  "phone": "+967771990201",
+  "purpose": "REGISTER",
+  "codeHash": "96418e71e80fdd3c103d6e6095c50dc274c4a6771506a56153b7d84f9c1d2cda",
+  "expiresAt": "2026-10-06T21:48:13.632Z",
+  "attempts": 1,
+  "consumedAt": "2026-10-06T21:43:25.792Z",
+  "ip": "::1",
+  "createdAt": "2026-10-06T21:43:13.874Z"
+ }
+]

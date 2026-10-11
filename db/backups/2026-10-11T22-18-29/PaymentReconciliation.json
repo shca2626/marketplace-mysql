@@ -1,0 +1,15 @@
+[
+ {
+  "id": "cmuvurq1g0012ne5syxtdo2x3",
+  "agreementId": "cmuvu7m1d004ineho6wswzatz",
+  "batchDate": "2026-10-05T00:00:00.000Z",
+  "railExpected": 205,
+  "ledgerActual": 160,
+  "difference": -45,
+  "status": "RESOLVED",
+  "resolutionNote": "E2E: rail export lag — payment confirmed by receipt scan",
+  "resolvedById": "cmuipydom0000oktaui7s4dx9",
+  "createdAt": "2026-10-05T23:00:13.589Z",
+  "resolvedAt": "2026-10-05T23:00:18.324Z"
+ }
+]

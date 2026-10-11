@@ -34,6 +34,63 @@ export function clearSession(): void {
   cookieJar.delete(SESSION_COOKIE)
 }
 
+/** The active-organization selector cookie (matches src/server/authz/context). */
+export const ACTIVE_ORG_COOKIE = 'vendora_active_org'
+
+/** Sign in as `userId` acting for `orgId` (org-context selector cookie). */
+export function setOrgSession(userId: string, orgId: string): void {
+  setSession(userId)
+  cookieJar.set(ACTIVE_ORG_COOKIE, orgId)
+}
+
+/** Return to the personal context (drop the org selector, keep the session). */
+export function clearOrgContext(): void {
+  cookieJar.delete(ACTIVE_ORG_COOKIE)
+}
+
+// ─── B2B selling-company fixture ────────────────────────────────────────────
+
+export interface SellingCompany {
+  orgId: string
+  ownerId: string
+  ownerEmail: string
+}
+
+/**
+ * A company that can quote on the shared catalog: ACTIVE org + OWNER member +
+ * an ACTIVE ProductOffer on `product` (the org must hold an offer on every
+ * product it quotes — server-enforced by createQuote).
+ */
+export async function createSellingCompany(
+  product: { id: string },
+  opts: { name?: string; price?: number; stock?: number; verifiedOwner?: boolean } = {}
+): Promise<SellingCompany> {
+  const owner = await createFixtureUser({ role: 'BUYER', verified: opts.verifiedOwner })
+  const org = await db.organization.create({
+    data: {
+      name: opts.name ?? uniq('Selling Co'),
+      slug: uniq('selling-co'),
+      orgType: 'COMPANY',
+      status: 'ACTIVE',
+    },
+  })
+  trackedOrganizationIds.add(org.id)
+  await db.organizationMember.create({
+    data: { organizationId: org.id, userId: owner.id, role: 'OWNER' },
+  })
+  await db.productOffer.create({
+    data: {
+      productId: product.id,
+      sellerId: owner.id,
+      sellerOrgId: org.id,
+      price: opts.price ?? 50,
+      stock: opts.stock ?? 500,
+      status: 'ACTIVE',
+    },
+  })
+  return { orgId: org.id, ownerId: owner.id, ownerEmail: owner.email }
+}
+
 // ─── request builders ────────────────────────────────────────────────────────
 // Routes read `req.nextUrl.searchParams`, so these MUST be real NextRequest
 // instances. No Origin header is set — src/lib/http.ts assertSameOrigin lets
@@ -410,6 +467,14 @@ export async function cleanupFixtures(): Promise<void> {
     await db.mediaAsset.deleteMany({ where: { uploadedById: { in: users } } })
     await db.organizationMember.deleteMany({ where: { userId: { in: users } } })
   }
+  // Shared-catalog offers created by fixture selling companies (before the
+  // org rows go — the FK would only null them out, leaving orphans).
+  const offerWhere = orWhere(
+    users.length ? { sellerId: { in: users } } : null,
+    organizations.length ? { sellerOrgId: { in: organizations } } : null,
+  )
+  if (offerWhere) await db.productOffer.deleteMany({ where: offerWhere })
+
   if (organizations.length) await db.organization.deleteMany({ where: { id: { in: organizations } } })
 
   const orderItemWhere = orWhere(

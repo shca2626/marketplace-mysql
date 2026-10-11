@@ -1,0 +1,50 @@
+[
+ {
+  "id": "cmuvmpf94001qne3w9gxtx9g1",
+  "threadId": "cmuvmp25o001one3wkav7xxnr",
+  "direction": "IN",
+  "body": "علومك يا حلو",
+  "author": "visitor",
+  "createdAt": "2026-10-05T19:14:29.368Z"
+ },
+ {
+  "id": "cmuvmpvho001sne3wnpo4qwzf",
+  "threadId": "cmuvmp25o001one3wkav7xxnr",
+  "direction": "IN",
+  "body": "الو",
+  "author": "visitor",
+  "createdAt": "2026-10-05T19:14:50.412Z"
+ },
+ {
+  "id": "cmuvmrfy5001xne3wp4u9ye30",
+  "threadId": "cmuvmp25o001one3wkav7xxnr",
+  "direction": "OUT",
+  "body": "pdh",
+  "author": "agent",
+  "createdAt": "2026-10-05T19:16:03.581Z"
+ },
+ {
+  "id": "cmuvnjj0f002zne3wc9r5j57y",
+  "threadId": "cmuvnj95m002xne3w1mdihfxx",
+  "direction": "IN",
+  "body": "من انت يا باشا",
+  "author": "visitor",
+  "createdAt": "2026-10-05T19:37:53.919Z"
+ },
+ {
+  "id": "cmux8870l0034q0h2m2uoe4bg",
+  "threadId": "cmuvnj95m002xne3w1mdihfxx",
+  "direction": "IN",
+  "body": "pdh",
+  "author": "visitor",
+  "createdAt": "2026-10-06T22:04:43.268Z"
+ },
+ {
+  "id": "cmux889os0036q0h2dedbmwug",
+  "threadId": "cmuvnj95m002xne3w1mdihfxx",
+  "direction": "IN",
+  "body": "l;sa",
+  "author": "visitor",
+  "createdAt": "2026-10-06T22:04:46.732Z"
+ }
+]

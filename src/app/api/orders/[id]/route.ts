@@ -5,6 +5,8 @@ import { getSessionUser } from '@/lib/auth'
 import { serializeOrder } from '@/lib/serialize'
 import { cancelApprovalForOrder } from '@/server/modules/approvals/service'
 import { cancelPaymentForOrder } from '@/server/modules/payments/service'
+import { recordCommissionForDeliveredOrder } from '@/server/modules/commission/service'
+import { emitNotifications } from '@/server/modules/notifications/service'
 import { assertSameOrigin } from '@/lib/http'
 import { userHasOrgPermission } from '@/server/authz/evaluator'
 
@@ -146,11 +148,49 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       )
     }
 
-    const updated = await db.order.update({
-      where: { id },
-      data: { status: parsed.data.status },
-      include: { items: true, payment: true, buyer: { select: { id: true, name: true, email: true } } },
-    })
+    // DELIVERED is the SUCCESSFUL STAGE: the commission trigger runs inside
+    // the SAME transaction as the status flip, so an obligation can never
+    // dangle against an undelivered order (and vice versa). Idempotent per
+    // (order, seller) — repeated transitions are blocked above anyway.
+    const updated =
+      parsed.data.status === 'DELIVERED'
+        ? await db.$transaction(async (tx) => {
+            const row = await tx.order.update({
+              where: { id },
+              data: { status: parsed.data.status },
+              include: { items: true, payment: true, buyer: { select: { id: true, name: true, email: true } } },
+            })
+            await recordCommissionForDeliveredOrder(tx, {
+              id: row.id,
+              buyerId: row.buyerId,
+              items: row.items.map((i) => ({ sellerId: i.sellerId, price: i.price, quantity: i.quantity })),
+            })
+            return row
+          })
+        : await db.order.update({
+            where: { id },
+            data: { status: parsed.data.status },
+            include: { items: true, payment: true, buyer: { select: { id: true, name: true, email: true } } },
+          })
+
+    // §9.5 notification trail — the buyer is informed of every fulfillment
+    // advance. The ACTOR is never self-notified (advancing your own sale is
+    // not news to you); other participating sellers see it too.
+    {
+      const orderRef = updated.poNumber || updated.id.slice(-8).toUpperCase()
+      const recipients = new Set<string>([updated.buyerId, ...updated.items.map((i) => i.sellerId)])
+      recipients.delete(user.id)
+      await emitNotifications(
+        [...recipients].map((userId) => ({
+          userId,
+          type: 'ORDER_STATUS' as const,
+          title: `Order ${orderRef} is ${parsed.data.status!.toLowerCase()}`,
+          body: `The fulfillment of order ${orderRef} moved to ${parsed.data.status!.toLowerCase()}.`,
+          linkView: 'orders' as const,
+          linkId: updated.id,
+        }))
+      )
+    }
 
     return NextResponse.json({ order: serializeOrder(updated, user.id) })
   } catch (err) {

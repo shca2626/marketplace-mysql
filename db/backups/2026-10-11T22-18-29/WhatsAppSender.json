@@ -1,0 +1,17 @@
+[
+ {
+  "id": "cmuvmsnnx001zne3w1imaimai",
+  "label": "wehaj",
+  "phoneNumber": "+966534175148",
+  "status": "DISCONNECTED",
+  "credsJson": null,
+  "pairingCode": "X3TQYBCY",
+  "codeIssuedAt": "2026-10-05T19:17:03.889Z",
+  "qrExpiresAt": null,
+  "isDefault": 1,
+  "lastUsedAt": "2026-10-05T21:27:58.332Z",
+  "lastError": "Logged out from WhatsApp — unpair this number here, then link it again.",
+  "createdAt": "2026-10-05T19:17:00.237Z",
+  "updatedAt": "2026-10-05T21:28:01.732Z"
+ }
+]

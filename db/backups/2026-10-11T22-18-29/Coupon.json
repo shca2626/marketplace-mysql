@@ -1,0 +1,35 @@
+[
+ {
+  "id": "cmuimboky008pokn0z2w65pot",
+  "code": "WELCOME10",
+  "description": "10% off your first order",
+  "percentOff": 10,
+  "minSubtotal": 0,
+  "firstOrderOnly": 1,
+  "active": 0,
+  "createdAt": "2026-09-26T16:42:47.987Z",
+  "updatedAt": "2026-09-29T17:08:06.830Z"
+ },
+ {
+  "id": "cmuimbol0008qokn0htuw5cgv",
+  "code": "BULK15",
+  "description": "15% off orders over $200",
+  "percentOff": 15,
+  "minSubtotal": 200,
+  "firstOrderOnly": 0,
+  "active": 1,
+  "createdAt": "2026-09-26T16:42:47.988Z",
+  "updatedAt": "2026-09-26T16:42:47.988Z"
+ },
+ {
+  "id": "cmumxjsj40000nfvx4numw840",
+  "code": "SUN10",
+  "description": "10% off your first solar order over $100",
+  "percentOff": 10,
+  "minSubtotal": 100,
+  "firstOrderOnly": 1,
+  "active": 1,
+  "createdAt": "2026-09-29T17:08:06.833Z",
+  "updatedAt": "2026-09-29T17:08:06.833Z"
+ }
+]

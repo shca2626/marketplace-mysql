@@ -6,7 +6,7 @@ import { db } from '@/lib/db'
  * creates never produce duplicates; the upsert-create race is retried.
  */
 
-export type SequencePrefix = 'RFQ' | 'QTE' | 'DSP' | 'PY' | 'FIN' | 'AGR' | 'ACC'
+export type SequencePrefix = 'RFQ' | 'QTE' | 'DSP' | 'PY' | 'FIN' | 'AGR' | 'ACC' | 'CS' | 'CIV'
 
 export async function nextNumber(prefix: SequencePrefix): Promise<string> {
   let lastError: unknown = null

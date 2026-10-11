@@ -1,0 +1,12 @@
+[
+ {
+  "id": "cmuvu3xef000knehoya5e97vb",
+  "requestId": "cmuipye1a003voktadnwdncxz",
+  "score": 79,
+  "band": "LOW",
+  "factors": "[{\"name\":\"Requested amount vs program range\",\"weight\":0.2,\"score\":90,\"contribution\":18,\"note\":\"Inside the program range 250,000–75,000,000 YER\"},{\"name\":\"Tenor vs financed norms\",\"weight\":0.1,\"score\":90,\"contribution\":9,\"note\":\"18 months — short tenor\"},{\"name\":\"Guarantee type & availability\",\"weight\":0.2,\"score\":90,\"contribution\":18,\"note\":\"Guarantee: self guarantee, available\"},{\"name\":\"Installment capacity vs schedule\",\"weight\":0.2,\"score\":50,\"contribution\":10,\"note\":\"Capacity ≈ 1.3× the estimated monthly installment — tight\"},{\"name\":\"Applicant history on the platform\",\"weight\":0.15,\"score\":60,\"contribution\":9,\"note\":\"1 prior agreement(s): 0 completed, 0 defaulted, 0 with 90+ day arrears\"},{\"name\":\"Verified documents ratio\",\"weight\":0.15,\"score\":100,\"contribution\":15,\"note\":\"8/8 checklist items verified or waived\"}]",
+  "decision": "AUTO_APPROVE",
+  "computedById": "cmuipydom0000oktaui7s4dx9",
+  "createdAt": "2026-10-05T22:41:43.384Z"
+ }
+]

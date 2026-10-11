@@ -8,6 +8,7 @@ import { computePricing } from '@/lib/pricing'
 import { findActiveCoupon, type ActiveCoupon } from '@/server/modules/coupons/service'
 import { needsApproval, createOrderApprovalRequest, notifyOrderApprovalRequested } from '@/server/modules/approvals/service'
 import { ensurePayment, succeedPayment } from '@/server/modules/payments/service'
+import { ensureSettlementForCheckout } from '@/server/modules/settlements/service'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 
@@ -29,7 +30,7 @@ const checkoutSchema = z.object({
   zip: z.string().min(3, 'ZIP code is required').max(20),
   phone: z.string().max(30).optional().nullable(),
   couponCode: z.string().trim().max(24).optional().nullable(),
-  paymentMethod: z.enum(['CARD', 'BANK_TRANSFER']).optional(), // absent = CARD (legacy callers)
+  paymentMethod: z.enum(['CARD', 'BANK_TRANSFER', 'EXTERNAL']).optional(), // absent = CARD (legacy callers); EXTERNAL = B2B parties settle off-platform
 })
 
 // POST /api/orders — checkout
@@ -194,6 +195,13 @@ export async function POST(req: NextRequest) {
         })
       : null
     const orgId = membership?.organizationId ?? null
+    // External settlement is a B2B arrangement — an organization is required.
+    if (method === 'EXTERNAL' && !orgId) {
+      return NextResponse.json(
+        { error: 'External settlement is available to organizations only — switch to your company context or pay by card' },
+        { status: 400 }
+      )
+    }
     const routeForApproval =
       !!membership &&
       needsApproval(
@@ -214,8 +222,15 @@ export async function POST(req: NextRequest) {
           total: pricing.total,
           // CARD settles inside this transaction; bank transfers wait for the
           // buyer's wire + operator capture; approval-routed orders pay after
-          // the org clears them.
-          status: routeForApproval ? 'PENDING_APPROVAL' : method === 'CARD' ? 'PAID' : 'PENDING_PAYMENT',
+          // the org clears them. EXTERNAL settles between the parties — no
+          // platform Payment row, the order releases straight to PROCESSING.
+          status: routeForApproval
+            ? 'PENDING_APPROVAL'
+            : method === 'CARD'
+              ? 'PAID'
+              : method === 'EXTERNAL'
+                ? 'PROCESSING'
+                : 'PENDING_PAYMENT',
           organizationId: orgId,
           ...shipping,
           phone: shipping.phone ?? null,
@@ -287,6 +302,15 @@ export async function POST(req: NextRequest) {
           requester: { id: user.id, name: user.name },
           amount: pricing.total,
         })
+        // EXTERNAL orders pre-declare the settlement reference at checkout so
+        // the approver sees the full picture; release is settlement-aware.
+        if (method === 'EXTERNAL') {
+          await ensureSettlementForCheckout(tx, { orderId: created.id, buyerId: user.id, method: 'WIRE' })
+        }
+      } else if (method === 'EXTERNAL') {
+        // Money moves buyer↔supplier off-platform: record the declaration,
+        // the supplier confirms when it arrives. No Payment row is created.
+        await ensureSettlementForCheckout(tx, { orderId: created.id, buyerId: user.id, method: 'WIRE' })
       } else {
         // Money settlement — CARD succeeds inline (simulated gateway);
         // BANK_TRANSFER parks the order in PENDING_PAYMENT with instructions.
