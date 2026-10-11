@@ -250,6 +250,19 @@ export async function getOwnService(userId: string, serviceId: string): Promise<
 
 export async function createService(userId: string, input: ServiceInput): Promise<FinancierServiceDTO> {
   const ctx = await requireFinancierContext(userId)
+  // F-05 parity: a non-ACTIVE institution (PENDING_REVIEW / SUSPENDED) is
+  // read-only — its staff cannot publish new services until the platform
+  // activates the institution.
+  const instOrg = await db.organization.findUnique({
+    where: { id: ctx.organizationId },
+    select: { status: true },
+  })
+  if (instOrg?.status !== 'ACTIVE') {
+    throw new FinancingError(
+      'This institution is not active yet — the console is read-only until the platform activates the institution',
+      403
+    )
+  }
   validateServiceInput(input, true)
   const created = await db.financierService.create({
     data: {

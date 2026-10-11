@@ -1,0 +1,114 @@
+{
+  "generatedAt": "2026-10-05T18:31:19.643Z",
+  "task": "Phase 7.8.1–7.8.3 accreditation status CHECK + DB-derived activeKey (lastplan 7.8)",
+  "sql": "scripts/sql/accreditation-constraints.sql",
+  "activeSet": [
+    "DRAFT",
+    "SUBMITTED",
+    "UNDER_PLATFORM_REVIEW",
+    "RETURNED_FOR_COMPLETION",
+    "FORWARDED_TO_FINANCIER",
+    "UNDER_FINANCIER_REVIEW",
+    "ACCREDITED"
+  ],
+  "terminalSet": [
+    "REJECTED",
+    "EXPIRED",
+    "REVOKED",
+    "CANCELLED"
+  ],
+  "note": "ARCHIVED (lastplan 7.8.1) is deliberately NOT in the CHECK — it is not yet an adopted application status (schema comment lists 11 values); adding it later is a reviewed migration, not a silent edit",
+  "appliedSteps": [
+    {
+      "step": "1. check existence probe",
+      "statement": "-- (1) drop the CHECK if it already exists (idempotent re-apply)\nSET @has_check = (\n  SELECT COUNT(*) FROM information_s",
+      "result": "affectedRows=0"
+    },
+    {
+      "step": "2. drop DDL selector",
+      "statement": "SET @ddl = IF(@has_check > 0,\n  'ALTER TABLE `AccreditationRequest` DROP CONSTRAINT `chk_AccreditationRequest_status`',\n",
+      "result": "affectedRows=0"
+    },
+    {
+      "step": "3. prepare drop DDL",
+      "statement": "PREPARE drop_stmt FROM @ddl",
+      "result": "affectedRows=0"
+    },
+    {
+      "step": "4. execute drop DDL",
+      "statement": "EXECUTE drop_stmt",
+      "result": "affectedRows=0"
+    },
+    {
+      "step": "5. deallocate drop DDL",
+      "statement": "DEALLOCATE PREPARE drop_stmt",
+      "result": "affectedRows=0"
+    },
+    {
+      "step": "6. ADD CONSTRAINT chk_AccreditationRequest_status",
+      "statement": "-- (2) the status CHECK — the documented lifecycle, database-enforced\nALTER TABLE `AccreditationRequest`\n  ADD CONSTRAIN",
+      "result": "affectedRows=1"
+    },
+    {
+      "step": "7. drop insert trigger (if exists)",
+      "statement": "-- (3) the DB-derived active key — BEFORE INSERT\nDROP TRIGGER IF EXISTS `AccreditationRequest_activeKey_insert`",
+      "result": "affectedRows=0"
+    },
+    {
+      "step": "8. CREATE TRIGGER AccreditationRequest_activeKey_insert",
+      "statement": "CREATE TRIGGER `AccreditationRequest_activeKey_insert`\nBEFORE INSERT ON `AccreditationRequest`\nFOR EACH ROW\nBEGIN\n  SET ",
+      "result": "affectedRows=0"
+    },
+    {
+      "step": "9. drop update trigger (if exists)",
+      "statement": "-- (4) the DB-derived active key — BEFORE UPDATE\nDROP TRIGGER IF EXISTS `AccreditationRequest_activeKey_update`",
+      "result": "affectedRows=0"
+    },
+    {
+      "step": "10. CREATE TRIGGER AccreditationRequest_activeKey_update",
+      "statement": "CREATE TRIGGER `AccreditationRequest_activeKey_update`\nBEFORE UPDATE ON `AccreditationRequest`\nFOR EACH ROW\nBEGIN\n  SET ",
+      "result": "affectedRows=0"
+    },
+    {
+      "step": "11. re-derive existing rows (UPDATE status = status)",
+      "statement": "-- (5) re-derive existing rows — the update trigger computes activeKey\n--     in-database for every row (the CHECK added",
+      "result": "affectedRows=1"
+    }
+  ],
+  "verification": {
+    "checkConstraintPresent": true,
+    "triggersPresent": {
+      "AccreditationRequest_activeKey_insert": true,
+      "AccreditationRequest_activeKey_update": true
+    },
+    "activeKeyDerivationMismatches": 0,
+    "bogusStatusInsertRejected": true,
+    "bogusStatusInsertError": "ER_CHECK_CONSTRAINT_VIOLATED Check constraint 'chk_AccreditationRequest_status' is violated.",
+    "probeLeakRows": 0,
+    "uniqueIndex": {
+      "name": "AccreditationRequest_serviceId_organizationId_activeKey_key",
+      "columns": [
+        "serviceId",
+        "organizationId",
+        "activeKey"
+      ]
+    },
+    "rowsBefore": [
+      {
+        "id": "cmuipye1s004woktasbpi07fi",
+        "number": "ACC-2026-000001",
+        "status": "ACCREDITED",
+        "activeKey": null
+      }
+    ],
+    "rowsAfter": [
+      {
+        "id": "cmuipye1s004woktasbpi07fi",
+        "number": "ACC-2026-000001",
+        "status": "ACCREDITED",
+        "activeKey": 1
+      }
+    ]
+  },
+  "gate": "PASS — CHECK live, triggers derive activeKey in-database, zero derivation mismatches, invalid status rejected, unique index present"
+}

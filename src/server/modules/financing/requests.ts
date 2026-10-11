@@ -950,11 +950,15 @@ export async function assertFinancierCanSee(
   const visible =
     (FINANCIER_VISIBLE_STATUSES as readonly string[]).includes(request.status) || request.forwardedAt != null
   if (!visible) throw new FinancingError('Request not found', 404)
+  // F-03 parity: a SUSPENDED institution's staff lose by-id detail access too
+  // (list access already drops them via listFinancierMemberships' status
+  // filter — the by-id guard used to miss the same predicate).
   const membership = await db.organizationMember.findFirst({
     where: {
       userId,
       organizationId: request.service.financierProfile.organizationId,
       role: { in: ['OWNER', 'ADMIN'] },
+      organization: { status: { not: 'SUSPENDED' } },
     },
   })
   if (!membership) throw new FinancingError('Financier staff access required', 403)

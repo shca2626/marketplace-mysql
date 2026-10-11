@@ -1,0 +1,3 @@
+# Vendora baseline — full schema as delivered through Phase 12 (created via migrate diff from-empty).
+# Database was managed with prisma db push until now; this baseline makes it migration-managed without touching data.
+provider = "mysql"

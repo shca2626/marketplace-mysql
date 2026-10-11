@@ -100,6 +100,7 @@ model User {
 
   // ── financing-domain relations (FINANCIER_SCHEMA v5) ──
   accountDocuments          AccountDocument[]       @relation("AccountDocumentsOwner")
+  vaultAccessGrants         VaultAccessGrant[]       @relation("VaultAccessGrantUser")
   documentsReviewed         AccountDocument[]       @relation("AccountDocumentsReviewedBy")
   financingRequests         FinancingRequest[]      @relation("FinancingRequests")
   financingOffers           FinancingOffer[]        @relation("FinancingOffers")
@@ -849,6 +850,7 @@ model RfqMessage {
 model MediaAsset {
   id               String            @id @default(cuid())
   key              String            @unique // storage base key (no extension)
+  namespace        String            @default("public-media") // storage namespace segment (legacy live column)
   originalName     String
   mime             String
   size             Int
@@ -1443,11 +1445,33 @@ model AccountDocument {
 
   submissions        RequirementSubmission[]
   requestAttachments RequestAttachment[]     @relation("RequestAttachmentDocument")
+  vaultGrants        VaultAccessGrant[]       @relation("VaultAccessGrantDocument")
 
   @@index([userId, documentType, status])
   @@index([organizationId])
   @@index([mediaId])
   @@index([reviewedById]) // MYSQL-FK-INDEX: reviewedById relation needs its own leftmost index
+}
+
+// One-time vault retrieval grants (6.6.4): each issued document URL carries a
+// single-use nonce row; consumption is an atomic updateMany WHERE consumedAt
+// IS NULL — two concurrent fetches of the same URL can never both win.
+model VaultAccessGrant {
+  id         String   @id @default(cuid())
+  documentId String
+  document   AccountDocument @relation("VaultAccessGrantDocument", fields: [documentId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User           @relation("VaultAccessGrantUser", fields: [userId], references: [id])
+  nonce      String   @unique // 48 hex chars — bound into the HMAC signature
+  basis      String // access-decision basis recorded at issuance
+  expiresAt  DateTime
+  issuedIp   String?
+  consumedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([documentId, createdAt])
+  @@index([userId, createdAt])
+  @@index([expiresAt]) // reaper scans long-expired rows
 }
 
 // Free-form request attachments not tied to a specific requirement (loose-parent pattern).

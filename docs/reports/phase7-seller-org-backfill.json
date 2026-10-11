@@ -1,0 +1,70 @@
+{
+  "generatedAt": "2026-10-05T18:29:50.318Z",
+  "task": "Phase 7.0 seller-org substrate backfill (lastplan 7.0.3 + 7.0.4 / docs/seller-tenant-model.md §6)",
+  "counts": {
+    "sellersProcessed": 30,
+    "orgsCreated": 10,
+    "orgsReused": 20,
+    "sellerProfilesCreated": 30,
+    "membershipsCreated": 10,
+    "offersStamped": 3,
+    "orderItemsStamped": 70,
+    "payoutsStamped": 1,
+    "quotesStamped": 4,
+    "primaryOffersCreated": 66,
+    "productsAlreadyCovered": 0
+  },
+  "thisRun": {
+    "sellersProcessed": 15,
+    "orgsCreated": 0,
+    "orgsReused": 15,
+    "sellerProfilesCreated": 15,
+    "membershipsCreated": 0,
+    "offersStamped": 0,
+    "orderItemsStamped": 35,
+    "payoutsStamped": 1,
+    "quotesStamped": 2,
+    "primaryOffersCreated": 33,
+    "productsAlreadyCovered": 0,
+    "coveredOfferStatusDistribution": {}
+  },
+  "dbStateAfter": {
+    "organizations": 24,
+    "sellerProfiles": 15,
+    "productOffers": 33,
+    "productOffersWithSellerOrgId": 33,
+    "orderItemsWithSellerOrgId": 35,
+    "quotesWithSellerOrgId": 2,
+    "payoutsWithSellerOrgId": 1
+  },
+  "reconciliation": {
+    "1_everySellerHasOrgProfileOwnerMembership": {
+      "mismatches": 0,
+      "detail": "0 seller users missing org/SellerProfile/OWNER membership"
+    },
+    "2_offerSellerOrgIdMatchesSellersOrg": {
+      "mismatches": 0,
+      "detail": "0 ProductOffer rows whose sellerOrgId ≠ their seller's org"
+    },
+    "3_everySellerProductHasOffer": {
+      "mismatches": 0,
+      "detail": "0 seller-owned Products without any ProductOffer row"
+    },
+    "4_orderItemPayoutQuoteSellerOrgIdMatches": {
+      "mismatches": 0,
+      "detail": "0 OrderItem, 0 Payout, 0 Quote rows whose sellerOrgId ≠ their seller's org"
+    },
+    "5_noNullSellerOrgIdOnSellerRows": {
+      "mismatches": 0,
+      "detail": "0 ProductOffer, 0 OrderItem, 0 Payout, 0 Quote rows with NULL sellerOrgId belonging to a seller WITH an org"
+    }
+  },
+  "ambiguities": [
+    {
+      "scope": "primary-offer normalization on non-ACTIVE products",
+      "detail": "1 seller-owned Product(s) in status ARCHIVED received a status='ACTIVE' primary ProductOffer per the 7.0.3 spec (\"one ACTIVE ProductOffer per seller-owned product\")",
+      "decision": "kept ACTIVE per spec; every commerce path (checkout, offer listing) independently validates Product.status — archived products remain unbuyable through their primary offer"
+    }
+  ],
+  "gate": "PASS — zero mismatches on all five checks"
+}

@@ -3,7 +3,7 @@ import { recordAudit } from '@/server/modules/audit/service'
 import { emitNotification, emitNotifications } from '@/server/modules/notifications/service'
 import { nextNumber } from '@/server/modules/sequences/service'
 import { resolvePanel } from '@/server/modules/settings/service'
-import { FinancingError, assertApplicantActor, iso, type OfferStatus } from './shared'
+import { FinancingError, assertApplicantActor, assertApplicantOfferAcceptor, iso, type OfferStatus } from './shared'
 
 /**
  * FINANCING OFFERS — the financier's binding proposal (§3.9) + the acceptance
@@ -137,6 +137,8 @@ async function loadRequestForFinancier(userId: string, requestId: string) {
       userId,
       organizationId: request.service.financierProfile.organizationId,
       role: { in: ['OWNER', 'ADMIN'] },
+      // F-03 parity: SUSPENDED institutions may not act on requests by id
+      organization: { status: { not: 'SUSPENDED' } },
     },
   })
   if (!membership) throw new FinancingError('Financier staff access required', 403)
@@ -474,7 +476,9 @@ export async function acceptOffer(
     },
   })
   if (!offer) throw new FinancingError('Offer not found', 404)
-  await assertApplicantActor(userId, offer.request)
+  // F-04 parity: acceptance binds the org (agreement + SUCCESS fee) — require
+  // the requester themself or an org member holding org.finance.apply.
+  await assertApplicantOfferAcceptor(userId, offer.request)
   if (offer.status !== 'SENT') throw new FinancingError(`Offer is ${offer.status} — cannot accept`, 409)
   if (offer.validUntil && offer.validUntil.getTime() < Date.now()) {
     throw new FinancingError('This offer has expired', 409)
@@ -490,8 +494,9 @@ export async function acceptOffer(
     resolvePanel('financingFees'),
   ])
   const successPercent = Number(feesPanel.financierSuccessPercent) || 0
-  const agreementId = await db.$transaction(async (tx) =>
-    acceptOfferCore(tx, offer, agreementNumber, successPercent)
+  const agreementId = await db.$transaction(
+    async (tx) => acceptOfferCore(tx, offer, agreementNumber, successPercent),
+    { timeout: 30_000 } // remote-DB latency: default 5s is too tight for the agreement+fee+notifications tx
   )
 
   await recordAudit({

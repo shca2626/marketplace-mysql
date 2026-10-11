@@ -287,6 +287,36 @@ export async function assertApplicantActor(
   }
 }
 
+/**
+ * F-04 parity: ACCEPTING a financing offer binds the whole organization
+ * (agreement mint + SUCCESS fee accrual). Only the requester themself
+ * (personal requests) or an ACTIVE member of the requesting organization
+ * holding the `org.finance.apply` permission may accept — owners qualify
+ * automatically through the owner permission set; VIEWERs and members
+ * without the permission are refused.
+ */
+export async function assertApplicantOfferAcceptor(
+  userId: string,
+  request: { createdById: string; organizationId: string | null }
+): Promise<void> {
+  if (request.createdById === userId) return
+  if (!request.organizationId) throw new FinancingError('Access denied', 403)
+  const member = await db.organizationMember.findFirst({
+    where: { userId, organizationId: request.organizationId },
+    include: { organization: { select: { status: true } } },
+  })
+  if (!member || member.organization.status !== 'ACTIVE') {
+    throw new FinancingError('Access denied', 403)
+  }
+  const { userHasOrgPermission } = await import('@/server/authz/evaluator')
+  if (!(await userHasOrgPermission(userId, request.organizationId, 'org.finance.apply'))) {
+    throw new FinancingError(
+      'Only organization members with financing permission can accept an offer for the organization',
+      403
+    )
+  }
+}
+
 /** Require the user is a member of the org (any role) — org-scoped create guard. */
 export async function assertOrgMember(userId: string, organizationId: string): Promise<void> {
   const membership = await db.organizationMember.findFirst({
