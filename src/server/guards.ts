@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
-import { getSessionUser } from '@/lib/auth'
+import { getSessionUser, currentSessionMfaSatisfiedAt } from '@/lib/auth'
 import { userHasAnyPlatformPermission, userHasPlatformPermission } from '@/server/modules/rbac/service'
+import { MFA_STEPUP_WINDOW_MS, isMfaEnrolled } from '@/server/modules/mfa/service'
 
 /**
  * Route-level authorization helpers.

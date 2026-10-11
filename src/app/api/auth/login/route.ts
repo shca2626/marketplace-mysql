@@ -74,6 +74,20 @@ export async function POST(req: NextRequest) {
       entityId: user.id,
       summary: `Signed in: ${user.email}`,
     })
+    // Break-glass accounts (privileged emergency access) get an explicit
+    // alert audit on EVERY successful sign-in — surfaced in the admin
+    // security console (NEG-12).
+    if (user.isBreakGlass) {
+      await recordAudit({
+        actorId: user.id,
+        actorType: 'USER',
+        action: 'BREAK_GLASS_LOGIN',
+        entityType: 'User',
+        entityId: user.id,
+        summary: `Break-glass sign-in: ${user.email}`,
+        metadata: { ip: clientIp(req) },
+      })
+    }
     resetRateLimit(`login:${clientIp(req)}`)
     const rbac = await buildSessionRbac(user)
     return NextResponse.json({ user: toSessionUser(user, rbac) })

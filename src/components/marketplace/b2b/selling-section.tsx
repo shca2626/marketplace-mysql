@@ -35,6 +35,7 @@ import {
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useApi } from '@/hooks/use-api'
+import { toastApiError } from '@/components/marketplace/financing/financing-shared'
 import type { CategoryDTO } from '@/lib/types'
 import { formatDate, formatNumber, formatUSD, timeAgo } from '@/lib/format'
 import { cardImage } from '@/lib/storage/url'
@@ -1602,11 +1603,31 @@ function NewStoreDialog({
 // ══════════════════════════════════════════════════════════════════════════════
 
 function SalesOrdersSub({ organizationId }: { organizationId: string }) {
-  const { data, loading, error, refetch } = useApi<{ salesOrders: SalesOrderRow[] }>(
+  const { data, loading, error, refetch } = useApi<{ salesOrders: SalesOrderRow[]; canFulfill?: boolean }>(
     `/api/organizations/${organizationId}/sales-orders`
   )
   const orders = useMemo(() => data?.salesOrders ?? [], [data])
   const totalValue = orders.reduce((sum, o) => sum + o.total, 0)
+  const [busyId, setBusyId] = useState<string | null>(null)
+
+  // Fulfillment advance (org.sales.fulfill) — the server re-authorizes every
+  // PATCH; this flag only decides whether the button renders.
+  const NEXT_STEP: Record<string, { status: string; label: string }> = {
+    PAID: { status: 'PROCESSING', label: 'Start processing' },
+    PROCESSING: { status: 'SHIPPED', label: 'Mark shipped' },
+    SHIPPED: { status: 'DELIVERED', label: 'Mark delivered' },
+  }
+  const advanceStatus = async (orderId: string, next: string) => {
+    setBusyId(orderId)
+    const res = await apiRequest<{ order: { id: string } }>(`/api/orders/${orderId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: next }),
+    })
+    setBusyId(null)
+    if (!res.ok) return toastApiError(res.error, 'Could not advance fulfillment')
+    toast({ title: `Order marked ${next.toLowerCase()}`, description: 'The buyer has been notified.' })
+    void refetch()
+  }
 
   return (
     <div className="space-y-4">
@@ -1691,11 +1712,24 @@ function SalesOrdersSub({ organizationId }: { organizationId: string }) {
                       </li>
                     ))}
                   </ul>
-                  <div className="mt-3 flex items-center justify-between gap-3 border-t pt-3">
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t pt-3">
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                       Order total
                     </p>
-                    <p className="text-base font-bold tabular-nums">{formatUSD(o.total)}</p>
+                    <div className="flex items-center gap-3">
+                      <p className="text-base font-bold tabular-nums">{formatUSD(o.total)}</p>
+                      {data?.canFulfill && NEXT_STEP[o.orderStatus] && (
+                        <Button
+                          size="sm"
+                          className="h-8 rounded-full text-xs"
+                          disabled={busyId === o.orderId}
+                          onClick={() => void advanceStatus(o.orderId, NEXT_STEP[o.orderStatus].status)}
+                        >
+                          {busyId === o.orderId && <Loader2 size={12} className="mr-1 animate-spin" />}
+                          {NEXT_STEP[o.orderStatus].label}
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>

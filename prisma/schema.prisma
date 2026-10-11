@@ -36,6 +36,49 @@ datasource db {
 // (RFQ/Quote), one order pipeline with payment-term extensions.
 // ═══════════════════════════════════════════════════════════════════════════
 
+// ── MFA + session registry (security roadmap 6.7 — tables pre-exist in the
+// live DB; declarations restored after they were lost with unpushed commits).
+model MfaEnrollment {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  user        User      @relation("MfaEnrollments", fields: [userId], references: [id], onDelete: Cascade)
+  method      String    @default("TOTP") // TOTP (extensible)
+  secretEnc   String    @db.Text // AES-256-GCM ciphertext — never plaintext
+  confirmedAt DateTime?
+  lastTotpStep Int? // replay guard: last accepted TOTP timestep
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  backupCodes MfaBackupCode[]
+}
+
+model MfaBackupCode {
+  id           String        @id @default(cuid())
+  enrollmentId String
+  enrollment   MfaEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  codeHash     String        @unique // salted scrypt hash; plaintext shown once
+  usedAt       DateTime?
+  createdAt    DateTime      @default(now())
+
+  @@index([enrollmentId])
+}
+
+model SessionRegistry {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation("SessionRegistry", fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash     String    @unique // sha256 of the signed session token
+  userAgent     String?   @db.VarChar(400)
+  ip            String?   @db.VarChar(64)
+  createdAt     DateTime  @default(now())
+  lastUsedAt    DateTime  @default(now())
+  revokedAt     DateTime?
+  revokedReason String?   @db.VarChar(120)
+  mfaSatisfiedAt DateTime? // 6.7.5 step-up freshness anchor (per session)
+
+  @@index([userId])
+}
+
 model User {
   id             String    @id @default(cuid())
   email          String    @unique
@@ -54,9 +97,12 @@ model User {
   // ── Auth hardening (AUTHSEC-1) — mirrors prisma/schema.prisma ──
   sessionVersion  Int       @default(0)
   emailVerifiedAt DateTime?
+  isBreakGlass    Boolean   @default(false) // privileged emergency account — every sign-in is audited as BREAK_GLASS_LOGIN and surfaced in the admin security console
 
   passwordResetTokens     PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
+  mfaEnrollment           MfaEnrollment?       @relation("MfaEnrollments")
+  sessionRegistry         SessionRegistry[]    @relation("SessionRegistry")
 
   products           Product[]
   productsReviewed   Product[]          @relation("ProductReviewedBy")

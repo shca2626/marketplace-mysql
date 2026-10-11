@@ -39,3 +39,28 @@ export async function recordAudit(entry: AuditEntry): Promise<void> {
     console.error('[audit] write failed:', entry.action, err)
   }
 }
+
+/**
+ * Transactional audit write — the SAME semantics as recordAudit but on the
+ * caller's transaction client, so the audit row commits atomically with the
+ * business change it describes (e.g. session termination, MFA enrollment,
+ * security-console actions). Failures propagate: inside a transaction a
+ * swallowed write would silently detach the audit from the change it must
+ * witness.
+ */
+export async function recordAuditTx(
+  tx: { auditLog: { create: (args: { data: unknown }) => Promise<unknown> } },
+  entry: AuditEntry
+): Promise<void> {
+  await tx.auditLog.create({
+    data: {
+      actorId: entry.actorId ?? null,
+      actorType: entry.actorType,
+      action: entry.action,
+      entityType: entry.entityType,
+      entityId: entry.entityId ?? null,
+      summary: entry.summary,
+      metadata: entry.metadata === undefined ? undefined : JSON.stringify(entry.metadata),
+    },
+  })
+}

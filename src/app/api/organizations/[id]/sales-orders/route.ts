@@ -34,6 +34,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       orderBy: { order: { createdAt: 'desc' } },
       take: 500,
     })
+    // The caller's own fulfillment authority for this org (drives the UI's
+    // advance buttons; the PATCH endpoint re-checks server-side regardless).
+    const canFulfill = await userHasOrgPermission(authz.user.id, id, 'org.sales.fulfill')
     const byOrder = new Map<string, { orderId: string; orderStatus: string; placedAt: string; buyerName: string; city: string; country: string; paymentTerms: string | null; items: { id: string; title: string; quantity: number; price: number; variantName: string | null; status: string }[]; total: number }>()
     for (const it of items) {
       const entry = byOrder.get(it.order.id) ?? {
@@ -51,7 +54,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       entry.total += it.price * it.quantity
       byOrder.set(it.order.id, entry)
     }
-    return NextResponse.json({ salesOrders: [...byOrder.values()] })
+    return NextResponse.json({ salesOrders: [...byOrder.values()], canFulfill })
   } catch (err) {
     console.error('sales orders GET error', err)
     return NextResponse.json({ error: 'Failed to load sales orders' }, { status: 500 })

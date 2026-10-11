@@ -1344,7 +1344,7 @@ export async function respondToQuote(
   await recordAudit({
     actorId: userId,
     actorType: 'USER',
-    action: `QUOTE_${action}ED`,
+    action: action === 'ACCEPT' ? 'QUOTE_ACCEPTED' : 'QUOTE_DECLINED',
     entityType: 'Quote',
     entityId: quoteId,
     summary: `Quote ${quote.number} ${action.toLowerCase()}${action === 'ACCEPT' ? 'ed' : 'd'} by buyer`,

@@ -134,9 +134,10 @@ export function SupplierSourcingPanel({ requestId }: { requestId: string }) {
   const actOnQuote = async (quote: SourcingQuote, action: 'accept' | 'decline') => {
     if (!rfq) return
     setQuoteBusy(quote.id)
-    const res = await apiRequest(`/api/quotes/${quote.id}/respond`, {
+    // Canonical routes: /api/quotes/[id]/accept | /decline (no body — the
+    // previous `/respond` call 404'd and silently blocked quote selection).
+    const res = await apiRequest(`/api/quotes/${quote.id}/${action === 'accept' ? 'accept' : 'decline'}`, {
       method: 'POST',
-      body: JSON.stringify({ action }),
     })
     setQuoteBusy(null)
     if (!res.ok) return toastApiError(res.error, `Could not ${action} the quote`)

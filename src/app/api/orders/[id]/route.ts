@@ -6,8 +6,28 @@ import { serializeOrder } from '@/lib/serialize'
 import { cancelApprovalForOrder } from '@/server/modules/approvals/service'
 import { cancelPaymentForOrder } from '@/server/modules/payments/service'
 import { assertSameOrigin } from '@/lib/http'
+import { userHasOrgPermission } from '@/server/authz/evaluator'
 
 const STATUS_FLOW = ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED']
+
+/**
+ * Company sellers: a member of the selling organization holding
+ * `org.sales.fulfill` may advance fulfillment on orders whose items carry that
+ * org's sellerOrgId (shared-catalog offer sales). Mirrors respondToQuote's
+ * membership resolution — live membership re-checked server-side on every
+ * request; the client never proves organization by assertion.
+ */
+async function orgFulfillmentAllowed(userId: string, order: { items: { sellerOrgId: string | null }[] }): Promise<string | null> {
+  const sellerOrgIds = [...new Set(order.items.map((i) => i.sellerOrgId).filter((v): v is string => !!v))]
+  if (sellerOrgIds.length !== 1) return null // multi-org or personal sale — org path does not apply
+  const member = await db.organizationMember.findUnique({
+    where: { organizationId_userId: { organizationId: sellerOrgIds[0], userId } },
+    include: { organization: { select: { status: true } } },
+  })
+  if (!member || member.organization.status !== 'ACTIVE') return null
+  const allowed = await userHasOrgPermission(userId, sellerOrgIds[0], 'org.sales.fulfill')
+  return allowed ? sellerOrgIds[0] : null
+}
 
 // GET /api/orders/[id] — single order (buyer or participating seller)
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -100,7 +120,10 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
     const isSeller = order.items.some((i) => i.sellerId === user.id)
     const isAdmin = user.role === 'ADMIN'
-    if (!isSeller && !isAdmin) return NextResponse.json({ error: 'Only the seller can update fulfillment' }, { status: 403 })
+    // Company fulfillment path: org member holding org.sales.fulfill
+    const fulfilledViaOrg = !isSeller && !isAdmin ? await orgFulfillmentAllowed(user.id, order) : null
+    if (!isSeller && !isAdmin && !fulfilledViaOrg)
+      return NextResponse.json({ error: 'Only the seller can update fulfillment' }, { status: 403 })
 
     if (order.status === 'PENDING_APPROVAL')
       return NextResponse.json(

@@ -146,3 +146,57 @@ export async function clearSessionCookie() {
   const cookieStore = await cookies()
   cookieStore.delete(SESSION_COOKIE)
 }
+
+// ── Session registry + MFA step-up (security roadmap 6.7.5) ────────────────
+// Server-side per-session records keyed by sha256(token): device listing,
+// remote revocation ("sign out other devices") and the step-up freshness
+// anchor. The signed cookie remains the identity source of truth — the
+// registry is authoritative for per-session state only.
+
+import { sha256Hex } from '@/lib/secret-box'
+
+/** Register (or touch) the CURRENT session in the registry. Returns its row. */
+export async function registerCurrentSession(userId: string, meta?: { userAgent?: string | null; ip?: string | null }) {
+  const cookieStore = await cookies()
+  const token = cookieStore.get(SESSION_COOKIE)?.value
+  if (!token) return null
+  const tokenHash = sha256Hex(token)
+  const row = await db.sessionRegistry.upsert({
+    where: { tokenHash },
+    update: { lastUsedAt: new Date() },
+    create: {
+      userId,
+      tokenHash,
+      userAgent: meta?.userAgent?.slice(0, 400) ?? null,
+      ip: meta?.ip?.slice(0, 64) ?? null,
+    },
+  })
+  return row
+}
+
+/**
+ * 6.7.5 — mark the CURRENT session as MFA-satisfied: the step-up freshness
+ * window opens for THIS session only (other devices stay unverified).
+ */
+export async function markCurrentSessionMfaSatisfied(): Promise<boolean> {
+  const cookieStore = await cookies()
+  const payload = parseSessionToken(cookieStore.get(SESSION_COOKIE)?.value)
+  if (!payload) return false
+  const row = await registerCurrentSession(payload.userId)
+  if (!row) return false
+  await db.sessionRegistry.update({
+    where: { id: row.id },
+    data: { mfaSatisfiedAt: new Date() },
+  })
+  return true
+}
+
+/** The CURRENT session's step-up anchor (null when unverified/expired-by-window). */
+export async function currentSessionMfaSatisfiedAt(): Promise<Date | null> {
+  const cookieStore = await cookies()
+  const token = cookieStore.get(SESSION_COOKIE)?.value
+  if (!token) return null
+  const row = await db.sessionRegistry.findUnique({ where: { tokenHash: sha256Hex(token) } })
+  if (!row || row.revokedAt) return null
+  return row.mfaSatisfiedAt
+}
