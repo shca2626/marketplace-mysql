@@ -9,7 +9,7 @@ import { verifySubmission } from '@/server/modules/financing/submissions'
 // verdict (body: { verdict: VERIFIED | REJECTED | WAIVED, note? } — a note is
 // required on REJECTED/WAIVED). Works for both request kinds (parent-resolved).
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('financing.gate.review')
   if (error) return error
 
   const csrf = assertSameOrigin(req)

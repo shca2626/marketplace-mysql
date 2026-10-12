@@ -9,7 +9,7 @@ import {
 // GET /api/admin/commission/statements — period statements with invoices.
 // Filters: status, q, page.
 export async function GET(req: NextRequest) {
-  const { error } = await requireAdmin()
+  const { error } = await requireAdmin('payouts.view')
   if (error) return error
   try {
     const { searchParams } = new URL(req.url)

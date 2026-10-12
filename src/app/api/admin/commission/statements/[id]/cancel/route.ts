@@ -13,7 +13,7 @@ const cancelSchema = z.object({
 // POST /api/admin/commission/statements/[id]/cancel — release the statement's
 // obligations back to ungrouped PENDING (mirrors payout cancellation).
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('payouts.manage')
   if (error) return error
   try {
     const { id } = await ctx.params

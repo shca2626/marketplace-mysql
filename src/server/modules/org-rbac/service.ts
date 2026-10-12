@@ -587,6 +587,16 @@ export async function createOrgInvitation(
   })
   if (open) throw new OrgRbacError('An open invitation for this email already exists', 409)
 
+  // SUBSCRIPTION GATE (maxUsers): seller-org plans cap the team size — the
+  // count includes pending invitations (a seat is reserved the moment it is
+  // offered). Non-seller orgs are a no-op inside assertOrgLimit.
+  const { assertOrgLimit } = await import('@/server/modules/subscriptions/service')
+  const memberCount = await db.organizationMember.count({ where: { organizationId } })
+  const pendingCount = await db.staffInvitation.count({
+    where: { organizationId, status: 'PENDING', expiresAt: { gt: new Date() } },
+  })
+  await assertOrgLimit(organizationId, 'maxUsers', memberCount + pendingCount)
+
   const inviter = await db.user.findUnique({ where: { id: actorUserId }, select: { name: true } })
   const rawToken = randomBytes(24).toString('hex')
   const invitation = await db.staffInvitation.create({
@@ -644,14 +654,17 @@ export async function revokeOrgInvitation(actorUserId: string, organizationId: s
 }
 
 /**
- * Consume a pending ORG invitation at registration time. Returns the role +
- * organization so the caller creates membership + assignment atomically.
+ * ATOMIC org-invitation claim — runs INSIDE the caller's transaction so the
+ * membership create + role assignment + this claim commit or roll back
+ * together (a failed registration can never burn the invitation, and a
+ * concurrent double-claim aborts with count 0).
  */
-export async function consumeOrgInvitation(
+export async function claimOrgInvitationTx(
+  tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
   email: string,
   token: string
-): Promise<{ roleId: string; roleKey: string; roleName: string; organizationId: string } | null> {
-  const invitation = await db.staffInvitation.findUnique({
+): Promise<{ invitationId: string; roleId: string; roleKey: string; roleName: string; organizationId: string } | null> {
+  const invitation = await tx.staffInvitation.findUnique({
     where: { tokenHash: createHash('sha256').update(token).digest('hex') },
     include: { role: { select: { id: true, key: true, name: true, scope: true } } },
   })
@@ -665,8 +678,18 @@ export async function consumeOrgInvitation(
   ) {
     return null
   }
-  await db.staffInvitation.update({ where: { id: invitation.id }, data: { status: 'ACCEPTED', acceptedAt: new Date() } })
-  return { roleId: invitation.role.id, roleKey: invitation.role.key, roleName: invitation.role.name, organizationId: invitation.organizationId }
+  const claimed = await tx.staffInvitation.updateMany({
+    where: { id: invitation.id, status: 'PENDING' },
+    data: { status: 'ACCEPTED', acceptedAt: new Date() },
+  })
+  if (claimed.count === 0) return null // consumed concurrently — abort
+  return {
+    invitationId: invitation.id,
+    roleId: invitation.role.id,
+    roleKey: invitation.role.key,
+    roleName: invitation.role.name,
+    organizationId: invitation.organizationId,
+  }
 }
 
 /** Grant an org invitation's role to an EXISTING user (accept-by-link when logged in). */

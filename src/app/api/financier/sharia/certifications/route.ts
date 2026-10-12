@@ -12,7 +12,7 @@ export async function GET() {
   const { user, error } = await requireUser()
   if (error) return error
   try {
-    const ctx = await requireFinancierContext(user.id)
+    const ctx = await requireFinancierContext(user.id, 'financier.services.manage')
     const result = await listCertifications(ctx.organizationId)
     return NextResponse.json(result)
   } catch (err) {
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   const rl = enforceRateLimit(req, 'financier:sharia-cert', { limit: 40, windowMs: 10 * 60_000 }, user.id)
   if (rl) return rl
   try {
-    const ctx = await requireFinancierContext(user.id)
+    const ctx = await requireFinancierContext(user.id, 'financier.services.manage')
     const parsed = certSchema.safeParse(await req.json())
     if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid certification payload', details: parsed.error.flatten() }, { status: 400 })

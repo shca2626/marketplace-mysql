@@ -10,7 +10,7 @@ import {
 // Filters: status, sellerId, q, page. Includes statement candidates (sellers
 // with ungrouped PENDING obligations) for the "prepare statement" flow.
 export async function GET(req: NextRequest) {
-  const { error } = await requireAdmin()
+  const { error } = await requireAdmin('payouts.view')
   if (error) return error
   try {
     const { searchParams } = new URL(req.url)

@@ -25,6 +25,15 @@ import type { RfqDTO, QuoteDTO, RfqLineDTO, QuoteLineDTO, RfqMessageDTO } from '
  * Accepting a quote declines its siblings and closes the RFQ.
  */
 
+
+/** Platform-staff check for RFQ surfaces — permission-based (rfq.pipeline.view),
+ *  NOT the legacy User.role flag. Legacy admins pass through their seeded
+ *  platform.super-admin assignment. */
+async function isPlatformStaff(userId: string): Promise<boolean> {
+  const { userHasPlatformPermission } = await import('@/server/modules/rbac/service')
+  return userHasPlatformPermission(userId, 'rfq.pipeline.view')
+}
+
 export class RfqServiceError extends Error {
   status: number
   constructor(message: string, status = 400) {
@@ -626,7 +635,7 @@ export async function getRfq(rfqId: string, viewer: { id: string; role: string }
   if (!rfq) throw new RfqServiceError('RFQ not found', 404)
 
   const isOwner = rfq.userId === viewer.id
-  const isAdmin = viewer.role === 'ADMIN'
+  const isAdmin = await isPlatformStaff(viewer.id)
   // Sellers whose catalog products are referenced by RFQ lines may view the RFQ
   // (they need this to discover requests and respond with quotes).
   const isLineSeller = rfq.lines.some((l) => l.product && l.product.sellerId === viewer.id)
@@ -758,7 +767,7 @@ export async function rfqTransition(
   if (!rfq) throw new RfqServiceError('RFQ not found', 404)
 
   const isOwner = rfq.userId === actor.id
-  const isAdmin = actor.role === 'ADMIN'
+  const isAdmin = await isPlatformStaff(actor.id)
 
   // Authorization per action
   if ((action === 'SUBMIT' || action === 'CANCEL') && !isOwner && !isAdmin) {
@@ -869,7 +878,7 @@ export async function createQuote(
     throw new RfqServiceError(`RFQ is ${rfq.status} — quotes are closed`, 409)
   }
 
-  const isAdmin = actor.role === 'ADMIN'
+  const isAdmin = await isPlatformStaff(actor.id)
   const products = await db.product.findMany({
     where: { id: { in: input.lines.map((l) => l.productId) } },
   })
@@ -1457,6 +1466,43 @@ export async function sellerRfqInbox(sellerId: string): Promise<RfqDTO[]> {
 
 // ── Negotiation thread ──────────────────────────────────────────────────────
 
+/**
+ * SELLER-facing "Open Requests" board (STAB-6): live RFQs the seller could
+ * still quote — open-status requests whose free-form (productId=null) lines
+ * keyword-match the seller's ACTIVE catalog, plus any request that already
+ * references their catalog or carries their quote (never hide what you
+ * already touched). Ranked: own-catalog line matches first, then recency.
+ */
+export async function openRfqDirectory(sellerId: string): Promise<RfqDTO[]> {
+  await expireStaleQuotes()
+  const rfqs = await db.rfq.findMany({
+    where: {
+      status: { in: ['SUBMITTED', 'UNDER_REVIEW', 'QUOTED'] },
+      OR: [
+        // free-form lines: anyone may see them (keyword discovery is the point)
+        { lines: { some: { productId: null } } },
+        { lines: { some: { product: { sellerId } } } },
+        { quotes: { some: { sellerId } } },
+      ],
+    },
+    include: {
+      ...rfqInclude,
+      _count: { select: { quotes: true } },
+      quotes: { select: { sellerId: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+  })
+  return rfqs
+    .map((r) => {
+      const dto = serializeRfq(r as never, false)
+      dto.myLineCount = r.lines.filter((l) => l.product && l.product.sellerId === sellerId).length
+      dto.myQuoteCount = r.quotes.filter((q) => q.sellerId === sellerId).length
+      return dto
+    })
+    .sort((a, b) => (b.myLineCount ?? 0) - (a.myLineCount ?? 0))
+}
+
 async function assertRfqThreadAccess(
   rfqId: string,
   viewer: { id: string; role: string }
@@ -1471,7 +1517,7 @@ async function assertRfqThreadAccess(
   })
   if (!rfq) throw new RfqServiceError('RFQ not found', 404)
   const isOwner = rfq.userId === viewer.id
-  const isAdmin = viewer.role === 'ADMIN'
+  const isAdmin = await isPlatformStaff(viewer.id)
   const isLineSeller = rfq.lines.some((l) => l.product && l.product.sellerId === viewer.id)
   const isInvolvedSeller = rfq.quotes.some((q) => q.sellerId === viewer.id)
   if (!isOwner && !isAdmin && !isLineSeller && !isInvolvedSeller) {
@@ -1582,7 +1628,7 @@ export async function withdrawQuote(
 ): Promise<QuoteDTO> {
   const quote = await db.quote.findUnique({ where: { id: quoteId }, include: { rfq: true } })
   if (!quote) throw new RfqServiceError('Quote not found', 404)
-  const isAdmin = actor.role === 'ADMIN'
+  const isAdmin = await isPlatformStaff(actor.id)
   const isOwnSellerQuote = quote.sellerId === actor.id
   if (!isAdmin && !isOwnSellerQuote) throw new RfqServiceError('Access denied', 403)
   if (quote.status !== 'SENT') {
@@ -1675,7 +1721,7 @@ export async function convertQuoteToOrder(
   // The requester themself, or an active member of the requesting organization
   // holding the org RFQ permission (mirrors respondToQuote).
   let isOwner = quote.rfq.userId === viewer.id
-  const isAdmin = viewer.role === 'ADMIN'
+  const isAdmin = await isPlatformStaff(viewer.id)
   if (!isOwner && quote.rfq.organizationId) {
     const member = await db.organizationMember.findUnique({
       where: { organizationId_userId: { organizationId: quote.rfq.organizationId, userId: viewer.id } },

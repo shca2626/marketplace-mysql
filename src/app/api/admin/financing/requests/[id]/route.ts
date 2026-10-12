@@ -15,7 +15,7 @@ import { adminOpenAccreditationReview as openAccreditation } from '@/server/modu
 const actionSchema = z.object({ action: z.literal('open') })
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('financing.gate.view')
   if (error) return error
   const csrf = assertSameOrigin(_req)
   if (csrf) return csrf
@@ -35,7 +35,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('financing.gate.review')
   if (error) return error
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf

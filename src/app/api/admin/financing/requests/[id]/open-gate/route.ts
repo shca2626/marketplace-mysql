@@ -8,7 +8,7 @@ import { openGate } from '@/server/modules/financing/requests'
 // POST /api/admin/financing/requests/[id]/open-gate — SUBMITTED →
 // UNDER_PLATFORM_REVIEW (a platform reviewer takes the request).
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('financing.gate.review')
   if (error) return error
 
   const csrf = assertSameOrigin(req)

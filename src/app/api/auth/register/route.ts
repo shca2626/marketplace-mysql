@@ -4,9 +4,9 @@ import { db } from '@/lib/db'
 import { hashPassword, setSessionCookie, toSessionUser } from '@/lib/auth'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
-import { recordAudit } from '@/server/modules/audit/service'
-import { buildSessionRbac, consumeInvitation } from '@/server/modules/rbac/service'
-import { consumeOrgInvitation } from '@/server/modules/org-rbac/service'
+import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
+import { buildSessionRbac, claimInvitationTx } from '@/server/modules/rbac/service'
+import { claimOrgInvitationTx } from '@/server/modules/org-rbac/service'
 import { appBaseUrl, issueEmailVerificationToken } from '@/lib/auth-tokens'
 import { emailVerificationEmail } from '@/lib/emails/auth-emails'
 import { sendMail } from '@/lib/mailer'
@@ -49,53 +49,98 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'An account with this email already exists' }, { status: 409 })
     }
 
-    // Validate invitations (platform staff or org member) BEFORE creating the
-    // account so a bad token can never mint a half-invited user.
-    const invite = inviteToken ? await consumeInvitation(email, inviteToken) : null
-    const orgInvite = inviteToken && !invite ? await consumeOrgInvitation(email, inviteToken) : null
-
-    const user = await db.user.create({
-      data: {
-        name,
-        email: email.toLowerCase(),
-        password: hashPassword(password),
-        role: 'BUYER',
-      },
-    })
-
-    if (invite) {
-      await db.userRole.create({
-        data: { userId: user.id, roleId: invite.roleId, organizationId: '' },
-      })
-      await recordAudit({
-        actorId: user.id,
-        actorType: 'USER',
-        action: 'ROLE_ASSIGNED',
-        entityType: 'User',
-        entityId: user.id,
-        summary: `Invited staff joined: role "${invite.roleName}" granted to ${user.email}`,
-        metadata: { roleId: invite.roleId, via: 'invitation' },
-      })
+    // ATOMIC invitation claim + account creation (RBAC lifecycle): the claim,
+    // the user, the membership and the role assignment commit in ONE
+    // transaction — an invitation can no longer be consumed by a registration
+    // that subsequently fails, and a concurrent double-claim aborts cleanly.
+    // A provided token that matches NO pending invitation is a hard 400 (no
+    // silent token drops — the user knows the invite is unusable).
+    class InvalidInvitationError extends Error {}
+    let txResult: {
+      user: { id: string; name: string; email: string; role: string; sessionVersion: number }
+      invite: { roleId: string; roleName: string } | null
+      orgInvite: { roleId: string; roleKey: string; roleName: string; organizationId: string } | null
     }
+    try {
+      txResult = await db.$transaction(
+        async (tx) => {
+          const invite = inviteToken ? await claimInvitationTx(tx, email, inviteToken) : null
+          const orgInvite = inviteToken && !invite ? await claimOrgInvitationTx(tx, email, inviteToken) : null
+          if (inviteToken && !invite && !orgInvite) {
+            throw new InvalidInvitationError()
+          }
 
-    if (orgInvite) {
-      // Organization member joins via invitation: membership + role assignment.
-      await db.organizationMember.create({
-        data: { organizationId: orgInvite.organizationId, userId: user.id, role: 'VIEWER' },
-      })
-      await db.userRole.create({
-        data: { userId: user.id, roleId: orgInvite.roleId, organizationId: orgInvite.organizationId },
-      })
-      await recordAudit({
-        actorId: user.id,
-        actorType: 'USER',
-        action: 'ORG_JOINED_VIA_INVITATION',
-        entityType: 'Organization',
-        entityId: orgInvite.organizationId,
-        summary: `${user.email} joined via invitation with role "${orgInvite.roleName}"`,
-        metadata: { roleId: orgInvite.roleId, roleKey: orgInvite.roleKey },
-      })
+          const user = await tx.user.create({
+            data: {
+              name,
+              email: email.toLowerCase(),
+              password: hashPassword(password),
+              role: 'BUYER',
+            },
+          })
+
+          if (invite) {
+            await tx.userRole.create({
+              data: { userId: user.id, roleId: invite.roleId, organizationId: '' },
+            })
+            await recordAuditTx(tx, {
+              actorId: user.id,
+              actorType: 'USER',
+              action: 'ROLE_ASSIGNED',
+              entityType: 'User',
+              entityId: user.id,
+              summary: `Invited staff joined: role "${invite.roleName}" granted to ${user.email}`,
+              metadata: { roleId: invite.roleId, via: 'invitation' },
+            })
+          }
+
+          if (orgInvite) {
+            // Organization member joins via invitation: membership + role assignment.
+            await tx.organizationMember.create({
+              data: { organizationId: orgInvite.organizationId, userId: user.id, role: 'VIEWER' },
+            })
+            await tx.userRole.create({
+              data: { userId: user.id, roleId: orgInvite.roleId, organizationId: orgInvite.organizationId },
+            })
+            await recordAuditTx(tx, {
+              actorId: user.id,
+              actorType: 'USER',
+              action: 'ORG_JOINED_VIA_INVITATION',
+              entityType: 'Organization',
+              entityId: orgInvite.organizationId,
+              summary: `${user.email} joined via invitation with role "${orgInvite.roleName}"`,
+              metadata: { roleId: orgInvite.roleId, roleKey: orgInvite.roleKey },
+            })
+          }
+
+          return {
+            user: {
+              id: user.id,
+              name: user.name,
+              email: user.email,
+              role: user.role,
+              sessionVersion: user.sessionVersion,
+            },
+            invite,
+            orgInvite,
+          }
+        },
+        { timeout: 15000 }
+      )
+    } catch (err) {
+      if (err instanceof InvalidInvitationError) {
+        return NextResponse.json(
+          {
+            error:
+              'This invitation link is invalid, expired, revoked, or belongs to a different email address. Ask for a fresh invitation.',
+            code: 'INVITATION_INVALID',
+          },
+          { status: 400 }
+        )
+      }
+      throw err
     }
+    const { user, invite, orgInvite } = txResult
 
     await recordAudit({
       actorId: user.id,

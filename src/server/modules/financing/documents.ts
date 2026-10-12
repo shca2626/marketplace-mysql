@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { recordAudit } from '@/server/modules/audit/service'
+import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
 import { emitNotification } from '@/server/modules/notifications/service'
 import { resolvePanel } from '@/server/modules/settings/service'
 import { UPLOAD_LIMITS, processImageUpload } from '@/lib/storage/image-pipeline'
@@ -44,6 +44,9 @@ export interface AccountDocumentDTO {
 // ── Serialization ───────────────────────────────────────────────────────────
 
 type DocRaw = Awaited<ReturnType<typeof db.accountDocument.findFirstOrThrow>>
+
+/** Public alias used by the catalog module's dossier assembly. */
+export const serializeAccountDocument = serializeDoc
 
 function serializeDoc(
   d: DocRaw & {
@@ -369,19 +372,23 @@ export async function verifyAccountDocument(
   if (doc.status !== 'PENDING') {
     throw new FinancingError(`Document is already ${doc.status.toLowerCase()} — it is verified once and reused`, 409)
   }
-  const updated = await db.accountDocument.update({
-    where: { id: documentId },
-    data: { status: 'VERIFIED', reviewedById: adminId, reviewedAt: new Date(), note: note?.trim() || null },
-    include: docInclude,
-  })
-  await recordAudit({
-    actorId: adminId,
-    actorType: 'ADMIN',
-    action: 'DOCUMENT_VERIFIED',
-    entityType: 'AccountDocument',
-    entityId: documentId,
-    summary: `${doc.documentType}${doc.title ? ` “${doc.title}”` : ''} verified`,
-    metadata: { note: note ?? null },
+  // 6.11 audit atomicity: verification + audit commit together.
+  const updated = await db.$transaction(async (tx) => {
+    const row = await tx.accountDocument.update({
+      where: { id: documentId },
+      data: { status: 'VERIFIED', reviewedById: adminId, reviewedAt: new Date(), note: note?.trim() || null },
+      include: docInclude,
+    })
+    await recordAuditTx(tx, {
+      actorId: adminId,
+      actorType: 'ADMIN',
+      action: 'DOCUMENT_VERIFIED',
+      entityType: 'AccountDocument',
+      entityId: documentId,
+      summary: `${doc.documentType}${doc.title ? ` “${doc.title}”` : ''} verified`,
+      metadata: { note: note ?? null },
+    })
+    return row
   })
   await emitNotification({
     userId: doc.userId,
@@ -406,19 +413,23 @@ export async function rejectAccountDocument(
   if (doc.status !== 'PENDING') {
     throw new FinancingError(`Document is already ${doc.status.toLowerCase()}`, 409)
   }
-  const updated = await db.accountDocument.update({
-    where: { id: documentId },
-    data: { status: 'REJECTED', reviewedById: adminId, reviewedAt: new Date(), note: clean },
-    include: docInclude,
-  })
-  await recordAudit({
-    actorId: adminId,
-    actorType: 'ADMIN',
-    action: 'DOCUMENT_REJECTED',
-    entityType: 'AccountDocument',
-    entityId: documentId,
-    summary: `${doc.documentType}${doc.title ? ` “${doc.title}”` : ''} rejected`,
-    metadata: { note: clean },
+  // 6.11 audit atomicity: rejection + audit commit together.
+  const updated = await db.$transaction(async (tx) => {
+    const row = await tx.accountDocument.update({
+      where: { id: documentId },
+      data: { status: 'REJECTED', reviewedById: adminId, reviewedAt: new Date(), note: clean },
+      include: docInclude,
+    })
+    await recordAuditTx(tx, {
+      actorId: adminId,
+      actorType: 'ADMIN',
+      action: 'DOCUMENT_REJECTED',
+      entityType: 'AccountDocument',
+      entityId: documentId,
+      summary: `${doc.documentType}${doc.title ? ` “${doc.title}”` : ''} rejected`,
+      metadata: { note: clean },
+    })
+    return row
   })
   await emitNotification({
     userId: doc.userId,
@@ -444,3 +455,37 @@ export async function requeueAccountDocument(userId: string, documentId: string)
   })
   return serializeDoc(updated as never)
 }
+
+// ── Admin console adapters (name-drift repair) ───────────────────────────────
+
+/** POST /admin/financing/documents/[id]/verify — { status: VERIFIED | REJECTED, note? }. */
+export async function verifyDocument(
+  user: { id: string; role: string },
+  documentId: string,
+  body: { status?: string; verdict?: string; note?: string | null }
+): Promise<AccountDocumentDTO> {
+  const verdict = (body.status ?? body.verdict ?? '').toUpperCase()
+  if (verdict === 'VERIFIED' || verdict === 'VERIFY') {
+    return verifyAccountDocument(user.id, documentId, body.note ?? undefined)
+  }
+  if (verdict === 'REJECTED' || verdict === 'REJECT') {
+    return rejectAccountDocument(user.id, documentId, body.note ?? '')
+  }
+  throw new FinancingError('status must be VERIFIED or REJECTED', 400)
+}
+
+/** PATCH /admin/documents/[id] — { verdict: 'verify' | 'reject', note? }. */
+export async function adminVerifyDocument(input: {
+  admin: { id: string; role: string }
+  id: string
+  payload: { verdict: 'verify' | 'reject' | 'verified' | 'rejected'; note?: string | null }
+}): Promise<AccountDocumentDTO> {
+  const { admin, id, payload } = input
+  if (payload.verdict === 'verify' || payload.verdict === 'verified') {
+    return verifyAccountDocument(admin.id, id, payload.note ?? undefined)
+  }
+  return rejectAccountDocument(admin.id, id, payload.note ?? '')
+}
+
+/** GET /admin/documents — the review queue listing ({status, documentType}). */
+export const listAllDocumentsAdmin = adminListDocuments

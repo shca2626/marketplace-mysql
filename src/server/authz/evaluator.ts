@@ -24,6 +24,8 @@ import { resolveAuthzContext, type AuthzContext } from './context'
 export interface AuthorizeOptions {
   /** Required permission key (org scope when orgContext, platform scope for platform actions). */
   permission?: string
+  /** Any-of permission keys — the action passes when the actor holds at least one. */
+  anyOf?: string[]
   /** Force evaluation against the platform context instead of the active org. */
   platform?: boolean
   /** Require an active organization context (any type). */
@@ -51,10 +53,11 @@ export async function authorize(opts: AuthorizeOptions = {}): Promise<AuthorizeR
   if (ctx.error) return { ok: false, deny: ctx.error }
 
   // ── permission validity ──────────────────────────────────────────────────
-  if (opts.permission) {
+  const wanted = [opts.permission, ...(opts.anyOf ?? [])].filter(Boolean) as string[]
+  for (const key of wanted) {
     const known =
-      ALL_PLATFORM_PERMISSIONS.includes(opts.permission) || ALL_ORG_PERMISSIONS.includes(opts.permission)
-    if (!known) return { ok: false, deny: deny('UNKNOWN_PERMISSION', `Unknown permission "${opts.permission}".`, 500) }
+      ALL_PLATFORM_PERMISSIONS.includes(key) || ALL_ORG_PERMISSIONS.includes(key)
+    if (!known) return { ok: false, deny: deny('UNKNOWN_PERMISSION', `Unknown permission "${key}".`, 500) }
   }
 
   // ── platform-scope actions ───────────────────────────────────────────────
@@ -62,20 +65,25 @@ export async function authorize(opts: AuthorizeOptions = {}): Promise<AuthorizeR
     if (!ctx.isPlatformStaff) {
       return { ok: false, deny: deny('MISSING_PERMISSION', 'Platform staff access required.', 403) }
     }
-    if (opts.permission && !ctx.isPlatformSuperAdmin) {
-      // super-admin bypass holds everything; staff need the explicit grant
-      if (!ctx.permissions.has(opts.permission) && !ctx.permissions.has('*')) {
-        return { ok: false, deny: deny('MISSING_PERMISSION', `This action requires the "${opts.permission}" permission.`, 403) }
+    if (!ctx.isPlatformSuperAdmin) {
+      // super-admins hold everything; staff need the explicit grant. Platform
+      // permissions resolve from platform-scope assignments regardless of the
+      // active org cookie (the two scopes never merge).
+      const holds = wanted.length === 0 || wanted.some((k) => ctx.platformPermissions.has(k))
+      if (!holds) {
+        return { ok: false, deny: deny('MISSING_PERMISSION', `This action requires the "${wanted.join('" or "')}" permission.`, 403) }
       }
     }
-    if (opts.permission && ctx.isPlatformSuperAdmin && !ALL_PLATFORM_PERMISSIONS.includes(opts.permission)) {
-      return { ok: false, deny: deny('PERMISSION_NOT_FOR_ORG_TYPE', `"${opts.permission}" is not a platform permission.`, 403) }
+    for (const key of wanted) {
+      if (!ALL_PLATFORM_PERMISSIONS.includes(key)) {
+        return { ok: false, deny: deny('PERMISSION_NOT_FOR_ORG_TYPE', `"${key}" is not a platform permission.`, 403) }
+      }
     }
     return afterCommonGuards(ctx, opts)
   }
 
   // ── organization context ────────────────────────────────────────────────
-  if (opts.requireOrg || opts.permission?.startsWith('org.') || opts.permission?.startsWith('financier.')) {
+  if (opts.requireOrg || opts.permission?.startsWith('org.') || opts.permission?.startsWith('financier.') || (opts.anyOf ?? []).some((k) => k.startsWith('org.') || k.startsWith('financier.'))) {
     const org = ctx.activeOrg
     if (!org) {
       return { ok: false, deny: deny('INVALID_CONTEXT', 'Switch to an organization context first.', 403) }
@@ -89,13 +97,15 @@ export async function authorize(opts: AuthorizeOptions = {}): Promise<AuthorizeR
     if (opts.requireVerifiedOrg && !org.verifiedAt) {
       return { ok: false, deny: deny('ORG_NOT_VERIFIED', `Organization "${org.name}" must be verified first.`, 403) }
     }
-    if (opts.permission) {
+    if (opts.permission || (opts.anyOf && opts.anyOf.length > 0)) {
+      const candidates = [opts.permission, ...(opts.anyOf ?? [])].filter(Boolean) as string[]
       const allow = orgTypeAllowlist(org.orgType)
-      if (!allow.includes(opts.permission)) {
-        return { ok: false, deny: deny('PERMISSION_NOT_FOR_ORG_TYPE', `Permission "${opts.permission}" is not available to ${org.orgType} organizations.`, 403) }
+      const permitted = candidates.filter((k) => allow.includes(k))
+      if (permitted.length === 0) {
+        return { ok: false, deny: deny('PERMISSION_NOT_FOR_ORG_TYPE', `Permission "${candidates.join('" or "')}" is not available to ${org.orgType} organizations.`, 403) }
       }
-      if (!ctx.permissions.has(opts.permission)) {
-        return { ok: false, deny: deny('MISSING_PERMISSION', `This action requires the "${opts.permission}" permission in ${org.name}.`, 403) }
+      if (!permitted.some((k) => ctx.permissions.has(k))) {
+        return { ok: false, deny: deny('MISSING_PERMISSION', `This action requires the "${permitted.join('" or "')}" permission in ${org.name}.`, 403) }
       }
     }
     // ── store scope ────────────────────────────────────────────────────────
@@ -151,29 +161,29 @@ async function afterCommonGuards(ctx: AuthzContext, opts: AuthorizeOptions): Pro
 }
 
 // ── Module entitlement gate ──────────────────────────────────────────────────
-// Precedence (most specific wins): ORG/STORE > ORG_TYPE > PLATFORM;
-// absent rows fall back to ModuleDefinition.defaultOn.
-export async function isModuleEnabled(moduleKey: string, ctx?: AuthzContext): Promise<boolean> {
-  const def = await db.moduleDefinition.findUnique({ where: { key: moduleKey } })
-  if (!def || !def.isActive || def.core) return def ? def.core || def.defaultOn : true // unknown modules default open
-  const scopeCandidates: { scopeType: string; scopeId: string }[] = []
-  if (ctx?.activeOrg) {
-    if (ctx.activeOrg.orgType) scopeCandidates.push({ scopeType: 'ORG_TYPE', scopeId: ctx.activeOrg.orgType })
-    scopeCandidates.push({ scopeType: 'ORG', scopeId: ctx.activeOrg.id })
-  }
-  scopeCandidates.push({ scopeType: 'PLATFORM', scopeId: '' })
-  for (const sc of scopeCandidates) {
-    const act = await db.moduleActivation.findUnique({
-      where: { moduleKey_scopeType_scopeId: { moduleKey, scopeType: sc.scopeType, scopeId: sc.scopeId } },
-    })
-    if (act) return act.enabled
-  }
-  return def.defaultOn
+// The modules service is the SINGLE source of truth for module state (scope
+// chain ORG > ORG_TYPE > PLATFORM > default, subscription ceiling, 30s cache,
+// unknown keys fail CLOSED). The evaluator used to carry a divergent copy that
+// defaulted unknown keys OPEN — that hazard is gone: this is now a delegate.
+export async function isModuleEnabled(
+  moduleKey: string,
+  ctx?: AuthzContext
+): Promise<boolean> {
+  const { isModuleEnabled: serviceGate } = await import('@/server/modules/modules/service')
+  return serviceGate(moduleKey, {
+    orgId: ctx?.activeOrg?.id ?? null,
+    orgType: ctx?.activeOrg?.orgType ?? null,
+  })
 }
 
 // ── Direct permission helpers (services used outside a request scope) ───────
 
-/** Live org-permission check — used by domain services and background jobs. */
+/** Live org-permission check — used by domain services and background jobs.
+ *
+ * ORG-TYPE-AWARE: OWNERs hold the full allowlist for their org type; non-owner
+ * members resolve canonical UserRole assignments plus the org-type-aware
+ * legacy membership bridge (a legacy ADMIN of a financing institution maps to
+ * the financier.admin template, NOT to the COMPANY admin template). */
 export async function userHasOrgPermission(
   userId: string,
   organizationId: string,
@@ -191,12 +201,30 @@ export async function userHasOrgPermission(
     where: { userId, organizationId, role: { permissions: { some: { permissionKey: permission } } } },
   })
   if (count > 0) return true
-  // legacy bridge
-  const legacy = await legacyGrantFor(membership.role)
+  // legacy bridge (org-type-aware — see context.ts legacyRoleGrants)
+  const legacy = legacyGrantFor(membership.organization.orgType, membership.role)
   return legacy.includes(permission)
 }
 
-async function legacyGrantFor(role: string): Promise<string[]> {
+function legacyGrantFor(orgType: string, role: string): string[] {
+  if (orgType === 'BANK' || orgType === 'MFI' || orgType === 'EWALLET') {
+    if (role === 'ADMIN') {
+      return [
+        'org.profile.view',
+        'org.profile.update',
+        'org.members.invite',
+        'org.members.manage',
+        'financier.services.manage',
+        'financier.services.publish',
+        'financier.requests.view',
+        'financier.offers.manage',
+        'financier.agreements.manage',
+        'financier.accreditations.manage',
+        'financier.team.manage',
+      ]
+    }
+    return []
+  }
   switch (role) {
     case 'ADMIN':
       return ['org.profile.view', 'org.profile.update', 'org.members.invite', 'org.orders.view', 'org.rfq.view', 'org.rfq.create', 'org.approvals.manage', 'org.pricelists.view', 'org.finance.view', 'org.finance.apply']

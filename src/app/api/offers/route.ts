@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { resolveAuthzContext } from '@/server/authz/context'
 import { listOrgOffers, createOffer, CatalogServiceError } from '@/server/modules/catalog/service'
+import { SubscriptionServiceError } from '@/server/modules/subscriptions/service'
 import { assertSameOrigin } from '@/lib/http'
 
 export const dynamic = 'force-dynamic'
@@ -48,6 +49,9 @@ export async function GET(req: NextRequest) {
     const offers = await listOrgOffers(ctx.user.id, organizationId, status ? { status } : {})
     return NextResponse.json({ offers })
   } catch (err) {
+    if (err instanceof SubscriptionServiceError) {
+      return NextResponse.json({ error: err.message, code: err.code ?? 'SUBSCRIPTION_LIMIT_REACHED' }, { status: err.status })
+    }
     if (err instanceof CatalogServiceError) {
       return NextResponse.json({ error: err.message, code: 'DENIED' }, { status: err.status })
     }
@@ -72,6 +76,9 @@ export async function POST(req: NextRequest) {
     const offer = await createOffer(ctx.user.id, parsed.data.organizationId, parsed.data)
     return NextResponse.json({ offer }, { status: 201 })
   } catch (err) {
+    if (err instanceof SubscriptionServiceError) {
+      return NextResponse.json({ error: err.message, code: err.code ?? 'SUBSCRIPTION_LIMIT_REACHED' }, { status: err.status })
+    }
     if (err instanceof CatalogServiceError) {
       return NextResponse.json({ error: err.message, code: 'DENIED' }, { status: err.status })
     }

@@ -13,7 +13,7 @@ const generateSchema = z.object({
 // POST /api/admin/commission/statements/generate — group a seller's ungrouped
 // PENDING obligations into a period statement (CS-2026-000001).
 export async function POST(req: NextRequest) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('payouts.manage')
   if (error) return error
   try {
     const parsed = generateSchema.safeParse(await req.json().catch(() => ({})))

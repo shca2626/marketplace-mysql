@@ -14,7 +14,7 @@ const collectSchema = z.object({
 // POST /api/admin/commission/obligations/[id]/collect — record money the
 // platform received against a commission obligation (full or partial).
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('payouts.manage')
   if (error) return error
   try {
     const { id } = await ctx.params

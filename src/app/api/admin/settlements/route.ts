@@ -5,7 +5,7 @@ import { adminListSettlements, SettlementServiceError } from '@/server/modules/s
 // GET /api/admin/settlements — platform oversight of external settlements
 // (status, parties, evidence counts). Filters: status, q, page.
 export async function GET(req: NextRequest) {
-  const { error } = await requireAdmin()
+  const { error } = await requireAdmin('payouts.view')
   if (error) return error
   try {
     const { searchParams } = new URL(req.url)

@@ -10,7 +10,7 @@ export async function GET() {
   const { user, error } = await requireUser()
   if (error) return error
   try {
-    const ctx = await requireFinancierContext(user.id)
+    const ctx = await requireFinancierContext(user.id, 'financier.agreements.manage')
     const agreements = await listFinancierAgreements(ctx.organizationId)
     return NextResponse.json({ agreements })
   } catch (err) {

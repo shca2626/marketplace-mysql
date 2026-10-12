@@ -14,7 +14,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const { user, error } = await requireUser()
   if (error) return error
   try {
-    const staff = await requireFinancierStaffOrThrow({ id: user!.id })
+    const staff = await requireFinancierStaffOrThrow({ id: user!.id }, 'financier.services.manage')
     const { id } = await ctx.params
     const requirements = await listServiceRequirements(staff.profile.id, id)
     return NextResponse.json({ requirements })
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (rl) return rl
 
   try {
-    const staff = await requireFinancierStaffOrThrow({ id: user!.id })
+    const staff = await requireFinancierStaffOrThrow({ id: user!.id }, 'financier.services.manage')
     const { id } = await ctx.params
     const parsed = requirementAttachSchema.safeParse(await req.json())
     if (!parsed.success) {

@@ -18,7 +18,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (rl) return rl
 
   try {
-    const staff = await requireFinancierStaffOrThrow({ id: user!.id })
+    const staff = await requireFinancierStaffOrThrow({ id: user!.id }, 'financier.offers.manage')
     const { id } = await ctx.params
     const parsed = declineRequestSchema.safeParse(await req.json())
     if (!parsed.success) {

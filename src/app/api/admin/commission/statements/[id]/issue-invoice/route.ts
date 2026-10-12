@@ -14,7 +14,7 @@ const issueSchema = z.object({
 // creates the CommissionInvoice (CIV-2026-000001), marks the statement ISSUED
 // and its obligations INVOICED. PDF downloads from the invoice route.
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('payouts.manage')
   if (error) return error
   try {
     const { id } = await ctx.params

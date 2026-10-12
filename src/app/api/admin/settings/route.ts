@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { requireAdmin } from '@/server/guards'
 import { z } from 'zod'
 import { getSessionUser } from '@/lib/auth'
-import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { getStorefrontSettings, saveStorefrontSettings, getAllSlides } from '@/lib/settings/server'
 import { DEFAULT_STOREFRONT_SETTINGS } from '@/lib/settings/schema'
@@ -10,20 +10,10 @@ import { DEFAULT_STOREFRONT_SETTINGS } from '@/lib/settings/schema'
 // GET  → full settings + ALL slides (incl. inactive) for the settings forms.
 // PUT  → validate + persist the settings document (zod-strict).
 
-async function requireAdmin(permission?: string) {
-  const user = await getSessionUser()
-  if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
-  if (user.role === 'ADMIN') return { user }
-  if (permission) {
-    const allowed = await userHasPlatformPermission(user.id, permission)
-    if (allowed) return { user }
-  }
-  return { error: NextResponse.json({ error: 'Admin access required' }, { status: 403 }) }
-}
 
 export async function GET() {
-  const guard = await requireAdmin('storefront.manage')
-  if (guard.error) return guard.error
+  const { user, error } = await requireAdmin('storefront.manage')
+  if (error) return error
   try {
     const [settings, slides] = await Promise.all([getStorefrontSettings(), getAllSlides()])
     return NextResponse.json({ settings, slides, defaults: DEFAULT_STOREFRONT_SETTINGS })
@@ -34,8 +24,8 @@ export async function GET() {
 }
 
 export async function PUT(req: NextRequest) {
-  const guard = await requireAdmin('storefront.manage')
-  if (guard.error) return guard.error
+  const { user, error } = await requireAdmin('storefront.manage')
+  if (error) return error
 
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf

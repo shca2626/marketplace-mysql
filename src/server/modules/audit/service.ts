@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 
 /**
@@ -9,6 +10,48 @@ import { db } from '@/lib/db'
  */
 
 export type AuditActorType = 'USER' | 'SELLER' | 'ADMIN' | 'SYSTEM'
+
+/**
+ * SENSITIVE AUDIT ACTIONS (6.11) — actions whose audit rows MUST commit in the
+ * SAME transaction as the business change (recordAuditTx), never via the
+ * fire-and-forget recordAudit(). scripts/check-guards.ts parses this set as
+ * the single source of truth and fails on any drift.
+ */
+export const SENSITIVE_AUDIT_ACTIONS = new Set([
+  // RBAC + staff lifecycle
+  'ROLE_ASSIGNED',
+  'ROLE_REVOKED',
+  'ROLE_CREATED',
+  'ROLE_UPDATED',
+  'ROLE_DELETED',
+  'STAFF_INVITED',
+  'STAFF_INVITATION_REVOKED',
+  'ORG_JOINED_VIA_INVITATION',
+  // money movement + settlement
+  'PAYOUT_GENERATED',
+  'PAYOUT_MARKED_PAID',
+  'PAYOUT_REVERSED',
+  'REFUND_APPROVED',
+  'REFUND_COMPLETED',
+  'COMMISSION_STATEMENT_GENERATED',
+  'COMMISSION_INVOICE_ISSUED',
+  'COMMISSION_INVOICE_VOIDED',
+  // financing gate + documents
+  'FINANCING_REQUEST_FORWARDED',
+  'FINANCING_REQUEST_RETURNED',
+  'DOCUMENT_VERIFIED',
+  'DOCUMENT_REJECTED',
+  'FINANCING_REQUEST_APPROVED',
+  'FINANCING_REQUEST_REJECTED',
+  'FINANCING_FEE_WAIVED',
+  // security policy
+  'MFA_POLICY_UPDATED',
+  'MODULE_ENABLED',
+  'MODULE_DISABLED',
+  'MODULE_ACTIVATION_REMOVED',
+  'SUBSCRIPTION_PLAN_UPSERTED',
+  'SUBSCRIPTION_CANCELLED',
+])
 
 export interface AuditEntry {
   actorId?: string | null
@@ -49,7 +92,7 @@ export async function recordAudit(entry: AuditEntry): Promise<void> {
  * witness.
  */
 export async function recordAuditTx(
-  tx: { auditLog: { create: (args: { data: unknown }) => Promise<unknown> } },
+  tx: Prisma.TransactionClient,
   entry: AuditEntry
 ): Promise<void> {
   await tx.auditLog.create({

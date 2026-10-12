@@ -13,7 +13,7 @@ const actionSchema = z.object({
 })
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('financing.fees.manage')
   if (error) return error
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf

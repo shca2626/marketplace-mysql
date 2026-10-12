@@ -8,7 +8,7 @@ import { forwardRequest } from '@/server/modules/financing/accreditation'
 // POST /api/admin/financing/accreditation/[id]/forward — THE GATE (R-4) for
 // accreditation requests: forward only when fully verified (in-tx re-check).
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('financing.gate.review')
   if (error) return error
 
   const csrf = assertSameOrigin(req)

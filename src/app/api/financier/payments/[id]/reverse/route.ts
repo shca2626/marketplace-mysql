@@ -22,7 +22,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const rl = enforceRateLimit(req, 'financier:payment', { limit: 40, windowMs: 10 * 60_000 }, user.id)
   if (rl) return rl
   try {
-    await requireFinancierContext(user.id)
+    await requireFinancierContext(user.id, 'financier.agreements.manage')
     const { id } = await ctx.params
     const parsed = schema.safeParse(await req.json())
     if (!parsed.success) {

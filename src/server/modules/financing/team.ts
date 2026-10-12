@@ -58,14 +58,17 @@ export interface InstitutionTeamDTO {
 }
 
 async function requireInstitutionAdmin(userId: string) {
-  const ctx = await requireFinancierContext(userId)
+  const ctx = await requireFinancierContext(userId, 'financier.team.manage')
   // @@unique([organizationId, userId]) → compound key is organizationId_userId
   // (field order in the schema defines the Prisma compound-key name).
   const me = await db.organizationMember.findUnique({
     where: { organizationId_userId: { organizationId: ctx.organizationId, userId } },
     select: { role: true },
   })
-  if (!me || (me.role !== 'OWNER' && me.role !== 'ADMIN')) {
+  // RBAC: OWNER and financier.team.manage holders (incl. legacy ADMIN bridge)
+  // manage the team; the context resolution above already enforced it, this
+  // read only recovers the membership-role label for the DTO.
+  if (!me) {
     throw new FinancingError('Only institution owners and admins can manage the team', 403)
   }
   return { ctx, myMemberRole: me.role }

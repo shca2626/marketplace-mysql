@@ -3,6 +3,7 @@ import { getSessionUser } from '@/lib/auth'
 import { slugify } from '@/server/modules/products/service'
 import { recordAudit } from '@/server/modules/audit/service'
 import { userHasOrgPermission } from '@/server/authz/evaluator'
+import { assertOrgLimit, SubscriptionServiceError } from '@/server/modules/subscriptions/service'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CATALOG SERVICE — shared catalog, company offers, stores & product proposals.
@@ -503,6 +504,14 @@ export async function createOffer(
     throw new CatalogServiceError('Your company already offers this product — edit the existing offer', 409)
   }
 
+  // SUBSCRIPTION GATE (maxActiveOffers): seller-org plans cap the number of
+  // live offers; non-seller orgs never reach this path (orgType check above)
+  // and the limit helper no-ops for them anyway.
+  const activeOfferCount = await db.productOffer.count({
+    where: { sellerOrgId: organizationId, status: { in: ['ACTIVE', 'DRAFT'] } },
+  })
+  await assertOrgLimit(organizationId, 'maxActiveOffers', activeOfferCount)
+
   const offer = await db.$transaction(async (tx) => {
     const created = await tx.productOffer.create({
       data: {
@@ -656,6 +665,11 @@ export async function proposeProduct(
   if (input.price < 0 || input.price > 10_000_000) throw new CatalogServiceError('Price out of range')
   const category = await db.category.findUnique({ where: { id: input.categoryId } })
   if (!category) throw new CatalogServiceError('Category not found', 404)
+
+  // SUBSCRIPTION GATE (maxProducts): seller-org plans cap the org's product
+  // footprint (proposals create real Product rows — they count toward the cap).
+  const productCount = await db.product.count({ where: { organizationId } })
+  await assertOrgLimit(organizationId, 'maxProducts', productCount)
 
   // Resolve the default store BEFORE opening the transaction: the product
   // INSERT takes an FK shared lock on the Organization row, and

@@ -11,7 +11,7 @@ export async function GET() {
   const { user, error } = await requireUser()
   if (error) return error
   try {
-    const ctx = await requireFinancierContext(user.id)
+    const ctx = await requireFinancierContext(user.id, 'org.profile.update')
     const [organization, profile] = await Promise.all([
       db.organization.findUnique({
         where: { id: ctx.organizationId },

@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const { user, error } = await requireUser()
   if (error) return error
   try {
-    await requireFinancierContext(user.id)
+    await requireFinancierContext(user.id, 'financier.offers.manage')
     const requestId = req.nextUrl.searchParams.get('requestId')
     if (!requestId) return NextResponse.json({ error: 'requestId is required' }, { status: 400 })
     const assessment = await getRiskAssessment(user.id, requestId)
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   if (rl) return rl
 
   try {
-    await requireFinancierContext(user.id)
+    await requireFinancierContext(user.id, 'financier.offers.manage')
     const parsed = postSchema.safeParse(await req.json())
     if (!parsed.success) {
       return NextResponse.json({ error: 'requestId is required' }, { status: 400 })

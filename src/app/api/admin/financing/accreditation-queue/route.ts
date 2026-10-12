@@ -7,7 +7,7 @@ import { ACCREDITATION_REQUEST_STATUSES } from '@/server/modules/financing/types
 // GET /api/admin/financing/accreditation-queue — the gate queue for
 // accreditation requests (SUBMITTED + UNDER_PLATFORM_REVIEW, oldest first).
 export async function GET(req: NextRequest) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('financing.gate.view')
   if (error) return error
   try {
     const status = req.nextUrl.searchParams.get('status') ?? undefined

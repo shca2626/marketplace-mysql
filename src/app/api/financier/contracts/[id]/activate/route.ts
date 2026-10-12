@@ -15,7 +15,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const rl = enforceRateLimit(req, 'financier:contract-template', { limit: 40, windowMs: 10 * 60_000 }, user.id)
   if (rl) return rl
   try {
-    const finCtx = await requireFinancierContext(user.id)
+    const finCtx = await requireFinancierContext(user.id, 'financier.services.manage')
     const { id } = await ctx.params
     const template = await activateTemplate(user.id, finCtx.organizationId, id)
     return NextResponse.json({ template })

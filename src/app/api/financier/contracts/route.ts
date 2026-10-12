@@ -11,7 +11,7 @@ export async function GET() {
   const { user, error } = await requireUser()
   if (error) return error
   try {
-    const ctx = await requireFinancierContext(user.id)
+    const ctx = await requireFinancierContext(user.id, 'financier.services.manage')
     const templates = await listTemplates(ctx.organizationId)
     return NextResponse.json({ templates })
   } catch (err) {
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   const rl = enforceRateLimit(req, 'financier:contract-template', { limit: 40, windowMs: 10 * 60_000 }, user.id)
   if (rl) return rl
   try {
-    const ctx = await requireFinancierContext(user.id)
+    const ctx = await requireFinancierContext(user.id, 'financier.services.manage')
     const parsed = createSchema.safeParse(await req.json())
     if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid template payload', details: parsed.error.flatten() }, { status: 400 })

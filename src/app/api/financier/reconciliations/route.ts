@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const { user, error } = await requireUser()
   if (error) return error
   try {
-    const ctx = await requireFinancierContext(user.id)
+    const ctx = await requireFinancierContext(user.id, 'financier.agreements.manage')
     const status = req.nextUrl.searchParams.get('status') ?? undefined
     const reconciliations = await listReconciliations(ctx.organizationId, {
       ...(status ? { status } : {}),
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
   const rl = enforceRateLimit(req, 'financier:recon', { limit: 60, windowMs: 10 * 60_000 }, user.id)
   if (rl) return rl
   try {
-    await requireFinancierContext(user.id)
+    await requireFinancierContext(user.id, 'financier.agreements.manage')
     const parsed = runSchema.safeParse(await req.json())
     if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid batch payload', details: parsed.error.flatten() }, { status: 400 })

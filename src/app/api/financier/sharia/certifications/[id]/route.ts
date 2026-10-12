@@ -25,7 +25,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
   const rl = enforceRateLimit(req, 'financier:sharia-cert', { limit: 40, windowMs: 10 * 60_000 }, user.id)
   if (rl) return rl
   try {
-    const finCtx = await requireFinancierContext(user.id)
+    const finCtx = await requireFinancierContext(user.id, 'financier.services.manage')
     const { id } = await ctx.params
     const parsed = certSchema.safeParse(await req.json())
     if (!parsed.success) {
@@ -52,7 +52,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const rl = enforceRateLimit(req, 'financier:sharia-cert', { limit: 40, windowMs: 10 * 60_000 }, user.id)
   if (rl) return rl
   try {
-    const finCtx = await requireFinancierContext(user.id)
+    const finCtx = await requireFinancierContext(user.id, 'financier.services.manage')
     const { id } = await ctx.params
     const result = await deleteCertification(user.id, finCtx.organizationId, id)
     return NextResponse.json(result)

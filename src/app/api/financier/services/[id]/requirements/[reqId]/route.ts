@@ -19,7 +19,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (rl) return rl
 
   try {
-    const staff = await requireFinancierStaffOrThrow({ id: user!.id })
+    const staff = await requireFinancierStaffOrThrow({ id: user!.id }, 'financier.services.manage')
     const { id, reqId } = await ctx.params
     const parsed = requirementUpdateSchema.safeParse(await req.json())
     if (!parsed.success) {
@@ -53,7 +53,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   if (rl) return rl
 
   try {
-    const staff = await requireFinancierStaffOrThrow({ id: user!.id })
+    const staff = await requireFinancierStaffOrThrow({ id: user!.id }, 'financier.services.manage')
     const { id, reqId } = await ctx.params
     await detachRequirement({
       profile: { id: staff.profile.id },

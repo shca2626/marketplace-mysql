@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { db } from '@/lib/db'
 import { recordAudit } from '@/server/modules/audit/service'
 import { emitNotification } from '@/server/modules/notifications/service'
@@ -824,3 +825,75 @@ export async function applyChecklistAnswers(
 }
 
 export { GateBlockedError }
+
+// ── Cross-module exports (catalog / gate console) ────────────────────────────
+
+/** The submission include carrying the requirement + its condition template
+ *  (options ordered) — the shape serializeSubmission expects. */
+export const SUBMISSION_INCLUDE = submissionInclude
+
+/** Alias used by the catalog module's DTOs. */
+export type SubmissionDTO = RequirementSubmissionDTO
+
+/**
+ * R-4 gate blockers — REQUIRED items not yet VERIFIED/WAIVED on a request.
+ * Accepts a transaction client so the gate console can compose it inside
+ * larger read transactions.
+ */
+export async function listGateBlockers(
+  client: Pick<typeof db, 'requirementSubmission'>,
+  parentType: 'FINANCING_REQUEST' | 'ACCREDITATION_REQUEST',
+  requestId: string
+) {
+  const where =
+    parentType === 'FINANCING_REQUEST'
+      ? { financingRequestId: requestId }
+      : { accreditationRequestId: requestId }
+  const rows = await client.requirementSubmission.findMany({
+    where: { ...where, status: { notIn: ['VERIFIED', 'WAIVED'] } },
+    include: { serviceRequirement: { select: { isRequired: true, displayOrder: true } } },
+  })
+  return rows
+    .filter((r) => r.serviceRequirement.isRequired)
+    .sort((a, b) => a.serviceRequirement.displayOrder - b.serviceRequirement.displayOrder)
+}
+
+// ── Admin gate console adapters (name-drift repair) ───────────────────────────
+
+/** Verdict payload for the gate console's per-item decision endpoint. */
+export const adminVerdictSchema = z
+  .object({
+    verdict: z.enum(['verify', 'reject', 'waive']),
+    note: z.string().trim().max(2000).optional().nullable(),
+  })
+  .refine((d) => d.verdict === 'verify' || (d.note ?? '').trim().length > 0, {
+    message: 'A note is required to reject or waive an item',
+  })
+
+export type SubmissionAnswerPayload = SubmissionAnswer
+
+/** The gate console's per-item verdict dispatcher. */
+export async function adminVerdict(input: {
+  admin: { id: string; role: string }
+  submissionId: string
+  payload: { verdict: 'verify' | 'reject' | 'waive'; note?: string | null }
+}) {
+  const { admin, submissionId, payload } = input
+  if (payload.verdict === 'verify') {
+    return verifySubmission(admin.id, submissionId, payload.note?.trim() || undefined)
+  }
+  if (payload.verdict === 'reject') {
+    return rejectSubmission(admin.id, submissionId, payload.note ?? '')
+  }
+  return waiveSubmission(admin.id, submissionId, payload.note ?? '')
+}
+
+/** Gate readiness probe (verify-financing script shape). */
+export async function gateReady(
+  client: Pick<typeof db, 'requirementSubmission'>,
+  parentType: 'FINANCING_REQUEST' | 'ACCREDITATION_REQUEST',
+  requestId: string
+): Promise<{ ready: boolean; missing: { submissionId: string }[] }> {
+  const blockers = await listGateBlockers(client, parentType, requestId)
+  return { ready: blockers.length === 0, missing: blockers.map((b) => ({ submissionId: b.id })) }
+}

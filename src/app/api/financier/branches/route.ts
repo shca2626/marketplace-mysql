@@ -10,7 +10,7 @@ export async function GET() {
   const { user, error } = await requireUser()
   if (error) return error
   try {
-    const ctx = await requireFinancierContext(user.id)
+    const ctx = await requireFinancierContext(user.id, 'org.profile.update')
     const branches = await db.financierBranch.findMany({
       where: { financierProfileId: ctx.financierProfileId, isActive: true },
       select: {

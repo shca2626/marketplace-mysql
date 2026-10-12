@@ -6,10 +6,14 @@ import { FINANCIER_VISIBLE_STATUSES, ACCREDITATION_VISIBLE_STATUSES, type Actor,
  * FINANCING ACCESS CONTROL (guards pattern — mirrors rfq/approvals services).
  * ─────────────────────────────────────────────────────────────────────────
  * Three actor families:
- *   • Financier staff — OWNER/ADMIN members of an org that HAS a
- *     FinancierProfile (DP-1: membership roles, no new global role).
+ *   • Financier staff — RBAC-governed institution members: OWNER members
+ *     (full institution authority) plus any member holding the operation's
+ *     financier.* permission via canonical UserRole assignments. A legacy
+ *     ADMIN membership keeps the financier.admin template (safe parity with
+ *     the pre-RBAC console access).
  *   • Applicants — the request creator or a member of the applicant org.
- *   • Platform admins — User.role === 'ADMIN' (the gate operators).
+ *   • Platform staff — permission-holding platform roles (the gate
+ *     operators), NOT the legacy User.role flag.
  */
 
 export class FinancingGuardError extends Error {
@@ -27,18 +31,34 @@ export interface FinancierStaffContext {
 }
 
 /**
- * Resolve the user's financier staff context: an OWNER/ADMIN membership in an
- * organization that carries a FinancierProfile. Returns null when the user is
- * not financier staff (routes translate to 403).
+ * Resolve the user's financier staff context: a membership in an organization
+ * that carries a FinancierProfile, where the user is the OWNER or holds
+ * `permission` (canonical assignment or the legacy ADMIN bridge). Returns
+ * null when the user is not authorized (routes translate to 403).
  */
-export async function requireFinancierStaff(user: { id: string }): Promise<FinancierStaffContext | null> {
+export async function requireFinancierStaff(
+  user: { id: string },
+  permission?: string
+): Promise<FinancierStaffContext | null> {
   const memberships = await db.organizationMember.findMany({
-    where: { userId: user.id, role: { in: ['OWNER', 'ADMIN'] } },
+    where: {
+      userId: user.id,
+      organization: {
+        status: { not: 'SUSPENDED' },
+        OR: [{ orgType: { in: ['BANK', 'MFI', 'EWALLET'] } }, { financierProfile: { isNot: null } }],
+      },
+    },
     include: { organization: { include: { financierProfile: true } } },
     orderBy: { createdAt: 'asc' },
   })
+  const { userHasOrgPermission } = await import('@/server/authz/evaluator')
   for (const m of memberships) {
-    if (m.organization.financierProfile) {
+    if (!m.organization.financierProfile) continue
+    if (m.role === 'OWNER') {
+      return { member: m, organization: m.organization, profile: m.organization.financierProfile }
+    }
+    if (!permission) continue // no permission given → OWNER-only (callers pass one)
+    if (await userHasOrgPermission(user.id, m.organizationId, permission)) {
       return { member: m, organization: m.organization, profile: m.organization.financierProfile }
     }
   }
@@ -46,8 +66,11 @@ export async function requireFinancierStaff(user: { id: string }): Promise<Finan
 }
 
 /** Fetch the staff context or throw a typed 403. */
-export async function requireFinancierStaffOrThrow(user: { id: string }): Promise<FinancierStaffContext> {
-  const ctx = await requireFinancierStaff(user)
+export async function requireFinancierStaffOrThrow(
+  user: { id: string },
+  permission?: string
+): Promise<FinancierStaffContext> {
+  const ctx = await requireFinancierStaff(user, permission)
   if (!ctx) throw new FinancingGuardError('Financier staff access required', 403)
   return ctx
 }
@@ -138,23 +161,40 @@ export async function assertAccreditationApplicantAccess(
   throw new FinancingGuardError('You do not have access to this accreditation', 403)
 }
 
-/** Platform admin check (the gate operators). */
-export function assertAdmin(user: Actor): void {
-  if (user.role !== 'ADMIN') {
-    throw new FinancingGuardError('Platform admin access required', 403)
+/** Platform staff check (the gate operators) — permission-based, not the
+ *  legacy User.role flag. `permission` defaults to financing.gate.view. */
+export async function assertAdmin(user: Actor, permission = 'financing.gate.view'): Promise<void> {
+  const { userHasPlatformPermission } = await import('@/server/modules/rbac/service')
+  if (!(await userHasPlatformPermission(user.id, permission))) {
+    throw new FinancingGuardError('Platform staff access required', 403)
   }
 }
 
 /**
- * Financier staff recipients for notifications: every OWNER/ADMIN member of the
- * financier organization (the org is notified collectively).
+ * Financier staff recipients for notifications: the OWNER, every member
+ * holding the relevant `permission`, and every legacy ADMIN member (they had
+ * console access pre-RBAC — notifications are never narrowed silently).
  */
-export async function financierStaffUserIds(organizationId: string): Promise<string[]> {
+export async function financierStaffUserIds(
+  organizationId: string,
+  permission = 'financier.requests.view'
+): Promise<string[]> {
   const members = await db.organizationMember.findMany({
-    where: { organizationId, role: { in: ['OWNER', 'ADMIN'] } },
-    select: { userId: true },
+    where: { organizationId },
+    select: { userId: true, role: true },
   })
-  return members.map((m) => m.userId)
+  const { userHasOrgPermission } = await import('@/server/authz/evaluator')
+  const out = new Set<string>()
+  for (const m of members) {
+    if (m.role === 'OWNER' || m.role === 'ADMIN') {
+      out.add(m.userId)
+      continue
+    }
+    if (await userHasOrgPermission(m.userId, organizationId, permission)) {
+      out.add(m.userId)
+    }
+  }
+  return [...out]
 }
 
 /** Org OWNER/ADMIN recipients (accreditation decisions reach the company). */

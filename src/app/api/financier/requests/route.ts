@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const { user, error } = await requireUser()
   if (error) return error
   try {
-    const ctx = await requireFinancierContext(user.id)
+    const ctx = await requireFinancierContext(user.id, 'financier.requests.view')
     const sp = req.nextUrl.searchParams
     const result = await financierInbox(ctx.organizationId, {
       status: sp.get('status') ?? undefined,

@@ -25,6 +25,14 @@ import type { DisputeDTO } from '@/lib/types'
  *   sellerRating.showDisputeCount (trust chip in getRfq sellerMeta).
  */
 
+
+/** Platform-staff check for dispute surfaces — permission-based, not the
+ *  legacy User.role flag. */
+async function isPlatformStaff(userId: string, permission = 'disputes.view'): Promise<boolean> {
+  const { userHasPlatformPermission } = await import('@/server/modules/rbac/service')
+  return userHasPlatformPermission(userId, permission)
+}
+
 export class DisputeServiceError extends Error {
   status: number
   constructor(message: string, status = 400) {
@@ -245,7 +253,7 @@ export async function createDispute(
 
   await recordAudit({
     actorId: actor.id,
-    actorType: actor.role === 'ADMIN' ? 'ADMIN' : 'USER',
+    actorType: (await isPlatformStaff(actor.id, 'disputes.resolve')) ? 'ADMIN' : 'USER',
     action: 'DISPUTE_OPENED',
     entityType: 'Dispute',
     entityId: dispute.id,
@@ -300,7 +308,7 @@ export async function respondToDispute(
 
   await recordAudit({
     actorId: actor.id,
-    actorType: actor.role === 'ADMIN' ? 'ADMIN' : 'SELLER',
+    actorType: (await isPlatformStaff(actor.id, 'disputes.resolve')) ? 'ADMIN' : 'SELLER',
     action: 'DISPUTE_RESPONDED',
     entityType: 'Dispute',
     entityId: disputeId,
@@ -322,7 +330,7 @@ export async function cancelDispute(
 
   const settings = await resolvePanel('disputes', await orgCtxForOrder(dispute.orderId))
   const isBuyer = dispute.raisedById === actor.id
-  const isAdmin = actor.role === 'ADMIN'
+  const isAdmin = await isPlatformStaff(actor.id, 'disputes.resolve')
   if (!isBuyer && !isAdmin) throw new DisputeServiceError('Not your dispute', 403)
   if (isBuyer && !isAdmin && !settings.buyerCancelOwn) {
     throw new DisputeServiceError('Buyers cannot withdraw disputes on this platform', 403)
@@ -621,7 +629,7 @@ export async function getDispute(
   const d = await db.dispute.findUnique({ where: { id: disputeId }, include: DISPUTE_INCLUDE })
   if (!d) throw new DisputeServiceError('Dispute not found', 404)
   const allowed =
-    viewer.role === 'ADMIN' || d.raisedById === viewer.id || d.sellerId === viewer.id
+    (await isPlatformStaff(viewer.id)) || d.raisedById === viewer.id || d.sellerId === viewer.id
   if (!allowed) throw new DisputeServiceError('Not your dispute', 403)
   return serializeDispute(d as unknown as DisputeRow)
 }

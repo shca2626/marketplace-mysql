@@ -102,6 +102,19 @@ export const FINANCIER_ORG_TYPES = ['BANK', 'MFI', 'EWALLET'] as const
 /** Cookie holding the multi-org staff member's active financier org (FIN-013). */
 export const FINANCIER_ORG_COOKIE = 'fin_org'
 
+/** Every org-scope permission a financing institution can operate on (the
+ *  financier.* family + the institution-neutral org basics) — the console
+ *  baseline: a member needs at least ONE of these to enter the console. */
+export const FINANCIER_CONSOLE_PERMISSIONS = [
+  'financier.services.manage',
+  'financier.services.publish',
+  'financier.requests.view',
+  'financier.offers.manage',
+  'financier.agreements.manage',
+  'financier.accreditations.manage',
+  'financier.team.manage',
+] as const
+
 export interface FinancierContext {
   organizationId: string
   financierProfileId: string
@@ -116,23 +129,61 @@ export interface FinancierContextOrg {
 }
 
 /**
- * A user's financier-org memberships (OWNER/ADMIN, BANK/MFI/EWALLET — or any
- * org that already carries a profile —, not suspended), oldest first.
+ * Does this user hold `permission` in financing org `organizationId`?
+ *
+ * RBAC runtime enforcement (financier completion):
+ *   • OWNER members hold the full institution allowlist (every financier.*
+ *     permission — never marketplace-selling, never platform permissions).
+ *   • Other members resolve canonical org-scope UserRole assignments
+ *     (financier.admin / underwriter / reviewer / branch-officer / custom).
+ *   • Legacy bridge: a legacy ADMIN membership keeps the financier.admin
+ *     template permissions (safe parity with the pre-RBAC console access).
  */
-async function listFinancierMemberships(userId: string): Promise<FinancierContextOrg[]> {
+export async function userHasFinancierPermission(
+  userId: string,
+  organizationId: string,
+  permission: string
+): Promise<boolean> {
+  const { userHasOrgPermission } = await import('@/server/authz/evaluator')
+  return userHasOrgPermission(userId, organizationId, permission)
+}
+
+/**
+ * A user's financier-org memberships where they can act (BANK/MFI/EWALLET —
+ * or any org that already carries a profile —, not suspended), oldest first.
+ *
+ * RBAC runtime enforcement: when `permission` is given, an org is listed only
+ * when the user holds that permission there (OWNER, canonical assignment, or
+ * the legacy ADMIN bridge). Without a permission, ANY membership in the
+ * org counts (the console switcher lists institutions you belong to; access
+ * to specific operations is checked per-route).
+ */
+async function listFinancierMemberships(
+  userId: string,
+  permission?: string
+): Promise<FinancierContextOrg[]> {
   const memberships = await db.organizationMember.findMany({
     where: {
       userId,
-      role: { in: ['OWNER', 'ADMIN'] },
       organization: {
         status: { not: 'SUSPENDED' },
         OR: [{ orgType: { in: [...FINANCIER_ORG_TYPES] } }, { financierProfile: { isNot: null } }],
       },
     },
-    select: { organization: { select: { id: true, name: true, orgType: true } } },
+    select: {
+      role: true,
+      organization: { select: { id: true, name: true, orgType: true } },
+    },
     orderBy: { createdAt: 'asc' },
   })
-  return memberships.map((m) => m.organization)
+  if (!permission) return memberships.map((m) => m.organization)
+  const out: FinancierContextOrg[] = []
+  for (const m of memberships) {
+    if (m.role === 'OWNER' || (await userHasFinancierPermission(userId, m.organization.id, permission))) {
+      out.push(m.organization)
+    }
+  }
+  return out
 }
 
 /**
@@ -179,14 +230,55 @@ async function ensureFinancierProfile(organizationId: string): Promise<string> {
 }
 
 /**
- * The financier org a user acts for: an Organization where the user is an
- * OWNER or ADMIN member. A missing FinancierProfile is auto-provisioned
- * (empty facts, unverified) instead of blocking access — FIN-001. Multi-org
- * staff get the org they last picked via the console switcher (cookie),
- * else their first membership. Returns null for non-staff.
+ * The financier org a user acts for. RBAC runtime enforcement: when a
+ * `permission` is given, only institutions where the user holds that
+ * permission (OWNER, canonical assignment, or legacy ADMIN bridge) are
+ * candidates — the resolved context is guaranteed authorized for it.
+ * With no permission, the caller only needs SOME financier console
+ * capability (at least one FINANCIER_CONSOLE_PERMISSIONS) — operations
+ * inside the console are gated per-route.
+ *
+ * A missing FinancierProfile is auto-provisioned (empty facts, unverified)
+ * instead of blocking access — FIN-001. Multi-org staff get the org they
+ * last picked via the console switcher (cookie), else their first eligible
+ * membership. Returns null for non-staff.
  */
-export async function getFinancierContext(userId: string): Promise<FinancierContext | null> {
-  const orgs = await listFinancierMemberships(userId)
+export async function getFinancierContext(
+  userId: string,
+  permission?: string
+): Promise<FinancierContext | null> {
+  if (!permission) {
+    // console baseline: ANY financier capability OR legacy ADMIN membership
+    const anyOrg = await listFinancierMemberships(userId)
+    const eligible: FinancierContextOrg[] = []
+    for (const org of anyOrg) {
+      const member = await db.organizationMember.findUnique({
+        where: { organizationId_userId: { organizationId: org.id, userId } },
+        select: { role: true },
+      })
+      if (member && (member.role === 'OWNER' || member.role === 'ADMIN')) {
+        eligible.push(org)
+        continue
+      }
+      for (const perm of FINANCIER_CONSOLE_PERMISSIONS) {
+        if (await userHasFinancierPermission(userId, org.id, perm)) {
+          eligible.push(org)
+          break
+        }
+      }
+    }
+    if (eligible.length === 0) return null
+    const preferred = await readPreferredFinancierOrgId()
+    const chosen = eligible.find((o) => o.id === preferred) ?? eligible[0]
+    const financierProfileId = await ensureFinancierProfile(chosen.id)
+    return {
+      organizationId: chosen.id,
+      financierProfileId,
+      organizationName: chosen.name,
+      organizationType: chosen.orgType,
+    }
+  }
+  const orgs = await listFinancierMemberships(userId, permission)
   if (orgs.length === 0) return null
   const preferred = await readPreferredFinancierOrgId()
   const chosen = orgs.find((o) => o.id === preferred) ?? orgs[0]
@@ -199,26 +291,56 @@ export async function getFinancierContext(userId: string): Promise<FinancierCont
   }
 }
 
-/** Resolve + require the caller's financier org (403 when not financier staff). */
-export async function requireFinancierContext(userId: string): Promise<FinancierContext> {
-  const ctx = await getFinancierContext(userId)
-  if (!ctx) throw new FinancingError('Financier staff access required', 403)
+/** Resolve + require the caller's financier org (403 when not financier staff
+ *  or the caller lacks `permission` in every institution they belong to). */
+export async function requireFinancierContext(
+  userId: string,
+  permission?: string
+): Promise<FinancierContext> {
+  const ctx = await getFinancierContext(userId, permission)
+  if (!ctx) {
+    throw new FinancingError(
+      permission
+        ? 'Financier staff access required — your roles do not include this capability'
+        : 'Financier staff access required',
+      403
+    )
+  }
   return ctx
 }
 
 /**
  * Every financier org the user could act for + which one is active — powers
  * the console's institution switcher (FIN-013) and the header menu entry.
+ * RBAC: mirrors the console baseline (OWNER / legacy ADMIN / any financier.*
+ * permission holder) — plain members without capabilities are not listed.
  */
 export async function listFinancierContextOrgs(
   userId: string
 ): Promise<{ organizations: FinancierContextOrg[]; activeOrganizationId: string | null }> {
-  const orgs = await listFinancierMemberships(userId)
-  if (orgs.length === 0) return { organizations: [], activeOrganizationId: null }
+  const all = await listFinancierMemberships(userId)
+  const organizations: FinancierContextOrg[] = []
+  for (const org of all) {
+    const member = await db.organizationMember.findUnique({
+      where: { organizationId_userId: { organizationId: org.id, userId } },
+      select: { role: true },
+    })
+    if (member && (member.role === 'OWNER' || member.role === 'ADMIN')) {
+      organizations.push(org)
+      continue
+    }
+    for (const perm of FINANCIER_CONSOLE_PERMISSIONS) {
+      if (await userHasFinancierPermission(userId, org.id, perm)) {
+        organizations.push(org)
+        break
+      }
+    }
+  }
+  if (organizations.length === 0) return { organizations: [], activeOrganizationId: null }
   const preferred = await readPreferredFinancierOrgId()
-  const active = orgs.find((o) => o.id === preferred) ?? orgs[0]
+  const active = organizations.find((o) => o.id === preferred) ?? organizations[0]
   await ensureFinancierProfile(active.id)
-  return { organizations: orgs, activeOrganizationId: active.id }
+  return { organizations, activeOrganizationId: active.id }
 }
 
 /**

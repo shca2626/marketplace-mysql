@@ -83,20 +83,42 @@ async function main() {
   }
   console.log(`✓ legacy admins migrated: ${admins.length} (${admins.map((a) => a.email).join(', ') || 'none'})`)
 
-  // 4. Org members → org.* roles ───────────────────────────────────────────
+  // 4. Org members → canonical ORG roles (ORG-TYPE-AWARE) ────────────────
+  // A COMPANY member maps to the org.* template for their legacy membership
+  // role. A financing-institution member (BANK/MFI/EWALLET) NEVER receives an
+  // org.* role — those templates carry selling/procurement permissions the
+  // org-type allowlist forbids for institutions. Instead:
+  //   • OWNER  → no assignment needed (owners hold the full allowlist for
+  //              their org type through the evaluator's OWNER rule)
+  //   • ADMIN  → financier.admin (the institution-admin template)
+  //   • others → no assignment (they had no console access pre-RBAC; grant
+  //              financier.* roles through the team console going forward)
   const orgRoleIds = new Map<string, string>()
   for (const key of Object.values(ORG_ROLE_BY_LEGACY)) {
     const role = await db.role.findUnique({ where: { key } })
     if (role) orgRoleIds.set(key, role.id)
   }
+  const financierAdminRole = await db.role.findUnique({ where: { key: 'financier.admin' } })
+  const FINANCIER_TYPES = ['BANK', 'MFI', 'EWALLET']
   const members = await db.organizationMember.findMany({
-    select: { userId: true, organizationId: true, role: true },
+    select: { userId: true, organizationId: true, role: true, organization: { select: { orgType: true } } },
   })
   let migrated = 0
+  let skippedFinancier = 0
   for (const m of members) {
-    const roleKey = ORG_ROLE_BY_LEGACY[m.role] ?? 'org.viewer'
-    const roleId = orgRoleIds.get(roleKey)
-    if (!roleId) continue
+    const isFinancierOrg = FINANCIER_TYPES.includes(m.organization.orgType)
+    let roleId: string | undefined
+    if (isFinancierOrg) {
+      if (m.role === 'ADMIN' && financierAdminRole) roleId = financierAdminRole.id
+      // OWNER and non-admin staff: no canonical assignment (see comment above)
+    } else {
+      const roleKey = ORG_ROLE_BY_LEGACY[m.role] ?? 'org.viewer'
+      roleId = orgRoleIds.get(roleKey)
+    }
+    if (!roleId) {
+      skippedFinancier++
+      continue
+    }
     await db.userRole.upsert({
       where: {
         userId_roleId_organizationId_storeId: { userId: m.userId, roleId, organizationId: m.organizationId, storeId: '' },
@@ -106,7 +128,7 @@ async function main() {
     })
     migrated++
   }
-  console.log(`✓ organization members migrated: ${migrated}`)
+  console.log(`✓ organization members migrated: ${migrated} (skipped ${skippedFinancier} financier-org members without a type-valid template)`)
 
   // Summary ────────────────────────────────────────────────────────────────
   const [roles, assignments, invitations] = await Promise.all([

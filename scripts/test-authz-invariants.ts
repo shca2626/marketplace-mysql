@@ -16,7 +16,7 @@ import { COMPANY_ORG_PERMISSIONS, FINANCIER_ORG_PERMISSIONS, ALL_ORG_PERMISSIONS
 import {
   listOrgMembers, changeMemberRole, removeMember, leaveOrganization,
   createOrgRole, updateOrgRole, deleteOrgRole, assignOrgRole, revokeOrgRoleAssignment,
-  createOrgInvitation, revokeOrgInvitation, acceptOrgInvitationLoggedIn, consumeOrgInvitation,
+  createOrgInvitation, revokeOrgInvitation, acceptOrgInvitationLoggedIn, claimOrgInvitationTx,
   OrgRbacError,
 } from '../src/server/modules/org-rbac/service'
 import { createStore, listOrgStores, getStoreSettings, setStoreSettings, createOffer, proposeProduct, listOrgProposals, adminReviewProduct, CatalogServiceError } from '../src/server/modules/catalog/service'
@@ -266,20 +266,20 @@ async function main() {
     () => createOrgInvitation(compBuyer.id, comp.id, { email: `x-${SUFFIX}@test.vendora`, roleId: customRole.id }), 403, 'org.members.invite')
 
   const invitee = await mkUser('Invitee')
-  const joined = await acceptOrgInvitationLoggedIn(invitee.id, inviteEmail, invitation.token)
+  const joined = await acceptOrgInvitationLoggedIn(invitee.id, inviteEmail, invitation.token ?? '')
   check('logged-in user accepts by token → membership + role', !!joined && joined.organizationName.includes('INV8'))
   check('accepted member holds the invited permission', await userHasOrgPermission(invitee.id, comp.id, 'org.offers.manage'))
-  check('consumed invitation cannot be reused', (await consumeOrgInvitation(inviteEmail, invitation.token)) === null)
+  check('consumed invitation cannot be reused', (await db.$transaction((tx) => claimOrgInvitationTx(tx, inviteEmail, invitation.token ?? ''))) === null)
 
   const inv2 = await createOrgInvitation(compOwner.id, comp.id, { email: `inv8-${SUFFIX}-gone@test.vendora`, roleId: customRole.id })
   fixture.invitationIds.push(inv2.id)
   await revokeOrgInvitation(compOwner.id, comp.id, inv2.id)
-  check('revoked invitation is dead', (await consumeOrgInvitation(`inv8-${SUFFIX}-gone@test.vendora`, inv2.token)) === null)
+  check('revoked invitation is dead', (await db.$transaction((tx) => claimOrgInvitationTx(tx, `inv8-${SUFFIX}-gone@test.vendora`, inv2.token ?? ''))) === null)
   // expired invitation returns null
   const inv3 = await createOrgInvitation(compOwner.id, comp.id, { email: `inv8-${SUFFIX}-old@test.vendora`, roleId: customRole.id })
   fixture.invitationIds.push(inv3.id)
   await db.staffInvitation.update({ where: { id: inv3.id }, data: { expiresAt: new Date(Date.now() - 1000) } })
-  check('expired invitation returns null on consume', (await consumeOrgInvitation(`inv8-${SUFFIX}-old@test.vendora`, inv3.token)) === null)
+  check('expired invitation returns null on consume', (await db.$transaction((tx) => claimOrgInvitationTx(tx, `inv8-${SUFFIX}-old@test.vendora`, inv3.token ?? ''))) === null)
 
   // ═══ 4. Financier org authority separation ═══
   console.log('── 4. Financier institutions ──')

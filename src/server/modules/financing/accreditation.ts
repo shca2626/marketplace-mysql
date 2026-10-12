@@ -11,6 +11,7 @@ import {
   assertApplicantActor,
   iso,
   type AccreditationRequestStatus,
+  requireFinancierContext,
 } from './shared'
 import {
   generateChecklist,
@@ -712,6 +713,19 @@ export async function adminAccreditationQueue(filter?: {
 }
 
 // ── Financier console ────────────────────────────────────────────────────────
+/**
+ * The console accreditation-inbox wrapper (RBAC-gated): resolves the caller's
+ * active institution WITH the financier.requests.view permission, then lists
+ * forwarded accreditations (R-4 structural exclusion).
+ */
+export async function listFinancierInbox(
+  user: { id: string },
+  filter?: { status?: string; page?: number; limit?: number }
+): Promise<AccQueueResult> {
+  const ctx = await requireFinancierContext(user.id, 'financier.requests.view')
+  return financierAccreditationInbox(ctx.organizationId, filter)
+}
+
 
 /** Accreditation inbox — ONLY forwarded+ requests (R-4 structural exclusion). */
 export async function financierAccreditationInbox(
@@ -994,3 +1008,8 @@ export async function sweepAccreditations(): Promise<void> {
     accSweepsInFlight = false
   }
 }
+
+/** PATCH /admin/financing/requests/[id] { action: 'open' } on an accreditation —
+ *  the (Actor-object) call shape the route uses. */
+export const adminOpenAccreditationReview = (input: { admin: { id: string; role: string }; requestId: string }) =>
+  startAccreditationReview(input.admin.id, input.requestId)

@@ -11,7 +11,7 @@ export async function GET() {
   const { user, error } = await requireUser()
   if (error) return error
   try {
-    const ctx = await requireFinancierContext(user.id)
+    const ctx = await requireFinancierContext(user.id, 'financier.offers.manage')
     const config = await getRiskConfig(ctx.organizationId)
     return NextResponse.json({ config })
   } catch (err) {
@@ -49,7 +49,7 @@ export async function PUT(req: NextRequest) {
   if (rl) return rl
 
   try {
-    const ctx = await requireFinancierContext(user.id)
+    const ctx = await requireFinancierContext(user.id, 'financier.offers.manage')
     const parsed = putSchema.safeParse(await req.json())
     if (!parsed.success) {
       return NextResponse.json(

@@ -9,7 +9,7 @@ import { verifyDocument } from '@/server/modules/financing/documents'
 // verify-once verdict on a vault document (body: { status: VERIFIED |
 // REJECTED, note? } — REJECTED requires a note).
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('financing.documents.verify')
   if (error) return error
 
   const csrf = assertSameOrigin(req)

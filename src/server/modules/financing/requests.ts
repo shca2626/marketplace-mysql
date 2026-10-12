@@ -10,6 +10,7 @@ import {
   FINANCING_PRE_TERMINAL,
   FINANCIER_VISIBLE_STATUSES,
   assertApplicantActor,
+  requireFinancierContext,
   iso,
   type FinancingRequestStatus,
 } from './shared'
@@ -942,6 +943,146 @@ export async function financierInbox(
   return { requests: rows.map((r) => serializeSummaryInner(r as never)), total, page, limit }
 }
 
+// ── Admin gate console adapters (catalog/queue route surface) ────────────────
+
+/** Admin dossier helper — the (Actor, id) call shape the catalog module uses. */
+export async function getRequestDetail(admin: { id: string }, requestId: string) {
+  return getFinancingRequestDetail(admin.id, requestId, 'ADMIN')
+}
+
+export interface AdminGateQueueRow {
+  id: string
+  number: string
+  status: string
+  serviceId: string
+  serviceName: string
+  serviceCategory: string
+  financierName: string | null
+  organizationId: string | null
+  organizationName: string | null
+  createdById: string
+  targetType: string
+  targetId: string | null
+  multiGroupId: string | null
+  amountRequested: number
+  currency: string
+  tenorRequestedMonths: number | null
+  activityCity: string | null
+  activityCategory: string | null
+  guaranteeType: string | null
+  submittedAt: string | null
+  forwardedAt: string | null
+  returnedAt: string | null
+  returnedReason: string | null
+  expiresAt: string | null
+  closedAt: string | null
+  createdAt: string
+  updatedAt: string
+  submissionStats: { total: number; verified: number; missing: number }
+}
+
+/**
+ * THE gate queue for the admin console route: financing + accreditation rows
+ * in one call, mapped to the console's queue-row shape (applicant + stats).
+ * `serviceKind` filters the request family ('FINANCING' | 'ACCREDITATION').
+ */
+export async function listAdminGateQueue(filter?: {
+  status?: string
+  serviceKind?: string
+}): Promise<{ financing: AdminGateQueueRow[]; accreditation: AdminGateQueueRow[] }> {
+  const pageLimit = { limit: 100 }
+  const [fin, acc] = await Promise.all([
+    filter?.serviceKind === 'ACCREDITATION'
+      ? Promise.resolve({ requests: [], total: 0, page: 1, limit: 0 })
+      : adminGateQueue({ status: filter?.status, ...pageLimit }),
+    filter?.serviceKind === 'FINANCING'
+      ? Promise.resolve({ requests: [], total: 0, page: 1, limit: 0 })
+      : import('./accreditation').then((m) =>
+          m.adminAccreditationQueue({ status: filter?.status, ...pageLimit })
+        ),
+  ])
+
+  const mapFin = (r: (typeof fin)['requests'][number]): AdminGateQueueRow => ({
+    id: r.id,
+    number: r.number,
+    status: r.status,
+    serviceId: r.serviceId,
+    serviceName: r.serviceName,
+    serviceCategory: r.serviceKind,
+    financierName: r.financierOrgName,
+    organizationId: r.organizationId,
+    organizationName: r.organizationName,
+    createdById: r.applicant.id,
+    targetType: r.targetType,
+    targetId: null,
+    multiGroupId: r.multiGroupId,
+    amountRequested: r.amountRequested,
+    currency: r.currency,
+    tenorRequestedMonths: r.tenorRequestedMonths,
+    activityCity: r.activityCity,
+    activityCategory: r.purpose,
+    guaranteeType: null,
+    submittedAt: r.submittedAt,
+    forwardedAt: r.forwardedAt,
+    returnedAt: r.returnedAt,
+    returnedReason: r.returnedReason,
+    expiresAt: r.expiresAt,
+    closedAt: r.closedAt,
+    createdAt: r.createdAt,
+    updatedAt: r.createdAt,
+    submissionStats: (r as { submissionStats?: { total: number; verified: number; missing: number } }).submissionStats ?? { total: 0, verified: 0, missing: 0 },
+  })
+
+  const mapAcc = (r: (typeof acc)['requests'][number]): AdminGateQueueRow => ({
+    id: r.id,
+    number: r.number,
+    status: r.status,
+    serviceId: r.serviceId,
+    serviceName: r.serviceName,
+    serviceCategory: r.serviceKind,
+    financierName: r.financierOrgName,
+    organizationId: r.organizationId,
+    organizationName: r.organizationName,
+    createdById: r.submittedBy.id,
+    targetType: 'ACCREDITATION',
+    targetId: null,
+    multiGroupId: null,
+    amountRequested: 0,
+    currency: 'YER',
+    tenorRequestedMonths: null,
+    activityCity: null,
+    activityCategory: null,
+    guaranteeType: null,
+    submittedAt: r.submittedAt,
+    forwardedAt: r.forwardedAt,
+    returnedAt: r.returnedAt,
+    returnedReason: r.returnedReason,
+    expiresAt: r.expiresAt,
+    closedAt: r.closedAt,
+    createdAt: r.createdAt,
+    updatedAt: r.createdAt,
+    submissionStats: (r as { submissionStats?: { total: number; verified: number; missing: number } }).submissionStats ?? { total: 0, verified: 0, missing: 0 },
+  })
+
+  return { financing: fin.requests.map(mapFin), accreditation: acc.requests.map(mapAcc) }
+}
+
+// ── Financier console entry point (RBAC-gated) ───────────────────────────────
+
+/**
+ * The console inbox wrapper: resolves the caller's active institution WITH
+ * the financier.requests.view permission (OWNER, canonical assignment, or the
+ * legacy ADMIN bridge — see requireFinancierContext), then lists that
+ * institution's post-gate requests.
+ */
+export async function listFinancierInbox(
+  user: { id: string },
+  filter?: { status?: string; page?: number; limit?: number }
+): Promise<GateQueueResult> {
+  const ctx = await requireFinancierContext(user.id, 'financier.requests.view')
+  return financierInbox(ctx.organizationId, filter)
+}
+
 /** Financier-side visibility check (detail views + offer guards). */
 export async function assertFinancierCanSee(
   userId: string,
@@ -953,15 +1094,29 @@ export async function assertFinancierCanSee(
   // F-03 parity: a SUSPENDED institution's staff lose by-id detail access too
   // (list access already drops them via listFinancierMemberships' status
   // filter — the by-id guard used to miss the same predicate).
+  // RBAC: OWNER members and financier.requests.view holders (canonical
+  // assignments incl. reviewer/underwriter/branch-officer, plus the legacy
+  // ADMIN bridge) can view; the org must not be suspended.
   const membership = await db.organizationMember.findFirst({
     where: {
       userId,
       organizationId: request.service.financierProfile.organizationId,
-      role: { in: ['OWNER', 'ADMIN'] },
       organization: { status: { not: 'SUSPENDED' } },
     },
   })
   if (!membership) throw new FinancingError('Financier staff access required', 403)
+  if (membership.role !== 'OWNER') {
+    const { userHasOrgPermission } = await import('@/server/authz/evaluator')
+    if (
+      !(await userHasOrgPermission(
+        userId,
+        request.service.financierProfile.organizationId,
+        'financier.requests.view'
+      ))
+    ) {
+      throw new FinancingError('Financier staff access required', 403)
+    }
+  }
 }
 
 export async function financierGetRequest(userId: string, requestId: string): Promise<FinancingRequestDetailDTO> {
@@ -1117,3 +1272,18 @@ export async function nudgeFinancingSweeps(): Promise<void> {
     // best-effort
   }
 }
+
+// ── Admin/open-gate adapters (name-drift repair) ─────────────────────────────
+
+/** POST /admin/financing/requests/[id]/open-gate — SUBMITTED → UNDER_PLATFORM_REVIEW. */
+export const openGate = (user: { id: string; role: string }, requestId: string) =>
+  startPlatformReview(user.id, requestId)
+
+/** PATCH /admin/financing/requests/[id] { action: 'open' } — same transition,
+ *  the (Actor-object) call shape the route uses. */
+export const adminOpenReview = (input: { admin: { id: string; role: string }; requestId: string }) =>
+  startPlatformReview(input.admin.id, input.requestId)
+
+/** Applicant re-submit after a gate return — the verify-financing call shape. */
+export const resubmitAfterReturn = (input: { user: { id: string; role: string }; requestId: string }) =>
+  resubmitFinancingRequest(input.user.id, input.requestId)

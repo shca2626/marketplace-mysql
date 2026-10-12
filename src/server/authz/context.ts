@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers'
 import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/auth'
-import { ALL_ORG_PERMISSIONS, orgTypeAllowlist } from '@/lib/rbac-catalog'
+import { ALL_ORG_PERMISSIONS, ALL_PLATFORM_PERMISSIONS, orgTypeAllowlist } from '@/lib/rbac-catalog'
 import { deny, type DenyDetail } from './deny'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -46,10 +46,14 @@ export interface AuthzContext {
   activeOrg: AuthzOrgSummary | null
   /** True when the user holds platform-staff roles or is legacy ADMIN. */
   isPlatformStaff: boolean
-  /** True only for legacy User.role === 'ADMIN' (implicit super-admin). */
+  /** True for legacy User.role === 'ADMIN' or platform.super-admin holders. */
   isPlatformSuperAdmin: boolean
   /** Effective permissions of the ACTIVE context (org scope when activeOrg set; platform scope never mixed in). */
   permissions: Set<string>
+  /** Platform-scope permissions, ALWAYS resolved regardless of the active org
+   *  (a platform staff member who switches into an org context keeps their
+   *  console powers — the two scopes never merge into `permissions`). */
+  platformPermissions: Set<string>
   /** Deny detail when the context itself failed to resolve (suspended, bad cookie). */
   error: DenyDetail | null
 }
@@ -107,26 +111,33 @@ async function buildContext(
   orgs: AuthzOrgSummary[],
   activeOrg: AuthzOrgSummary | null
 ): Promise<AuthzContext> {
-  const isPlatformSuperAdmin = user.role === 'ADMIN'
-
-  // Platform staff detection + platform permissions (personal context only —
-  // platform permissions NEVER leak into an org context).
+  // Canonical super-admin: the protected platform.super-admin assignment
+  // (seeded onto every legacy admin by scripts/seed-rbac.ts step 3 — parity
+  // verified in the live DB before this derivation changed). The legacy
+  // User.role === 'ADMIN' fact is bridged ONLY here, in ONE place, so the
+  // bypass can be retired by clearing the remaining role rows.
   const platformAssignments = await db.userRole.findMany({
     where: { userId: user.id, organizationId: '' },
     include: { role: { include: { permissions: { select: { permissionKey: true } } } } },
     take: 50,
   })
+  const holdsSuperAdminRole = platformAssignments.some((a) => a.role.key === 'platform.super-admin')
+  const isPlatformSuperAdmin = user.role === 'ADMIN' || holdsSuperAdminRole
   const isPlatformStaff = isPlatformSuperAdmin || platformAssignments.length > 0
+
+  // Platform-scope permissions — ALWAYS resolved, independent of the active
+  // org context (see AuthzContext.platformPermissions).
+  const platformPermissions = new Set<string>()
+  if (isPlatformSuperAdmin) {
+    for (const p of ALL_PLATFORM_PERMISSIONS) platformPermissions.add(p)
+  } else {
+    for (const a of platformAssignments) for (const p of a.role.permissions) platformPermissions.add(p.permissionKey)
+  }
 
   const permissions = new Set<string>()
   if (!activeOrg) {
     // Personal context: platform permissions only (org permissions need an org context).
-    if (isPlatformSuperAdmin) {
-      // legacy super-admin bypass — full platform grant, represented by wildcard
-      permissions.add('*')
-    } else {
-      for (const a of platformAssignments) for (const p of a.role.permissions) permissions.add(p.permissionKey)
-    }
+    for (const p of platformPermissions) permissions.add(p)
   } else {
     // Org context: resolve org-scope grants (canonical + legacy mapping).
     const [assignments, legacyGrants] = await Promise.all([
@@ -135,7 +146,7 @@ async function buildContext(
         include: { role: { include: { permissions: { select: { permissionKey: true } } } } },
         take: 100,
       }),
-      legacyRoleGrants(user.id, activeOrg.id, activeOrg.membershipRole),
+      legacyRoleGrants(activeOrg.orgType, activeOrg.membershipRole),
     ])
     if (activeOrg.membershipRole === 'OWNER') {
       const allow = orgTypeAllowlist(activeOrg.orgType)
@@ -160,6 +171,7 @@ async function buildContext(
     isPlatformStaff,
     isPlatformSuperAdmin,
     permissions,
+    platformPermissions,
     error: null,
   }
 }
@@ -169,8 +181,34 @@ async function buildContext(
  * Preserves workflow behavior (approval routing etc.) until every member
  * holds canonical UserRole assignments; removed only after static + runtime
  * analysis proves it unused.
+ *
+ * ORG-TYPE-AWARE: a legacy ADMIN membership inside a financing institution
+ * (BANK/MFI/EWALLET, or any org carrying a financier profile) maps to the
+ * financier.admin template — institutions run on financier.* permissions,
+ * never on the selling/procurement set a COMPANY admin would get.
  */
-async function legacyRoleGrants(_userId: string, _orgId: string, membershipRole: string): Promise<string[]> {
+async function legacyRoleGrants(orgType: string, membershipRole: string): Promise<string[]> {
+  if (isFinancierOrgType(orgType)) {
+    switch (membershipRole) {
+      case 'ADMIN':
+        return [
+          'org.profile.view',
+          'org.profile.update',
+          'org.members.invite',
+          'org.members.manage',
+          'financier.services.manage',
+          'financier.services.publish',
+          'financier.requests.view',
+          'financier.offers.manage',
+          'financier.agreements.manage',
+          'financier.accreditations.manage',
+          'financier.team.manage',
+        ]
+      default:
+        // Non-admin institution staff had no console access pre-RBAC — none granted.
+        return []
+    }
+  }
   switch (membershipRole) {
     case 'ADMIN':
       // org.admin template (minus selling keys the legacy console didn't gate)
@@ -197,6 +235,11 @@ async function legacyRoleGrants(_userId: string, _orgId: string, membershipRole:
   }
 }
 
+/** Financing institution org types (mirrors FINANCIER_ORG_TYPES in the financing domain). */
+export function isFinancierOrgType(orgType: string): boolean {
+  return orgType === 'BANK' || orgType === 'MFI' || orgType === 'EWALLET'
+}
+
 function emptyContext(error: DenyDetail): AuthzContext {
   return {
     user: { id: '', name: '', email: '', role: '', status: '', sessionVersion: 0 },
@@ -205,6 +248,7 @@ function emptyContext(error: DenyDetail): AuthzContext {
     isPlatformStaff: false,
     isPlatformSuperAdmin: false,
     permissions: new Set(),
+    platformPermissions: new Set(),
     error,
   }
 }

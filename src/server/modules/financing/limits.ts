@@ -55,7 +55,7 @@ export interface SetLimitInput {
 // ── Guards ──────────────────────────────────────────────────────────────────
 
 async function requireInstitutionAdmin(userId: string) {
-  const ctx = await requireFinancierContext(userId)
+  const ctx = await requireFinancierContext(userId, 'financier.offers.manage')
   const me = await db.organizationMember.findUnique({
     where: { organizationId_userId: { organizationId: ctx.organizationId, userId } },
     select: { role: true },
@@ -101,7 +101,7 @@ function buildScopeKey(input: SetLimitInput): string {
 // ── Views ────────────────────────────────────────────────────────────────────
 
 export async function listLimits(staffUserId: string): Promise<UnderwritingLimitDTO[]> {
-  const ctx = await requireFinancierContext(staffUserId)
+  const ctx = await requireFinancierContext(staffUserId, 'financier.offers.manage')
   const rows = await db.underwritingLimit.findMany({
     where: { financierProfileId: ctx.financierProfileId },
     include: {

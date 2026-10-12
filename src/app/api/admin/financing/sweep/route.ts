@@ -11,7 +11,7 @@ import { expireOffersSweep } from '@/server/modules/financing/offers'
 // (financing + accreditation requests, lapsed accreditation grants, stale
 // offers). FIN-8 wires the recurring schedule onto the same service functions.
 export async function POST(req: NextRequest) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('financing.gate.review')
   if (error) return error
 
   const csrf = assertSameOrigin(req)

@@ -10,7 +10,7 @@ export async function GET() {
   const { user, error } = await requireUser()
   if (error) return error
   try {
-    const staff = await requireFinancierStaffOrThrow({ id: user!.id })
+    const staff = await requireFinancierStaffOrThrow({ id: user!.id }, 'financier.requests.view')
     const dashboard = await financierDashboard(staff)
     return NextResponse.json(dashboard)
   } catch (err) {

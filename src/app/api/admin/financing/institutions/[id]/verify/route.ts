@@ -4,10 +4,10 @@ import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { adminSetInstitutionStatus } from '@/server/modules/financing/services'
 import { FinancingError } from '@/server/modules/financing/shared'
 
-// POST /api/admin/financing/institutions/[orgId]/suspend — suspend a financier
-// institution: org → SUSPENDED (staff notified; public directory drops their
-// services). ?reactivate=true flips back to ACTIVE.
-export async function POST(req: NextRequest, ctx: { params: Promise<{ orgId: string }> }) {
+// POST /api/admin/financing/institutions/[id]/verify — verify a financier
+// institution (license/regulator checked externally): org → ACTIVE +
+// verifiedAt + staff notification.
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { user, error } = await requireAdmin('financing.institutions.manage')
   if (error) return error
   const csrf = assertSameOrigin(req)
@@ -16,15 +16,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ orgId: str
   if (rl) return rl
 
   try {
-    const { orgId } = await ctx.params
-    const reactivate = req.nextUrl.searchParams.get('reactivate') === 'true'
-    const result = await adminSetInstitutionStatus(user.id, orgId, reactivate ? 'REACTIVATE' : 'SUSPEND')
+    const { id } = await ctx.params
+    const result = await adminSetInstitutionStatus(user.id, id, 'VERIFY')
     return NextResponse.json(result)
   } catch (err) {
     if (err instanceof FinancingError) {
       return NextResponse.json({ error: err.message }, { status: err.status })
     }
-    console.error('admin institution suspend error', err)
-    return NextResponse.json({ error: 'Failed to update the institution' }, { status: 500 })
+    console.error('admin institution verify error', err)
+    return NextResponse.json({ error: 'Failed to verify the institution' }, { status: 500 })
   }
 }

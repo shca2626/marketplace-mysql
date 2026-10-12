@@ -11,7 +11,7 @@ export async function GET() {
   const { user, error } = await requireUser()
   if (error) return error
   try {
-    const ctx = await requireFinancierContext(user.id)
+    const ctx = await requireFinancierContext(user.id, 'financier.agreements.manage')
     const disbursements = await listDisbursements(ctx.organizationId)
     return NextResponse.json({ disbursements })
   } catch (err) {
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   const rl = enforceRateLimit(req, 'financier:disbursement', { limit: 40, windowMs: 10 * 60_000 }, user.id)
   if (rl) return rl
   try {
-    await requireFinancierContext(user.id)
+    await requireFinancierContext(user.id, 'financier.agreements.manage')
     const parsed = queueSchema.safeParse(await req.json())
     if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid disbursement payload', details: parsed.error.flatten() }, { status: 400 })

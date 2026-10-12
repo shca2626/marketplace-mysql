@@ -28,7 +28,7 @@ async function withBlockingCount(
 }
 
 export async function GET(req: NextRequest) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('financing.gate.view')
   if (error) return error
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf

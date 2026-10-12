@@ -4,8 +4,8 @@ import { assertServiceOwnership, type FinancierStaffContext } from './guards'
 import { composeServiceChecklist } from './conditions'
 import { serializeAccountDocument } from './documents'
 import { serializeSubmission, SUBMISSION_INCLUDE, type SubmissionDTO } from './submissions'
-import { getRequestDetail } from './requests'
-import { getAccreditationDetail } from './accreditation'
+import { getFinancingRequestDetail, listAdminGateQueue } from './requests'
+import { getAccreditationDetail } from './accreditation'  // (userId, requestId, actorRole)
 import type {
   Actor,
   BranchCreatePayload,
@@ -123,11 +123,11 @@ function serializeService(s: ServiceRow): FinancierServiceDTO {
     targetSegment: s.targetSegment,
     status: s.status,
     currency: s.currency,
-    amountMin: s.amountMin === null ? null : s.amountMin.toNumber(),
-    amountMax: s.amountMax === null ? null : s.amountMax.toNumber(),
+    amountMin: s.amountMin === null ? null : Number(s.amountMin),
+    amountMax: s.amountMax === null ? null : Number(s.amountMax),
     rateType: s.rateType,
-    rateMax: s.rateMax === null ? null : s.rateMax.toNumber(),
-    feeFlat: s.feeFlat === null ? null : s.feeFlat.toNumber(),
+    rateMax: s.rateMax === null ? null : Number(s.rateMax),
+    feeFlat: s.feeFlat === null ? null : Number(s.feeFlat),
     tenorMinMonths: s.tenorMinMonths,
     tenorMaxMonths: s.tenorMaxMonths,
     repaymentFrequency: s.repaymentFrequency,
@@ -135,7 +135,7 @@ function serializeService(s: ServiceRow): FinancierServiceDTO {
     shariaCompliant: s.shariaCompliant,
     processingDays: s.processingDays,
     accreditationValidMonths: s.accreditationValidMonths,
-    accreditationFeeAmount: s.accreditationFeeAmount === null ? null : s.accreditationFeeAmount.toNumber(),
+    accreditationFeeAmount: s.accreditationFeeAmount === null ? null : Number(s.accreditationFeeAmount),
     viewCount: s.viewCount,
     attributes: [...s.attributes].sort((a, b) => a.position - b.position).map((a) => ({ id: a.id, kind: a.kind, position: a.position, text: a.text })),
     coverage: [...s.coverage].sort((a, b) => a.regionName.localeCompare(b.regionName)).map((c) => ({ id: c.id, regionName: c.regionName })),
@@ -343,8 +343,8 @@ function serializeBranch(b: BranchRow): FinancierBranchDTO {
     street: b.street,
     city: b.city,
     district: b.district,
-    latitude: b.latitude === null ? null : b.latitude.toNumber(),
-    longitude: b.longitude === null ? null : b.longitude.toNumber(),
+    latitude: b.latitude === null ? null : Number(b.latitude),
+    longitude: b.longitude === null ? null : Number(b.longitude),
     phone: b.phone,
     isActive: b.isActive,
     position: b.position,
@@ -475,8 +475,8 @@ export async function getFinancierProfile(staff: FinancierStaffContext): Promise
     logoUrl: staff.profile.logoUrl,
     contactEmail: staff.profile.contactEmail,
     contactPhone: staff.profile.contactPhone,
-    minTicket: staff.profile.minTicket === null ? null : staff.profile.minTicket.toNumber(),
-    maxTicket: staff.profile.maxTicket === null ? null : staff.profile.maxTicket.toNumber(),
+    minTicket: staff.profile.minTicket === null ? null : Number(staff.profile.minTicket),
+    maxTicket: staff.profile.maxTicket === null ? null : Number(staff.profile.maxTicket),
     organization: {
       id: staff.organization.id,
       name: staff.organization.name,
@@ -622,17 +622,17 @@ export async function publicListServices(
     summary: s.summary,
     targetSegment: s.targetSegment,
     currency: s.currency,
-    amountMin: s.amountMin === null ? null : s.amountMin.toNumber(),
-    amountMax: s.amountMax === null ? null : s.amountMax.toNumber(),
+    amountMin: s.amountMin === null ? null : Number(s.amountMin),
+    amountMax: s.amountMax === null ? null : Number(s.amountMax),
     rateType: s.rateType,
-    rateMax: s.rateMax === null ? null : s.rateMax.toNumber(),
-    feeFlat: s.feeFlat === null ? null : s.feeFlat.toNumber(),
+    rateMax: s.rateMax === null ? null : Number(s.rateMax),
+    feeFlat: s.feeFlat === null ? null : Number(s.feeFlat),
     tenorMinMonths: s.tenorMinMonths,
     tenorMaxMonths: s.tenorMaxMonths,
     shariaCompliant: s.shariaCompliant,
     processingDays: s.processingDays,
     accreditationValidMonths: s.accreditationValidMonths,
-    accreditationFeeAmount: s.accreditationFeeAmount === null ? null : s.accreditationFeeAmount.toNumber(),
+    accreditationFeeAmount: s.accreditationFeeAmount === null ? null : Number(s.accreditationFeeAmount),
     features: s.attributes.filter((a) => a.kind === 'FEATURE').sort((a, b) => a.position - b.position).map((a) => a.text),
     eligibility: s.attributes.filter((a) => a.kind === 'ELIGIBILITY_CONDITION').sort((a, b) => a.position - b.position).map((a) => a.text),
     coverageCount: s.coverage.length,
@@ -662,7 +662,37 @@ export type PublicRequirementLabelDTO = {
   isRepeatable: boolean
   autoPassAccredited: boolean
   displayOrder: number
-  options: { value: string; position: number }[]
+  options: { id: string; value: string; position: number }[]
+}
+
+
+/** Compact template label for the public requirement list. */
+function serializeTemplate(t: {
+  id: string
+  scope: string
+  conditionType: string
+  code: string | null
+  title: string
+  description: string | null
+  documentType: string | null
+  validationMin: number | null
+  validationMax: number | null
+  isRepeatable: boolean
+  options?: { id: string; value: string; position: number }[]
+}) {
+  return {
+    id: t.id,
+    scope: t.scope,
+    conditionType: t.conditionType,
+    code: t.code,
+    title: t.title,
+    description: t.description,
+    documentType: t.documentType,
+    validationMin: t.validationMin,
+    validationMax: t.validationMax,
+    isRepeatable: t.isRepeatable,
+    options: (t.options ?? []).map((o) => o.value),
+  }
 }
 
 /** Compose a service checklist as LABELS ONLY — the wizard's public view. */
@@ -687,17 +717,17 @@ function toPublicRequirement(r: {
 }): PublicRequirementLabelDTO {
   return {
     id: r.id,
-    conditionType: r.template.conditionType,
-    title: r.template.title,
-    description: r.template.description,
+    conditionType: r.conditionTemplate.conditionType,
+    title: r.conditionTemplate.title,
+    description: r.conditionTemplate.description,
     isRequired: r.isRequired,
     instructions: r.instructions,
-    documentType: r.template.documentType,
-    profileFieldKey: r.template.profileFieldKey,
-    validationMin: r.template.validationMin,
-    validationMax: r.template.validationMax,
-    validityMonths: r.template.validityMonths,
-    isRepeatable: r.template.isRepeatable,
+    documentType: r.conditionTemplate.documentType,
+    profileFieldKey: r.conditionTemplate.profileFieldKey,
+    validationMin: r.conditionTemplate.validationMin,
+    validationMax: r.conditionTemplate.validationMax,
+    validityMonths: r.conditionTemplate.validityMonths,
+    isRepeatable: r.conditionTemplate.isRepeatable,
     autoPassAccredited: r.autoPassAccredited,
     displayOrder: r.displayOrder,
     options: [...r.template.options].sort((a, b) => a.position - b.position).map((o) => ({ value: o.value, position: o.position })),
@@ -734,17 +764,17 @@ export async function publicGetService(id: string): Promise<
     summary: s.summary,
     targetSegment: s.targetSegment,
     currency: s.currency,
-    amountMin: s.amountMin === null ? null : s.amountMin.toNumber(),
-    amountMax: s.amountMax === null ? null : s.amountMax.toNumber(),
+    amountMin: s.amountMin === null ? null : Number(s.amountMin),
+    amountMax: s.amountMax === null ? null : Number(s.amountMax),
     rateType: s.rateType,
-    rateMax: s.rateMax === null ? null : s.rateMax.toNumber(),
-    feeFlat: s.feeFlat === null ? null : s.feeFlat.toNumber(),
+    rateMax: s.rateMax === null ? null : Number(s.rateMax),
+    feeFlat: s.feeFlat === null ? null : Number(s.feeFlat),
     tenorMinMonths: s.tenorMinMonths,
     tenorMaxMonths: s.tenorMaxMonths,
     shariaCompliant: s.shariaCompliant,
     processingDays: s.processingDays,
     accreditationValidMonths: s.accreditationValidMonths,
-    accreditationFeeAmount: s.accreditationFeeAmount === null ? null : s.accreditationFeeAmount.toNumber(),
+    accreditationFeeAmount: s.accreditationFeeAmount === null ? null : Number(s.accreditationFeeAmount),
     features: s.attributes.filter((a) => a.kind === 'FEATURE').sort((a, b) => a.position - b.position).map((a) => a.text),
     eligibility: s.attributes.filter((a) => a.kind === 'ELIGIBILITY_CONDITION').sort((a, b) => a.position - b.position).map((a) => a.text),
     coverageCount: s.coverage.length,
@@ -1003,7 +1033,7 @@ export async function financierDashboard(staff: FinancierStaffContext): Promise<
       status: r.status,
       serviceName: r.service.name,
       organizationName: r.organization?.name ?? null,
-      amountRequested: r.amountRequested.toNumber(),
+      amountRequested: Number(r.amountRequested),
       currency: r.currency,
       forwardedAt: r.forwardedAt?.toISOString() ?? null,
     })),
@@ -1158,6 +1188,7 @@ export async function resolveAdminRequestType(
 }
 
 const VAULT_INCLUDE = {
+  user: { select: { id: true, name: true } },
   media: true,
   organization: { select: { id: true, name: true } },
   reviewedBy: { select: { id: true, name: true } },
@@ -1173,12 +1204,12 @@ export async function adminRequestDossier(admin: Actor, id: string): Promise<Rec
   if (!type) throw new FinancingCatalogError('Request not found', 404)
 
   if (type === 'FINANCING') {
-    const detail = await getRequestDetail(admin, id)
+    const detail = await getFinancingRequestDetail(admin.id, id, 'ADMIN')
     const docs = await db.accountDocument.findMany({
       where: {
         isActive: true,
         OR: [
-          { userId: detail.createdById },
+          { userId: detail.applicant.id },
           ...(detail.organizationId ? [{ organizationId: detail.organizationId }] : []),
         ],
       },
@@ -1187,7 +1218,7 @@ export async function adminRequestDossier(admin: Actor, id: string): Promise<Rec
       take: 100,
     })
     const user = await db.user.findUnique({
-      where: { id: detail.createdById },
+      where: { id: detail.applicant.id },
       select: {
         id: true, name: true, email: true, phone: true, whatsappNumber: true, dateOfBirth: true,
         gender: true, maritalStatus: true, nationality: true, identityType: true, identityNumber: true,
@@ -1208,12 +1239,12 @@ export async function adminRequestDossier(admin: Actor, id: string): Promise<Rec
     }
   }
 
-  const detail = await getAccreditationDetail(admin, id)
+  const detail = await getAccreditationDetail(admin.id, id, 'ADMIN')
   const docs = await db.accountDocument.findMany({
     where: {
       isActive: true,
       OR: [
-        { userId: detail.submittedById },
+        { userId: detail.submittedBy.id },
         { organizationId: detail.organizationId },
       ],
     },
@@ -1222,7 +1253,7 @@ export async function adminRequestDossier(admin: Actor, id: string): Promise<Rec
     take: 100,
   })
   const user = await db.user.findUnique({
-    where: { id: detail.submittedById },
+    where: { id: detail.submittedBy.id },
     select: {
       id: true, name: true, email: true, phone: true, whatsappNumber: true, dateOfBirth: true,
       gender: true, maritalStatus: true, nationality: true, identityType: true, identityNumber: true,

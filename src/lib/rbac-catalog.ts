@@ -146,6 +146,7 @@ export const PERMISSION_DOMAINS: PermissionDomain[] = [
     description: 'RFQ pipeline, negotiations and scoped settings.',
     permissions: [
       { key: 'rfq.pipeline.view', label: 'View RFQ pipeline', description: 'Browse every RFQ, quote and negotiation.' },
+      { key: 'rfq.quotes.review', label: 'Review quotes', description: 'Review, comment on and moderate supplier quotes in the RFQ pipeline.' },
       { key: 'rfq.settings.manage', label: 'Manage RFQ settings', description: 'Edit scoped behavior panels and roll back changes.' },
     ],
   },
@@ -191,6 +192,25 @@ export const PERMISSION_DOMAINS: PermissionDomain[] = [
       { key: 'rbac.roles.update', label: 'Update roles', description: 'Rename and re-permission custom roles — never beyond your own access.' },
       { key: 'rbac.roles.delete', label: 'Delete roles', description: 'Delete custom roles and un-assign their members.' },
       { key: 'rbac.manage', label: 'Manage roles (full)', description: 'Umbrella: create, update and delete roles. Grant the granular keys above to delegate partial control instead.' },
+    ],
+  },
+  {
+    key: 'modules',
+    label: 'Modules & Activation',
+    scope: 'PLATFORM',
+    description: 'The module activation matrix that gates platform capabilities.',
+    permissions: [
+      { key: 'modules.manage', label: 'Manage modules', description: 'Flip module activations per platform / org type / organization scope.' },
+    ],
+  },
+  {
+    key: 'whatsapp',
+    label: 'WhatsApp Suite',
+    scope: 'PLATFORM',
+    description: 'The WhatsApp business messaging console (senders, inbox, campaigns, rules).',
+    permissions: [
+      { key: 'whatsapp.view', label: 'View WhatsApp console', description: 'See senders, connection state, inbox and campaign analytics.' },
+      { key: 'whatsapp.manage', label: 'Manage WhatsApp', description: 'Pair/disconnect senders, send messages, run campaigns, edit templates and rules.' },
     ],
   },
 
@@ -464,6 +484,13 @@ export const SYSTEM_ROLES: RoleTemplate[] = [
     description: 'Screens forwarded financing requests in the inbox.',
     scope: 'ORG',
     permissions: ['org.profile.view', 'financier.requests.view'],
+  },
+  {
+    key: 'financier.branch-officer',
+    name: 'Branch Officer',
+    description: 'Front-line institution officer — sees the request inbox and manages services for their branch.',
+    scope: 'ORG',
+    permissions: ['org.profile.view', 'financier.requests.view', 'financier.services.manage'],
   },
 ]
 

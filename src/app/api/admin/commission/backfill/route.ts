@@ -8,7 +8,7 @@ import {
 // POST /api/admin/commission/backfill — create obligations for orders that
 // were DELIVERED before this module existed (idempotent).
 export async function POST() {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('payouts.manage')
   if (error) return error
   try {
     const result = await backfillCommissionObligations(user!.id)

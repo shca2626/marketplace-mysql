@@ -205,7 +205,7 @@ export async function listVisibleConditionTemplates(
     // financier org the same way the console does — profile auto-provision
     // included — instead of a raw first-membership lookup that 403-ed
     // multi-org users whose first org predates its profile.
-    const ctx = await requireFinancierContext(userId)
+    const ctx = await requireFinancierContext(userId, 'financier.services.manage')
     // GENERAL active + own FINANCIER (any active state — staff manage their own)
     where = {
       ...typeWhere,
@@ -256,7 +256,7 @@ export async function createConditionTemplate(
     if (!requirements.allowFinancierCustomConditions) {
       throw new FinancingError('Financier-specific conditions are disabled by the platform', 403)
     }
-    const ctx = await requireFinancierContext(actor.id)
+    const ctx = await requireFinancierContext(actor.id, 'financier.services.manage')
     scope = 'FINANCIER'
     organizationId = ctx.organizationId
   }
@@ -629,4 +629,17 @@ export async function listServiceRequirements(serviceId: string): Promise<Servic
     orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
   })
   return rows.map((r) => serializeRequirement(r as never))
+}
+
+/**
+ * Raw ACTIVE requirements of a service (with the condition template) ordered
+ * for the wizard — the catalog module maps these through its own public
+ * label serializer for the service detail view.
+ */
+export async function composeServiceChecklist(serviceId: string) {
+  return db.serviceRequirement.findMany({
+    where: { serviceId, isActive: true },
+    include: { conditionTemplate: true },
+    orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+  })
 }

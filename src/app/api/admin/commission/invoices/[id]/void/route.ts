@@ -13,7 +13,7 @@ const voidSchema = z.object({
 // POST /api/admin/commission/invoices/[id]/void — void an issued (unpaid)
 // commission invoice.
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('payouts.manage')
   if (error) return error
   try {
     const { id } = await ctx.params

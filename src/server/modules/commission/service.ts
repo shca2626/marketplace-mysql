@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { recordAudit } from '@/server/modules/audit/service'
+import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
 import { emitNotification } from '@/server/modules/notifications/service'
 import { nextNumber } from '@/server/modules/sequences/service'
 import { getPayoutsConfig } from '@/server/modules/payouts/service'
@@ -381,18 +381,18 @@ export async function issueCommissionInvoice(adminId: string, statementId: strin
       where: { statementId, status: 'PENDING' },
       data: { status: 'INVOICED' },
     })
+    await recordAuditTx(tx, {
+      actorId: adminId,
+      actorType: 'ADMIN',
+      action: 'COMMISSION_INVOICE_ISSUED',
+      entityType: 'CommissionInvoice',
+      entityId: invoice.id,
+      summary: `Commission invoice ${invoice.number} issued to ${statement.seller.storeName ?? statement.seller.name}: ${usd(Number(invoice.amount))} (statement ${statement.number})`,
+      metadata: { statementId, dueAt: invoice.dueAt?.toISOString() ?? null },
+    })
     return created
   })
 
-  await recordAudit({
-    actorId: adminId,
-    actorType: 'ADMIN',
-    action: 'COMMISSION_INVOICE_ISSUED',
-    entityType: 'CommissionInvoice',
-    entityId: invoice.id,
-    summary: `Commission invoice ${invoice.number} issued to ${statement.seller.storeName ?? statement.seller.name}: ${usd(Number(invoice.amount))} (statement ${statement.number})`,
-    metadata: { statementId, dueAt: invoice.dueAt?.toISOString() ?? null },
-  })
 
   await emitNotification({
     userId: statement.sellerId,
@@ -411,18 +411,20 @@ export async function voidCommissionInvoice(adminId: string, invoiceId: string, 
   if (!invoice) throw new CommissionServiceError('Invoice not found', 404)
   if (invoice.status === 'PAID') throw new CommissionServiceError('Paid invoices cannot be voided', 409)
 
-  const updated = await db.commissionInvoice.update({
-    where: { id: invoiceId },
-    data: { status: 'VOID', note: reason?.slice(0, 500) ?? invoice.note },
-  })
-
-  await recordAudit({
-    actorId: adminId,
-    actorType: 'ADMIN',
-    action: 'COMMISSION_INVOICE_VOIDED',
-    entityType: 'CommissionInvoice',
-    entityId: invoiceId,
-    summary: `Commission invoice ${invoice.number} voided — ${reason ?? 'no reason given'}`,
+  const updated = await db.$transaction(async (tx) => {
+    const row = await tx.commissionInvoice.update({
+      where: { id: invoiceId },
+      data: { status: 'VOID', note: reason?.slice(0, 500) ?? invoice.note },
+    })
+    await recordAuditTx(tx, {
+      actorId: adminId,
+      actorType: 'ADMIN',
+      action: 'COMMISSION_INVOICE_VOIDED',
+      entityType: 'CommissionInvoice',
+      entityId: invoiceId,
+      summary: `Commission invoice ${invoice.number} voided — ${reason ?? 'no reason given'}`,
+    })
+    return row
   })
   return updated
 }

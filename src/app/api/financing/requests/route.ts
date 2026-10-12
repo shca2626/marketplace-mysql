@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireUser } from '@/server/guards'
+import { requireModule } from '@/server/guards'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import {
   createFinancingRequest,
@@ -59,7 +59,7 @@ const createSchema = z.object({
 })
 
 export async function POST(req: NextRequest) {
-  const { user, error } = await requireUser()
+  const { user, error } = await requireModule('financing-hub')
   if (error) return error
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
 // GET /api/financing/requests — my requests (created by me or my orgs) with
 // multiGroupId grouping for the sibling comparison view (DP-25).
 export async function GET(req: NextRequest) {
-  const { user, error } = await requireUser()
+  const { user, error } = await requireModule('financing-hub')
   if (error) return error
   try {
     void req

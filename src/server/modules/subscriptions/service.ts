@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { assessFee } from '@/server/modules/fees/service'
-import { recordAudit } from '@/server/modules/audit/service'
+import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
 import { nextNumber } from '@/server/modules/sequences/service'
 
 /** Audit helper — seller-subscription events are non-sensitive telemetry. */
@@ -270,8 +270,19 @@ export async function getOrgLimits(orgId: string): Promise<Record<string, number
 /**
  * Fail-closed limit check: throws SUBSCRIPTION_LIMIT_REACHED when a plan
  * limit exists (non-null) and currentCount already sits at it.
+ *
+ * SCOPE: the subscription model attaches to SELLER organizations (the org
+ * carrying a SellerProfile) — see subscribeOrg(). For any other organization
+ * (financier institution, plain buyer org) the check is a NO-OP rather than
+ * an implicit free-tier cap, so institution teams are never throttled by
+ * commerce plan limits.
  */
 export async function assertOrgLimit(orgId: string, limitKey: LimitKey, currentCount: number): Promise<void> {
+  const sellerOrg = await db.sellerProfile.findUnique({
+    where: { organizationId: orgId },
+    select: { organizationId: true },
+  })
+  if (!sellerOrg) return // not a seller tenant — commerce plan limits do not apply
   const limits = await getOrgLimits(orgId)
   const cap = limits[limitKey]
   if (cap === null || cap === undefined) return // uncapped
@@ -596,22 +607,21 @@ export async function upsertPlan(input: PlanInput, actorId?: string): Promise<Su
     sortOrder: input.sortOrder ?? 99,
     changedById: actorId ?? null,
   }
-  const plan = await db.subscriptionPlan.upsert({ where: { key: input.key }, update: data, create: data })
-  invalidatePlanCache()
-  if (actorId) {
-    try {
-      await recordAudit({
+  const plan = await db.$transaction(async (tx) => {
+    const row = await tx.subscriptionPlan.upsert({ where: { key: input.key }, update: data, create: data })
+    if (actorId) {
+      await recordAuditTx(tx, {
         actorType: 'ADMIN',
         actorId,
         action: 'SUBSCRIPTION_PLAN_UPSERTED',
         entityType: 'SubscriptionPlan',
-        entityId: plan.id,
-        metadata: { key: plan.key, priceMonthly: plan.priceMonthly },
+        entityId: row.id,
+        metadata: { key: row.key, priceMonthly: row.priceMonthly },
       })
-    } catch (e) {
-      console.error('[subscriptions] audit write failed', e)
     }
-  }
+    return row
+  })
+  invalidatePlanCache()
   const count = await db.sellerSubscription.count({ where: { planId: plan.id } })
   return {
     id: plan.id,

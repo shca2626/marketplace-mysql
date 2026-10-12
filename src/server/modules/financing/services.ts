@@ -227,7 +227,7 @@ function validateServiceInput(input: Partial<ServiceInput>, full: boolean): void
 // ── Console CRUD (financier staff — DP-1) ──────────────────────────────────
 
 export async function listOwnServices(userId: string): Promise<FinancierServiceDTO[]> {
-  const ctx = await requireFinancierContext(userId)
+  const ctx = await requireFinancierContext(userId, 'financier.services.manage')
   const services = await db.financierService.findMany({
     where: { financierProfile: { organizationId: ctx.organizationId } },
     include: serviceInclude,
@@ -249,7 +249,7 @@ export async function getOwnService(userId: string, serviceId: string): Promise<
 }
 
 export async function createService(userId: string, input: ServiceInput): Promise<FinancierServiceDTO> {
-  const ctx = await requireFinancierContext(userId)
+  const ctx = await requireFinancierContext(userId, 'financier.services.manage')
   // F-05 parity: a non-ACTIVE institution (PENDING_REVIEW / SUSPENDED) is
   // read-only — its staff cannot publish new services until the platform
   // activates the institution.

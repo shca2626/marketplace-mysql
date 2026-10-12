@@ -14,7 +14,7 @@ export async function POST(
   req: NextRequest,
   ctx: { params: Promise<{ id: string; sid: string }> }
 ) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('financing.gate.review')
   if (error) return error
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf

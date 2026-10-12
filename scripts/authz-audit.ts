@@ -21,6 +21,9 @@ const GUARD_PATTERNS = [
   /requireUser\s*\(/,
   /requireAdmin\s*\(/,
   /requireAdminAny\s*\(/,
+  /requireOrgPermission\s*\(/,
+  /requireModule\s*\(/,
+  /requireStepUpMfa\s*\(/,
   /await guard\s*\(/,
   /resolveAuthzContext\s*\(/,
   /getSessionUser\s*\(/,
@@ -51,6 +54,15 @@ const PUBLIC_HINTS = [
   /src\/app\/api\/payments\/methods\//,
   // api root health ping
   /^src\/app\/api\/route\.ts$/,
+  // ── classified public-by-design (RBAC completion audit, each verified) ──
+  /src\/app\/api\/modules\/route\.ts$/, // module booleans for signed-out nav — no secrets
+  /src\/app\/api\/fx\/route\.ts$/, // public display-currency rates + active list
+  /src\/app\/api\/products\/brands\/route\.ts$/, // ACTIVE-listing brand filter data (cached)
+  /src\/app\/api\/products\/facets\/route\.ts$/, // public spec-facet aggregation for the Refine rail
+  /src\/app\/api\/brands\/route\.ts$/, // public brands directory (ACTIVE listings only)
+  /src\/app\/api\/chat\/widget\/send\/route\.ts$/, // visitor chat: CSRF + rate limit + token-scoped thread
+  /src\/app\/api\/chat\/widget\/messages\/route\.ts$/, // widget poll: 64-hex token + rate limit, 404 on unknown tokens
+  /src\/app\/api\/kyc\/webhook\/\[providerKey\]\/route\.ts$/, // provider decision channel — HMAC-SHA256 signature IS the auth (replay-protected)
 ]
 
 function listRoutes(dir: string): string[] {

@@ -706,3 +706,43 @@ export const accreditationRevokeSchema = z.object({
   reason: varChar(500),
 })
 export type AccreditationRevokePayload = z.infer<typeof accreditationRevokeSchema>
+
+/** FinancingServiceError — the status-carrying route error for the financing
+ *  API surface (FIN-4; src/lib/financing-api.ts maps it 1:1 onto responses). */
+export class FinancingServiceError extends Error {
+  status: number
+  constructor(message: string, status = 400) {
+    super(message)
+    this.status = status
+  }
+}
+
+/** Every FinancingRequest.status value (runtime list form of the union). */
+export const FINANCING_REQUEST_STATUSES = [
+  'DRAFT',
+  'SUBMITTED',
+  'UNDER_PLATFORM_REVIEW',
+  'RETURNED_FOR_COMPLETION',
+  'FORWARDED_TO_FINANCIER',
+  'UNDER_FINANCIER_REVIEW',
+  'OFFERED',
+  'ACCEPTED',
+  'DECLINED',
+  'EXPIRED',
+  'CANCELLED',
+] as const satisfies readonly FinancingRequestStatus[]
+
+/** Every AccreditationRequest.status value (runtime list form of the union). */
+export const ACCREDITATION_REQUEST_STATUSES = [
+  'DRAFT',
+  'SUBMITTED',
+  'UNDER_PLATFORM_REVIEW',
+  'RETURNED_FOR_COMPLETION',
+  'FORWARDED_TO_FINANCIER',
+  'UNDER_FINANCIER_REVIEW',
+  'ACCREDITED',
+  'REJECTED',
+  'EXPIRED',
+  'REVOKED',
+  'CANCELLED',
+] as const satisfies readonly AccreditationRequestStatus[]

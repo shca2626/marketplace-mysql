@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { recordAudit } from '@/server/modules/audit/service'
+import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
 import { emitNotification } from '@/server/modules/notifications/service'
 import { nextNumber } from '@/server/modules/sequences/service'
 
@@ -155,18 +155,18 @@ export async function generatePayout(adminId: string, sellerId: string) {
       where: { id: { in: items.map((i) => i.id) } },
       data: { payoutId: created.id },
     })
+    await recordAuditTx(tx, {
+      actorId: adminId,
+      actorType: 'ADMIN',
+      action: 'PAYOUT_GENERATED',
+      entityType: 'Payout',
+      entityId: payout.id,
+      summary: `Payout ${payout.number} generated for ${seller.storeName ?? seller.name}: $${Number(payout.netAmount).toFixed(2)} net of $${Number(payout.commission).toFixed(2)} commission`,
+      metadata: { sellerId, itemCount: payout.itemCount, gross: Number(payout.grossAmount) },
+    })
     return created
   })
 
-  await recordAudit({
-    actorId: adminId,
-    actorType: 'ADMIN',
-    action: 'PAYOUT_GENERATED',
-    entityType: 'Payout',
-    entityId: payout.id,
-    summary: `Payout ${payout.number} generated for ${seller.storeName ?? seller.name}: $${Number(payout.netAmount).toFixed(2)} net of $${Number(payout.commission).toFixed(2)} commission`,
-    metadata: { sellerId, itemCount: payout.itemCount, gross: Number(payout.grossAmount) },
-  })
 
   await emitNotification({
     userId: sellerId,

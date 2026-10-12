@@ -16,7 +16,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (rl) return rl
 
   try {
-    const staff = await requireFinancierStaffOrThrow({ id: user!.id })
+    const staff = await requireFinancierStaffOrThrow({ id: user!.id }, 'org.profile.update')
     const { id } = await ctx.params
     const parsed = branchUpdateSchema.safeParse(await req.json())
     if (!parsed.success) {
@@ -42,7 +42,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   if (csrf) return csrf
 
   try {
-    const staff = await requireFinancierStaffOrThrow({ id: user!.id })
+    const staff = await requireFinancierStaffOrThrow({ id: user!.id }, 'org.profile.update')
     const { id } = await ctx.params
     await deactivateBranch(staff, id)
     return NextResponse.json({ ok: true, status: 'deactivated' })

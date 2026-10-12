@@ -8,7 +8,7 @@ import { returnRequest } from '@/server/modules/financing/accreditation'
 // POST /api/admin/financing/accreditation/[id]/return — return the
 // accreditation request to the applicant (body: { reason }).
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const { user, error } = await requireAdmin()
+  const { user, error } = await requireAdmin('financing.gate.review')
   if (error) return error
 
   const csrf = assertSameOrigin(req)

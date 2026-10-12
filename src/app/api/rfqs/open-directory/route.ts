@@ -6,6 +6,10 @@ import { openRfqDirectory, RfqServiceError } from '@/server/modules/rfq/service'
 // live RFQs carrying free-form (productId=null) lines, ranked by keyword match
 // against the seller's ACTIVE catalog. Admins get an empty list (they use the
 // admin monitor, same as the inbox route).
+//
+// MODULE GATE: the `rfq` module must be enabled for the caller's context —
+// requireModule resolves the caller's org chains (union) so an org-type flip
+// steers only that org's people, and unknown keys fail CLOSED.
 export async function GET() {
   const { user, error } = await requireModule('rfq')
   if (error) return error
