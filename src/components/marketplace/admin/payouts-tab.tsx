@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useApi } from '@/hooks/use-api'
+import { useStepUp } from './step-up-guard'
 import { formatDate, formatNumber, formatUSD, timeAgo } from '@/lib/format'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -97,6 +98,9 @@ const vendorLabel = (v: { name: string; storeName: string | null }) => v.storeNa
 // ── Payouts tab ─────────────────────────────────────────────────────────────────
 
 export function PayoutsTab() {
+  // Step-up MFA (6.7.5): settling/cancelling a payout is a sensitive money
+  // action — the guard prompts for a fresh code when the window expires.
+  const { guard: guardStepUp, node: stepUpDialog } = useStepUp()
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounced(search)
   const [statusFilter, setStatusFilter] = useState('')
@@ -139,13 +143,16 @@ export function PayoutsTab() {
     if (!settleFor) return
     const payout = settleFor
     setSettling(true)
-    const res = await apiRequest(`/api/admin/payouts/${payout.id}/${settleMode === 'mark-paid' ? 'mark-paid' : 'cancel'}`, {
-      method: 'POST',
-      body: JSON.stringify(
-        settleMode === 'mark-paid' ? { note: settleNote.trim() || undefined } : { reason: settleNote.trim() || undefined }
-      ),
-    })
+    const res = await guardStepUp(() =>
+      apiRequest(`/api/admin/payouts/${payout.id}/${settleMode === 'mark-paid' ? 'mark-paid' : 'cancel'}`, {
+        method: 'POST',
+        body: JSON.stringify(
+          settleMode === 'mark-paid' ? { note: settleNote.trim() || undefined } : { reason: settleNote.trim() || undefined }
+        ),
+      })
+    )
     setSettling(false)
+    if (!res) return // step-up cancelled / enrollment required
     if (!res.ok) {
       toastApiError(res.error, settleMode === 'mark-paid' ? 'Update failed' : 'Cancel failed')
       return
@@ -165,6 +172,8 @@ export function PayoutsTab() {
 
   return (
     <div className="space-y-5">
+      {/* Step-up MFA dialog (6.7.5) */}
+      {stepUpDialog}
       {/* (a) + (b) config & generate */}
       <div className="grid gap-4 lg:grid-cols-3">
         <CommissionConfigCard />
@@ -493,6 +502,8 @@ export function PayoutsTab() {
 // ── Commission config card ─────────────────────────────────────────────────────
 
 function CommissionConfigCard() {
+  // Step-up MFA (6.7.5): commission config changes the money split — guarded.
+  const { guard: guardStepUp, node: stepUpDialog } = useStepUp()
   const { data, loading, refetch } = useApi<{ config: { defaultCommissionPercent: number } }>('/api/admin/payouts/config')
   const [input, setInput] = useState('')
   const [saving, setSaving] = useState(false)
@@ -516,11 +527,14 @@ function CommissionConfigCard() {
       return
     }
     setSaving(true)
-    const res = await apiRequest<{ config: { defaultCommissionPercent: number } }>('/api/admin/payouts/config', {
-      method: 'PUT',
-      body: JSON.stringify({ defaultCommissionPercent: rate }),
-    })
+    const res = await guardStepUp(() =>
+      apiRequest<{ config: { defaultCommissionPercent: number } }>('/api/admin/payouts/config', {
+        method: 'PUT',
+        body: JSON.stringify({ defaultCommissionPercent: rate }),
+      })
+    )
     setSaving(false)
+    if (!res) return // step-up cancelled / enrollment required
     if (!res.ok) {
       toastApiError(res.error, 'Couldn’t save commission')
       return
@@ -534,6 +548,8 @@ function CommissionConfigCard() {
 
   return (
     <Card>
+      {/* Step-up MFA dialog (6.7.5) */}
+      {stepUpDialog}
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <PercentIcon /> Platform commission
@@ -586,6 +602,8 @@ function PercentIcon() {
 // ── Generate payout card ──────────────────────────────────────────────────────
 
 function GeneratePayoutCard({ onGenerated }: { onGenerated: () => void }) {
+  // Step-up MFA (6.7.5): generating a payout moves money — guarded.
+  const { guard: guardStepUp, node: stepUpDialog } = useStepUp()
   const [vendorQuery, setVendorQuery] = useState('')
   const debouncedQuery = useDebounced(vendorQuery, 250)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -628,11 +646,14 @@ function GeneratePayoutCard({ onGenerated }: { onGenerated: () => void }) {
   const generate = async () => {
     if (!selected) return
     setGenerating(true)
-    const res = await apiRequest<{ payout: { number: string; netAmount: number } }>('/api/admin/payouts/generate', {
-      method: 'POST',
-      body: JSON.stringify({ sellerId: selected.id }),
-    })
+    const res = await guardStepUp(() =>
+      apiRequest<{ payout: { number: string; netAmount: number } }>('/api/admin/payouts/generate', {
+        method: 'POST',
+        body: JSON.stringify({ sellerId: selected.id }),
+      })
+    )
     setGenerating(false)
+    if (!res) return // step-up cancelled / enrollment required
     if (!res.ok || !res.data) {
       toastApiError(res.error, 'Payout not generated')
       return
@@ -650,6 +671,8 @@ function GeneratePayoutCard({ onGenerated }: { onGenerated: () => void }) {
 
   return (
     <Card className="lg:col-span-2">
+      {/* Step-up MFA dialog (6.7.5) */}
+      {stepUpDialog}
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <PiggyBank size={16} className="text-primary" /> Generate a payout

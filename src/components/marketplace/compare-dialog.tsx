@@ -44,7 +44,7 @@ import { cn } from '@/lib/utils'
 const MAX_COMPARE = 4
 
 /** Normalize an attribute value for display + equality checks. */
-function attrValue(v: ProductDTO['attributes'][string] | undefined): string | null {
+function attrValue(v: NonNullable<ProductDTO['attributes']>[string] | undefined): string | null {
   if (v === undefined || v === null || v === '') return null
   if (Array.isArray(v)) return v.length > 0 ? v.join(', ') : null
   if (typeof v === 'boolean') return v ? 'Yes' : 'No'
@@ -85,7 +85,7 @@ function buildRows(items: ProductDTO[]): { rows: Row[]; categoryLabel: string } 
     'essentials',
     items.map((p) => (p.stock === 0 ? 'Sold out' : p.stock <= 5 ? `Only ${p.stock} left` : 'In stock')),
   )
-  push('brand', 'Brand', 'essentials', items.map((p) => p.brand ?? null))
+  push('brand', 'Brand', 'essentials', items.map((p) => p.brand?.name ?? null))
   push('condition', 'Condition', 'essentials', items.map((p) => conditionLabel(p.condition || 'NEW')))
   push('seller', 'Seller', 'essentials', items.map((p) => p.seller?.storeName ?? p.seller?.name ?? null))
   push('category', 'Category', 'essentials', items.map((p) => p.category.name))
@@ -99,7 +99,7 @@ function buildRows(items: ProductDTO[]): { rows: Row[]; categoryLabel: string } 
     'variants',
     'Options',
     'purchasing',
-    items.map((p) => (p.variants.length > 0 ? `${p.variants.length} variants` : null)),
+    items.map((p) => ((p.variants?.length ?? 0) > 0 ? `${p.variants!.length} variants` : null)),
   )
 
   // ── category details (progressive disclosure) ──
@@ -117,7 +117,7 @@ function buildRows(items: ProductDTO[]): { rows: Row[]; categoryLabel: string } 
       def.label,
       'details',
       items.map((p) => {
-        const v = attrValue(p.attributes[def.key])
+        const v = attrValue(p.attributes?.[def.key])
         return v === null ? null : def.type === 'number' ? `${v}${unitSuffix(def)}` : v
       }),
     )

@@ -140,10 +140,12 @@ export type FeeType = 'SUCCESS' | 'ORIGINATION' | 'ACCREDITATION'
 export type FeeStatus = 'ACCRUED' | 'INVOICED' | 'PAID' | 'WAIVED'
 
 /** RequestAttachment.kind. */
-export type RequestAttachmentKind = 'GUARANTEE_DOC' | 'STUDY' | 'PROJECT_FILE' | 'OTHER'
+export const REQUEST_ATTACHMENT_KINDS = ['GUARANTEE_DOC', 'STUDY', 'PROJECT_FILE', 'OTHER'] as const
+export type RequestAttachmentKind = (typeof REQUEST_ATTACHMENT_KINDS)[number]
 
 /** RequestAttachment.parentType (loose-parent Dispute pattern). */
-export type RequestAttachmentParentType = 'FINANCING_REQUEST' | 'ACCREDITATION_REQUEST'
+export const REQUEST_ATTACHMENT_PARENT_TYPES = ['FINANCING_REQUEST', 'ACCREDITATION_REQUEST'] as const
+export type RequestAttachmentParentType = (typeof REQUEST_ATTACHMENT_PARENT_TYPES)[number]
 
 /** FinancierBranch.kind. */
 export type BranchKind = 'BRANCH' | 'AGENT' | 'ATM'

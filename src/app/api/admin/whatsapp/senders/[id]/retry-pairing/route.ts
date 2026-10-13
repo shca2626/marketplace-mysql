@@ -16,6 +16,7 @@ const SENDER_SELECT = {
   status: true,
   isDefault: true,
   pairingCode: true,
+  codeIssuedAt: true,
   lastUsedAt: true,
   lastError: true,
   createdAt: true,

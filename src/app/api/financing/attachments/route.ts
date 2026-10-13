@@ -7,11 +7,11 @@ import { RATE_LIMITS } from '@/lib/rate-limit'
 import { financingError, readJson } from '@/lib/financing-api'
 import { recordAudit } from '@/server/modules/audit/service'
 import {
-  assertApplicant,
   FinancingServiceError,
   REQUEST_ATTACHMENT_KINDS,
   REQUEST_ATTACHMENT_PARENT_TYPES,
 } from '@/server/modules/financing/types'
+import { assertApplicantActor } from '@/server/modules/financing/shared'
 
 // POST /api/financing/attachments — link an AccountDocument from the vault to
 // a request as a free-form attachment (guarantee docs, studies, project
@@ -59,7 +59,11 @@ export async function POST(req: NextRequest) {
       applicantUserId = parent.submittedById
       organizationId = parent.organizationId
     }
-    await assertApplicant(user, applicantUserId, organizationId)
+    // parent owner check: the applicant themself or an ACTIVE org member
+    // (platform admins may attach on behalf of applicants — support flows)
+    if (user.role !== 'ADMIN') {
+      await assertApplicantActor(user.id, { createdById: applicantUserId, organizationId })
+    }
 
     // ── AccountDocument owner check (personal vault or the org's vault) ──
     const doc = await db.accountDocument.findUnique({

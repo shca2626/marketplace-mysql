@@ -3,7 +3,7 @@ import { requireUser } from '@/server/guards'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 import { financingError, readJson } from '@/lib/financing-api'
-import { createDraft, listMine } from '@/server/modules/financing/accreditation'
+import { createAccreditationRequest, listMyAccreditationRequests } from '@/server/modules/financing/accreditation'
 import { ACCREDITATION_REQUEST_STATUSES } from '@/server/modules/financing/types'
 
 // /api/financing/accreditation — the organization's accreditation requests
@@ -20,11 +20,11 @@ export async function GET(req: NextRequest) {
     if (status && !(ACCREDITATION_REQUEST_STATUSES as readonly string[]).includes(status)) {
       return NextResponse.json({ error: 'Unknown accreditation status filter' }, { status: 400 })
     }
-    const result = await listMine(user, {
-      status: status as (typeof ACCREDITATION_REQUEST_STATUSES)[number],
-      page: parseInt(sp.get('page') || '1') || 1,
-    })
-    return NextResponse.json(result)
+    const result = await listMyAccreditationRequests(user.id)
+    const filtered = status
+      ? result.requests.filter((r) => r.status === status)
+      : result.requests
+    return NextResponse.json({ requests: filtered, live: result.live })
   } catch (err) {
     return financingError(err, 'load your accreditation requests')
   }
@@ -41,7 +41,15 @@ export async function POST(req: NextRequest) {
   if (rl) return rl
 
   try {
-    const request = await createDraft(user, await readJson(req))
+    const body = await readJson<{ serviceId?: string; organizationId?: string; scopeNotes?: string | null }>(req)
+    if (!body?.serviceId || !body?.organizationId) {
+      return NextResponse.json({ error: 'serviceId and organizationId are required' }, { status: 400 })
+    }
+    const request = await createAccreditationRequest(user.id, {
+      serviceId: body.serviceId,
+      organizationId: body.organizationId,
+      scopeNotes: body.scopeNotes ?? null,
+    })
     return NextResponse.json({ request }, { status: 201 })
   } catch (err) {
     return financingError(err, 'create the accreditation draft')

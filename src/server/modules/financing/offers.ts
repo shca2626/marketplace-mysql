@@ -622,3 +622,37 @@ export async function getOfferForApplicant(userId: string, offerId: string): Pro
   await assertApplicantActor(userId, offer.request)
   return serializeOffer(offer as never)
 }
+
+/** Expire SENT offers whose validUntil has passed (the offer state machine's
+ * lazy transition, triggered manually via the admin sweep). */
+export async function expireOffersSweep(): Promise<{ expired: number }> {
+  const now = new Date()
+  const res = await db.financingOffer.updateMany({
+    where: { status: 'SENT', validUntil: { lt: now } },
+    data: { status: 'EXPIRED' },
+  })
+  return { expired: res.count }
+}
+
+/** List a request's offers for the APPPPLICANT surface (GET
+ * /api/financing/requests/[id]/offers): the applicant themself or an ACTIVE
+ * org member sees the applicant serialization; platform admins see the same
+ * view (oversight); financier staff must use their own console route
+ * (/api/financier/...) which enforces the R-4 forward gate. */
+export async function listOffers(
+  user: { id: string; role: string },
+  requestId: string
+): Promise<FinancingOfferDTO[]> {
+  const request = await db.financingRequest.findUnique({
+    where: { id: requestId },
+    select: { createdById: true, organizationId: true },
+  })
+  if (!request) throw new FinancingError('Request not found', 404)
+  if (user.role !== 'ADMIN') {
+    await assertApplicantActor(user.id, {
+      createdById: request.createdById,
+      organizationId: request.organizationId,
+    })
+  }
+  return serializeOffersForApplicant(requestId)
+}

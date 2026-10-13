@@ -77,6 +77,12 @@ type ProductRaw = {
   moq?: number | null
   priceTiers?: string | null
   variants?: ProductVariantRaw[]
+  // ── Unified catalog identity (optional — partial selects may omit) ──
+  brand?: { id: string; name: string; slug: string; isVerified: boolean } | null
+  gtin?: string | null
+  mpn?: string | null
+  isCurated?: boolean
+  popularRank?: number | null
   // ── Shared-catalog offer aggregation (optional — partial selects may omit) ──
   offers?: {
     id: string
@@ -143,6 +149,13 @@ export function serializeProduct(p: ProductRaw, favorited = false): ProductDTO {
   }
   return {
     id: p.id,
+    // unified catalog identity (optional pass-throughs — absent when the
+    // query didn't select them)
+    brand: p.brand ?? null,
+    gtin: p.gtin ?? null,
+    mpn: p.mpn ?? null,
+    isCurated: p.isCurated ?? undefined,
+    popularRank: p.popularRank ?? null,
     title: p.title,
     description: p.description,
     price: p.price,

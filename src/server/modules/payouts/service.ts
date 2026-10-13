@@ -236,6 +236,136 @@ export async function cancelPayout(adminId: string, payoutId: string, reason?: s
   return updated
 }
 
+// ── Reversal (Phase 7.4A.2 case (b)) ───────────────────────────────────────
+
+/** Reverse a PAID payout: appends REVERSAL ledger entries, flips the
+ * originals EFFECTIVE → REVERSED and frees the claims so a corrected payout
+ * can reissue. History is never rewritten — corrections are new events. */
+export async function reversePayout(adminId: string, payoutId: string, reason: string) {
+  const payout = await db.payout.findUnique({ where: { id: payoutId }, include: { seller: true, lines: true } })
+  if (!payout) throw new PayoutServiceError('Payout not found', 404)
+  if (payout.status !== 'PAID')
+    throw new PayoutServiceError(
+      `Only a PAID payout can be reversed (this one is ${payout.status}) — cancelled-before-payment payouts release their claims via cancel`,
+      409
+    )
+  const trimmed = (reason ?? '').trim()
+  if (!trimmed) throw new PayoutServiceError('A reversal reason is required', 400)
+
+  const reversible = payout.lines.filter((l) => l.linePurpose !== 'REVERSAL' && l.status === 'EFFECTIVE')
+  const now = new Date()
+
+  const updated = await db.$transaction(
+    async (tx) => {
+      // Append REVERSAL lines per EFFECTIVE settlement line + flip originals —
+      // single pass, reversalOfLineId set at creation (self-FK within the tx).
+      for (const line of reversible) {
+        await tx.payoutLine.create({
+          data: {
+            payoutId,
+            orderItemId: line.orderItemId,
+            linePurpose: 'REVERSAL',
+            amount: line.amount,
+            commission: line.commission,
+            currency: line.currency,
+            fxRate: line.fxRate,
+            fxRateAt: line.fxRateAt,
+            fxSource: line.fxSource,
+            status: 'EFFECTIVE', // the reversal posting is effective with the correction event
+            claimKey: null, // an accounting fact, not a claim — never blocks a reissue
+            reversalOfLineId: line.id,
+            effectiveAt: now,
+          },
+        })
+      }
+      // Originals EFFECTIVE → REVERSED + claims released (same transaction)
+      await tx.payoutLine.updateMany({
+        where: { payoutId, linePurpose: { in: ['SETTLEMENT', 'REISSUE'] }, status: 'EFFECTIVE' },
+        data: { status: 'REVERSED', reversedAt: now, claimKey: null },
+      })
+      await tx.orderItem.updateMany({ where: { payoutId }, data: { payoutId: null } })
+
+      const row = await tx.payout.update({
+        where: { id: payoutId },
+        data: { note: `${payout.note ? payout.note + ' | ' : ''}REVERSED: ${trimmed}`.slice(0, 500) },
+      })
+      await recordAuditTx(tx, {
+        actorId: adminId,
+        actorType: 'ADMIN',
+        action: 'PAYOUT_REVERSED',
+        entityType: 'Payout',
+        entityId: payoutId,
+        summary: `Payout ${payout.number} reversed — ${reversible.length} settlement lines reversed, claims released for reissue (${trimmed})`,
+        metadata: { sellerId: payout.sellerId, reversedLines: reversible.length },
+      })
+      return row
+    },
+    // Remote-Aiven latency: per-line reversal postings need headroom.
+    { timeout: 20_000 }
+  )
+
+  return updated
+}
+
+// ── Detail (Phase 7.4B — the full settlement ledger view) ─────────────────
+
+export async function getPayoutDetail(payoutId: string) {
+  const payout = await db.payout.findUnique({
+    where: { id: payoutId },
+    include: {
+      seller: { select: { id: true, name: true, storeName: true, email: true } },
+      lines: {
+        orderBy: { createdAt: 'asc' },
+        include: { orderItem: { select: { id: true, title: true, quantity: true, price: true, orderId: true } } },
+      },
+    },
+  })
+  if (!payout) throw new PayoutServiceError('Payout not found', 404)
+
+  return {
+    id: payout.id,
+    number: payout.number,
+    seller: payout.seller,
+    periodStart: payout.periodStart.toISOString(),
+    periodEnd: payout.periodEnd.toISOString(),
+    itemCount: payout.itemCount,
+    grossAmount: Number(payout.grossAmount),
+    commissionRate: payout.commissionRate,
+    commission: Number(payout.commission),
+    netAmount: Number(payout.netAmount),
+    currency: payout.currency,
+    status: payout.status,
+    paidAt: payout.paidAt?.toISOString() ?? null,
+    note: payout.note,
+    transferReference: payout.transferReference,
+    transferIdempotencyKey: payout.transferIdempotencyKey,
+    executedAt: payout.executedAt?.toISOString() ?? null,
+    createdAt: payout.createdAt.toISOString(),
+    lines: payout.lines.map((l) => ({
+      id: l.id,
+      linePurpose: l.linePurpose,
+      status: l.status,
+      amount: Number(l.amount),
+      commission: Number(l.commission),
+      currency: l.currency,
+      claimKey: l.claimKey,
+      reversalOfLineId: l.reversalOfLineId,
+      effectiveAt: l.effectiveAt?.toISOString() ?? null,
+      reversedAt: l.reversedAt?.toISOString() ?? null,
+      createdAt: l.createdAt.toISOString(),
+      orderItem: l.orderItem
+        ? {
+            id: l.orderItem.id,
+            title: l.orderItem.title,
+            quantity: l.orderItem.quantity,
+            price: Number(l.orderItem.price),
+            orderId: l.orderItem.orderId,
+          }
+        : null,
+    })),
+  }
+}
+
 // ── Listing ────────────────────────────────────────────────────────────────
 
 export async function listPayouts(filters: { q?: string; status?: string; page?: number; limit?: number }) {

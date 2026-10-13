@@ -7,6 +7,20 @@ import {
   PERMISSION_DOMAINS,
 } from '@/lib/rbac-catalog'
 import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
+import {
+  MembershipError,
+  requireActiveMembership,
+  assertNotLastActiveOwner,
+} from '@/server/membership'
+
+/** Re-throw the canonical membership invariants as RbacServiceError so the
+ * admin route handlers map their status codes correctly (M2 → 403, H2 → 409). */
+function rethrowMembershipAsRbac<T>(promise: Promise<T>): Promise<T> {
+  return promise.catch((e) => {
+    if (e instanceof MembershipError) throw new RbacServiceError(e.message, e.status)
+    throw e
+  })
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RBAC SERVICE — roles, permissions, assignments & staff invitations.
@@ -546,6 +560,11 @@ export async function assignRole(
     if (!org) throw new RbacServiceError('Organization not found', 404)
     organizationId = org.id
     organizationName = org.name
+    // M2 (6.4.1): an org-scoped role may only be granted to an ACTIVE member
+    // of that organization — missing membership, a suspended user, or a
+    // suspended/pending organization all refuse. The predicate lives in
+    // src/server/membership.ts and nowhere else.
+    await rethrowMembershipAsRbac(requireActiveMembership(user.id, organizationId))
   }
 
   const existing = await db.userRole.findUnique({
@@ -605,6 +624,15 @@ export async function revokeAssignment(actor: RbacActor, id: string): Promise<vo
       ctx,
       assignment.role.permissions.map((p) => p.permissionKey),
       `revoke "${assignment.role.name}"`
+    )
+  }
+
+  // H2 (last-active-owner): revoking an org.owner seat must never leave the
+  // organization ownerless — the admin console must grant a new owner FIRST,
+  // then revoke. The invariant lives in src/server/membership.ts.
+  if (assignment.organizationId && assignment.role.key === 'org.owner') {
+    await rethrowMembershipAsRbac(
+      assertNotLastActiveOwner(assignment.organizationId, { excludingUserId: assignment.userId })
     )
   }
 

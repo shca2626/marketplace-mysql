@@ -4,7 +4,7 @@ import { productInclude, serializeProduct } from '@/lib/serialize'
 import { recordAudit } from '@/server/modules/audit/service'
 import { emitNotification } from '@/server/modules/notifications/service'
 import { ensureUniqueSlug, slugify, productFormSchema, type ProductTx } from '@/server/modules/products/service'
-import { CatalogError, createBrand } from '@/server/modules/catalog/service'
+import { CatalogError, createBrand, ensureCatalogAccount } from '@/server/modules/catalog/admin-catalog'
 
 /**
  * PHASE 9.2 + 9.3 — the admin product console backend ("moderation with teeth").
@@ -151,9 +151,12 @@ export async function createAdminCuratedProduct(adminId: string, input: AdminPro
     const row = await tx.product.create({
       data: {
         ...productWriteData(input, { slug, brandId }),
-        // 9.1 ownership model: null seller = platform-curated catalog record,
-        // purchasable ONLY via a real vendor's ACTIVE ProductOffer.
-        sellerId: null,
+        // Platform-curated catalog record: the seller of record is the
+        // Vendora Catalog SYSTEM account (Product.sellerId is NOT NULL in
+        // this lineage's schema — the Phase-4 model; a curated record is
+        // purchasable via a real vendor's ACTIVE ProductOffer, exactly as
+        // createCuratedProduct in admin-catalog.ts does it).
+        sellerId: (await ensureCatalogAccount()).id,
         curatedById: adminId,
         isCurated: true,
         status,
@@ -176,7 +179,7 @@ export async function createAdminCuratedProduct(adminId: string, input: AdminPro
     entityId: created!.id,
     summary: `Admin created curated catalog record "${created!.title}"`,
     metadata: {
-      sellerId: null,
+      sellerId: 'vendora-catalog-account',
       curatedById: adminId,
       status,
       brandId,

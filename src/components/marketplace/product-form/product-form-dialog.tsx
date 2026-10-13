@@ -131,7 +131,7 @@ function fromProduct(p: ProductDTO): FormState {
     title: p.title,
     description: p.description,
     categoryId: p.categoryId,
-    brand: p.brand ?? '',
+    brand: p.brand?.name ?? '',
     condition: p.condition || 'NEW',
     tags: [...(p.tags ?? [])],
     price: String(p.price),

@@ -897,3 +897,76 @@ export async function gateReady(
   const blockers = await listGateBlockers(client, parentType, requestId)
   return { ready: blockers.length === 0, missing: blockers.map((b) => ({ submissionId: b.id })) }
 }
+
+// ── Request checklist (applicant-facing) ────────────────────────────────────
+
+export interface ChecklistItemDTO {
+  requirementId: string
+  isRequired: boolean
+  conditionType: string
+  title: string
+  documentType: string | null
+  instructions: string | null
+  submissionId: string | null
+  status: string | null
+  decisionNote: string | null
+  submittedAt: string | null
+  verifiedAt: string | null
+}
+
+/** Full checklist for a request/accreditation: every ACTIVE requirement of its
+ * service joined with the parent's current submission verdict per row
+ * (submissionId null = not yet generated/answered). UNGUARDED by design —
+ * callers enforce parent-level access (see the checklist route).
+ *   GET /api/financing/requests/[id]/checklist */
+export async function listChecklist(
+  parent: { type: 'FINANCING' | 'ACCREDITATION'; id: string }
+): Promise<ChecklistItemDTO[]> {
+  const parentRow = await (parent.type === 'FINANCING'
+    ? db.financingRequest.findUnique({
+        where: { id: parent.id },
+        select: { id: true, serviceId: true },
+      })
+    : db.accreditationRequest.findUnique({
+        where: { id: parent.id },
+        select: { id: true, serviceId: true },
+      }))
+  if (!parentRow) throw new FinancingError("Request not found", 404)
+
+  const requirements = await db.serviceRequirement.findMany({
+    where: { serviceId: parentRow.serviceId, isActive: true },
+    include: { conditionTemplate: { select: { conditionType: true, title: true, documentType: true } } },
+    orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+  })
+  const submissions = await db.requirementSubmission.findMany({
+    where:
+      parent.type === 'FINANCING'
+        ? { financingRequestId: parent.id }
+        : { accreditationRequestId: parent.id },
+    select: {
+      id: true,
+      serviceRequirementId: true,
+      status: true,
+      decisionNote: true,
+      submittedAt: true,
+      verifiedAt: true,
+    },
+  })
+  const byRequirement = new Map(submissions.map((s) => [s.serviceRequirementId, s]))
+  return requirements.map((r) => {
+    const s = byRequirement.get(r.id)
+    return {
+      requirementId: r.id,
+      isRequired: r.isRequired,
+      conditionType: r.conditionTemplate.conditionType,
+      title: r.conditionTemplate.title,
+      documentType: r.conditionTemplate.documentType,
+      instructions: r.instructions,
+      submissionId: s?.id ?? null,
+      status: s?.status ?? null,
+      decisionNote: s?.decisionNote ?? null,
+      submittedAt: s?.submittedAt?.toISOString() ?? null,
+      verifiedAt: s?.verifiedAt?.toISOString() ?? null,
+    }
+  })
+}

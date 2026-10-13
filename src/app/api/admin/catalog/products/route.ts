@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/server/guards'
-import { createCuratedProduct, CatalogError } from '@/server/modules/catalog/service'
+import { createCuratedProduct, CatalogError } from '@/server/modules/catalog/admin-catalog'
 import { productInclude, serializeProduct } from '@/lib/serialize'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 

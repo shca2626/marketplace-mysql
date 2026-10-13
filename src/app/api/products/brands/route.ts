@@ -8,18 +8,28 @@ const CACHE_KEY = 'brands:v1'
 
 export async function GET() {
   try {
+    // brand is a RELATION in this schema — distinct brands with ACTIVE
+    // listings resolve through brandId → Brand.name (bounded: one join query).
     const rows = await cached(
       CACHE_KEY,
-      () =>
-        db.product.findMany({
-          where: { status: 'ACTIVE', brand: { not: null } },
-          select: { brand: true },
-          distinct: ['brand'],
-          orderBy: { brand: 'asc' },
-        }),
+      async () => {
+        const products = await db.product.findMany({
+          where: { status: 'ACTIVE', brandId: { not: null } },
+          select: { brandId: true },
+          distinct: ['brandId'],
+          take: 500,
+        })
+        const ids = [...new Set(products.map((p) => p.brandId).filter((b): b is string => b !== null))]
+        if (ids.length === 0) return [] as { id: string; name: string }[]
+        return db.brand.findMany({
+          where: { id: { in: ids } },
+          select: { id: true, name: true },
+          orderBy: { name: 'asc' },
+        })
+      },
       { ttlMs: 5 * 60_000, tags: [CACHE_TAGS.products] },
     )
-    const brands = rows.map((r) => r.brand).filter((b): b is string => Boolean(b))
+    const brands = rows.map((r) => r.name).filter((b): b is string => Boolean(b))
     return NextResponse.json({ brands }, { headers: { 'X-Cache': peekCache(CACHE_KEY) ? 'HIT' : 'MISS' } })
   } catch (err) {
     console.error('brands GET error', err)

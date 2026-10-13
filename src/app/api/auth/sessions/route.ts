@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { cookies } from 'next/headers'
 import { db } from '@/lib/db'
-import { getSessionUser, SESSION_COOKIE, revokeSessionByToken, currentSessionToken } from '@/lib/auth'
+import { getSessionUser, SESSION_COOKIE } from '@/lib/auth'
 import { assertSameOrigin } from '@/lib/http'
 import { sha256Hex } from '@/lib/secret-box'
 import { recordAuditTx } from '@/server/modules/audit/service'
@@ -63,7 +63,7 @@ export async function DELETE(req: NextRequest) {
 
     if (all) {
       // Revoke every OTHER session (the current one survives).
-      const currentHash = sha256Hex((await currentSessionToken()) ?? '')
+      const currentHash = sha256Hex((await cookies()).get(SESSION_COOKIE)?.value ?? '')
       // 6.11: revocation + audit row commit atomically (coverage addition).
       const res = await db.$transaction(async (tx) => {
         const r = await tx.sessionRegistry.updateMany({
@@ -109,9 +109,8 @@ export async function DELETE(req: NextRequest) {
       })
     })
     // If the revoked row is the CURRENT browser's, clear the cookie too.
-    const currentHash = sha256Hex((await currentSessionToken()) ?? '')
+    const currentHash = sha256Hex((await cookies()).get(SESSION_COOKIE)?.value ?? '')
     if (row.tokenHash === currentHash) {
-      await revokeSessionByToken(await currentSessionToken(), 'REVOKED_BY_USER')
       const cookieStore = await cookies()
       cookieStore.delete(SESSION_COOKIE)
     }

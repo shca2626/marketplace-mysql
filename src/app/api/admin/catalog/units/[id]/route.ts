@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAdmin } from '@/server/guards'
-import { updateUnit, deleteUnit, CatalogError } from '@/server/modules/catalog/service'
+import { updateUnit, deleteUnit, CatalogError } from '@/server/modules/catalog/admin-catalog'
 import { assertSameOrigin } from '@/lib/http'
 
 const patchSchema = z.object({

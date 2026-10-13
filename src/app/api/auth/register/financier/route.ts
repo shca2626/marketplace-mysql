@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { hashPassword, getSessionUser, setSessionCookie, toSessionUser } from '@/lib/auth'
-import { assertSameOrigin, enforceRateLimit, clientIp } from '@/lib/http'
+import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 import { recordAudit } from '@/server/modules/audit/service'
 import { buildSessionRbac } from '@/server/modules/rbac/service'
@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         )
       }
-      const phoneTaken = await db.user.findUnique({ where: { phone }, select: { id: true } })
+      const phoneTaken = await db.user.findFirst({ where: { phone }, select: { id: true } })
       if (phoneTaken) {
         return NextResponse.json(
           { error: 'This phone number is already registered. Sign in first, then file the application.' },
@@ -144,10 +144,14 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: 'An account with this email already exists' }, { status: 409 })
         }
       }
+      // User.email is NOT NULL in this schema — phone-first applicants get a
+      // deterministic placeholder until KYC collects a real address (unique per
+      // phone; the login door is phone+OTP so the placeholder never surfaces).
+      const email = input.contactEmail ?? `${phone}@financier.vendora.local`
       const createdUser = await db.user.create({
         data: {
           name: input.contactName,
-          email: input.contactEmail ?? null,
+          email,
           phone,
           phoneVerifiedAt: new Date(),
           kycLevel: 1,
@@ -164,10 +168,7 @@ export async function POST(req: NextRequest) {
         summary: `New financier applicant registered: ${phone}`,
         metadata: { phone, kycLevel: 1, via: 'financier-door' },
       })
-      await setSessionCookie(createdUser.id, createdUser.sessionVersion, {
-        userAgent: req.headers.get('user-agent'),
-        ip: clientIp(req),
-      })
+      await setSessionCookie(createdUser.id, createdUser.sessionVersion)
       applicantId = createdUser.id
       applicantPhone = phone
     }

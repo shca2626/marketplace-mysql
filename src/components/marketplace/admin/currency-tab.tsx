@@ -119,7 +119,7 @@ export function CurrencyTab({ onViewHistory }: { onViewHistory?: (code: string) 
     })
     setRefreshing(false)
     if (!res.ok || !res.data) {
-      toastApiError(res)
+      toastApiError(res.error)
       return
     }
     if (res.data.result.failed) {
@@ -144,7 +144,7 @@ export function CurrencyTab({ onViewHistory }: { onViewHistory?: (code: string) 
     })
     setBusyCode(null)
     if (!res.ok) {
-      toastApiError(res)
+      toastApiError(res.error)
       return
     }
     toast({ title: `${manualRow.code} rate pinned`, description: `1 USD = ${rate} ${manualRow.code} (manual override)` })
@@ -160,7 +160,7 @@ export function CurrencyTab({ onViewHistory }: { onViewHistory?: (code: string) 
     })
     setBusyCode(null)
     if (!res.ok) {
-      toastApiError(res)
+      toastApiError(res.error)
       return
     }
     toast({ title: `${code} back on live rates`, description: 'Manual override removed — feed rate restored.' })
@@ -175,7 +175,7 @@ export function CurrencyTab({ onViewHistory }: { onViewHistory?: (code: string) 
     })
     setBusyCode(null)
     if (!res.ok) {
-      toastApiError(res)
+      toastApiError(res.error)
       return
     }
     void refetch()
@@ -188,7 +188,7 @@ export function CurrencyTab({ onViewHistory }: { onViewHistory?: (code: string) 
       body: JSON.stringify({ meta: { code: row.code, displayDecimals: next } }),
     })
     setBusyCode(null)
-    if (!res.ok) toastApiError(res)
+    if (!res.ok) toastApiError(res.error)
     else void refetch()
   }
 
@@ -205,7 +205,7 @@ export function CurrencyTab({ onViewHistory }: { onViewHistory?: (code: string) 
     })
     setSavingSettings(false)
     if (!res.ok) {
-      toastApiError(res)
+      toastApiError(res.error)
       return
     }
     toast({ title: 'Auto-refresh window saved', description: `Stale rates refresh themselves after ${minutes} minutes.` })
@@ -324,12 +324,11 @@ export function CurrencyTab({ onViewHistory }: { onViewHistory?: (code: string) 
                 icon={Coins}
                 title="Failed to load currencies"
                 description={error}
-                action={
-                  <Button variant="outline" size="sm" onClick={() => void refetch()}>
-                    <RefreshCw size={14} /> Retry
-                  </Button>
-                }
-              />
+              >
+                <Button variant="outline" size="sm" className="mt-4" onClick={() => void refetch()}>
+                  <RefreshCw size={14} /> Retry
+                </Button>
+              </AdminEmptyState>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -459,7 +458,7 @@ export function CurrencyTab({ onViewHistory }: { onViewHistory?: (code: string) 
               Manual rate — {manualRow?.code} {manualRow ? `(${manualRow.name})` : ''}
             </DialogTitle>
             <DialogDescription>
-              Pin an exact exchange rate (e.g. {manualRow ? rateLabel({ ...manualRow, rateToUsd: 535.5 }) : ''}).
+              Pin an exact exchange rate (e.g. {manualRow ? rateLabel({ ...manualRow, symbol: manualRow.symbol ?? '', rateToUsd: 535.5 }) : ''}).
               Live refresh will skip this currency until you reset it.
             </DialogDescription>
           </DialogHeader>

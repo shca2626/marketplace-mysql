@@ -71,14 +71,14 @@ async function main() {
   const steps: Array<{ step: string; statement: string; result: string }> = []
 
   // ── pre-state inventory ────────────────────────────────────────────────────
-  const [preConstraints] = await conn.query(
+  const [preConstraints] = (await conn.query(
     `SELECT CONSTRAINT_NAME, CONSTRAINT_TYPE FROM information_schema.TABLE_CONSTRAINTS
      WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = 'AccreditationRequest'`
-  )
-  const preTriggers = await conn.query(
+  )) as unknown as [any[]]
+  const preTriggers = (await conn.query(
     `SELECT TRIGGER_NAME FROM information_schema.TRIGGERS
      WHERE TRIGGER_SCHEMA = DATABASE() AND EVENT_OBJECT_TABLE = 'AccreditationRequest'`
-  )
+  )) as unknown as [any[]]
   const [preRows] = await conn.query(
     'SELECT id, number, status, activeKey FROM AccreditationRequest'
   )

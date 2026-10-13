@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/server/guards'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { financingError } from '@/server/modules/financing/catalog'
-import { acceptOffer } from '@/server/modules/financing/requests'
+import { acceptOffer } from '@/server/modules/financing/offers'
 
 // POST /api/financing/offers/[id]/accept — the applicant accepts a SENT offer.
 // Sibling requests in the same multiGroupId auto-decline; an AGR- agreement

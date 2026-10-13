@@ -34,6 +34,15 @@ export type NotificationType =
   | 'VENDOR_STATUS' // seller: platform verified / suspended / reactivated your account
   | 'PAYMENT_STATUS' // buyer: payment captured, failed or awaiting confirmation
   | 'PAYOUT_STATUS' // seller: a payout was created or marked paid
+  | 'PRODUCT_ADMIN_EDIT' // seller: the platform edited/archived/restored/deleted your listing (reason included)
+  | 'APPLICATION_RECEIVED' // Phase 3 registration doors: merchant/financier application accepted for review
+  | 'PRODUCT_REVIEW_STATUS' // seller: listing passed/failed platform publish review
+  | 'OFFER_REVIEW_STATUS' // seller: offer on a catalog product passed/failed review
+  | 'SERVICE_REVIEW_STATUS' // financier: service passed/failed platform review
+  | 'DOCUMENT_EXPIRING' // owner: a verified vault document nears/passes expiry
+  | 'CERTIFICATION_STATUS' // seller: a product certification was verified/rejected
+  | 'KYC_LEVEL_UP' // user: verification level increased (L2/L3 unlocked)
+  | 'REFUND_STATUS' // buyer: refund requested / approved / completed / denied (Phase 7.7)
   // ── intermediary model (§8) + §9.5 order-event trail ──
   | 'ORDER_STATUS' // order parties: fulfillment advanced (processing/shipped/delivered)
   | 'SETTLEMENT_STATUS' // settlement parties: declared / confirmed / disputed / evidence

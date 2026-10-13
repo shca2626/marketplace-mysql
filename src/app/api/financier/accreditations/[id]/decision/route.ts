@@ -4,11 +4,7 @@ import { requireUser } from '@/server/guards'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { requireFinancierStaffOrThrow } from '@/server/modules/financing/guards'
 import { financingError } from '@/server/modules/financing/catalog'
-import {
-  grantAccreditation,
-  rejectAccreditation,
-  revokeAccreditation,
-} from '@/server/modules/financing/accreditation'
+import { decideAccreditation } from '@/server/modules/financing/accreditation'
 
 // POST /api/financier/accreditations/[id]/decision — the financier decides.
 //   { decision: 'grant' | 'reject' | 'revoke', note, validMonths? }
@@ -42,7 +38,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (rl) return rl
 
   try {
-    const staff = await requireFinancierStaffOrThrow({ id: user!.id }, 'financier.accreditations.manage')
+    // RBAC pre-gate (financier.* runtime governance) — decideAccreditation
+    // re-resolves the caller's authority over this request internally.
+    await requireFinancierStaffOrThrow({ id: user!.id }, 'financier.accreditations.manage')
     const { id } = await ctx.params
     const parsed = decisionSchema.safeParse(await req.json())
     if (!parsed.success) {
@@ -53,20 +51,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
     const { decision, note } = parsed.data
 
-    if (decision === 'grant') {
-      const result = await grantAccreditation({ staff, requestId: id, note: note ?? null })
-      return NextResponse.json(result)
-    }
-    if (decision === 'reject') {
-      const result = await rejectAccreditation({ staff, requestId: id, note: note! })
-      return NextResponse.json(result)
-    }
-    const result = await revokeAccreditation({
-      actor: { id: user!.id, role: user!.role },
-      requestId: id,
-      reason: note!,
+    const action = decision === 'grant' ? 'GRANT' : decision === 'reject' ? 'REJECT' : 'REVOKE'
+    const request = await decideAccreditation(user!.id, id, {
+      action,
+      note: note ?? undefined,
     })
-    return NextResponse.json(result)
+    return NextResponse.json({ request })
   } catch (err) {
     const svc = financingError(err)
     if (svc) return NextResponse.json({ error: svc.message }, { status: svc.status })

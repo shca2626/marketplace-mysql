@@ -59,11 +59,11 @@ type ServiceRow = {
   targetSegment: string | null
   status: string
   currency: string
-  amountMin: { toNumber(): number } | null
-  amountMax: { toNumber(): number } | null
+  amountMin: number | null
+  amountMax: number | null
   rateType: string | null
-  rateMax: { toNumber(): number } | null
-  feeFlat: { toNumber(): number } | null
+  rateMax: number | null
+  feeFlat: number | null
   tenorMinMonths: number | null
   tenorMaxMonths: number | null
   repaymentFrequency: string | null
@@ -71,7 +71,7 @@ type ServiceRow = {
   shariaCompliant: boolean
   processingDays: number | null
   accreditationValidMonths: number | null
-  accreditationFeeAmount: { toNumber(): number } | null
+  accreditationFeeAmount: number | null
   viewCount: number
   createdAt: Date
   updatedAt: Date
@@ -312,8 +312,8 @@ type BranchRow = {
   street: string | null
   city: string | null
   district: string | null
-  latitude: { toNumber(): number } | null
-  longitude: { toNumber(): number } | null
+  latitude: number | null
+  longitude: number | null
   phone: string | null
   isActive: boolean
   position: number
@@ -695,14 +695,16 @@ function serializeTemplate(t: {
   }
 }
 
-/** Compose a service checklist as LABELS ONLY — the wizard's public view. */
+/** Compose a service checklist as LABELS ONLY — the wizard's public view.
+ * Input = the ServiceRequirement row with its conditionTemplate included
+ * (what composeServiceChecklist returns). */
 function toPublicRequirement(r: {
   id: string
   isRequired: boolean
   displayOrder: number
   instructions: string | null
   autoPassAccredited: boolean
-  template: {
+  conditionTemplate: {
     conditionType: string
     title: string
     description: string | null
@@ -730,7 +732,7 @@ function toPublicRequirement(r: {
     isRepeatable: r.conditionTemplate.isRepeatable,
     autoPassAccredited: r.autoPassAccredited,
     displayOrder: r.displayOrder,
-    options: [...r.template.options].sort((a, b) => a.position - b.position).map((o) => ({ value: o.value, position: o.position })),
+    options: [...r.conditionTemplate.options].sort((a, b) => a.position - b.position).map((o) => ({ value: o.value, position: o.position })),
   }
 }
 
@@ -904,8 +906,13 @@ export async function getFinancierAccreditationDetail(
   }
 
   const submissions = request.submissions
+    .slice()
+    .sort(
+      (a, b) =>
+        (a.serviceRequirement?.displayOrder ?? 0) - (b.serviceRequirement?.displayOrder ?? 0) ||
+        a.createdAt.getTime() - b.createdAt.getTime()
+    )
     .map((s) => serializeSubmission(s))
-    .sort((a, b) => a.displayOrder - b.displayOrder)
 
   return {
     id: request.id,

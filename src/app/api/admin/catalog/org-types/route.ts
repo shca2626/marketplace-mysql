@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/server/guards'
-import { listOrgTypes } from '@/server/modules/catalog/service'
+import { listOrgTypes } from '@/server/modules/catalog/admin-catalog'
 
 // GET /api/admin/catalog/org-types — the organization-type dictionary
 // (seeded from the enum keys on first call; display metadata is admin-managed).

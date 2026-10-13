@@ -52,7 +52,7 @@ async function loader() {
     db.product.findMany({
       where: {
         status: 'ACTIVE',
-        OR: [{ sellerId: null }, { seller: { status: 'ACTIVE' } }],
+        seller: { status: 'ACTIVE' },
         brandId: { not: null },
       },
       select: {

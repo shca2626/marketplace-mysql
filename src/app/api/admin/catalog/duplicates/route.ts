@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/server/guards'
-import { findDuplicates } from '@/server/modules/catalog/service'
+import { findDuplicates } from '@/server/modules/catalog/admin-catalog'
 
 // GET /api/admin/catalog/duplicates — duplicate governance scan.
 // Strong pairs: same GTIN or same MPN (same category). Candidates: ≥0.75 title

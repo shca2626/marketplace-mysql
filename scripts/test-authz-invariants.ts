@@ -12,6 +12,7 @@
 import { randomBytes } from 'crypto'
 import { db } from '../src/lib/db'
 import { userHasOrgPermission, isModuleEnabled } from '../src/server/authz/evaluator'
+import { invalidateModuleCache } from '../src/server/modules/modules/service'
 import { COMPANY_ORG_PERMISSIONS, FINANCIER_ORG_PERMISSIONS, ALL_ORG_PERMISSIONS, ALL_PLATFORM_PERMISSIONS } from '../src/lib/rbac-catalog'
 import {
   listOrgMembers, changeMemberRole, removeMember, leaveOrganization,
@@ -374,18 +375,26 @@ async function main() {
   console.log('── 7. Module gates ──')
   const modKey = `inv8-test-${SUFFIX}`
   await db.moduleDefinition.create({ data: { key: modKey, name: 'INV8 test module', description: 'fixture', isActive: true, core: false, defaultOn: true } })
+  invalidateModuleCache() // direct DB writes bypass the admin service — drop the 30s resolver cache
   fixture.moduleKeys.push(modKey)
   check('module defaults ON (defaultOn)', await isModuleEnabled(modKey))
   await db.moduleActivation.create({ data: { moduleKey: modKey, scopeType: 'PLATFORM', scopeId: '', enabled: false } })
+  invalidateModuleCache()
   check('PLATFORM-level disable turns it off', !(await isModuleEnabled(modKey)))
   await db.moduleActivation.create({ data: { moduleKey: modKey, scopeType: 'ORG_TYPE', scopeId: 'COMPANY', enabled: true } })
+  invalidateModuleCache()
   // the ORG_TYPE scope only applies when a context carries an active org
   const orgCtx = { activeOrg: { orgType: 'COMPANY', id: 'ctx-org' } } as never
   check('ORG_TYPE override beats PLATFORM (most specific wins)', await isModuleEnabled(modKey, orgCtx))
   check('without an org context the PLATFORM disable still holds', !(await isModuleEnabled(modKey)))
   await db.moduleActivation.create({ data: { moduleKey: modKey, scopeType: 'ORG', scopeId: 'ctx-org', enabled: true } })
+  invalidateModuleCache()
   check('ORG-level override beats ORG_TYPE', await isModuleEnabled(modKey, orgCtx))
-  check('unknown module keys default OPEN (documented fail-open)', await isModuleEnabled('inv8-never-defined-xyz'))
+  // Phase 6.3 (hardened): unknown module keys fail CLOSED — a typo in a
+  // requireModule() call must never grant access. The evaluator is now a
+  // delegate of the modules service (the old divergent fail-open copy is
+  // gone — see evaluator.ts comment).
+  check('unknown module keys fail CLOSED (config errors never grant access)', !(await isModuleEnabled('inv8-never-defined-xyz')))
 
   // ═══ 8. Approval separation / no-self-approval ═══
   console.log('── 8. Approval separation ──')

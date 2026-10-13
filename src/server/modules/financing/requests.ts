@@ -1287,3 +1287,34 @@ export const adminOpenReview = (input: { admin: { id: string; role: string }; re
 /** Applicant re-submit after a gate return — the verify-financing call shape. */
 export const resubmitAfterReturn = (input: { user: { id: string; role: string }; requestId: string }) =>
   resubmitFinancingRequest(input.user.id, input.requestId)
+
+// ── Lazy-expiry sweep (FIN-8) ────────────────────────────────────────────────
+
+/** Expire pre-terminal requests whose expiresAt has passed (manual admin
+ * trigger via POST /api/admin/financing/sweep; the same transitions also run
+ * lazily on read paths). Returns the number of rows flipped. */
+export async function expireSweep(): Promise<{ expired: number }> {
+  const now = new Date()
+  // Pre-forward states (SUBMITTED / UNDER_PLATFORM_REVIEW / RETURNED_FOR_
+  // COMPLETION) plus the financier-facing states whose offer window lapsed
+  // (FORWARDED_TO_FINANCIER / UNDER_FINANCIER_REVIEW / OFFERED) — any
+  // non-terminal state carrying an expiresAt that has passed flips to
+  // EXPIRED, matching the state machine diagram above.
+  const res = await db.financingRequest.updateMany({
+    where: {
+      status: {
+        in: [
+          'SUBMITTED',
+          'UNDER_PLATFORM_REVIEW',
+          'RETURNED_FOR_COMPLETION',
+          'FORWARDED_TO_FINANCIER',
+          'UNDER_FINANCIER_REVIEW',
+          'OFFERED',
+        ],
+      },
+      expiresAt: { lt: now },
+    },
+    data: { status: 'EXPIRED' },
+  })
+  return { expired: res.count }
+}

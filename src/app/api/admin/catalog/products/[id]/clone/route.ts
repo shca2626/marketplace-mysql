@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/server/guards'
-import { cloneProductAsCurated, CatalogError } from '@/server/modules/catalog/service'
+import { cloneProductAsCurated, CatalogError } from '@/server/modules/catalog/admin-catalog'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 
 // POST /api/admin/catalog/products/[id]/clone — deep-copy any listing into a

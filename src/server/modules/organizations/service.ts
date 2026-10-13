@@ -1,5 +1,11 @@
 import { db } from '@/lib/db'
 import { recordAudit } from '@/server/modules/audit/service'
+import {
+  changeMemberRole,
+  removeMember,
+  OrgRbacError,
+  type OrgMemberDTO,
+} from '@/server/modules/org-rbac/service'
 import type { OrganizationDTO, OrganizationMemberDTO, OrgRole } from '@/lib/types'
 
 /**
@@ -600,4 +606,45 @@ export async function adminDeleteOrganization(adminId: string, orgId: string): P
     summary: `Organization "${org.name}" deleted`,
     metadata: { name: org.name, slug: org.slug, members: org._count.members },
   })
+}
+
+// ── Self-service member management (TENANT-AUDIT Q4) ────────────────────────
+
+/** Thin adapters over the CANONICAL org-rbac service (the M2/H2 invariants,
+ * UserRole sync and audits live there) so the organizations REST surface can
+ * expose member removal + role changes for plain COMPANY orgs. */
+export async function removeOrganizationMember(
+  organizationId: string,
+  actorUserId: string,
+  memberUserId: string
+): Promise<{ memberId: string }> {
+  try {
+    await removeMember(actorUserId, organizationId, memberUserId)
+    return { memberId: memberUserId }
+  } catch (e) {
+    if (e instanceof OrgRbacError) throw new OrgServiceError(e.message, e.status)
+    throw e
+  }
+}
+
+export async function updateOrganizationMemberRole(
+  organizationId: string,
+  actorUserId: string,
+  memberUserId: string,
+  patch: { role: OrgRole; jobTitle?: string | null }
+): Promise<OrgMemberDTO> {
+  try {
+    const member = await changeMemberRole(actorUserId, organizationId, memberUserId, patch.role)
+    if (patch.jobTitle !== undefined) {
+      await db.organizationMember.update({
+        where: { id: member.id },
+        data: { jobTitle: patch.jobTitle },
+      })
+      return { ...member, jobTitle: patch.jobTitle }
+    }
+    return member
+  } catch (e) {
+    if (e instanceof OrgRbacError) throw new OrgServiceError(e.message, e.status)
+    throw e
+  }
 }

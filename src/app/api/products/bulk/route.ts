@@ -229,6 +229,10 @@ export async function POST(req: NextRequest) {
       invalidateTags(CACHE_TAGS.products)
       return NextResponse.json({ deleted, archived })
     }
+
+    // Exhaustiveness fallback — keeps the inferred return type exactly
+    // Promise<NextResponse> (no undefined) for route-typed test callers.
+    return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   } catch (err) {
     console.error('products bulk error', err)
     return NextResponse.json({ error: 'Bulk operation failed' }, { status: 500 })

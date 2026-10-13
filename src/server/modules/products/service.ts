@@ -127,6 +127,11 @@ export const productFormSchema = z.object({
     .max(20, 'Too many price tiers (max 20)')
     .optional(),
   variants: z.array(variantSchema).max(100, 'Too many variants (max 100)').optional(),
+
+  // ── Unified catalog identity (Phase 4: sellers may supply GTIN/MPN as
+  // dedup keys; brand linkage is set by admins in the Catalog console) ──
+  gtin: z.string().trim().max(20).regex(/^[0-9Xx]*$/, 'GTIN must be digits (EAN/UPC)').optional().nullable(),
+  mpn: z.string().trim().max(64).optional().nullable(),
 })
 
 import type { Prisma } from '@prisma/client'

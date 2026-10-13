@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * scripts/rbac-reconcile-report.ts — READ-ONLY reconciliation evidence for the
  * audit's item 5: org-type-invalid role assignments, dormant assignments,

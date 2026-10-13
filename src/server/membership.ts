@@ -117,8 +117,11 @@ export async function isActiveOwner(
 ): Promise<boolean> {
   const member = await tx.organizationMember.findUnique({
     where: { organizationId_userId: { organizationId, userId } },
-    select: { role: true },
-    include: { user: { select: { status: true } }, organization: { select: { status: true } } },
+    select: {
+      role: true,
+      user: { select: { status: true } },
+      organization: { select: { status: true } },
+    },
   })
   if (!member || member.role !== 'OWNER') return false
   return member.user.status === 'ACTIVE' && member.organization.status === 'ACTIVE'

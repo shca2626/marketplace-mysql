@@ -34,6 +34,16 @@ export {
   validityLeft,
 } from '@/components/marketplace/financier/shared'
 
+// ── Applicant contracts (FIN-6 DTO mirrors) ─────────────────────────────────
+// Historically `shared.ts` sat next to this file and SHADOWED it in module
+// resolution ('./shared' prefers .ts over .tsx) — importers mixed symbols from
+// both barrels and every .tsx-side import failed tsc. The applicant contracts
+// now live in `shared-applicant.ts` and are re-exported here so './shared' is
+// ONE canonical barrel again. Overlapping names (ChecklistAnswer,
+// ApplicantProfileDTO) resolve to the local definitions above (superset
+// shapes) — the star re-export yields to explicit exports.
+export * from './shared-applicant'
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Applicant-side DTO mirrors (JSON shapes of /api/financing/*)
 // ═══════════════════════════════════════════════════════════════════════════

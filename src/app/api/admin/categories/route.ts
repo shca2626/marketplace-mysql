@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/server/guards'
-import { createCategory, CatalogError } from '@/server/modules/catalog/service'
+import { createCategory, CatalogError } from '@/server/modules/catalog/admin-catalog'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 
 // GET /api/admin/categories — full category list with product + spec counts.

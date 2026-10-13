@@ -5,6 +5,14 @@ export interface SessionUser {
   name: string
   email: string
   role: Role
+  /** Phase 3: normalized E.164 (+967XXXXXXXXX) — set for phone-first accounts. */
+  phone?: string | null
+  /** Phase 3: set by OTP verification (L1 evidence). */
+  phoneVerifiedAt?: string | null
+  /** Phase 3: 0=L0 · 1=L1 phone · 2=L2 identity · 3=L3 business. */
+  kycLevel?: number
+  /** Phase 3: EXCLUSIVE_AGENT | AUTHORIZED_AGENT | DISTRIBUTOR | WHOLESALER | RETAILER. */
+  merchantType?: string | null
   image?: string | null
   storeName?: string | null
   storeBio?: string | null
@@ -145,9 +153,23 @@ export interface ProductDTO {
   metaDescription?: string | null
   variants?: ProductVariantDTO[]
 
+  // ── Unified catalog identity (optional — older rows / partial selects) ──
+  /** Platform-managed brand linkage ("what it is" layer). */
+  brand?: { id: string; name: string; slug: string; isVerified: boolean } | null
+  /** Normalized EAN/UPC/GTIN — dedup/merge key. */
+  gtin?: string | null
+  /** Manufacturer part number — dedup key. */
+  mpn?: string | null
+  /** Platform-curated listing (admin-created/adopted). */
+  isCurated?: boolean
+  /** Homepage popular-products ordering; null = unranked. */
+  popularRank?: number | null
+  /** Platform review — admin's reject reason (owner/admin, detail GET only). */
+  reviewNote?: string | null
+  /** Can the current viewer attach an offer to this listing? */
+  viewerCanOffer?: boolean
   // ── Legacy import/export fields (bulk CSV/JSON round-trip; older rows /
   // partial selects may omit them — all optional) ──
-  brand?: string | null
   condition?: string
   tags?: string[]
   shippingNote?: string | null
@@ -180,6 +202,14 @@ export interface ProductOfferSummaryDTO {
   sellerOrgName: string | null
   sellerOrgSlug: string | null
   storeName: string | null
+}
+
+/** Phase 3 — /api/kyc/status payload (account console Verification card). */
+export interface KycStatusDTO {
+  kycLevel: number
+  levelLabel: string
+  missingForNext: string[]
+  verifiedBadges: string[]
 }
 
 export interface ReviewDTO {

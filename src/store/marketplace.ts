@@ -4,6 +4,11 @@ import type { CartItem, ProductDTO, ProductOfferSummaryDTO, ProductVariantDTO, S
 import type { StorefrontSettings, BannerSlideDTO } from '@/lib/settings/schema'
 import { DEFAULT_STOREFRONT_SETTINGS } from '@/lib/settings/schema'
 import { parseLocation, viewToQuery } from '@/lib/routing'
+import {
+  DEFAULT_DISPLAY_CURRENCY,
+  setActiveCurrency as setLibActiveCurrency,
+  type DisplayCurrency,
+} from '@/lib/currency'
 
 // ── Pre-hydration write gate ─────────────────────────────────────────────────
 // The persist middleware serializes partialized state on EVERY set(). Child
@@ -59,6 +64,7 @@ export type View =
   | 'catalog'
   | 'product'
   | 'store'
+  | 'brands' // the brands directory (all brands | one brand's products)
   | 'cart'
   | 'checkout'
   | 'orders'
@@ -73,6 +79,9 @@ export type View =
   | 'forgot-password' // AUTHSEC-1: email → reset link
   | 'reset-password' // AUTHSEC-1: token + new password
   | 'verify-email' // AUTHSEC-1: token consumption landing
+  | 'register-company' // Merchant/Dealer company registration wizard (5 steps)
+  | 'register-financier' // financier application door (admin-approved)
+  | 'myfinancing' // legacy applicant financing alias (deep links)
 
 export interface ViewParams {
   productId?: string
@@ -90,6 +99,10 @@ export interface ViewParams {
   financingWizard?: string // financing view: reopen the application wizard for a service (?view=financing&wizard=<serviceId>) — survives reloads/back
   accountTab?: string // buyer account console: open a specific tab (?view=account&tab=profile — IA-100)
   authToken?: string // AUTHSEC-1: raw token from reset/verify email links
+  financierTab?: string // financier console: boot on a specific section (requests | accreditations | …)
+  brandSlug?: string // brands view: one brand's product listing (?view=brands&brand=…)
+  myfinancingTab?: string // my-financing view: boot on a specific tab
+  financingTab?: string // financing view: deep-link a section (mirror of financingSection)
 }
 
 export interface ApplySettingsPayload {
@@ -137,6 +150,26 @@ interface MarketplaceState {
   removeFromSaved: (lineId: string) => void
   clearCart: () => void
   setCartOpen: (open: boolean) => void
+  // ── Compare tray + dialog (up to 4 products side by side) ──
+  compareItems: ProductDTO[]
+  compareOpen: boolean
+  setCompareOpen: (open: boolean) => void
+  /** Toggle a product in the compare set (cap 4). Returns ok:false + a
+   *  message when the cap is hit (callers toast it). */
+  toggleCompare: (product: ProductDTO) => { ok: boolean; message?: string }
+  removeFromCompare: (productId: string) => void
+  clearCompare: () => void
+  // ── Dynamic display currency (rates from /api/settings/currency —
+  // DB-backed, live-refreshed). `activeCurrency` drives formatUSD()/formatMoney()
+  // globally via the module state in src/lib/currency.ts. ──
+  currencyPref: string | null // persisted preferred code (null = USD base)
+  currencyReady: boolean
+  currencyList: DisplayCurrency[]
+  activeCurrency: DisplayCurrency
+  currencyBase: string
+  lastRefreshedAt: string | null
+  initCurrency: () => Promise<void>
+  setActiveCurrencyCode: (code: string) => void
   openAuth: (mode?: 'login' | 'register', after?: { view: View; params?: ViewParams }) => void
   closeAuth: () => void
   setAuthMode: (mode: 'login' | 'register') => void
@@ -298,6 +331,76 @@ export const useMarketplace = create<MarketplaceState>()(
 
       setCartOpen: (open) => set({ cartOpen: open }),
 
+      // ── Compare tray + dialog ──
+      compareItems: [],
+      compareOpen: false,
+      setCompareOpen: (open) => set({ compareOpen: open }),
+      toggleCompare: (product) => {
+        const existing = get().compareItems.find((p) => p.id === product.id)
+        if (existing) {
+          set({ compareItems: get().compareItems.filter((p) => p.id !== product.id) })
+          return { ok: true, message: 'Removed from compare' }
+        }
+        if (get().compareItems.length >= 4) {
+          return { ok: false, message: 'You can compare up to 4 products' }
+        }
+        set({ compareItems: [...get().compareItems, product] })
+        return { ok: true, message: 'Added to compare' }
+      },
+      removeFromCompare: (productId) =>
+        set({ compareItems: get().compareItems.filter((p) => p.id !== productId) }),
+      clearCompare: () => set({ compareItems: [] }),
+
+      // ── Dynamic display currency ──
+      currencyPref: null,
+      currencyReady: false,
+      currencyList: [],
+      activeCurrency: DEFAULT_DISPLAY_CURRENCY,
+      currencyBase: 'USD',
+      lastRefreshedAt: null,
+
+      // Boot the dynamic currency system: pull live rates + active list from
+      // the server, then honor the visitor's persisted preference (if still
+      // active) — otherwise stay on the USD base. The lib module state is
+      // synced so formatUSD() converts every price immediately.
+      initCurrency: async () => {
+        if (get().currencyReady) return
+        try {
+          const res = await fetch('/api/settings/currency', { cache: 'no-store' })
+          if (!res.ok) return
+          const json = (await res.json()) as {
+            base?: string
+            lastRefreshedAt?: string | null
+            currencies?: DisplayCurrency[]
+          }
+          const list = (json.currencies ?? []).filter((c) => c.rateToUsd > 0)
+          const base = json.base ?? 'USD'
+          const pref = get().currencyPref
+          const chosen =
+            (pref ? list.find((c) => c.code === pref) : undefined) ??
+            list.find((c) => c.code === base) ??
+            DEFAULT_DISPLAY_CURRENCY
+          setLibActiveCurrency(chosen)
+          set({
+            currencyReady: true,
+            currencyList: list,
+            activeCurrency: chosen,
+            currencyBase: base,
+            lastRefreshedAt: json.lastRefreshedAt ?? null,
+          })
+        } catch {
+          // offline → keep USD base, mark ready to avoid refetch loops
+          set({ currencyReady: true })
+        }
+      },
+
+      setActiveCurrencyCode: (code) => {
+        const chosen = get().currencyList.find((c) => c.code === code)
+        if (!chosen) return
+        setLibActiveCurrency(chosen)
+        set({ activeCurrency: chosen, currencyPref: code === get().currencyBase ? null : code })
+      },
+
       openAuth: (mode = 'login', after) =>
         set({ authModalOpen: true, authMode: mode, afterAuth: after ?? null }),
 
@@ -320,6 +423,8 @@ export const useMarketplace = create<MarketplaceState>()(
         cart: state.cart,
         savedForLater: state.savedForLater,
         recentlyViewed: state.recentlyViewed,
+        compareItems: state.compareItems,
+        currencyPref: state.currencyPref,
       }),
       // Avoid SSR hydration mismatch: rehydrate explicitly after mount (see MarketplaceApp)
       skipHydration: true,

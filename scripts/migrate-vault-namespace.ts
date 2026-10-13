@@ -25,7 +25,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { assertNotProd } from './lib/assert-not-prod'
 import { db } from '../src/lib/db'
-import { getStorage, buildAssetKeyBase, VAULT_NAMESPACE, renditionKey, MEDIA_ROLES } from '../src/lib/storage'
+import { getStorage, buildAssetKeyBase, renditionKey, MEDIA_ROLES } from '../src/lib/storage'
+import { VAULT_NAMESPACE } from '../src/lib/storage/namespace'
 import type { MediaRole } from '../src/lib/storage'
 
 const dry = process.argv.includes('--dry-run')
@@ -98,8 +99,8 @@ async function main() {
       }
 
       // find-or-create the vault twin (dedup WITHIN the vault namespace)
-      let twin = await db.mediaAsset.findUnique({
-        where: { namespace_sha256: { namespace: VAULT_NAMESPACE, sha256: media.sha256 } },
+      let twin = await db.mediaAsset.findFirst({
+        where: { namespace: VAULT_NAMESPACE, sha256: media.sha256 },
       })
 
       if (!twin) {
@@ -110,7 +111,7 @@ async function main() {
         } catch {
           variants = {}
         }
-        const newBase = buildAssetKeyBase(media.sha256, VAULT_NAMESPACE)
+        const newBase = buildAssetKeyBase(media.sha256)
         const newVariants: Record<string, string> = {}
         for (const role of MEDIA_ROLES as readonly MediaRole[]) {
           const oldKey = variants[role]
@@ -123,24 +124,15 @@ async function main() {
         if (Object.keys(newVariants).length === 0) {
           throw new Error('no renditions could be copied from the public asset')
         }
+        // sha256 is GLOBALLY unique in this schema — the public row is the
+        // one content row. Converge it IN PLACE: namespace flip + vault keys.
         if (!dry) {
-          twin = await db.mediaAsset.create({
-            data: {
-              key: newBase,
-              namespace: VAULT_NAMESPACE,
-              originalName: (media as { originalName?: string }).originalName ?? 'document',
-              mime: (media as { mime?: string }).mime ?? 'image/png',
-              size: (media as { size?: number }).size ?? 0,
-              width: (media as { width?: number | null }).width ?? null,
-              height: (media as { height?: number | null }).height ?? null,
-              sha256: media.sha256,
-              variants: JSON.stringify(newVariants),
-              uploadedById: (media as { uploadedById?: string }).uploadedById ?? '',
-            },
+          await db.mediaAsset.update({
+            where: { id: media.id },
+            data: { namespace: VAULT_NAMESPACE, key: newBase, variants: JSON.stringify(newVariants) },
           })
-        } else {
-          twin = { id: 'dry-run' } as never
         }
+        twin = media
         report.vaultAssetsCreated += 1
       } else {
         report.vaultAssetsReused += 1

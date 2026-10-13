@@ -691,7 +691,7 @@ async function main() {
       summary[cat].skippedPlan += 1
       await db.product.update({
         where: { id: p.id },
-        data: { slug: slugifyTitle(p.title), sku, handlingDays: 2 },
+        data: { slug: slugifyTitle(p.title), sku },
       })
       continue
     }
@@ -700,14 +700,16 @@ async function main() {
     assertValidAttributes(cat, p.title, plan.attributes)
 
     // handmade items carry the artisan's own studio as brand (authentic)
-    const brand =
+    const brandName =
       cat === 'handmade-crafts' ? (p.seller.storeName ?? p.seller.name) : plan.brand
+    // brand linkage is a RELATION here — resolve/lookup the Brand row by name
+    const brandRow = await db.brand.findFirst({ where: { name: brandName }, select: { id: true } })
 
     await db.product.update({
       where: { id: p.id },
       data: {
         slug: slugifyTitle(p.title),
-        brand,
+        brandId: brandRow?.id ?? null,
         sku,
         barcode,
         condition: plan.condition,
@@ -775,9 +777,9 @@ async function main() {
     totalVariants += s.variantsCreated
     totalVariantProducts += s.variantProducts
   }
-  const conditions = await db.product.groupBy({ by: ['condition'], _count: { _all: true } })
+  const statuses = await db.product.groupBy({ by: ['status'], _count: { _all: true } })
   console.log(`\nTotals: ${totalEnriched} products enriched · ${totalVariantProducts} products got ${totalVariants} variants`)
-  console.log('Conditions:', conditions.map((c) => `${c.condition}=${c._count._all}`).join('  '))
+  console.log('Statuses:', statuses.map((c) => `${c.status}=${c._count?._all ?? 0}`).join('  '))
   const variantCount = await db.productVariant.count()
   console.log(`ProductVariant rows in DB after run: ${variantCount}`)
 

@@ -80,7 +80,8 @@ async function login(identifier: string): Promise<string | null> {
   const res = await fetch(`${BASE}/api/auth/login`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ identifier, password: PW }),
+    // canonical contract: the route (and the auth-modal frontend) take `email`
+    body: JSON.stringify({ email: identifier, password: PW }),
   })
   const setCookie = res.headers.get('set-cookie')
   if (!setCookie) return null
@@ -377,7 +378,7 @@ async function main() {
       const { VAULT_NAMESPACE } = await import('../src/lib/storage/namespace')
       const sharp = (await import('sharp')).default
       const png = await sharp({ create: { width: 72, height: 72, channels: 3, background: '#5b6472' } }).png().toBuffer()
-      const processed = await processImageUpload(png, { namespace: VAULT_NAMESPACE })
+      const processed = await processImageUpload(png) // current pipeline signature: buffer only (namespace recorded on the asset row)
       const vaultAsset = await db.mediaAsset.create({
         data: {
           key: processed.baseKey,

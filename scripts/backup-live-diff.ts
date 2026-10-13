@@ -103,22 +103,25 @@ async function main() {
   const bakOrders = new Map(loadBak('Order').map((o) => [o.id, o]))
   const liveOrders = await db.order.findMany({})
   const lostOrders = [...bakOrders.keys()].filter((id) => !liveOrders.some((o) => o.id === id))
-  const newOrders = liveOrders.filter((o) => !bakOrders.has(o.id)).map((o) => ({ id: o.id, number: o.number, createdAt: o.createdAt, total: o.total }))
+  const newOrders = liveOrders.filter((o) => !bakOrders.has(o.id)).map((o) => ({ id: o.id, poNumber: o.poNumber, createdAt: o.createdAt, total: o.total }))
   report.orders = { backupCount: bakOrders.size, liveCount: liveOrders.length, lostFromBackup: lostOrders, createdAfterBackup: newOrders }
 
   const bakPayouts = new Set(loadBak('Payout').map((p) => p.id))
   const livePayouts = await db.payout.findMany({})
   report.payouts = { backupCount: bakPayouts.size, liveCount: livePayouts.length, lost: [...bakPayouts].filter((id) => !livePayouts.some((p) => p.id === id)) }
 
-  for (const [label, table] of [['financingRequests', 'FinancingRequest'], ['financingOffers', 'FinancingOffer'], ['financingAgreements', 'FinancingAgreement'], ['accountDocuments', 'AccountDocument'], ['auditLogs', 'AuditLog']] as const) {
-    const bak = new Set(loadBak(table).map((r) => r.id))
-    const live = await (db as any)[table === 'financingRequests' ? 'financingRequest' : table === 'financingOffers' ? 'financingOffer' : table === 'financingAgreements' ? 'financingAgreement' : table === 'accountDocuments' ? 'accountDocument' : 'auditLog'].count()
-    const bakCount = loadBak(table).length
-    const liveIds = await (db as any)[
-      table === 'financingRequests' ? 'financingRequest' : table === 'financingOffers' ? 'financingOffer' : table === 'financingAgreements' ? 'financingAgreement' : table === 'accountDocuments' ? 'accountDocument' : 'auditLog'
-    ].findMany({ select: { id: true } })
-    const lost = [...bak].filter((id) => !liveIds.some((l: any) => l.id === id))
-    report[label] = { backupCount: bakCount, liveCount: live, lostCount: lost.length }
+  for (const [label, modelName, dbKey] of [
+    ['financingRequests', 'FinancingRequest', 'financingRequest'],
+    ['financingOffers', 'FinancingOffer', 'financingOffer'],
+    ['financingAgreements', 'FinancingAgreement', 'financingAgreement'],
+    ['accountDocuments', 'AccountDocument', 'accountDocument'],
+    ['auditLogs', 'AuditLog', 'auditLog'],
+  ] as const) {
+    const bak = new Set(loadBak(modelName).map((r) => r.id))
+    const bakCount = loadBak(modelName).length
+    const liveIds: { id: string }[] = await (db as any)[dbKey].findMany({ select: { id: true } })
+    const lost = [...bak].filter((id) => !liveIds.some((l) => l.id === id))
+    report[label] = { backupCount: bakCount, liveCount: liveIds.length, lostCount: lost.length }
   }
 
   // ── Deleted users' dependency audit: orders/payouts/docs referencing the deleted user ──

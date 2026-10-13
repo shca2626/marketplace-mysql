@@ -1013,3 +1013,32 @@ export async function sweepAccreditations(): Promise<void> {
  *  the (Actor-object) call shape the route uses. */
 export const adminOpenAccreditationReview = (input: { admin: { id: string; role: string }; requestId: string }) =>
   startAccreditationReview(input.admin.id, input.requestId)
+
+/** Counted expiry sweep for the admin sweep trigger — returns how many
+ * request rows and live grants were flipped to EXPIRED. */
+export async function expireSweep(): Promise<{
+  requestsExpired: number
+  accreditationsExpired: number
+}> {
+  const now = new Date()
+  const requests = await db.accreditationRequest.updateMany({
+    where: {
+      status: {
+        in: [
+          'SUBMITTED',
+          'UNDER_PLATFORM_REVIEW',
+          'RETURNED_FOR_COMPLETION',
+          'FORWARDED_TO_FINANCIER',
+          'UNDER_FINANCIER_REVIEW',
+        ],
+      },
+      expiresAt: { lt: now },
+    },
+    data: { status: 'EXPIRED' },
+  })
+  const grants = await db.accreditationRequest.updateMany({
+    where: { status: 'ACCREDITED', validUntil: { lt: now } },
+    data: { status: 'EXPIRED' },
+  })
+  return { requestsExpired: requests.count, accreditationsExpired: grants.count }
+}

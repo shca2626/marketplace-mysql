@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/server/guards'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { financingError } from '@/server/modules/financing/catalog'
-import { declineOffer } from '@/server/modules/financing/requests'
+import { declineOffer } from '@/server/modules/financing/offers'
 
 // POST /api/financing/offers/[id]/decline — the applicant declines one offer
 // (the request stays OFFERED while other offers remain open).

@@ -29,11 +29,7 @@ export async function PATCH(
         { status: 400 }
       )
     }
-    const result = await answerSubmission({
-      user: { id: user!.id, role: user!.role },
-      submissionId: sid,
-      answer: parsed.data,
-    })
+    const result = await answerSubmission(user!.id, sid, parsed.data)
     return NextResponse.json(result)
   } catch (err) {
     const svc = financingError(err)

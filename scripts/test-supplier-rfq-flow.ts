@@ -233,9 +233,9 @@ async function main() {
 
   // ── 3. minimum disclosure ──
   console.log('── 3. Minimum supplier disclosure ──')
-  const inboxForSupplier = await supplierFinancingInbox(supplierStaff.id, supplierComp.id)
-  check('accredited supplier staff SEES the RFQ in the inbox', inboxForSupplier.some((r: { id: string }) => r.id === created.rfqId))
-  const inboxItem = inboxForSupplier.find((r: { id: string }) => r.id === created.rfqId) as Record<string, unknown> | undefined
+  const inboxForSupplier: { id: string }[] = (await supplierFinancingInbox(supplierStaff.id, supplierComp.id)) as { id: string }[]
+  check('accredited supplier staff SEES the RFQ in the inbox', inboxForSupplier.some((r) => r.id === created.rfqId))
+  const inboxItem = inboxForSupplier.find((r) => r.id === created.rfqId) as Record<string, unknown> | undefined
   check('inbox payload exposes ONLY items/qty/target (no applicant identity)',
     !!inboxItem && !JSON.stringify(inboxItem).includes(applicant.email) && !JSON.stringify(inboxItem).includes('SUP8 Applicant'))
   const inboxOther = await supplierFinancingInbox(nonAccreditedOwner.id, otherComp.id)
@@ -292,14 +292,14 @@ async function main() {
   const v1 = await db.rfq.findUnique({ where: { id: created.rfqId } })
   check('v2 consent RESET (renewed consent required)', v2?.consentAt === null)
   check('v1 preserved (CANCELLED, kept in history)', v1?.status === 'CANCELLED')
-  const inboxBefore = await supplierFinancingInbox(supplierStaff.id, supplierComp.id)
-  check('unconsented v2 does NOT reach suppliers', !inboxBefore.some((r: { id: string }) => r.id === revised.rfqId))
+  const inboxBefore: { id: string }[] = (await supplierFinancingInbox(supplierStaff.id, supplierComp.id)) as { id: string }[]
+  check('unconsented v2 does NOT reach suppliers', !inboxBefore.some((r) => r.id === revised.rfqId))
   const consented = await recordConsent(applicant.id, revised.rfqId)
   check('applicant consents to v2', !!consented.consentAt)
   const consentedAgain = await recordConsent(applicant.id, revised.rfqId)
   check('consent is idempotent per version', consentedAgain.version === 2)
-  const inboxAfter = await supplierFinancingInbox(supplierStaff.id, supplierComp.id)
-  check('consented v2 NOW reaches suppliers', inboxAfter.some((r: { id: string }) => r.id === revised.rfqId))
+  const inboxAfter: { id: string }[] = (await supplierFinancingInbox(supplierStaff.id, supplierComp.id)) as { id: string }[]
+  check('consented v2 NOW reaches suppliers', inboxAfter.some((r) => r.id === revised.rfqId))
   await expectError('non-applicant cannot consent',
     () => recordConsent(nonAccreditedOwner.id, revised.rfqId), 403, 'another applicant')
 
@@ -376,7 +376,7 @@ async function main() {
 
 // Sequence helper — uses the app's own sequence service (transactional)
 import { nextNumber } from '../src/server/modules/sequences/service'
-async function nextNumberFixture(prefix: string) {
+async function nextNumberFixture(prefix: 'RFQ' | 'QTE' | 'DSP' | 'PY' | 'FIN' | 'AGR' | 'ACC' | 'CS' | 'CIV') {
   return nextNumber(prefix)
 }
 

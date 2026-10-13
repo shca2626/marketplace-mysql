@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * scripts/rbac-financier-fixture.ts — FOCUSED verification fixture for the
  * financier runtime-permission model (RBAC completion, item 3).

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAdmin } from '@/server/guards'
-import { listBrands, createBrand, CatalogError } from '@/server/modules/catalog/service'
+import { listBrands, createBrand, CatalogError } from '@/server/modules/catalog/admin-catalog'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 
 // GET /api/admin/catalog/brands?q= — the brand directory with product counts.

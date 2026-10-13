@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin } from '@/server/guards'
+import { requireAdmin, requireStepUpMfa } from '@/server/guards'
 import { getPayoutsConfig, updatePayoutsConfig, PayoutServiceError } from '@/server/modules/payouts/service'
 import { assertSameOrigin } from '@/lib/http'
 
@@ -18,6 +18,9 @@ export async function PUT(req: NextRequest) {
 
   const { error } = await requireAdmin('payouts.manage')
   if (error) return error
+  // Phase 6 (6.7.5): sensitive action — requires a fresh MFA confirmation.
+  const su = await requireStepUpMfa()
+  if (su.error) return su.error
   try {
     const body = await req.json()
     const config = await updatePayoutsConfig({ defaultCommissionPercent: Number(body?.defaultCommissionPercent) })

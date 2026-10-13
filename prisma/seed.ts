@@ -471,7 +471,9 @@ async function main() {
     },
   ]
 
-  const createdProducts = []
+  // typed: the evolving-array inference collapses to never[] across the
+  // awaited pushes — annotate explicitly (full Product rows from create()).
+  const createdProducts: Awaited<ReturnType<typeof db.product.create>>[] = []
   for (const p of products) {
     const { category, seller, ...rest } = p
     createdProducts.push(
