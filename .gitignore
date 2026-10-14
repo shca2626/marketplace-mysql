@@ -103,3 +103,15 @@ db/custom.db-journal
 /db/TESTER-ACCOUNTS.md
 /db/product-images/
 /db/product-images-gen.log
+
+# ── CLEAN-1 (2026-10-14): legacy docs / QA screenshots / audit reports purged.
+# The quality-gate scripts REGENERATE their reports on demand (negative-suite,
+# tenant-isolation-suite, secret-sweep, route-matrix, backfill reports) — they
+# must never be committed again. audit/route-classification.json is the ONE
+# exception: it is the reviewed source of truth read by check-guards.ts. ──
+/.qa/
+/qa/
+/db/qa/
+/audit/*
+!/audit/route-classification.json
+/docs/reports/
