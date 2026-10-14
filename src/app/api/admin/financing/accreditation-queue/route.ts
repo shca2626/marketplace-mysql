@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { requireAdmin } from '@/server/guards'
 import { financingError } from '@/lib/financing-api'
-import { listGateQueue } from '@/server/modules/financing/accreditation'
+import { adminAccreditationQueue } from '@/server/modules/financing/accreditation'
 import { ACCREDITATION_REQUEST_STATUSES } from '@/server/modules/financing/types'
 
 // GET /api/admin/financing/accreditation-queue — the gate queue for
@@ -14,10 +14,10 @@ export async function GET(req: NextRequest) {
     if (status && !(ACCREDITATION_REQUEST_STATUSES as readonly string[]).includes(status)) {
       return NextResponse.json({ error: 'Unknown accreditation status filter' }, { status: 400 })
     }
-    const requests = await listGateQueue(user, {
+    const queue = await adminAccreditationQueue({
       status: status as (typeof ACCREDITATION_REQUEST_STATUSES)[number],
     })
-    return NextResponse.json({ requests })
+    return NextResponse.json(queue)
   } catch (err) {
     return financingError(err, 'load the accreditation gate queue')
   }

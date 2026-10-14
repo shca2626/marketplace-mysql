@@ -710,11 +710,11 @@ function toPublicRequirement(r: {
     description: string | null
     documentType: string | null
     profileFieldKey: string | null
-    validationMin: number | null
-    validationMax: number | null
+    validationMin: number | { toNumber(): number } | null // Prisma Decimal column
+    validationMax: number | { toNumber(): number } | null
     validityMonths: number | null
     isRepeatable: boolean
-    options: { value: string; position: number }[]
+    options: { id: string; value: string; position: number }[]
   }
 }): PublicRequirementLabelDTO {
   return {
@@ -726,13 +726,13 @@ function toPublicRequirement(r: {
     instructions: r.instructions,
     documentType: r.conditionTemplate.documentType,
     profileFieldKey: r.conditionTemplate.profileFieldKey,
-    validationMin: r.conditionTemplate.validationMin,
-    validationMax: r.conditionTemplate.validationMax,
+    validationMin: r.conditionTemplate.validationMin == null ? null : Number(r.conditionTemplate.validationMin),
+    validationMax: r.conditionTemplate.validationMax == null ? null : Number(r.conditionTemplate.validationMax),
     validityMonths: r.conditionTemplate.validityMonths,
     isRepeatable: r.conditionTemplate.isRepeatable,
     autoPassAccredited: r.autoPassAccredited,
     displayOrder: r.displayOrder,
-    options: [...r.conditionTemplate.options].sort((a, b) => a.position - b.position).map((o) => ({ value: o.value, position: o.position })),
+    options: [...r.conditionTemplate.options].sort((a, b) => a.position - b.position).map((o) => ({ id: o.id, value: o.value, position: o.position })),
   }
 }
 

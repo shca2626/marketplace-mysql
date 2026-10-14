@@ -23,26 +23,10 @@ export const CERTIFICATION_KIND_LABELS: Record<string, string> = {
   OTHER: 'Other',
 }
 
-export interface ProductCertificationDTO {
-  id: string
-  productId: string
-  productTitle?: string
-  sellerId?: string
-  sellerName?: string | null
-  kind: string
-  title: string
-  mediaId: string | null
-  url: string | null
-  issuedBy: string | null
-  issuedAt: string | null
-  expiresAt: string | null
-  status: string
-  verifiedById: string | null
-  verifiedAt: string | null
-  note: string | null
-  isActive: boolean
-  createdAt: string
-}
+// Single source of truth lives in lib/types.ts (client-safe) — re-exported here
+// for the server-side import sites.
+import type { ProductCertificationDTO } from '@/lib/types'
+export type { ProductCertificationDTO }
 
 export class CertificationError extends Error {
   status: number

@@ -215,14 +215,14 @@ export async function getPublicCurrencies(): Promise<PublicCurrencyPayload> {
 export async function listAllCurrencyRows() {
   await ensureSeeded()
   const rows = await db.currency.findMany({ orderBy: [{ code: 'asc' }] })
-  const out = []
+  const out: (PublicCurrency & { id: string; isActive: boolean })[] = []
   for (const r of rows) {
     const latest = await latestRate(r.code)
     out.push({
       id: r.id,
       code: r.code,
       name: r.name,
-      symbol: r.symbol,
+      symbol: r.symbol ?? r.code,
       rateToUsd: r.code === 'USD' ? 1 : (latest?.rate ?? 0),
       displayDecimals: r.decimals,
       source: r.code === 'USD' ? 'base' : (latest?.source ?? 'none'),

@@ -3,7 +3,7 @@ import { requireUser } from '@/server/guards'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 import { financingError, readJson } from '@/lib/financing-api'
-import { supplySubmission } from '@/server/modules/financing/submissions'
+import { answerSubmission, type SubmissionAnswer } from '@/server/modules/financing/submissions'
 
 // POST /api/financing/submissions/[id]/supply — the applicant supplies an
 // answer/document for one checklist item (PENDING|REJECTED → SUBMITTED).
@@ -20,7 +20,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   try {
     const { id } = await ctx.params
-    const submission = await supplySubmission(user, id, await readJson(req))
+    const answer = (await readJson(req)) as SubmissionAnswer
+    const submission = await answerSubmission(user.id, id, answer)
     return NextResponse.json({ submission })
   } catch (err) {
     return financingError(err, 'supply the checklist item')

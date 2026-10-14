@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-12T23:23:50.690Z",
+  "generatedAt": "2026-10-14T02:51:54.663Z",
   "routes": [
     {
       "route": "/api",
@@ -2289,42 +2289,6 @@
       "bucket": "AUTHENTICATED_USER",
       "methods": [
         "GET"
-      ],
-      "permissionKeys": [],
-      "moduleKeys": []
-    },
-    {
-      "route": "/api/financier/accreditation/[id]/grant",
-      "bucket": "AUTHENTICATED_USER",
-      "methods": [
-        "POST"
-      ],
-      "permissionKeys": [],
-      "moduleKeys": []
-    },
-    {
-      "route": "/api/financier/accreditation/[id]/open",
-      "bucket": "AUTHENTICATED_USER",
-      "methods": [
-        "POST"
-      ],
-      "permissionKeys": [],
-      "moduleKeys": []
-    },
-    {
-      "route": "/api/financier/accreditation/[id]/reject",
-      "bucket": "AUTHENTICATED_USER",
-      "methods": [
-        "POST"
-      ],
-      "permissionKeys": [],
-      "moduleKeys": []
-    },
-    {
-      "route": "/api/financier/accreditation/[id]/revoke",
-      "bucket": "AUTHENTICATED_USER",
-      "methods": [
-        "POST"
       ],
       "permissionKeys": [],
       "moduleKeys": []

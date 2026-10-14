@@ -17,20 +17,10 @@ import { recordAudit } from '@/server/modules/audit/service'
 export const SPEC_DATA_TYPES = ['TEXT', 'NUMBER', 'SELECT', 'BOOLEAN'] as const
 export type SpecDataType = (typeof SPEC_DATA_TYPES)[number]
 
-export interface SpecAttributeDTO {
-  id: string
-  categoryId: string | null
-  categoryName?: string | null
-  key: string
-  label: string
-  dataType: string
-  unit: string | null
-  options: string[]
-  required: boolean
-  position: number
-  isActive: boolean
-  createdAt: string
-}
+// Single source of truth lives in lib/types.ts (client-safe) — re-exported here
+// for the server-side import sites.
+import type { SpecAttributeDTO } from '@/lib/types'
+export type { SpecAttributeDTO }
 
 const KEY_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 

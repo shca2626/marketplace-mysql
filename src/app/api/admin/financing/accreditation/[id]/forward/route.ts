@@ -3,7 +3,7 @@ import { requireAdmin } from '@/server/guards'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 import { financingError } from '@/lib/financing-api'
-import { forwardRequest } from '@/server/modules/financing/accreditation'
+import { forwardAccreditationRequest } from '@/server/modules/financing/accreditation'
 
 // POST /api/admin/financing/accreditation/[id]/forward — THE GATE (R-4) for
 // accreditation requests: forward only when fully verified (in-tx re-check).
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   try {
     const { id } = await ctx.params
-    const request = await forwardRequest(user, id)
+    const request = await forwardAccreditationRequest(user.id, id)
     return NextResponse.json({ request })
   } catch (err) {
     return financingError(err, 'forward the accreditation request')

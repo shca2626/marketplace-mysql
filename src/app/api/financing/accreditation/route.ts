@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
   if (rl) return rl
 
   try {
-    const body = await readJson<{ serviceId?: string; organizationId?: string; scopeNotes?: string | null }>(req)
+    const body = (await readJson(req)) as { serviceId?: string; organizationId?: string; scopeNotes?: string | null }
     if (!body?.serviceId || !body?.organizationId) {
       return NextResponse.json({ error: 'serviceId and organizationId are required' }, { status: 400 })
     }

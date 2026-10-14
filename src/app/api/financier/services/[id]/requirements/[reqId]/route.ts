@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/server/guards'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
-import { requireFinancierStaffOrThrow } from '@/server/modules/financing/guards'
 import { financingError } from '@/server/modules/financing/catalog'
-import { detachRequirement, updateRequirement } from '@/server/modules/financing/conditions'
+import { detachServiceRequirement, updateServiceRequirement } from '@/server/modules/financing/conditions'
 import { requirementUpdateSchema } from '@/server/modules/financing/types'
 
 // /api/financier/services/[id]/requirements/[reqId]
@@ -19,8 +18,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (rl) return rl
 
   try {
-    const staff = await requireFinancierStaffOrThrow({ id: user!.id }, 'financier.services.manage')
-    const { id, reqId } = await ctx.params
+    const { reqId } = await ctx.params
     const parsed = requirementUpdateSchema.safeParse(await req.json())
     if (!parsed.success) {
       return NextResponse.json(
@@ -28,13 +26,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         { status: 400 }
       )
     }
-    const requirement = await updateRequirement({
-      profile: { id: staff.profile.id },
-      serviceId: id,
-      requirementId: reqId,
-      payload: parsed.data,
-      actorId: user!.id,
-    })
+    const requirement = await updateServiceRequirement(user!.id, reqId, parsed.data)
     return NextResponse.json({ requirement })
   } catch (err) {
     const svc = financingError(err)
@@ -53,14 +45,8 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   if (rl) return rl
 
   try {
-    const staff = await requireFinancierStaffOrThrow({ id: user!.id }, 'financier.services.manage')
-    const { id, reqId } = await ctx.params
-    await detachRequirement({
-      profile: { id: staff.profile.id },
-      serviceId: id,
-      requirementId: reqId,
-      actorId: user!.id,
-    })
+    const { reqId } = await ctx.params
+    await detachServiceRequirement(user!.id, reqId)
     return NextResponse.json({ ok: true, status: 'detached' })
   } catch (err) {
     const svc = financingError(err)

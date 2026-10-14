@@ -70,6 +70,8 @@ export interface AccreditationRequestSummaryDTO {
   submittedBy: { id: string; name: string; email: string }
   serviceId: string
   serviceName: string
+  /** Financing-service kind of the accrediting program (ACCR vs MURABAHA…). */
+  serviceKind: string
   financierOrgId: string
   financierOrgName: string
   multiGroupId: string | null
@@ -86,6 +88,8 @@ export interface AccreditationRequestSummaryDTO {
   revokedAt: string | null
   revocationReason: string | null
   expiresAt: string | null
+  /** Terminal timestamp (decided or revoked) — the admin queue's closed-at column. */
+  closedAt: string | null
   createdAt: string
   isLive: boolean
   /** Queue-only progress column (additive — FIN-7). */
@@ -142,6 +146,7 @@ function serializeAccreditation(
     submittedBy: { id: a.submittedBy.id, name: a.submittedBy.name, email: a.submittedBy.email },
     serviceId: a.service.id,
     serviceName: a.service.name,
+    serviceKind: a.service.serviceKind,
     financierOrgId: a.service.financierProfile.organizationId,
     financierOrgName: a.service.financierProfile.organization.name,
     multiGroupId: a.multiGroupId,
@@ -158,6 +163,7 @@ function serializeAccreditation(
     revokedAt: iso(a.revokedAt),
     revocationReason: a.revocationReason,
     expiresAt: iso(a.expiresAt),
+    closedAt: iso(a.decidedAt ?? a.revokedAt),
     createdAt: a.createdAt.toISOString(),
     isLive: isLive(a),
     platformReviewedById: a.platformReviewedById,

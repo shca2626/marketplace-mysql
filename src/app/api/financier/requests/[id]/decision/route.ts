@@ -3,7 +3,7 @@ import { requireUser } from '@/server/guards'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { requireFinancierStaffOrThrow } from '@/server/modules/financing/guards'
 import { financingError } from '@/server/modules/financing/catalog'
-import { declineRequest } from '@/server/modules/financing/offers'
+import { financierDeclineRequest } from '@/server/modules/financing/requests'
 import { declineRequestSchema } from '@/server/modules/financing/types'
 
 // POST /api/financier/requests/[id]/decision — decline a request with a note
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         { status: 400 }
       )
     }
-    const result = await declineRequest(staff, id, parsed.data.note)
+    const result = await financierDeclineRequest(user!.id, id, parsed.data.note)
     return NextResponse.json(result)
   } catch (err) {
     const svc = financingError(err)

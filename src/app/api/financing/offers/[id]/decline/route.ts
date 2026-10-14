@@ -17,7 +17,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   try {
     const { id } = await ctx.params
-    const result = await declineOffer({ user: { id: user!.id, role: user!.role }, offerId: id })
+    const result = await declineOffer(user!.id, id)
     return NextResponse.json(result)
   } catch (err) {
     const svc = financingError(err)

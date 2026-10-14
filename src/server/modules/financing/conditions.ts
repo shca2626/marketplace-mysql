@@ -639,7 +639,9 @@ export async function listServiceRequirements(serviceId: string): Promise<Servic
 export async function composeServiceChecklist(serviceId: string) {
   return db.serviceRequirement.findMany({
     where: { serviceId, isActive: true },
-    include: { conditionTemplate: true },
+    // conditionTemplate.options is a nested relation — it needs an explicit
+    // include for the public requirement labels (SELECT options live there).
+    include: { conditionTemplate: { include: { options: true } } },
     orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
   })
 }

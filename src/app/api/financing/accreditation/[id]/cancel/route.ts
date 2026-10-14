@@ -3,7 +3,7 @@ import { requireUser } from '@/server/guards'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 import { financingError } from '@/lib/financing-api'
-import { cancel } from '@/server/modules/financing/accreditation'
+import { cancelAccreditationRequest } from '@/server/modules/financing/accreditation'
 
 // POST /api/financing/accreditation/[id]/cancel — applicant withdraws.
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   try {
     const { id } = await ctx.params
-    const request = await cancel(user, id)
+    const request = await cancelAccreditationRequest(user.id, id)
     return NextResponse.json({ request })
   } catch (err) {
     return financingError(err, 'cancel the accreditation request')

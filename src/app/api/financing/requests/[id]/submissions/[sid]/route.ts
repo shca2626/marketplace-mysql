@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/server/guards'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { financingError } from '@/server/modules/financing/catalog'
-import { answerSubmission } from '@/server/modules/financing/submissions'
+import { answerSubmission, type SubmissionAnswer } from '@/server/modules/financing/submissions'
 import { submissionAnswerSchema } from '@/server/modules/financing/types'
 
 // PATCH /api/financing/requests/[id]/submissions/[sid] — answer ONE checklist
@@ -29,7 +29,7 @@ export async function PATCH(
         { status: 400 }
       )
     }
-    const result = await answerSubmission(user!.id, sid, parsed.data)
+    const result = await answerSubmission(user!.id, sid, parsed.data as SubmissionAnswer)
     return NextResponse.json(result)
   } catch (err) {
     const svc = financingError(err)

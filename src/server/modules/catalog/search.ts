@@ -66,7 +66,7 @@ export async function searchVocabulary(categorySlug: string): Promise<string[]> 
   const titles = await db.product.findMany({
     where: {
       status: 'ACTIVE',
-      OR: [{ sellerId: null }, { seller: { status: 'ACTIVE' } }],
+      seller: { status: 'ACTIVE' }, // sellerId is non-nullable — platform rows always have a seller
       ...(categorySlug ? { category: { slug: categorySlug } } : {}),
     },
     select: { title: true },

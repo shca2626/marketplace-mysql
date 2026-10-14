@@ -62,7 +62,8 @@ export async function createWidgetSession(
       throw new WidgetError(400, 'Enter a valid phone number, or leave it empty to chat as a guest')
     }
     phone = normalized
-    const account = await db.user.findUnique({
+    // phone is a non-unique contact column — findFirst, never findUnique
+    const account = await db.user.findFirst({
       where: { phone: normalized },
       select: { id: true, name: true },
     })

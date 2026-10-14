@@ -22,7 +22,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    const pdf = await renderCommissionInvoicePdf(invoice)
+    const pdf = await renderCommissionInvoicePdf(invoice as unknown as Parameters<typeof renderCommissionInvoicePdf>[0])
     return new NextResponse(new Uint8Array(pdf), {
       status: 200,
       headers: {

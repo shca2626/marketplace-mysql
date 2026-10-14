@@ -528,7 +528,7 @@ export async function adminBulkProducts(adminId: string, ids: string[], action: 
   // Sellers are notified (deduped) for actions that change visibility
   if (action === 'archive' || action === 'restore') {
     const rows = await db.product.findMany({
-      where: { id: { in: capped }, sellerId: { not: null } },
+      where: { id: { in: capped } }, // sellerId is non-nullable — every product has a seller
       select: { sellerId: true, title: true },
     })
     const bySeller = new Map<string, string[]>()

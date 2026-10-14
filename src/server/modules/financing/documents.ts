@@ -360,6 +360,71 @@ export async function softDeleteAccountDocument(
   return { ok: true }
 }
 
+/**
+ * Replace a vault document with a new uploaded version (DP-27): the old row
+ * is soft-deleted (history preserved — it may already be referenced by
+ * submissions) and a fresh same-type row re-enters verification as PENDING —
+ * both flips land in ONE transaction. The new version's media must already
+ * sit in the media pipeline (POST /api/uploads) and belong to the same user.
+ */
+export async function replaceDocument(
+  userId: string,
+  documentId: string,
+  input: {
+    mediaId: string
+    documentType?: string
+    title?: string | null
+    issuedAt?: string | null
+    expiresAt?: string | null
+  }
+): Promise<AccountDocumentDTO> {
+  const old = await db.accountDocument.findUnique({ where: { id: documentId } })
+  if (!old || !old.isActive) throw new FinancingError('Document not found', 404)
+  if (old.userId !== userId) {
+    throw new FinancingError('Only the uploader can replace this document', 403)
+  }
+  const documentType = input.documentType ?? old.documentType
+  if (!(DOCUMENT_TYPES as readonly string[]).includes(documentType)) {
+    throw new FinancingError(`Unknown document type "${documentType}"`, 400)
+  }
+  const media = await db.mediaAsset.findUnique({ where: { id: input.mediaId } })
+  if (!media) throw new FinancingError('Uploaded file not found', 404)
+  if (media.uploadedById !== userId) {
+    throw new FinancingError('That file belongs to another account', 403)
+  }
+  const issuedAt = input.issuedAt ? parseDocDateSafe(input.issuedAt, 'Issue date') : null
+  const expiresAt = input.expiresAt ? parseDocDateSafe(input.expiresAt, 'Expiry date') : null
+
+  const created = await db.$transaction(async (tx) => {
+    // Old version: soft-delete keeps submission references intact.
+    await tx.accountDocument.update({ where: { id: old.id }, data: { isActive: false } })
+    const row = await tx.accountDocument.create({
+      data: {
+        userId,
+        organizationId: old.organizationId,
+        mediaId: media.id,
+        documentType,
+        title: input.title ?? old.title,
+        issuedAt,
+        expiresAt,
+        status: 'PENDING',
+      },
+      include: docInclude,
+    })
+    await recordAuditTx(tx, {
+      actorId: userId,
+      actorType: 'USER',
+      action: 'ACCOUNT_DOCUMENT_REPLACED',
+      entityType: 'AccountDocument',
+      entityId: row.id,
+      summary: `${documentType} replaced (old version ${old.id.slice(-8)} archived, new one pending verification)`,
+      metadata: { replacedDocumentId: old.id, mediaId: media.id },
+    })
+    return row
+  })
+  return serializeDoc(created as never)
+}
+
 // ── Platform verification — verify ONCE, reused everywhere (R-2) ────────────
 
 export async function verifyAccountDocument(

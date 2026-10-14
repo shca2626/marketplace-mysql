@@ -3,7 +3,7 @@ import { requireAdmin } from '@/server/guards'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 import { financingError } from '@/lib/financing-api'
-import { markFeeInvoiced } from '@/server/modules/financing/offers'
+import { adminMarkFee } from '@/server/modules/financing/agreements'
 
 // POST /api/admin/financing/fees/[id]/invoice — ACCRUED → INVOICED
 // (the fee is invoiced externally; the platform never collects money).
@@ -19,8 +19,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   try {
     const { id } = await ctx.params
-    const agreement = await markFeeInvoiced(user, id)
-    return NextResponse.json({ agreement })
+    const fee = await adminMarkFee(user.id, id, 'MARK_INVOICED')
+    return NextResponse.json({ fee })
   } catch (err) {
     return financingError(err, 'mark the fee invoiced')
   }

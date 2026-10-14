@@ -73,7 +73,7 @@ export interface EmitInput {
   type: NotificationType
   title: string
   body?: string | null
-  linkView: 'rfq' | 'orders' | 'business' | 'seller' | 'disputes' | 'admin' | 'financing' | 'financier'
+  linkView: 'rfq' | 'orders' | 'business' | 'seller' | 'disputes' | 'admin' | 'financing' | 'financier' | 'account'
   linkId?: string | null
 }
 

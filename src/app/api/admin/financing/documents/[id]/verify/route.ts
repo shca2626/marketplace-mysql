@@ -20,7 +20,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   try {
     const { id } = await ctx.params
-    const document = await verifyDocument(user, id, await readJson(req))
+    const body = (await readJson(req)) as { status?: string; verdict?: string; note?: string | null }
+    const document = await verifyDocument({ id: user.id, role: user.role }, id, body)
     return NextResponse.json({ document })
   } catch (err) {
     return financingError(err, 'verify the document')

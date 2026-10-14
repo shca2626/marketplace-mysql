@@ -148,7 +148,7 @@ export async function categoryFacets(categorySlug: string): Promise<CategoryFace
       db.product.findMany({
         where: {
           status: 'ACTIVE',
-          OR: [{ sellerId: null }, { seller: { status: 'ACTIVE' } }],
+          seller: { status: 'ACTIVE' }, // sellerId is non-nullable — platform rows always have a seller
           categoryId: category.id,
           NOT: { specs: null },
         },

@@ -92,7 +92,7 @@ function productCell(p: ProductDTO, col: string): string | number | boolean | nu
     case 'category': return p.category.slug
     case 'stock': return p.stock
     case 'images': return p.images.join('|')
-    case 'brand': return p.brand ?? ''
+    case 'brand': return p.brand?.name ?? ''
     case 'sku': return p.sku ?? ''
     case 'barcode': return p.barcode ?? ''
     case 'condition': return p.condition ?? ''

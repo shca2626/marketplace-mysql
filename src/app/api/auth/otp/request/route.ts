@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const existing = await db.user.findUnique({ where: { phone }, select: { id: true, status: true } })
+    const existing = await db.user.findFirst({ where: { phone }, select: { id: true, status: true } })
     if (parsed.data.purpose === 'REGISTER' && existing) {
       return NextResponse.json(
         { error: 'This phone number is already registered. Sign in instead, or reset your password.' },

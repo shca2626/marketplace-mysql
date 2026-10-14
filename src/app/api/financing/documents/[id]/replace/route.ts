@@ -22,7 +22,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   try {
     const { id } = await ctx.params
-    const document = await replaceDocument(user, id, await readJson(req))
+    const body = (await readJson(req)) as { mediaId: string; documentType?: string; title?: string | null; issuedAt?: string | null; expiresAt?: string | null }
+    if (!body?.mediaId) {
+      return NextResponse.json({ error: 'mediaId of the new upload is required' }, { status: 400 })
+    }
+    const document = await replaceDocument(user.id, id, body)
     return NextResponse.json({ document }, { status: 201 })
   } catch (err) {
     return financingError(err, 'replace the document')

@@ -3,7 +3,7 @@ import { requireUser } from '@/server/guards'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 import { financingError, readJson } from '@/lib/financing-api'
-import { createMultiGroup } from '@/server/modules/financing/requests'
+import { createMultiFinancingRequests, type CreateFinancingRequestInput } from '@/server/modules/financing/requests'
 
 // POST /api/financing/requests/multi — DP-25: create N sibling DRAFT requests
 // sharing a multiGroupId (one service per financier), for side-by-side compare.
@@ -18,7 +18,8 @@ export async function POST(req: NextRequest) {
   if (rl) return rl
 
   try {
-    const result = await createMultiGroup(user, await readJson(req))
+    const body = (await readJson(req)) as Omit<CreateFinancingRequestInput, 'serviceId'> & { serviceIds: string[] }
+    const result = await createMultiFinancingRequests(user.id, body)
     return NextResponse.json(result, { status: 201 })
   } catch (err) {
     return financingError(err, 'create the multi-financier drafts')

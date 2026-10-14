@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { requireAdmin } from '@/server/guards'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { financingError } from '@/server/modules/financing/catalog'
-import { updateFeeStatusAdmin } from '@/server/modules/financing/offers'
+import { adminMarkFee } from '@/server/modules/financing/agreements'
 
 // PATCH /api/admin/financing/fees/[id] — { action: 'invoice' | 'mark-paid' |
 // 'waive' } (the platform's money is collected externally — this only tracks).
@@ -26,7 +26,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     if (!parsed.success) {
       return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
     }
-    const result = await updateFeeStatusAdmin({ id: user!.id, role: user!.role }, id, parsed.data.action)
+    const actionMap = { invoice: 'MARK_INVOICED', 'mark-paid': 'MARK_PAID', waive: 'WAIVE' } as const
+    const result = await adminMarkFee(user!.id, id, actionMap[parsed.data.action])
     return NextResponse.json(result)
   } catch (err) {
     const svc = financingError(err)

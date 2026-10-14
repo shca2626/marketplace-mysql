@@ -232,3 +232,85 @@ export async function applyVendorAction(actorId: string, vendorId: string, input
     commissionRate: updated.commissionRate,
   }
 }
+
+// ── Seller-org verification state (Phase 7.0) ────────────────────────────────
+//
+// Independent from the legacy User.verifiedAt stamp above: COMPANY sellers
+// qualify through a SellerProfile whose verificationState drives storefront
+// trust badges and RFQ routing. Verification ≠ suspension — Organization.status
+// stays the operational lifecycle and is enforced separately at every
+// publishing path.
+
+export const SELLER_VERIFICATION_STATES = ['UNVERIFIED', 'PENDING', 'VERIFIED', 'REJECTED'] as const
+export type SellerVerificationState = (typeof SELLER_VERIFICATION_STATES)[number]
+
+export async function setSellerVerification(
+  actorId: string,
+  vendorId: string,
+  input: { state: SellerVerificationState; note?: string }
+): Promise<{
+  id: string
+  organizationId: string
+  verificationState: SellerVerificationState
+  verificationNote: string | null
+  verifiedAt: string | null
+}> {
+  const state = input.state
+  // A state note is required when rejecting so the seller is never left
+  // guessing why (uniform with financing gate returns).
+  const note = input.note?.trim() || null
+  if (state === 'REJECTED' && !note) {
+    throw new VendorServiceError('A note is required when rejecting a seller', 400)
+  }
+
+  // Resolve the seller-org profile by the vendor (owner) user id.
+  // ownerUserId carries only an @@index (organizationId holds the @unique) — findFirst.
+  const profile = await db.sellerProfile.findFirst({
+    where: { ownerUserId: vendorId },
+    include: { organization: { select: { id: true, name: true } }, owner: { select: { id: true, name: true } } },
+  })
+  if (!profile) {
+    throw new VendorServiceError('No seller-organization profile exists for this vendor (individual sellers use the legacy verify action)', 404)
+  }
+
+  const now = new Date()
+  const updated = await db.sellerProfile.update({
+    where: { id: profile.id },
+    data: {
+      verificationState: state,
+      verificationNote: note,
+      verifiedAt: state === 'VERIFIED' ? (profile.verifiedAt ?? now) : null,
+    },
+  })
+
+  await recordAudit({
+    actorId,
+    actorType: 'ADMIN',
+    action: 'SELLER_VERIFICATION_SET',
+    entityType: 'SellerProfile',
+    entityId: profile.id,
+    summary: `Seller org "${profile.organization.name}" verification → ${state}${note ? ` — ${note}` : ''}`,
+    metadata: { organizationId: profile.organizationId, state, note },
+  })
+
+  await emitNotification({
+    userId: profile.ownerUserId,
+    type: 'VENDOR_STATUS',
+    title: `Your seller verification is ${state.toLowerCase()}`,
+    body:
+      state === 'VERIFIED'
+        ? 'Your seller organization is verified. Your storefront shows the verified-business badge and RFQ routing gives you priority.'
+        : state === 'REJECTED'
+          ? `Your seller verification was rejected.${note ? ` Reason: ${note}` : ''} You can address the feedback and request another review.`
+          : `Your seller organization's verification state is now ${state.toLowerCase()}.${note ? ` Note: ${note}` : ''}`,
+    linkView: 'seller',
+  })
+
+  return {
+    id: updated.id,
+    organizationId: updated.organizationId,
+    verificationState: updated.verificationState as SellerVerificationState,
+    verificationNote: updated.verificationNote,
+    verifiedAt: updated.verifiedAt?.toISOString() ?? null,
+  }
+}

@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     if (parsed.data.purpose === 'RESET') {
       // A code can only exist for a real account (request route enforces it);
       // verifying with no matching live account burns nothing.
-      const existing = await db.user.findUnique({ where: { phone }, select: { id: true } })
+      const existing = await db.user.findFirst({ where: { phone }, select: { id: true } })
       if (!existing) {
         return NextResponse.json({ error: 'This code has expired. Request a new one.' }, { status: 400 })
       }

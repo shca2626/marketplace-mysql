@@ -90,7 +90,8 @@ export function SupportWidget() {
       )
       if (!res.ok) {
         // Unknown token (e.g. the server was reset) → back to the pre-chat form.
-        if (res.status === 404) {
+        // The messages route answers 404 with { code: 'SESSION_NOT_FOUND' }.
+        if (res.code === 'SESSION_NOT_FOUND' || /not found|404/i.test(res.error ?? '')) {
           applySession(null)
           setMessages([])
           afterIdRef.current = ''

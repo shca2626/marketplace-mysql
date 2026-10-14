@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { requireUser } from '@/server/guards'
 import { db } from '@/lib/db'
-import { iso } from '@/server/modules/financing/types'
+// Date | null -> ISO string | null (the vault serialization convention)
+const iso = (d: Date | null): string | null => (d ? d.toISOString() : null)
 
 // GET /api/financing/profile — the signed-in user's applicant profile (the
 // DP-14 User additive scalars). Read-only; powers the wizard's step-1 profile

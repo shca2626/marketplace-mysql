@@ -20,7 +20,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const staff = await requireFinancierStaffOrThrow({ id: user!.id }, 'financier.offers.manage')
     const { id } = await ctx.params
     await req.json().catch(() => null) // body optional — withdraw takes none
-    const result = await withdrawOffer(staff, id)
+    const result = await withdrawOffer(user.id, id)
     return NextResponse.json(result)
   } catch (err) {
     const svc = financingError(err)

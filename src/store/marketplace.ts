@@ -159,6 +159,9 @@ interface MarketplaceState {
   toggleCompare: (product: ProductDTO) => { ok: boolean; message?: string }
   removeFromCompare: (productId: string) => void
   clearCompare: () => void
+  /** Sign-out sweep: cart + saved + recently-viewed + compare — every
+   *  user-scoped commerce line is dropped in one call (C-1). */
+  clearUserCommerceState: () => void
   // ── Dynamic display currency (rates from /api/settings/currency —
   // DB-backed, live-refreshed). `activeCurrency` drives formatUSD()/formatMoney()
   // globally via the module state in src/lib/currency.ts. ──
@@ -350,6 +353,8 @@ export const useMarketplace = create<MarketplaceState>()(
       removeFromCompare: (productId) =>
         set({ compareItems: get().compareItems.filter((p) => p.id !== productId) }),
       clearCompare: () => set({ compareItems: [] }),
+      clearUserCommerceState: () =>
+        set({ cart: [], savedForLater: [], recentlyViewed: [], compareItems: [] }),
 
       // ── Dynamic display currency ──
       currencyPref: null,

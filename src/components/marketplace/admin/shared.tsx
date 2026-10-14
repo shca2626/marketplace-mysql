@@ -11,10 +11,14 @@ import { cn } from '@/lib/utils'
 // Wraps fetch + JSON parsing; never throws. Toasts are left to callers so
 // success/UX copy stays contextual.
 
+/** Shape returned by apiRequest — used by useStepUp and other wrappers.
+ * `code` carries typed deny reasons (e.g. MFA_STEP_UP_REQUIRED) from the API. */
+export type ApiResult<T = unknown> = { ok: boolean; data?: T; error?: string; code?: string }
+
 export async function apiRequest<T = unknown>(
   url: string,
   init?: RequestInit
-): Promise<{ ok: boolean; data?: T; error?: string }> {
+): Promise<ApiResult<T>> {
   try {
     const res = await fetch(url, {
       ...init,
@@ -24,7 +28,11 @@ export async function apiRequest<T = unknown>(
     })
     const json = (await res.json().catch(() => ({}))) as Record<string, unknown>
     if (!res.ok) {
-      return { ok: false, error: (json.error as string) ?? `Request failed (${res.status})` }
+      return {
+        ok: false,
+        error: (json.error as string) ?? `Request failed (${res.status})`,
+        ...(json.code ? { code: String(json.code) } : {}),
+      }
     }
     return { ok: true, data: json as T }
   } catch {

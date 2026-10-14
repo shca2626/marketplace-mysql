@@ -28,7 +28,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         { status: 400 }
       )
     }
-    const offer = await createOffer({ staff, requestId: id, payload: parsed.data })
+    const { currency: _currency, ...payload } = parsed.data
+    void _currency // offers are denominated per-request; the schema default is display-only
+    const offer = await createOffer(user!.id, {
+      requestId: id,
+      ...payload,
+      validUntil: payload.validUntil == null ? null : String(payload.validUntil),
+      installments: payload.installments.map((i) => ({ ...i, dueDate: String(i.dueDate) })),
+    })
     return NextResponse.json({ offer }, { status: 201 })
   } catch (err) {
     const svc = financingError(err)

@@ -206,7 +206,7 @@ export async function isModuleEnabledForUser(moduleKey: string, userId: string):
 }
 
 const globalForModules = globalThis as unknown as {
-  __vendoraModuleStateCache?: { value: ResolvedModuleState; expiresAt: number }
+  __vendoraModuleStateCache?: { value: ResolvedModuleState; expiresAt: number } | null
 }
 
 async function loadModuleStateCached(): Promise<ResolvedModuleState> {

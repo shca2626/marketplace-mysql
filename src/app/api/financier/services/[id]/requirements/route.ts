@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/server/guards'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
-import { requireFinancierStaffOrThrow } from '@/server/modules/financing/guards'
 import { financingError } from '@/server/modules/financing/catalog'
-import { attachRequirement, listServiceRequirements } from '@/server/modules/financing/conditions'
+import { attachServiceRequirement, listServiceRequirements } from '@/server/modules/financing/conditions'
 import { requirementAttachSchema } from '@/server/modules/financing/types'
 
 // /api/financier/services/[id]/requirements — the per-service composer editor.
@@ -14,9 +13,10 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const { user, error } = await requireUser()
   if (error) return error
   try {
-    const staff = await requireFinancierStaffOrThrow({ id: user!.id }, 'financier.services.manage')
     const { id } = await ctx.params
-    const requirements = await listServiceRequirements(staff.profile.id, id)
+    // Authorization is enforced per-action inside the service
+    // (assertFinancierStaffOfService holds financier.services.manage).
+    const requirements = await listServiceRequirements(id)
     return NextResponse.json({ requirements })
   } catch (err) {
     const svc = financingError(err)
@@ -35,7 +35,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (rl) return rl
 
   try {
-    const staff = await requireFinancierStaffOrThrow({ id: user!.id }, 'financier.services.manage')
     const { id } = await ctx.params
     const parsed = requirementAttachSchema.safeParse(await req.json())
     if (!parsed.success) {
@@ -44,11 +43,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         { status: 400 }
       )
     }
-    const requirement = await attachRequirement({
-      profile: { id: staff.profile.id, organizationId: staff.organization.id },
+    const requirement = await attachServiceRequirement(user!.id, {
       serviceId: id,
-      payload: parsed.data,
-      actorId: user!.id,
+      ...parsed.data,
     })
     return NextResponse.json({ requirement }, { status: 201 })
   } catch (err) {

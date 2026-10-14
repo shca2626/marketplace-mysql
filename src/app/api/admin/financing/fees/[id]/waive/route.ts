@@ -3,7 +3,7 @@ import { requireAdmin } from '@/server/guards'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 import { financingError } from '@/lib/financing-api'
-import { waiveFee } from '@/server/modules/financing/offers'
+import { adminMarkFee } from '@/server/modules/financing/agreements'
 
 // POST /api/admin/financing/fees/[id]/waive — ACCRUED | INVOICED → WAIVED.
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -18,8 +18,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   try {
     const { id } = await ctx.params
-    const agreement = await waiveFee(user, id)
-    return NextResponse.json({ agreement })
+    const fee = await adminMarkFee(user.id, id, 'WAIVE')
+    return NextResponse.json({ fee })
   } catch (err) {
     return financingError(err, 'waive the fee')
   }

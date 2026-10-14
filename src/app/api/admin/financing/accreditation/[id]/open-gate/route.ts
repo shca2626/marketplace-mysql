@@ -3,7 +3,7 @@ import { requireAdmin } from '@/server/guards'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 import { financingError } from '@/lib/financing-api'
-import { openGate } from '@/server/modules/financing/accreditation'
+import { startAccreditationReview } from '@/server/modules/financing/accreditation'
 
 // POST /api/admin/financing/accreditation/[id]/open-gate — SUBMITTED →
 // UNDER_PLATFORM_REVIEW on an accreditation request.
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   try {
     const { id } = await ctx.params
-    const request = await openGate(user, id)
+    const request = await startAccreditationReview(user.id, id)
     return NextResponse.json({ request })
   } catch (err) {
     return financingError(err, 'open the accreditation gate review')

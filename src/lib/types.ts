@@ -1141,3 +1141,78 @@ export interface EmailConfigDTO {
   fromFallback: boolean // true when fromAddress is the onboarding@resend.dev fallback (BRIDGE-1)
   mailerMode: string // resend-api | smtp | none
 }
+
+// ── Catalog KYP / shared-catalog offers / store trust (client-safe DTOs) ────
+
+/** Product certification row (KYP review queue) — mirrors kyc/certifications serialization. */
+export interface ProductCertificationDTO {
+  id: string
+  productId: string
+  productTitle?: string
+  sellerId?: string
+  sellerName?: string | null
+  kind: string // DATASHEET | WARRANTY | ORIGIN | TEST_REPORT | CERTIFICATE | OTHER
+  title: string
+  mediaId: string | null
+  url: string | null
+  issuedBy: string | null
+  issuedAt: string | null
+  expiresAt: string | null
+  status: string // PENDING | VERIFIED | REJECTED
+  verifiedById: string | null
+  verifiedAt: string | null
+  note: string | null
+  isActive: boolean
+  createdAt: string
+}
+
+/** Spec-attribute dictionary row — mirrors kyc/spec-attributes serialization. */
+export interface SpecAttributeDTO {
+  id: string
+  categoryId: string | null
+  categoryName?: string | null
+  key: string
+  label: string
+  dataType: string // TEXT | NUMBER | SELECT | BOOLEAN
+  unit: string | null
+  options: string[]
+  required: boolean
+  position: number
+  isActive: boolean
+  createdAt: string
+}
+
+/** Shared-catalog company offer — mirrors catalog/offers serializeOffer. */
+export interface ProductOfferDTO {
+  id: string
+  productId: string
+  sellerId: string
+  seller: { id: string; name: string; storeName: string | null }
+  price: number
+  compareAtPrice: number | null
+  stock: number
+  moq: number | null
+  sku: string | null
+  priceTiers: { from: number; to: number | null; price: number }[] | null
+  freeShipping: boolean
+  shippingFee: number | null
+  processingDays: number | null
+  leadTimeNote: string | null
+  status: string // DRAFT | ACTIVE | PAUSED | ARCHIVED
+  soldCount: number
+  createdAt: string
+}
+
+/** Store trust counters — mirrors sellers/trust.computeStoreTrust. */
+export interface StoreTrustDTO {
+  ordersFulfilled: number
+  ordersTotal: number
+  ordersWithDispute: number
+  disputeRate: number | null
+  disputeFree: boolean | null
+  kycLevel: number
+  verificationState: string | null
+  orgKycLevel: number | null
+  badge: 'VERIFIED_BUSINESS' | 'IDENTITY_VERIFIED' | 'NEW_SELLER'
+  memberYears: number
+}

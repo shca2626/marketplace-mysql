@@ -692,43 +692,42 @@ export async function claimOrgInvitationTx(
   }
 }
 
-/** Grant an org invitation's role to an EXISTING user (accept-by-link when logged in). */
+/**
+ * Grant an org invitation's role to an EXISTING user (accept-by-link when logged in).
+ *
+ * ATOMIC (invitation-acceptance hardening): the claim, the membership create
+ * and the role grant commit in ONE transaction, and the claim itself is the
+ * PENDING-guarded atomic flip from claimOrgInvitationTx — a concurrent
+ * double-accept can never yield two grants (exactly one transaction wins the
+ * PENDING → ACCEPTED update; the loser sees count 0 and aborts clean).
+ */
 export async function acceptOrgInvitationLoggedIn(userId: string, email: string, token: string): Promise<{ organizationName: string } | null> {
-  const invitation = await db.staffInvitation.findUnique({
-    where: { tokenHash: createHash('sha256').update(token).digest('hex') },
-    include: { role: true },
-  })
-  if (
-    !invitation ||
-    invitation.status !== 'PENDING' ||
-    invitation.role.scope !== 'ORG' ||
-    !invitation.organizationId ||
-    invitation.email !== email.toLowerCase() ||
-    invitation.expiresAt < new Date()
-  ) {
-    return null
-  }
-  const org = await db.organization.findUnique({ where: { id: invitation.organizationId } })
-  if (!org) return null
-  const organizationId = invitation.organizationId
-  await db.$transaction(async (tx) => {
+  const claim = await db.$transaction(async (tx) => {
+    const claimed = await claimOrgInvitationTx(tx, email, token)
+    if (!claimed) return null
+    const org = await tx.organization.findUnique({
+      where: { id: claimed.organizationId },
+      select: { name: true },
+    })
+    if (!org) return null // org vanished — nothing commits
     const existing = await tx.organizationMember.findUnique({
-      where: { organizationId_userId: { organizationId, userId } },
+      where: { organizationId_userId: { organizationId: claimed.organizationId, userId } },
     })
     if (!existing) {
-      await tx.organizationMember.create({ data: { organizationId, userId, role: 'VIEWER' } })
+      await tx.organizationMember.create({ data: { organizationId: claimed.organizationId, userId, role: 'VIEWER' } })
     }
-    await tx.userRole.create({ data: { userId, roleId: invitation.roleId, organizationId } })
-    await tx.staffInvitation.update({ where: { id: invitation.id }, data: { status: 'ACCEPTED', acceptedAt: new Date() } })
+    await tx.userRole.create({ data: { userId, roleId: claimed.roleId, organizationId: claimed.organizationId } })
+    return { ...claimed, orgName: org.name }
   }, { timeout: 15000 })
+  if (!claim) return null
   await recordAudit({
     actorId: userId,
     actorType: 'USER',
     action: 'ORG_INVITATION_ACCEPTED',
     entityType: 'StaffInvitation',
-    entityId: invitation.id,
-    summary: 'Joined ' + org.name + ' via invitation (role "' + invitation.role.name + '")',
-    metadata: { organizationId },
+    entityId: claim.invitationId,
+    summary: 'Joined ' + claim.orgName + ' via invitation (role "' + claim.roleName + '")',
+    metadata: { organizationId: claim.organizationId },
   })
-  return { organizationName: org.name }
+  return { organizationName: claim.orgName }
 }
