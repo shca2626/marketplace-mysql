@@ -15,6 +15,10 @@ import { NextRequest, NextResponse } from 'next/server'
 // Legacy deep links on / (?view=…) still 307 to the same view under /market
 // (307 during development so browsers don't hard-cache; the /market param →
 // real-URL map below is already permanent → 301).
+//
+// NEXT 16 (PROXY-1, 2026-10-15): the `middleware` file convention is deprecated
+// — this is the same logic under the new `proxy` convention (file proxy.ts,
+// exported function `proxy`). Behavior is byte-identical.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Matched pathnames only (query-insensitive). */
@@ -22,7 +26,7 @@ export const config = {
   matcher: ['/', '/market'],
 }
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname, searchParams } = req.nextUrl
 
   // ── Legacy: /?view=… → /market?view=… (pagedesign Phase 0) ──

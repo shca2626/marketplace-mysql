@@ -18,6 +18,7 @@
 import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { writeFile } from 'node:fs/promises'
+import { hashPassword } from '../src/lib/auth'
 import { PrismaClient } from '@prisma/client'
 import { processImageUpload } from '../src/lib/storage/image-pipeline'
 import { mediaUrl } from '../src/lib/storage/url'
@@ -886,6 +887,37 @@ async function main() {
   const catBySlug = Object.fromEntries(cats.map((c) => [c.slug, c.id]))
   console.log(`📂 ${cats.length} solar categories created`)
 
+  // ── Ensure demo accounts exist (SEEDFIX-1) ──
+  // The DB was purged of test accounts in past sessions, so the 5 sellers +
+  // reviewer/buyer pool must be (re)created idempotently before the rebrand
+  // update below can find them. Demo password for every seeded account:
+  //   Vendora123!
+  const DEMO_PASSWORD = hashPassword('Vendora123!')
+  const SELLER_EMAILS = [1, 2, 3, 4, 5].map((n) => `seller${n}@vendora.com`)
+  const BUYER_EMAILS = [
+    'demo@vendora.com',
+    'maya@example.com',
+    'leo@example.com',
+    'sofia@example.com',
+    'jamal@example.com',
+    'nina@example.com',
+  ]
+  for (const email of SELLER_EMAILS) {
+    await db.user.upsert({
+      where: { email },
+      create: { email, password: DEMO_PASSWORD, name: email.split('@')[0], role: 'SELLER', status: 'ACTIVE' },
+      update: {},
+    })
+  }
+  for (const email of BUYER_EMAILS) {
+    await db.user.upsert({
+      where: { email },
+      create: { email, password: DEMO_PASSWORD, name: email.split('@')[0], role: 'BUYER', status: 'ACTIVE' },
+      update: {},
+    })
+  }
+  console.log(`👥 ${SELLER_EMAILS.length} sellers + ${BUYER_EMAILS.length} buyers ensured (password: Vendora123!)`)
+
   // ── Sellers rebrand ──
   const sellers: Record<number, { id: string; storeName: string }> = {}
   for (const n of [1, 2, 3, 4, 5] as const) {
@@ -975,6 +1007,57 @@ async function main() {
     })
   }
   console.log(`  ${createdProducts.length} solar products live`)
+
+  // ── Shared catalog: company orgs + product offers (SEEDFIX-2) ──
+  // The C2C-retirement model: "stores" are companies (Organization,
+  // orgType=COMPANY, status=ACTIVE) selling via ProductOffer rows on the
+  // shared catalog. One org per seller brand, seller as OWNER member, one
+  // ACTIVE offer per product — makes the homepage "engineer-owned stores"
+  // stat count real companies instead of 0.
+  console.log('🏢 seeding company orgs + shared-catalog offers...')
+  let offerCount = 0
+  for (const n of [1, 2, 3, 4, 5] as const) {
+    const brand = SELLER_BRANDS[n]
+    const slug = brand.storeName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+    const org = await db.organization.upsert({
+      where: { slug },
+      create: {
+        name: brand.storeName,
+        slug,
+        orgType: 'COMPANY',
+        status: 'ACTIVE',
+        verifiedAt: new Date(),
+        industry: 'Renewable Energy Equipment',
+      },
+      update: { status: 'ACTIVE', name: brand.storeName },
+    })
+    await db.organizationMember.upsert({
+      where: { organizationId_userId: { organizationId: org.id, userId: sellers[n].id } },
+      create: { organizationId: org.id, userId: sellers[n].id, role: 'OWNER', jobTitle: 'Founder & Lead Engineer' },
+      update: { role: 'OWNER' },
+    })
+    const sellerProducts = createdProducts.filter((p) => p.sellerId === sellers[n].id)
+    for (const p of sellerProducts) {
+      await db.productOffer.upsert({
+        where: { productId_sellerId: { productId: p.id, sellerId: sellers[n].id } },
+        create: {
+          productId: p.id,
+          sellerId: sellers[n].id,
+          sellerOrgId: org.id,
+          price: p.price,
+          stock: p.stock,
+          sku: `OF-${p.title.slice(0, 12).toUpperCase().replace(/[^A-Z0-9]/g, '')}`,
+          freeShipping: p.price >= 100,
+          processingDays: 2,
+          status: 'ACTIVE',
+          soldCount: Math.round(p.price * 7) % 200,
+        },
+        update: { sellerOrgId: org.id, price: p.price, stock: p.stock, status: 'ACTIVE' },
+      })
+      offerCount++
+    }
+  }
+  console.log(`  5 company orgs + ${offerCount} ACTIVE shared-catalog offers live`)
 
   // ── Reviews ──
   console.log('⭐ seeding reviews...')

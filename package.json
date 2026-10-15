@@ -3,18 +3,18 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000 2>&1 | tee dev.log",
+    "dev": "bash scripts/with-env.sh next dev -p 3000 2>&1 | tee dev.log",
     "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
     "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
     "lint": "eslint .",
     "db:push": "bun scripts/db-push-guard.ts",
-    "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev",
-    "db:reset": "prisma migrate reset",
-    "db:seed": "bun scripts/seed-solar.ts",
-    "db:seed:b2b": "bun scripts/seed-b2b.ts",
-    "mysql:check": "bun scripts/mysql-check.ts",
-    "db:status": "bun scripts/db-status.ts"
+    "db:generate": "bash scripts/with-env.sh prisma generate",
+    "db:migrate": "bash scripts/with-env.sh prisma migrate dev",
+    "db:reset": "bash scripts/db-reset-guard.sh",
+    "db:seed": "bash scripts/with-env.sh bun scripts/seed-solar.ts",
+    "db:seed:b2b": "bash scripts/with-env.sh bun scripts/seed-b2b.ts",
+    "mysql:check": "bash scripts/with-env.sh bun scripts/mysql-check.ts",
+    "db:status": "bash scripts/with-env.sh bun scripts/db-status.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",
