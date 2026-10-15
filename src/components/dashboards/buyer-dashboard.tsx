@@ -18,6 +18,7 @@ import {
   AtSign,
   BadgeCheck,
   Briefcase,
+  Building2,
   CalendarDays,
   FileText,
   Heart,
@@ -30,7 +31,6 @@ import {
   Settings,
   ShieldCheck,
   ShoppingBag,
-  Sparkles,
   Store,
   UserCog,
 } from 'lucide-react'
@@ -282,16 +282,16 @@ export function BuyerDashboard() {
                 <Separator />
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-primary/40 bg-primary/[0.04] px-4 py-3.5">
                   <div className="flex items-center gap-3">
-                    <Sparkles size={16} className="text-primary" />
+                    <Building2 size={16} className="text-primary" />
                     <div>
-                      <p className="text-sm font-semibold leading-tight">Turn your passion into a store</p>
+                      <p className="text-sm font-semibold leading-tight">Buying for a business?</p>
                       <p className="text-xs text-muted-foreground">
-                        List products in minutes — 5% fee only when you sell.
+                        Register your company for team purchasing, NET payment terms and financing.
                       </p>
                     </div>
                   </div>
-                  <Button size="sm" className="rounded-lg" onClick={() => navigate('seller')}>
-                    Start selling
+                  <Button size="sm" className="rounded-lg" onClick={() => navigate('register-company')}>
+                    Register a company
                   </Button>
                 </div>
               </>

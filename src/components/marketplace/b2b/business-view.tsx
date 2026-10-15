@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Clock,
   FileText,
+  FolderLock,
   Hourglass,
   Loader2,
   Mail,
@@ -16,6 +17,8 @@ import {
   Plus,
   ReceiptText,
   ShieldAlert,
+  ShieldCheck,
+  ShoppingBag,
   Store,
   UserPlus,
   Users,
@@ -42,11 +45,26 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
-import { apiRequest, ORG_ROLE_MAP, ORG_STATUS_MAP, StatusBadge, type AuthzContextResponse } from './b2b-shared'
+import { apiRequest, ORG_ROLE_MAP, ORG_STATUS_MAP, RFQ_STATUS_MAP, StatusBadge, type AuthzContextResponse } from './b2b-shared'
 import { ApprovalsCard } from './approvals-card'
 import { SellingContextGate, SellingSection } from './selling-section'
+import { FinancingCard } from './financing-card'
+import { RolesSection } from './roles-section'
+import { DocumentsSection } from '@/components/marketplace/financing/documents-section'
 
 // ── Register-form state ─────────────────────────────────────────────────────
+
+/** Org-scoped RFQ list item (subset of RfqDTO the Buying panel renders). */
+interface RfqLite {
+  id: string
+  number: string
+  status: string
+  title?: string | null
+  createdAt: string
+  lineCount?: number
+  quoteCount?: number
+  lines?: { id: string }[]
+}
 
 interface OrgFormState {
   name: string
@@ -112,9 +130,13 @@ export function BusinessView() {
   )
 
   // Context switching — same endpoint the header switcher uses (server-side
-  // membership validation; the cookie is only a selector).
+  // membership validation; the cookie is only a selector). A switch RELOADS
+  // the app so every scoped payload and permission re-resolves from scratch
+  // (Phase 4 context separation). The registration flow opts out (`reload:
+  // false`) so the welcome toast survives — this page alone re-renders on the
+  // refetched context, and every query here is keyed to the active org.
   const [switching, setSwitching] = useState(false)
-  const switchContext = async (organizationId: string) => {
+  const switchContext = async (organizationId: string, opts?: { reload?: boolean }) => {
     if (switching) return
     setSwitching(true)
     try {
@@ -132,7 +154,11 @@ export function BusinessView() {
         })
         return false
       }
-      await refetchContext()
+      if (opts?.reload === false) {
+        await refetchContext()
+      } else {
+        window.location.reload()
+      }
       return true
     } catch {
       toast({ title: 'Could not switch context', description: 'Network error — please try again.', variant: 'destructive' })
@@ -211,8 +237,9 @@ export function BusinessView() {
       return
     }
     setForm(EMPTY_FORM)
-    // Jump the console (and the active context) to the freshly created org
-    const switched = await switchContext(res.data.organization.id)
+    // Jump the console (and the active context) to the freshly created org.
+    // reload:false keeps the welcome toast — this page refetches its context.
+    const switched = await switchContext(res.data.organization.id, { reload: false })
     if (!switched) setLocalOrgId(res.data.organization.id)
     void refetchOrgs()
     toast({
@@ -487,11 +514,23 @@ export function BusinessView() {
               <TabsTrigger value="overview" className="gap-1.5 rounded-lg px-3.5 py-1.5">
                 <Building2 size={14} /> Overview
               </TabsTrigger>
+              <TabsTrigger value="buying" className="gap-1.5 rounded-lg px-3.5 py-1.5">
+                <ShoppingBag size={14} /> Buying
+              </TabsTrigger>
               {companyOrgs.length > 0 && (
                 <TabsTrigger value="selling" className="gap-1.5 rounded-lg px-3.5 py-1.5">
                   <Store size={14} /> Selling
                 </TabsTrigger>
               )}
+              <TabsTrigger value="financing" className="gap-1.5 rounded-lg px-3.5 py-1.5">
+                <Wallet size={14} /> Financing
+              </TabsTrigger>
+              <TabsTrigger value="documents" className="gap-1.5 rounded-lg px-3.5 py-1.5">
+                <FolderLock size={14} /> Documents
+              </TabsTrigger>
+              <TabsTrigger value="team" className="gap-1.5 rounded-lg px-3.5 py-1.5">
+                <ShieldCheck size={14} /> Team &amp; roles
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="mt-6 space-y-6">
@@ -502,170 +541,37 @@ export function BusinessView() {
                 <ApprovalsCard org={detail} myRole={detail.myRole} onChanged={() => void refetchDetail()} />
               )}
 
-            {/* Members */}
-            <Card>
-              <CardHeader className="pb-4">
-                <CardTitle className="flex items-center justify-between gap-2 text-base">
-                  <span className="flex items-center gap-2">
-                    <Users size={16} className="text-primary" /> Team members
-                    <span className="rounded-full bg-muted px-1.5 text-[11px] font-bold tabular-nums text-muted-foreground">
-                      {detail?.members?.length ?? orgs.find((o) => o.id === activeOrgId)?.memberCount ?? 0}
+              {/* Workspace map — one combined buying-and-selling console */}
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  { tab: 'buying', icon: ShoppingBag, title: 'Buy for the business', text: 'Procurement RFQs, direct purchases & approvals' },
+                  ...(companyOrgs.length > 0
+                    ? [{ tab: 'selling', icon: Store, title: 'Sell & fulfill', text: 'Offers, stores, sales orders & quotes' }]
+                    : []),
+                  { tab: 'financing', icon: Wallet, title: 'Financing & accreditation', text: 'Apply through the verification gate' },
+                  { tab: 'documents', icon: FolderLock, title: 'Company documents', text: 'Org vault — verified once, reused' },
+                  { tab: 'team', icon: Users, title: 'Team & roles', text: 'Members, invitations & permissions' },
+                ].map((tile) => (
+                  <div key={tile.tab} className="rounded-xl border bg-card p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <tile.icon size={16} />
                     </span>
-                  </span>
-                  {detail?.myRole && (
-                    <span className="text-xs font-normal text-muted-foreground">
-                      You are <StatusBadge status={detail.myRole} map={ORG_ROLE_MAP} />
-                    </span>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {detailLoading && !detailData ? (
-                  <div className="space-y-3">
-                    {Array.from({ length: 2 }).map((_, i) => (
-                      <Skeleton key={i} className="h-14 w-full rounded-xl" />
-                    ))}
+                    <p className="mt-2.5 text-sm font-semibold leading-tight">{tile.title}</p>
+                    <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{tile.text}</p>
                   </div>
-                ) : (detail?.members ?? []).length === 0 ? (
-                  <p className="rounded-xl border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
-                    No members yet — invite your team below.
-                  </p>
-                ) : (
-                  <ul className="divide-y rounded-xl border">
-                    {(detail?.members ?? []).map((m) => (
-                      <li key={m.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                        <Avatar className="h-9 w-9 border">
-                          <AvatarFallback className="bg-primary/10 text-xs font-bold text-primary">
-                            {initials(m.user.name)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold">{m.user.name}</p>
-                          <p className="flex min-w-0 items-center gap-1 truncate text-xs text-muted-foreground">
-                            <Mail size={11} className="shrink-0" /> {m.user.email}
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          {m.jobTitle && (
-                            <span className="hidden text-xs text-muted-foreground sm:inline">{m.jobTitle}</span>
-                          )}
-                          <StatusBadge status={m.role} map={ORG_ROLE_MAP} />
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                ))}
+              </div>
+            </TabsContent>
 
-                <Separator />
-
-                {canManageMembers ? (
-                  <form onSubmit={submitAddMember} className="space-y-3" noValidate>
-                    <p className="text-sm font-semibold">Add a member</p>
-                    <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="member-email" className="sr-only">
-                          Email
-                        </Label>
-                        <Input
-                          id="member-email"
-                          type="email"
-                          value={memberForm.email}
-                          onChange={(e) => {
-                            setMemberForm((f) => ({ ...f, email: e.target.value }))
-                            if (memberError) setMemberError(null)
-                          }}
-                          placeholder="colleague@company.com"
-                          className="rounded-xl"
-                          aria-invalid={!!memberError}
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="member-role" className="sr-only">
-                          Role
-                        </Label>
-                        <Select
-                          value={memberForm.role}
-                          onValueChange={(v) => setMemberForm((f) => ({ ...f, role: v }))}
-                        >
-                          <SelectTrigger id="member-role" className="h-10 w-full rounded-xl sm:w-36" aria-label="Member role">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="ADMIN">Admin</SelectItem>
-                            <SelectItem value="BUYER">Buyer</SelectItem>
-                            <SelectItem value="APPROVER">Approver</SelectItem>
-                            <SelectItem value="VIEWER">Viewer</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="member-title" className="sr-only">
-                          Job title
-                        </Label>
-                        <Input
-                          id="member-title"
-                          value={memberForm.jobTitle}
-                          onChange={(e) => setMemberForm((f) => ({ ...f, jobTitle: e.target.value }))}
-                          placeholder="Job title (optional)"
-                          className="rounded-xl"
-                          maxLength={80}
-                        />
-                      </div>
-                    </div>
-                    {memberError && (
-                      <p
-                        role="alert"
-                        className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive"
-                      >
-                        <ShieldAlert size={14} className="mt-px shrink-0" />
-                        <span className="min-w-0 break-words">{memberError}</span>
-                      </p>
-                    )}
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <p className="text-xs text-muted-foreground">
-                        They need an existing Vendora account with that email.
-                      </p>
-                      <Button type="submit" variant="outline" className="rounded-xl" disabled={addingMember}>
-                        {addingMember ? (
-                          <>
-                            <Loader2 size={14} className="mr-1.5 animate-spin" /> Adding…
-                          </>
-                        ) : (
-                          <>
-                            <Plus size={14} className="mr-1.5" /> Add member
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </form>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Only owners and admins can add members — ask {detail?.name}&apos;s owner to invite
-                    new colleagues.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Where B2B actually happens */}
-            <Card className="border-primary/30 bg-primary/5">
-              <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
-                    <FileText size={18} />
-                  </span>
-                  <div>
-                    <p className="text-sm font-semibold">Request bulk pricing</p>
-                    <p className="text-xs text-muted-foreground">
-                      Send a request for quote on behalf of {detail?.name ?? 'your business'}.
-                    </p>
-                  </div>
-                </div>
-                <Button className="rounded-xl" onClick={() => navigate('rfqs')}>
-                  Go to RFQs
-                </Button>
-              </CardContent>
-            </Card>
+            {/* ── Buying: procurement RFQs + direct purchases on the org context ── */}
+            <TabsContent value="buying" className="mt-6 space-y-6">
+              <BuyingPanel
+                org={detail}
+                activeContextOrg={activeContextOrg}
+                buyingAsActive={activeContextOrg?.id === activeOrgId}
+                onSwitch={(id) => void switchContext(id)}
+                switching={switching}
+              />
             </TabsContent>
 
             {/* ── Selling (company orgs) — offers, proposals, stores, sales ── */}
@@ -687,9 +593,345 @@ export function BusinessView() {
                 )}
               </TabsContent>
             )}
+
+            {/* ── Financing & accreditation applications (company applicant) ── */}
+            <TabsContent value="financing" className="mt-6">
+              <FinancingCard />
+            </TabsContent>
+
+            {/* ── Company document vault ── */}
+            <TabsContent value="documents" className="mt-6">
+              <DocumentsSection defaultOrganizationId={activeOrgId} />
+            </TabsContent>
+
+            {/* ── Team & roles ── */}
+            <TabsContent value="team" className="mt-6 space-y-6">
+              <Card>
+                <CardHeader className="pb-4">
+                  <CardTitle className="flex items-center justify-between gap-2 text-base">
+                    <span className="flex items-center gap-2">
+                      <Users size={16} className="text-primary" /> Team members
+                      <span className="rounded-full bg-muted px-1.5 text-[11px] font-bold tabular-nums text-muted-foreground">
+                        {detail?.members?.length ?? orgs.find((o) => o.id === activeOrgId)?.memberCount ?? 0}
+                      </span>
+                    </span>
+                    {detail?.myRole && (
+                      <span className="text-xs font-normal text-muted-foreground">
+                        You are <StatusBadge status={detail.myRole} map={ORG_ROLE_MAP} />
+                      </span>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {detailLoading && !detailData ? (
+                    <div className="space-y-3">
+                      {Array.from({ length: 2 }).map((_, i) => (
+                        <Skeleton key={i} className="h-14 w-full rounded-xl" />
+                      ))}
+                    </div>
+                  ) : (detail?.members ?? []).length === 0 ? (
+                    <p className="rounded-xl border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
+                      No members yet — invite your team below.
+                    </p>
+                  ) : (
+                    <ul className="divide-y rounded-xl border">
+                      {(detail?.members ?? []).map((m) => (
+                        <li key={m.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                          <Avatar className="h-9 w-9 border">
+                            <AvatarFallback className="bg-primary/10 text-xs font-bold text-primary">
+                              {initials(m.user.name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold">{m.user.name}</p>
+                            <p className="flex min-w-0 items-center gap-1 truncate text-xs text-muted-foreground">
+                              <Mail size={11} className="shrink-0" /> {m.user.email}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {m.jobTitle && (
+                              <span className="hidden text-xs text-muted-foreground sm:inline">{m.jobTitle}</span>
+                            )}
+                            <StatusBadge status={m.role} map={ORG_ROLE_MAP} />
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  <Separator />
+
+                  {canManageMembers ? (
+                    <form onSubmit={submitAddMember} className="space-y-3" noValidate>
+                      <p className="text-sm font-semibold">Add a member</p>
+                      <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="member-email" className="sr-only">
+                            Email
+                          </Label>
+                          <Input
+                            id="member-email"
+                            type="email"
+                            value={memberForm.email}
+                            onChange={(e) => {
+                              setMemberForm((f) => ({ ...f, email: e.target.value }))
+                              if (memberError) setMemberError(null)
+                            }}
+                            placeholder="colleague@company.com"
+                            className="rounded-xl"
+                            aria-invalid={!!memberError}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="member-role" className="sr-only">
+                            Role
+                          </Label>
+                          <Select
+                            value={memberForm.role}
+                            onValueChange={(v) => setMemberForm((f) => ({ ...f, role: v }))}
+                          >
+                            <SelectTrigger id="member-role" className="h-10 w-full rounded-xl sm:w-36" aria-label="Member role">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="ADMIN">Admin</SelectItem>
+                              <SelectItem value="BUYER">Buyer</SelectItem>
+                              <SelectItem value="APPROVER">Approver</SelectItem>
+                              <SelectItem value="VIEWER">Viewer</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="member-title" className="sr-only">
+                            Job title
+                          </Label>
+                          <Input
+                            id="member-title"
+                            value={memberForm.jobTitle}
+                            onChange={(e) => setMemberForm((f) => ({ ...f, jobTitle: e.target.value }))}
+                            placeholder="Job title (optional)"
+                            className="rounded-xl"
+                            maxLength={80}
+                          />
+                        </div>
+                      </div>
+                      {memberError && (
+                        <p
+                          role="alert"
+                          className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive"
+                        >
+                          <ShieldAlert size={14} className="mt-px shrink-0" />
+                          <span className="min-w-0 break-words">{memberError}</span>
+                        </p>
+                      )}
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <p className="text-xs text-muted-foreground">
+                          They need an existing Vendora account with that email.
+                        </p>
+                        <Button type="submit" variant="outline" className="rounded-xl" disabled={addingMember}>
+                          {addingMember ? (
+                            <>
+                              <Loader2 size={14} className="mr-1.5 animate-spin" /> Adding…
+                            </>
+                          ) : (
+                            <>
+                              <Plus size={14} className="mr-1.5" /> Add member
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </form>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Only owners and admins can add members — ask {detail?.name}&apos;s owner to invite
+                      new colleagues.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Canonical org-scope RBAC — custom roles + per-member assignments */}
+              {activeOrgId && (
+                <RolesSection organizationId={activeOrgId} canManage={!!canManageMembers} />
+              )}
+            </TabsContent>
           </Tabs>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Buying panel (procurement + direct purchases on the org context) ─────────
+
+function BuyingPanel({
+  org,
+  activeContextOrg,
+  buyingAsActive,
+  onSwitch,
+  switching,
+}: {
+  org: OrganizationDTO | null
+  activeContextOrg: { id: string; name: string; orgType?: string | null } | null
+  buyingAsActive: boolean
+  onSwitch: (organizationId: string) => void
+  switching: boolean
+}) {
+  const navigate = useMarketplace((s) => s.navigate)
+  const { data: rfqData, loading: rfqLoading } = useApi<{ rfqs: RfqLite[] }>(
+    org ? `/api/rfqs?organizationId=${org.id}` : null,
+    { skip: !org }
+  )
+  const rfqs = rfqData?.rfqs ?? []
+  const openCount = rfqs.filter((r) => ['SUBMITTED', 'UNDER_REVIEW', 'QUOTED'].includes(r.status)).length
+
+  if (!org) return null
+
+  return (
+    <div className="space-y-6">
+      {/* Context gate — orders placed from here carry the org identity */}
+      {buyingAsActive && activeContextOrg?.orgType === 'COMPANY' ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-teal-500/40 bg-teal-500/5 px-4 py-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300">
+            <ShoppingBag size={16} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold">Buying as {org.name}</p>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Checkout runs on the company identity{org.creditTermsDays > 0 ? ` — NET-${org.creditTermsDays} terms` : ''},
+              with purchase-approval routing{org.approvalThreshold != null ? ` above ${formatUSD(org.approvalThreshold)}` : ''}.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-primary/40 bg-primary/[0.04] px-4 py-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <ShieldAlert size={16} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold">Switch your active context to buy as {org.name}</p>
+            <p className="text-xs text-muted-foreground">
+              Orders, RFQs and approvals attach to the company only while its context is active.
+            </p>
+          </div>
+          <Button size="sm" className="rounded-xl" disabled={switching} onClick={() => onSwitch(org.id)}>
+            {switching ? <Loader2 size={13} className="mr-1.5 animate-spin" /> : null}
+            Switch context
+          </Button>
+        </div>
+      )}
+
+      {/* Procurement RFQs on behalf of the company */}
+      <Card>
+        <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0 pb-4">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <FileText size={16} className="text-primary" /> Procurement RFQs
+              <span className="rounded-full bg-muted px-1.5 text-[11px] font-bold tabular-nums text-muted-foreground">
+                {rfqs.length}
+              </span>
+            </CardTitle>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Multi-line requests for quote, negotiations and recurring schedules on behalf of {org.name}.
+            </p>
+          </div>
+          <Button size="sm" className="rounded-xl" onClick={() => navigate('rfqs')}>
+            Open RFQ console
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {rfqLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 2 }).map((_, i) => (
+                <Skeleton key={i} className="h-14 rounded-xl" />
+              ))}
+            </div>
+          ) : rfqs.length === 0 ? (
+            <div className="rounded-xl border border-dashed px-4 py-6 text-center">
+              <p className="text-sm font-semibold">No RFQs for {org.name} yet</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Send your first request for quote — compare supplier offers side by side.
+              </p>
+              <Button size="sm" variant="outline" className="mt-3 rounded-xl" onClick={() => navigate('rfqs')}>
+                <Plus size={13} className="mr-1.5" /> New RFQ
+              </Button>
+            </div>
+          ) : (
+            <>
+              {openCount > 0 && (
+                <p className="mb-2.5 text-xs font-semibold text-muted-foreground">
+                  {openCount} in negotiation · showing {Math.min(3, rfqs.length)} of {rfqs.length}
+                </p>
+              )}
+              <ul className="divide-y rounded-xl border">
+                {rfqs.slice(0, 3).map((r) => (
+                  <li key={r.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <FileText size={15} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold">{r.title || r.number}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {r.lineCount ?? r.lines?.length ?? 0} line(s)
+                        {typeof r.quoteCount === 'number' ? ` · ${r.quoteCount} quote(s)` : ''} ·{' '}
+                        {formatDate(r.createdAt)}
+                      </p>
+                    </div>
+                    <StatusBadge status={r.status} map={RFQ_STATUS_MAP} />
+                  </li>
+                ))}
+              </ul>
+              <button
+                className="mt-3 text-xs font-medium text-primary hover:underline"
+                onClick={() => navigate('rfqs')}
+              >
+                View all RFQs →
+              </button>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Direct purchases */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border bg-card p-4 shadow-sm">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <ShoppingBag size={16} />
+          </span>
+          <p className="mt-2.5 text-sm font-semibold">Buy directly from the catalog</p>
+          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+            Shared-catalog products with company offers — checkout keeps the org identity and PO reference.
+          </p>
+          <Button size="sm" variant="outline" className="mt-3 rounded-xl" onClick={() => navigate('catalog')}>
+            Browse catalog
+          </Button>
+        </div>
+        <div className="rounded-xl border bg-card p-4 shadow-sm">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <CalendarCheck size={16} />
+          </span>
+          <p className="mt-2.5 text-sm font-semibold">Payment terms</p>
+          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+            {org.status === 'ACTIVE'
+              ? org.creditTermsDays > 0
+                ? `NET-${org.creditTermsDays} invoicing`
+                : 'Prepaid while no terms are set'
+              : 'Verification pending — retail pricing for now'}
+            {org.creditLimit > 0 ? ` · credit line ${formatUSD(org.creditLimit)}` : ''}
+          </p>
+        </div>
+        <div className="rounded-xl border bg-card p-4 shadow-sm">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <ReceiptText size={16} />
+          </span>
+          <p className="mt-2.5 text-sm font-semibold">Approvals</p>
+          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+            {org.approvalThreshold != null && org.approvalThreshold > 0
+              ? `Orders from BUYER members at or above ${formatUSD(org.approvalThreshold)} route to approvers first.`
+              : 'No purchase-approval threshold set — all members can order directly.'}
+          </p>
+        </div>
+      </div>
     </div>
   )
 }

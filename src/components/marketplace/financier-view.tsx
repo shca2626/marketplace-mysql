@@ -35,6 +35,9 @@ import { OffersSection } from '@/components/marketplace/financier/offers-section
 import { AccreditationsSection } from '@/components/marketplace/financier/accreditations-section'
 import { AgreementsSection } from '@/components/marketplace/financier/agreements-section'
 import { ProfileSection } from '@/components/marketplace/financier/profile-section'
+import { OperationsSection } from '@/components/marketplace/financier/operations-section'
+import { AnalyticsSection } from '@/components/marketplace/financier/analytics-section'
+import { TeamSection } from '@/components/marketplace/financier/team-section'
 
 const FINANCIER_ORG_TYPES = new Set(['BANK', 'MFI', 'EWALLET'])
 
@@ -123,7 +126,10 @@ function FinancierConsole() {
       {section === 'offers' && <OffersSection />}
       {section === 'accreditations' && <AccreditationsSection />}
       {section === 'agreements' && <AgreementsSection />}
+      {section === 'operations' && <OperationsSection />}
+      {section === 'analytics' && <AnalyticsSection />}
       {section === 'profile' && <ProfileSection />}
+      {section === 'team' && <TeamSection />}
     </DashboardLayout>
   )
 }

@@ -97,12 +97,12 @@ export function Header() {
   const categories = catData?.categories ?? []
 
   // Active context (authz): the orgs the user belongs to + the server-validated
-  // active organization (httpOnly cookie selector). Refetched after every switch.
-  const {
-    data: ctxData,
-    loading: ctxLoading,
-    refetch: refetchContext,
-  } = useApi<AuthzContextResponse>(user ? '/api/context' : null, { skip: !user })
+  // active organization (httpOnly cookie selector). Switching triggers a full
+  // reload (Phase 4 invalidation), so no manual refetch is needed here.
+  const { data: ctxData, loading: ctxLoading } = useApi<AuthzContextResponse>(
+    user ? '/api/context' : null,
+    { skip: !user }
+  )
   const orgs = ctxData?.orgs ?? []
   const activeOrg = ctxData?.activeOrg ?? null
 
@@ -120,7 +120,7 @@ export function Header() {
   // Context switching (POST /api/context/switch validates membership on the
   // server; the cookie is only a selector). One in-flight switch at a time.
   const [switchingTo, setSwitchingTo] = useState<string | null>(null)
-  const switchContext = async (organizationId: string, label: string) => {
+  const switchContext = async (organizationId: string) => {
     if (switchingTo) return
     setSwitchingTo(organizationId)
     try {
@@ -138,14 +138,12 @@ export function Header() {
         })
         return
       }
-      await refetchContext()
-      toast({
-        title: `Now working as ${label}`,
-        description:
-          organizationId === 'personal'
-            ? 'Personal context — buying and browsing only.'
-            : 'Organization context is active for workspace actions.',
-      })
+      // Phase 4 context separation: a switch must INVALIDATE every scoped
+      // payload and permission cached anywhere in the SPA. The server already
+      // re-validates membership per request (resolveAuthzContext); the full
+      // reload guarantees no mounted view keeps rendering the previous
+      // context's data.
+      window.location.reload()
     } catch {
       toast({ title: 'Could not switch context', description: 'Network error — please try again.', variant: 'destructive' })
     } finally {
@@ -372,7 +370,7 @@ export function Header() {
                   {ctxLoading && !ctxData && <Loader2 size={11} className="ml-1.5 inline animate-spin" />}
                 </DropdownMenuLabel>
                 <DropdownMenuItem
-                  onClick={() => switchContext('personal', 'yourself')}
+                  onClick={() => switchContext('personal')}
                   disabled={!!switchingTo}
                   className="cursor-pointer"
                 >
@@ -391,7 +389,7 @@ export function Header() {
                   return (
                     <DropdownMenuItem
                       key={o.id}
-                      onClick={() => switchContext(o.id, o.name)}
+                      onClick={() => switchContext(o.id)}
                       disabled={!!switchingTo}
                       className="cursor-pointer"
                     >

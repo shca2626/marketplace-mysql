@@ -14,6 +14,7 @@ import {
   PackageCheck,
   PackageOpen,
   ReceiptText,
+  RotateCcw,
   Scale,
   Search,
   Star,
@@ -33,6 +34,14 @@ import {
   RaiseDisputeDialog,
   type DisputesPublicConfig,
 } from './b2b/disputes'
+import {
+  orderRefundable,
+  refundStatusStyle,
+  RefundDetailDialog,
+  RefundRequestDialog,
+  RefundStatusChip,
+  type BuyerRefundDTO,
+} from './refund-dialogs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -145,6 +154,17 @@ export function OrdersView() {
     user ? '/api/disputes' : null,
     { skip: !user }
   )
+  // Refund requests the buyer raised (Phase 5 purchase flow)
+  const { data: refundsData, refetch: refetchRefunds } = useApi<{ refunds: BuyerRefundDTO[] }>(
+    user ? '/api/refunds' : null,
+    { skip: !user }
+  )
+  const refunds = refundsData?.refunds ?? []
+  const openRefundByOrder = useMemo(
+    () => new Map(refunds.filter((r) => ['REQUESTED', 'APPROVED'].includes(r.status)).map((r) => [r.orderId, r])),
+    [refunds]
+  )
+  const [refundDetail, setRefundDetail] = useState<BuyerRefundDTO | null>(null)
   const { data: rfqConfig } = useApi<{ disputes?: DisputesPublicConfig }>(
     user ? '/api/rfq-config' : null,
     { skip: !user }
@@ -331,6 +351,45 @@ export function OrdersView() {
         </div>
       )}
 
+      {/* Refund requests — trackable history strip (Phase 5 purchase flow) */}
+      {refunds.length > 0 && (
+        <div className="mt-5 space-y-2.5">
+          <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-muted-foreground">
+            <RotateCcw size={14} className="text-primary" /> Refund requests
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
+              {refunds.filter((r) => ['REQUESTED', 'APPROVED'].includes(r.status)).length} in review
+            </span>
+          </h2>
+          <ul className="max-h-72 space-y-2 overflow-y-auto pr-1">
+            {refunds.slice(0, 4).map((r) => (
+              <li key={r.id}>
+                <button
+                  type="button"
+                  onClick={() => setRefundDetail(r)}
+                  className="flex w-full flex-wrap items-center justify-between gap-2 rounded-xl border bg-card px-4 py-3 text-left shadow-sm transition hover:border-primary/40 hover:shadow"
+                >
+                  <span className="min-w-0">
+                    <span className="flex items-baseline gap-2">
+                      <span className="font-mono text-xs font-bold">{r.number}</span>
+                      <span className="truncate text-xs text-muted-foreground">
+                        Order #{r.orderId.slice(-8).toUpperCase()}
+                      </span>
+                    </span>
+                    <span className="mt-0.5 block line-clamp-1 text-xs text-muted-foreground">{r.reason}</span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <span className="text-sm font-bold tabular-nums">{formatUSD(r.amountTotal)}</span>
+                    <Badge className={cn('rounded-full text-[11px] font-semibold', refundStatusStyle(r.status))}>
+                      {r.status.toLowerCase()}
+                    </Badge>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Status filter chips + search */}
       {!loading && orders.length > 0 && (
         <div className="mt-5 space-y-3">
@@ -457,6 +516,12 @@ export function OrdersView() {
                       >
                         <Scale size={12} className="shrink-0" /> Dispute
                       </span>
+                    )}
+                    {openRefundByOrder.has(order.id) && (
+                      <RefundStatusChip
+                        refund={openRefundByOrder.get(order.id)!}
+                        onOpen={() => setRefundDetail(openRefundByOrder.get(order.id) ?? null)}
+                      />
                     )}
                     {['PAID', 'PROCESSING', 'SHIPPED'].includes(order.status) && (
                       (() => {
@@ -721,6 +786,28 @@ export function OrdersView() {
                           View dispute
                         </Button>
                       )}
+                      {/* Refund actions — request new or view live request (Phase 5) */}
+                      {orderRefundable(order) && !openRefundByOrder.has(order.id) && (
+                        <RefundRequestDialog order={order} onCreated={() => void refetchRefunds()}>
+                          {(open) => (
+                            <Button variant="outline" size="sm" className="h-7 rounded-full text-xs" onClick={open}>
+                              <RotateCcw size={12} className="mr-1" />
+                              Request refund
+                            </Button>
+                          )}
+                        </RefundRequestDialog>
+                      )}
+                      {openRefundByOrder.has(order.id) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 rounded-full text-xs"
+                          onClick={() => setRefundDetail(openRefundByOrder.get(order.id) ?? null)}
+                        >
+                          <RotateCcw size={12} className="mr-1" />
+                          View refund
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -755,6 +842,9 @@ export function OrdersView() {
           {() => <span />}
         </DisputeDetailDialog>
       )}
+
+      {/* Refund detail (opened from an order chip / action) */}
+      <RefundDetailDialog refund={refundDetail} onClosed={() => { setRefundDetail(null); void refetchRefunds() }} />
 
       {/* Pay-later dialog for PENDING_PAYMENT orders */}
       <Dialog open={!!payDialogOrder} onOpenChange={(open) => (open ? undefined : closePayDialog())}>

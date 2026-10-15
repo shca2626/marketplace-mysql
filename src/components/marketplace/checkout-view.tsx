@@ -5,10 +5,12 @@ import { motion } from 'framer-motion'
 import {
   ArrowLeft,
   BadgePercent,
+  Building2,
   CalendarClock,
   CheckCircle2,
   Copy,
   CreditCard,
+  FileText,
   Hourglass,
   Landmark,
   Loader2,
@@ -117,6 +119,7 @@ export function CheckoutView() {
     dueAt: string | null
   } | null>(null)
   const [placedPricing, setPlacedPricing] = useState<{ discount: number; couponCode: string | null } | null>(null)
+  const [placedExternal, setPlacedExternal] = useState(false)
 
   // ── Coupon state ──
   const [couponInput, setCouponInput] = useState('')
@@ -127,10 +130,22 @@ export function CheckoutView() {
   // ── Payment state (demo card fields — display only, never stored) ──
   // 'card' → paymentMethod CARD (simulated gateway, instant confirmation)
   // 'bank' → paymentMethod BANK_TRANSFER (order parks in PENDING_PAYMENT)
-  const [payMethod, setPayMethod] = useState<'card' | 'bank'>('card')
+  // 'external' → paymentMethod EXTERNAL (B2B: parties settle off-platform on
+  //              invoice terms — only offered while an ACTIVE COMPANY context
+  //              is selected; the server rejects it otherwise)
+  const [payMethod, setPayMethod] = useState<'card' | 'bank' | 'external'>('card')
   const [card, setCard] = useState({ number: '', expiry: '', cvc: '' })
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [paidWith, setPaidWith] = useState<{ method: 'card'; last4?: string } | null>(null)
+  const [poNumber, setPoNumber] = useState('')
+
+  // ── B2B context — orders placed here carry the company identity (org,
+  // approval routing, PO reference). The server resolves the active org
+  // itself; this only drives the banner + the EXTERNAL payment option.
+  const { data: b2bCtx } = useApi<{
+    activeOrg: { id: string; name: string; orgType?: string | null } | null
+  }>(user ? '/api/context' : null, { skip: !user })
+  const companyOrg = b2bCtx?.activeOrg?.orgType === 'COMPANY' ? b2bCtx.activeOrg : null
 
   // Payment options offered by the platform — CARD runs on the simulated
   // gateway; a manual-only deployment (PAYMENT_DRIVER=manual) lists bank
@@ -145,6 +160,10 @@ export function CheckoutView() {
     'Wire the total to the platform account; an operator confirms receipt.'
   if (!cardAvailable && payMethod === 'card') {
     setPayMethod('bank')
+  }
+  // EXTERNAL is company-only — fall back if the context went away
+  if (!companyOrg && payMethod === 'external') {
+    setPayMethod('card')
   }
 
   const subtotal = cart.reduce((sum, i) => sum + i.price * i.quantity, 0)
@@ -295,7 +314,9 @@ export function CheckoutView() {
           ...form,
           phone: form.phone || null,
           couponCode: appliedCoupon?.code ?? null,
-          paymentMethod: payMethod === 'card' ? 'CARD' : 'BANK_TRANSFER',
+          paymentMethod:
+            payMethod === 'card' ? 'CARD' : payMethod === 'bank' ? 'BANK_TRANSFER' : 'EXTERNAL',
+          ...(companyOrg && poNumber.trim() ? { poNumber: poNumber.trim().toUpperCase() } : {}),
         }),
       })
       const json = await res.json()
@@ -307,6 +328,7 @@ export function CheckoutView() {
       setPlacedPricing(json.pricing ?? null)
       setPlacedPendingApproval(!!json.pendingApproval)
       setPlacedPendingPayment(!!json.pendingPayment)
+      setPlacedExternal(payMethod === 'external')
       setPlacedPayment(json.payment ?? null)
       clearCart()
       toast(
@@ -374,6 +396,12 @@ export function CheckoutView() {
                 Thanks, {placedOrder.fullName.split(' ')[0]}! Your order is reserved. Wire the total using the
                 bank details below — an operator confirms receipt on business days.
               </>
+            ) : placedExternal ? (
+              <>
+                Thanks, {placedOrder.fullName.split(' ')[0]}! Your order was released to the supplier — settle
+                directly with them on your agreed invoice terms, then declare the transfer on the order in
+                My orders.
+              </>
             ) : (
               <>
                 Thanks, {placedOrder.fullName.split(' ')[0]}! Your order has been placed and is being processed.
@@ -439,9 +467,14 @@ export function CheckoutView() {
               </ul>
               <Separator />
               <div className="flex justify-between text-base font-bold">
-                <span>{placedPendingApproval || placedPendingPayment ? 'Order total' : 'Total paid'}</span>
+                <span>{placedPendingApproval || placedPendingPayment || placedExternal ? 'Order total' : 'Total paid'}</span>
                 <span>{formatUSD(placedOrder.total)}</span>
               </div>
+              {placedOrder.poNumber && (
+                <p className="text-left text-xs text-muted-foreground">
+                  Purchase order <span className="font-mono font-semibold text-foreground">{placedOrder.poNumber}</span>
+                </p>
+              )}
               {placedPricing && placedPricing.discount > 0 && placedPricing.couponCode && (
                 <div className="flex items-center justify-center gap-1.5 rounded-lg bg-emerald-500/10 p-2.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
                   <BadgePercent size={14} />
@@ -545,6 +578,22 @@ export function CheckoutView() {
         <ArrowLeft size={15} /> Back to cart
       </button>
       <h1 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">Checkout</h1>
+
+      {/* B2B banner — this order carries the company identity (server-resolved) */}
+      {companyOrg && (
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-teal-500/40 bg-teal-500/5 px-4 py-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300">
+            <Building2 size={16} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold">Ordering on behalf of {companyOrg.name}</p>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Purchase approvals, contract pricing and company invoicing apply. Switch context from the
+              header to order personally instead.
+            </p>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={placeOrder} className="mt-6 grid gap-6 lg:grid-cols-5">
         {/* Left: shipping + payment */}
@@ -668,7 +717,7 @@ export function CheckoutView() {
             <CardContent>
               <RadioGroup
                 value={payMethod}
-                onValueChange={(v) => setPayMethod(v as 'card' | 'bank')}
+                onValueChange={(v) => setPayMethod(v as 'card' | 'bank' | 'external')}
                 className="gap-3"
               >
                 {cardAvailable && (
@@ -699,7 +748,44 @@ export function CheckoutView() {
                   </div>
                   <span className="text-[10px] font-semibold uppercase text-muted-foreground">Manual</span>
                 </Label>
+                {companyOrg && (
+                  <Label
+                    htmlFor="pay-external"
+                    className="flex cursor-pointer items-center gap-3 rounded-xl border-2 p-4 transition-colors has-[[data-state=checked]]:border-primary"
+                  >
+                    <RadioGroupItem value="external" id="pay-external" />
+                    <FileText size={18} className="text-muted-foreground" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">External settlement (B2B)</p>
+                      <p className="text-xs text-muted-foreground">
+                        Settle directly with the supplier on invoice terms — both parties declare and
+                        confirm the transfer on the order.
+                      </p>
+                    </div>
+                    <span className="text-[10px] font-semibold uppercase text-muted-foreground">B2B</span>
+                  </Label>
+                )}
               </RadioGroup>
+
+              {/* Purchase-order reference (company checkout) */}
+              {companyOrg && (
+                <div className="mt-4 space-y-1.5">
+                  <Label htmlFor="po-number">
+                    Purchase order number{' '}
+                    <span className="text-xs font-normal text-muted-foreground">
+                      (optional — appears on the order and invoice)
+                    </span>
+                  </Label>
+                  <Input
+                    id="po-number"
+                    value={poNumber}
+                    onChange={(e) => setPoNumber(e.target.value.slice(0, 40))}
+                    placeholder="PO-2026-0142"
+                    className="h-11 rounded-xl uppercase placeholder:normal-case"
+                    aria-label="Purchase order number"
+                  />
+                </div>
+              )}
 
               {/* Card details — demo-only, formatted as-you-type, never stored */}
               {payMethod === 'card' ? (

@@ -35,6 +35,8 @@ import { PaymentsTab } from './admin/payments-tab'
 import { PayoutsTab } from './admin/payouts-tab'
 import { FinancingTab } from './admin/financing-tab'
 import { RbacTab } from './admin/rbac-tab'
+import { CommissionTab } from './admin/commission-tab'
+import { ModulesTab } from './admin/modules-tab'
 import { AdminSettings } from './admin-settings'
 import { RfqSettings } from './admin/settings/rfq-settings'
 
@@ -99,6 +101,8 @@ function AdminDashboard({ user }: { user: SessionUser | null }) {
       {activeSection === 'products' && <AdminProductsTab />}
       {activeSection === 'orders' && <AdminOrdersTab />}
       {activeSection === 'payments' && <PaymentsTab />}
+      {activeSection === 'commissions' && <CommissionTab />}
+      {activeSection === 'modules' && <ModulesTab />}
       {activeSection === 'payouts' && <PayoutsTab />}
       {activeSection === 'financing' && <FinancingTab />}
       {activeSection === 'organizations' && <OrganizationsTab />}

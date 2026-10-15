@@ -31,6 +31,12 @@ const checkoutSchema = z.object({
   phone: z.string().max(30).optional().nullable(),
   couponCode: z.string().trim().max(24).optional().nullable(),
   paymentMethod: z.enum(['CARD', 'BANK_TRANSFER', 'EXTERNAL']).optional(), // absent = CARD (legacy callers); EXTERNAL = B2B parties settle off-platform
+  poNumber: z
+    .string()
+    .trim()
+    .max(40)
+    .optional()
+    .nullable(), // buyer purchase-order reference (company checkout)
 })
 
 // POST /api/orders — checkout
@@ -54,8 +60,9 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       )
     }
-    const { items, couponCode: rawCouponCode, paymentMethod, ...shipping } = parsed.data
+    const { items, couponCode: rawCouponCode, paymentMethod, poNumber: rawPoNumber, ...shipping } = parsed.data
     const method = paymentMethod ?? 'CARD'
+    const poNumber = rawPoNumber?.trim() ? rawPoNumber.trim().toUpperCase() : null
 
     // Offer lines: resolve the authoritative offer (price/stock/seller) server-side.
     const offerIds = [...new Set(items.map((i) => i.offerId).filter((v): v is string => !!v))]
@@ -232,6 +239,7 @@ export async function POST(req: NextRequest) {
                 ? 'PROCESSING'
                 : 'PENDING_PAYMENT',
           organizationId: orgId,
+          poNumber,
           ...shipping,
           phone: shipping.phone ?? null,
           items: {

@@ -386,11 +386,16 @@ export function VaultDocPicker({
 
 // ── Documents center section ────────────────────────────────────────────────
 
-export function DocumentsSection() {
+export function DocumentsSection({
+  defaultOrganizationId,
+}: {
+  /** Pre-select this org's vault (company workspace Documents tab). */
+  defaultOrganizationId?: string | null
+} = {}) {
   const { data: orgsData } = useApi<{ organizations: OrganizationDTO[] }>('/api/organizations')
   const orgs = orgsData?.organizations ?? []
 
-  const [scope, setScope] = useState<'personal' | string>('personal')
+  const [scope, setScope] = useState<'personal' | string>(defaultOrganizationId ?? 'personal')
   const [typeFilter, setTypeFilter] = useState<string>('ALL')
   const [uploadOpen, setUploadOpen] = useState(false)
   const [version, setVersion] = useState(0)

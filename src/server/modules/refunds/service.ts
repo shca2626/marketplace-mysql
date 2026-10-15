@@ -77,13 +77,21 @@ export async function requestRefund(userId: string, input: RefundRequestInput) {
   const reason = (input.reason ?? '').trim()
   if (reason.length < 10) throw new RefundServiceError('Please describe the reason (at least 10 characters)', 400)
 
-  const order = await db.order.findUnique({ where: { id: input.orderId }, include: { items: true } })
+  const order = await db.order.findUnique({
+    where: { id: input.orderId },
+    include: { items: true, payment: true },
+  })
   if (!order) throw new RefundServiceError('Order not found', 404)
   if (order.buyerId !== userId) throw new RefundServiceError('Only the buyer can request a refund on this order', 403)
 
   // Obligations can only be established on money that actually moved.
+  // paymentStatus is only re-derived from COMPLETED refunds — the captured
+  // money lives on the Payment row (CARD succeeds inline at checkout; a
+  // BANK_TRANSFER flips it when an operator captures the wire). Either fact
+  // (a refunded paymentStatus OR a SUCCEEDED payment) establishes eligibility.
   const paidStates = ['PAID', 'PARTIALLY_REFUNDED', 'REFUNDED', 'FUNDED', 'OUTSTANDING']
-  if (!paidStates.includes(order.paymentStatus))
+  const paymentSucceeded = order.payment?.status === 'SUCCEEDED'
+  if (!paidStates.includes(order.paymentStatus) && !paymentSucceeded)
     throw new RefundServiceError(
       `This order is ${order.paymentStatus.replace('_', ' ').toLowerCase()} — no payment to refund`,
       409

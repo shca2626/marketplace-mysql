@@ -38,6 +38,7 @@ import {
   toastApiError,
   useDebounced,
 } from './shared'
+import { RefundsSection } from './refunds-section'
 
 // ── Types (contracts of /api/admin/payments) ──────────────────────────────────
 
@@ -530,6 +531,9 @@ export function PaymentsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* (c) Buyer refund requests — approve, deny, complete (Phase 7.7.3) */}
+      <RefundsSection />
     </div>
   )
 }

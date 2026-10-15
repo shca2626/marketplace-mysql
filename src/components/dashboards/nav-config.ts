@@ -37,6 +37,11 @@ import {
   HandCoins,
   BadgeCheck,
   UserCog,
+  Users,
+  BarChart3,
+  ArrowLeftRight,
+  Puzzle,
+  Percent,
 } from 'lucide-react'
 import type { View, ViewParams } from '@/store/marketplace'
 
@@ -108,6 +113,7 @@ export const ADMIN_NAV: NavConfig = {
       label: 'Finance',
       items: [
         { key: 'payments', label: 'Payments', icon: Receipt, description: 'Money settlement & capture queue', permission: 'payments.view' },
+        { key: 'commissions', label: 'Commissions', icon: Percent, description: 'Commission obligations, statements & invoices', permission: 'payouts.view' },
         { key: 'payouts', label: 'Payouts', icon: Banknote, description: 'Vendor settlement & commission', permission: 'payouts.view' },
         { key: 'financing', label: 'Financing', icon: Landmark, description: 'Verification gate, financiers & fees', permission: 'financing.gate.view' },
       ],
@@ -123,6 +129,7 @@ export const ADMIN_NAV: NavConfig = {
       label: 'Configuration',
       items: [
         { key: 'rbac', label: 'Roles & Access', icon: ShieldCheck, description: 'Permissions, staff & teams', anyPermissions: ['staff.view', 'rbac.roles.view', 'rbac.manage'], badge: 'New' },
+        { key: 'modules', label: 'Modules', icon: Puzzle, description: 'Marketplace module activation', permission: 'modules.manage' },
         { key: 'rfq-settings', label: 'RFQ Settings', icon: SlidersHorizontal, description: '22 scoped behavior panels', permission: 'rfq.settings.manage' },
         { key: 'storefront', label: 'Storefront Designer', icon: Palette, description: 'Branding, theme & hero slides', permission: 'storefront.manage' },
       ],
@@ -139,7 +146,9 @@ export const ADMIN_NAV: NavConfig = {
     vendors: { title: 'Vendors', description: 'Every seller on the marketplace — verify, suspend and set commissions.' },
     products: { title: 'Product Moderation', description: 'Browse and moderate every listing on the marketplace.' },
     orders: { title: 'Orders', description: 'Every order placed on the platform — buyers, sellers and money.' },
-    payments: { title: 'Payments', description: 'Settlement console — bank transfers and invoices awaiting capture.' },
+    payments: { title: 'Payments', description: 'Settlement console — bank transfers, refunds and invoices awaiting capture.' },
+    commissions: { title: 'Commissions', description: 'Platform commission obligations, monthly statements and vendor invoices.' },
+    modules: { title: 'Modules', description: 'Enable and disable marketplace capability modules per organization type.' },
     payouts: { title: 'Payouts', description: 'Vendor settlement batches and commission configuration.' },
     financing: { title: 'Financing', description: 'The platform verification gate — review queues, financier institutions, fees and the shared requirements library.' },
     organizations: { title: 'Organizations', description: 'Manage companies, banks, MFIs, e-wallets and their members.' },
@@ -286,7 +295,10 @@ export const FINANCIER_NAV: NavConfig = {
       label: 'Portfolio',
       items: [
         { key: 'agreements', label: 'Agreements', icon: ScrollText, description: 'Funding status & event reporting' },
+        { key: 'operations', label: 'Disbursements & Collections', icon: ArrowLeftRight, description: 'Funded disbursements, payments & reconciliation' },
+        { key: 'analytics', label: 'Reporting', icon: BarChart3, description: 'Risk, portfolio & limits with CSV export' },
         { key: 'profile', label: 'Institution Profile', icon: Building2, description: 'Org facts & financier profile' },
+        { key: 'team', label: 'Team', icon: Users, description: 'Institution staff & their roles' },
       ],
     },
   ],
@@ -298,6 +310,9 @@ export const FINANCIER_NAV: NavConfig = {
     offers: { title: 'Offers', description: 'Compose binding offers with installment schedules, send and withdraw.' },
     accreditations: { title: 'Accreditations', description: 'Forwarded accreditation requests — grant, reject or revoke.' },
     agreements: { title: 'Agreements', description: 'Accepted offers — report funding progress and money events (track-only).' },
+    operations: { title: 'Disbursements & Collections', description: 'Record and confirm disbursements, allocate incoming payments and reconcile the book.' },
+    analytics: { title: 'Reporting', description: 'Authorized portfolio reporting — risk assessments, exposure and underwriting limits.' },
+    team: { title: 'Institution Team', description: 'Your staff members and their roles in this institution.' },
     profile: { title: 'Institution Profile', description: 'Your organization, license and contact facts on Vendora.' },
   },
 }
