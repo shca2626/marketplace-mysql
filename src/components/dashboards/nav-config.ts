@@ -154,10 +154,10 @@ export const ADMIN_NAV: NavConfig = {
   },
 }
 
-// ── Seller dashboard ────────────────────────────────────────────────────────
+// ── Merchant (seller) console ──────────────────────────────────────────────
 
 export const SELLER_NAV: NavConfig = {
-  consoleName: 'Seller Dashboard',
+  consoleName: 'Merchant Console',
   roleLabel: 'Merchant',
   groups: [
     {
@@ -183,7 +183,7 @@ export const SELLER_NAV: NavConfig = {
     },
   ],
   titles: {
-    overview: { title: 'Seller Dashboard', description: 'Your store performance, sales and activity.' },
+    overview: { title: 'Merchant Console', description: 'Your store performance, sales and activity.' },
     products: { title: 'Products', description: 'Manage listings, pricing, stock and variants.' },
     orders: { title: 'Orders', description: 'Incoming orders and fulfilment status.' },
     earnings: { title: 'Earnings', description: 'Your settlement balance, commission rate and payout history.' },

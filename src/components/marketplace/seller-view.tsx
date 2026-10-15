@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import {
   ArrowRight,
+  Building2,
   Check,
   DollarSign,
   Hourglass,
@@ -14,6 +15,7 @@ import {
   Plus,
   Scale,
   Search,
+  ShieldCheck,
   Star,
   Store,
   Trash2,
@@ -66,7 +68,6 @@ import { cn } from '@/lib/utils'
 export function SellerView() {
   const user = useMarketplace((s) => s.user)
   const authChecked = useMarketplace((s) => s.authChecked)
-  const setUser = useMarketplace((s) => s.setUser)
   const openAuth = useMarketplace((s) => s.openAuth)
   const navigate = useMarketplace((s) => s.navigate)
   const params = useMarketplace((s) => s.params)
@@ -74,8 +75,6 @@ export function SellerView() {
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<ProductDTO | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
-  const [storeForm, setStoreForm] = useState({ storeName: '', storeBio: '' })
-  const [upgrading, setUpgrading] = useState(false)
   const [activeTab, setActiveTab] = useState(params.sellerTab ?? 'overview')
   // Storefront cover — client-side choice (localStorage; schema frozen this phase).
   // Render-time keyed re-read when the signed-in seller changes (same pattern
@@ -215,34 +214,6 @@ export function SellerView() {
     }
   }
 
-  const becomeSeller = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!user) return
-    if (storeForm.storeName.trim().length < 2) {
-      toast({ title: 'Store name too short', variant: 'destructive' })
-      return
-    }
-    setUpgrading(true)
-    try {
-      const res = await fetch('/api/auth/become-seller', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(storeForm),
-      })
-      const json = await res.json()
-      if (!res.ok) {
-        toast({ title: 'Upgrade failed', description: json.error, variant: 'destructive' })
-        return
-      }
-      setUser(json.user)
-      toast({ title: 'Welcome to Vendora Selling! 🎉', description: 'Your storefront is live.' })
-    } catch {
-      toast({ title: 'Upgrade failed', description: 'Network error', variant: 'destructive' })
-    } finally {
-      setUpgrading(false)
-    }
-  }
-
   // ── Auth gate ──
   if (!authChecked) {
     return (
@@ -265,45 +236,50 @@ export function SellerView() {
     )
   }
 
-  // ── Buyer → become seller upsell ──
+  // ── Buyer → merchant door (no C2C: individuals can't open personal stores,
+  // selling happens through a registered COMPANY — send them to the wizard) ──
   if (!isSeller) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-12">
         <Card className="overflow-hidden">
           <div className="bg-gradient-to-r from-orange-600 to-rose-500 px-8 py-10 text-white">
-            <Store size={40} />
-            <h1 className="mt-4 text-2xl font-extrabold">Turn your passion into a store</h1>
+            <Building2 size={40} />
+            <h1 className="mt-4 text-2xl font-extrabold">Selling on Vendora is for companies</h1>
             <p className="mt-2 max-w-md text-sm leading-relaxed text-white/90">
-              List products in minutes, manage orders and grow your brand — with only a 5% fee when you sell.
+              Vendora is not a consumer-to-consumer marketplace. Register your merchant company
+              once, and your store is generated automatically as part of onboarding.
             </p>
           </div>
-          <CardContent className="p-8">
-            <form onSubmit={becomeSeller} className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="storeName">Store name</Label>
-                <Input
-                  id="storeName"
-                  value={storeForm.storeName}
-                  onChange={(e) => setStoreForm((f) => ({ ...f, storeName: e.target.value }))}
-                  placeholder="e.g. Willow & Pine Ceramics"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="storeBio">
-                  Store bio <span className="text-xs text-muted-foreground">(optional)</span>
-                </Label>
-                <Input
-                  id="storeBio"
-                  value={storeForm.storeBio}
-                  onChange={(e) => setStoreForm((f) => ({ ...f, storeBio: e.target.value }))}
-                  placeholder="Tell shoppers what you make"
-                />
-              </div>
-              <Button type="submit" size="lg" className="w-full rounded-xl" disabled={upgrading}>
-                {upgrading && <Loader2 size={15} className="mr-2 animate-spin" />}
-                Create my storefront
+          <CardContent className="space-y-5 p-8">
+            <ul className="space-y-2.5 text-sm text-muted-foreground">
+              <li className="flex gap-2">
+                <Building2 size={15} className="mt-0.5 shrink-0 text-primary" />
+                One wizard — business profile, KYB documents and store intent. Your default store
+                is created for you: no extra screens.
+              </li>
+              <li className="flex gap-2">
+                <Store size={15} className="mt-0.5 shrink-0 text-primary" />
+                Offer products on the shared catalog, quote B2B RFQs and manage orders from the
+                company workspace.
+              </li>
+              <li className="flex gap-2">
+                <ShieldCheck size={15} className="mt-0.5 shrink-0 text-primary" />
+                Verified companies only — the Vendora team reviews your commercial registration
+                before you can sell.
+              </li>
+            </ul>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button size="lg" className="flex-1 rounded-xl" onClick={() => navigate('register-company')}>
+                Register your company
               </Button>
-            </form>
+              <Button size="lg" variant="outline" className="rounded-xl" onClick={() => navigate('business')}>
+                I already have a company
+              </Button>
+            </div>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Customers can shop, review and request financing — personal storefronts are not
+              available. Already registered? Your company workspace lists your products and orders.
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -325,8 +301,8 @@ export function SellerView() {
       }
     >
       <PageHeader
-        title={user.storeName ?? 'Seller Dashboard'}
-        description={`Seller dashboard · ${user.name}`}
+        title={user.storeName ?? 'Merchant Console'}
+        description={`Merchant console · ${user.name}`}
         actions={
           <Button className="rounded-xl" onClick={openCreate}>
             <Plus size={16} className="mr-1.5" /> Add product

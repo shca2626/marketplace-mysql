@@ -224,6 +224,29 @@ export function Header() {
                   <span className="text-xs text-bh-muted">{c.productCount}</span>
                 </Button>
               ))}
+              <p className="px-3 pb-1 pt-4 text-xs font-semibold uppercase tracking-wider text-bh-muted">
+                For business
+              </p>
+              <Button
+                variant="ghost"
+                className="w-full justify-start"
+                onClick={() => {
+                  setMobileOpen(false)
+                  navigate('register-company')
+                }}
+              >
+                <Building2 size={15} className="mr-2 text-bh-gold-dark" /> Sell on Vendora
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full justify-start"
+                onClick={() => {
+                  setMobileOpen(false)
+                  navigate('register-financier')
+                }}
+              >
+                <Landmark size={15} className="mr-2 text-bh-gold-dark" /> Become a financier
+              </Button>
             </div>
           </SheetContent>
         </Sheet>
@@ -321,7 +344,7 @@ export function Header() {
                 )}
                 {user.role === 'SELLER' && (
                   <DropdownMenuItem onClick={() => navigate('seller')} className="cursor-pointer font-medium">
-                    <LayoutDashboard size={15} className="mr-2" /> Seller dashboard
+                    <LayoutDashboard size={15} className="mr-2" /> Merchant console
                   </DropdownMenuItem>
                 )}
                 {user.role !== 'ADMIN' && user.role !== 'SELLER' && (
@@ -408,6 +431,13 @@ export function Header() {
                 >
                   <Settings size={15} className="mr-2" /> Account settings
                 </DropdownMenuItem>
+                {/* Business door — customers become merchants through the
+                    company wizard (no C2C: individuals can't open stores). */}
+                {(user.role === 'BUYER' || !user.role) && !isCompanyMember && (
+                  <DropdownMenuItem onClick={() => navigate('register-company')} className="cursor-pointer">
+                    <Building2 size={15} className="mr-2" /> Register a company
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={logout} className="cursor-pointer text-destructive focus:text-destructive">
                   <LogOut size={15} className="mr-2" /> Sign out
@@ -462,6 +492,32 @@ export function Header() {
               </span>
             </button>
           ))}
+          {/* Business doors — company & financier registration (visible to everyone) */}
+          <span className="mx-1 h-4 w-px bg-bh-border" />
+          <div className="ml-auto flex items-center gap-1">
+            <button
+              onClick={() => navigate('register-company')}
+              className={cn(
+                'flex items-center gap-1 rounded-full px-3 py-1 text-[13px] font-semibold transition-colors',
+                view === 'register-company'
+                  ? 'bg-bh-navy text-white'
+                  : 'text-bh-gold-dark hover:bg-bh-bg-gold/60 hover:text-bh-navy'
+              )}
+            >
+              <Building2 size={13} /> Sell on Vendora
+            </button>
+            <button
+              onClick={() => navigate('register-financier')}
+              className={cn(
+                'flex items-center gap-1 rounded-full px-3 py-1 text-[13px] font-medium transition-colors',
+                view === 'register-financier'
+                  ? 'bg-bh-navy text-white'
+                  : 'text-bh-subtle hover:bg-bh-bg-gold/60 hover:text-bh-navy'
+              )}
+            >
+              <Landmark size={13} /> Become a financier
+            </button>
+          </div>
         </div>
       </nav>
     </header>

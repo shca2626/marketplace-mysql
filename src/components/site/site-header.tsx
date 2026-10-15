@@ -8,6 +8,7 @@ import {
   Building2,
   ChevronDown,
   Heart,
+  Landmark,
   LayoutDashboard,
   LogIn,
   LogOut,
@@ -137,7 +138,7 @@ export function SiteHeader() {
     { href: '/market?view=financing', label: 'My funding requests', icon: Wallet },
     { href: '/market?view=rfqs', label: 'RFQ inbox (B2B)', icon: Building2 },
     ...(user?.role === 'SELLER'
-      ? [{ href: '/market?view=seller', label: 'Seller console', icon: Settings }]
+      ? [{ href: '/market?view=seller', label: 'Merchant console', icon: Settings }]
       : []),
     ...(user?.role === 'ADMIN'
       ? [{ href: '/market?view=admin', label: 'Admin console', icon: ShieldCheck }]
@@ -187,6 +188,24 @@ export function SiteHeader() {
                   {item.label}
                 </Link>
               ))}
+              <div className="my-3 border-t" />
+              <p className="px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                For business
+              </p>
+              <Link
+                href="/market?view=register-company"
+                onClick={() => setMobileOpen(false)}
+                className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <Building2 size={16} className="text-primary" /> Register a company
+              </Link>
+              <Link
+                href="/market?view=register-financier"
+                onClick={() => setMobileOpen(false)}
+                className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <Landmark size={16} className="text-primary" /> Financing entity
+              </Link>
               <div className="my-3 border-t" />
               {user ? (
                 <>
@@ -254,6 +273,48 @@ export function SiteHeader() {
               {item.label}
             </Link>
           ))}
+          {/* For business — company & financier registration doors */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className={cn(
+                  'flex items-center gap-1 rounded-full px-3.5 py-2 text-sm font-medium transition-colors',
+                  pathname.includes('view=register-')
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                )}
+              >
+                For business <ChevronDown size={13} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-64">
+              <DropdownMenuLabel className="text-[11px] font-semibold uppercase tracking-wider">
+                Join as a business
+              </DropdownMenuLabel>
+              <DropdownMenuItem asChild>
+                <Link href="/market?view=register-company">
+                  <Building2 size={15} className="text-primary" />
+                  <span className="min-w-0">
+                    Merchant / Company
+                    <span className="block text-xs font-normal text-muted-foreground">
+                      Sell on the shared catalog & buy in bulk
+                    </span>
+                  </span>
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/market?view=register-financier">
+                  <Landmark size={15} className="text-primary" />
+                  <span className="min-w-0">
+                    Financing entity
+                    <span className="block text-xs font-normal text-muted-foreground">
+                      Bank, MFI or e-wallet — fund solar buyers
+                    </span>
+                  </span>
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </nav>
 
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
@@ -308,6 +369,16 @@ export function SiteHeader() {
                     </Link>
                   </DropdownMenuItem>
                 ))}
+                {!user.isPlatformStaff && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link href="/market?view=register-company">
+                        <Building2 size={15} className="text-primary" /> Register a company
+                      </Link>
+                    </DropdownMenuItem>
+                  </>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => void logout()} className="text-destructive focus:text-destructive">
                   <LogOut size={15} /> Sign out

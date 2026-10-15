@@ -7,6 +7,7 @@ import { RATE_LIMITS } from '@/lib/rate-limit'
 import { recordAudit } from '@/server/modules/audit/service'
 import { buildSessionRbac } from '@/server/modules/rbac/service'
 import { emitNotification } from '@/server/modules/notifications/service'
+import { createStore, CatalogServiceError, type StoreDTO } from '@/server/modules/catalog/service'
 
 /**
  * PHASE 3 — Merchant/Dealer COMPANY registration (final step of the wizard).
@@ -81,6 +82,40 @@ function serializeOrg(org: {
   }
 }
 
+/**
+ * AUTO-STORE (requirement: merchants get a store generated automatically,
+ * no extra screens). Best-effort, idempotent, never fails the registration:
+ * the company + OWNER membership are already committed at this point, so a
+ * store hiccup is logged and surfaced as `store: null` instead of a 500.
+ */
+async function ensureDefaultStore(
+  userId: string,
+  organizationId: string,
+  input: { intent: string; storeName?: string; tradeName: string; governorate?: string }
+): Promise<StoreDTO | null> {
+  if (input.intent === 'BUY') return null // buying-only companies don't need a store
+  const existing = await db.store.findFirst({
+    where: { organizationId, isArchived: false },
+    orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+  })
+  if (existing) return null // idempotent resubmission — keep the store they have
+  try {
+    return await createStore(userId, organizationId, {
+      name: input.storeName?.trim() || input.tradeName,
+      description: null,
+      city: input.governorate?.trim() || null,
+      phone: null,
+      logoUrl: null,
+    })
+  } catch (err) {
+    if (err instanceof CatalogServiceError) {
+      console.error(`[register-company] auto-store failed for org ${organizationId}: ${err.message} (${err.status})`)
+      return null
+    }
+    throw err
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const csrf = assertSameOrigin(req)
@@ -129,10 +164,14 @@ export async function POST(req: NextRequest) {
             : {}),
         },
       })
+      // AUTO-STORE: resubmitted wizard with a sell intent also backfills the
+      // default store if it's missing (idempotent).
+      const store = await ensureDefaultStore(user.id, org.id, input)
       const rbac = await buildSessionRbac(updated)
       return NextResponse.json({
         organization: serializeOrg(org),
         user: toSessionUser(updated, rbac),
+        store,
         alreadyRegistered: true,
       })
     }
@@ -201,6 +240,10 @@ export async function POST(req: NextRequest) {
       },
     })
 
+    // AUTO-STORE: selling companies get their default store right away —
+    // no separate "create store" screen anywhere in the flow.
+    const store = await ensureDefaultStore(user.id, org.created.id, input)
+
     await emitNotification({
       userId: user.id,
       type: 'APPLICATION_RECEIVED',
@@ -214,7 +257,7 @@ export async function POST(req: NextRequest) {
     const updatedUser = await db.user.findUniqueOrThrow({ where: { id: user.id } })
     const rbac = await buildSessionRbac(updatedUser)
     return NextResponse.json(
-      { organization: serializeOrg(org.created), user: toSessionUser(updatedUser, rbac) },
+      { organization: serializeOrg(org.created), user: toSessionUser(updatedUser, rbac), store },
       { status: 201 }
     )
   } catch (err) {

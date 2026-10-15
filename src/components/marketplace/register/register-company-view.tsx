@@ -284,7 +284,7 @@ export function RegisterCompanyView() {
   const [consent, setConsent] = useState(false)
   const [consentError, setConsentError] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [submitted, setSubmitted] = useState<{ name: string } | null>(null)
+  const [submitted, setSubmitted] = useState<{ name: string; storeName: string | null } | null>(null)
 
   // step 1 — dynamic validation (touched-first, short messages)
   const [step1Touched, setStep1Touched] = useState<{ name?: boolean; password?: boolean; terms?: boolean }>({})
@@ -546,7 +546,11 @@ export function RegisterCompanyView() {
       return
     }
     setSubmitting(true)
-    const res = await apiRequest<{ organization: { name: string }; user?: SessionUser }>('/api/auth/register/company', {
+    const res = await apiRequest<{
+      organization: { name: string }
+      user?: SessionUser
+      store?: { id: string; name: string; slug: string } | null
+    }>('/api/auth/register/company', {
       method: 'POST',
       body: JSON.stringify({
         legalName: profile.legalName.trim(),
@@ -574,10 +578,12 @@ export function RegisterCompanyView() {
     // Role may have flipped BUYER → SELLER (sell intent) — keep the client in sync.
     if (res.data.user) setUser(res.data.user)
     clearDraft()
-    setSubmitted({ name: res.data.organization.name })
+    setSubmitted({ name: res.data.organization.name, storeName: res.data.store?.name ?? null })
     toast({
       title: 'Application submitted',
-      description: 'Your merchant application is under review — we’ll reach out on WhatsApp.',
+      description: res.data.store
+        ? `Company registered — your store "${res.data.store.name}" is ready and awaits verification.`
+        : 'Your merchant application is under review — we’ll reach out on WhatsApp.',
     })
   }
 
@@ -655,9 +661,11 @@ export function RegisterCompanyView() {
             </li>
             <li className="flex gap-2">
               <Tag size={15} className="mt-0.5 shrink-0 text-primary" />
-              {intent.mode !== 'BUY'
-                ? 'Your seller console is ready — listings can be prepared while verification completes.'
-                : 'You can start buying for the company right away.'}
+              {submitted.storeName
+                ? `Your store "${submitted.storeName}" was created automatically — it goes live with your verified company, no extra screens.`
+                : intent.mode !== 'BUY'
+                  ? 'Your seller console is ready — listings can be prepared while verification completes.'
+                  : 'You can start buying for the company right away.'}
             </li>
           </ul>
           <div className="flex flex-col gap-2 sm:flex-row">

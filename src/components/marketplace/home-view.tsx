@@ -113,7 +113,7 @@ export function HomeView() {
                 size="lg"
                 variant="outline"
                 className="rounded-xl border-white/25 bg-transparent px-7 text-base text-white hover:bg-white/10 hover:text-white"
-                onClick={() => navigate('business')}
+                onClick={() => navigate('register-company')}
               >
                 <Store size={16} className="mr-1.5" /> Sell as a company
               </Button>

@@ -79,8 +79,8 @@ export default async function SellPage() {
         ]}
       >
         <Button asChild size="lg" className="h-12 rounded-full px-6 text-base">
-          <Link href="/market?view=seller">
-            Open your store
+          <Link href="/market?view=register-company">
+            Register your company
             <ArrowRight className="ml-1.5 h-4 w-4" aria-hidden />
           </Link>
         </Button>
