@@ -40,6 +40,8 @@ import { BuyerDashboard } from '@/components/dashboards/buyer-dashboard'
 import { BuyerRfqsPage, BuyerBusinessPage, BuyerOrdersPage, BuyerFavoritesPage } from '@/components/dashboards/buyer-pages'
 import { FinancingView } from './financing-view'
 import { FinancierView } from './financier-view'
+import { RegisterCompanyView } from './register/register-company-view'
+import { RegisterFinancierView } from './register/register-financier-view'
 import { CartDrawer } from './cart-drawer'
 import { AuthModal } from './auth-modal'
 import { ForgotPasswordView, ResetPasswordView, VerifyEmailView } from './auth-views'
@@ -57,6 +59,10 @@ const STOREFRONT_VIEWS: Record<string, () => React.ReactNode> = {
   'forgot-password': () => <ForgotPasswordView />,
   'reset-password': () => <ResetPasswordView />,
   'verify-email': () => <VerifyEmailView />,
+  // Public registration doors (Phase 3) — full-page wizards that keep the
+  // storefront chrome (header/footer) via RegisterDoorShell.
+  'register-company': () => <RegisterCompanyView />,
+  'register-financier': () => <RegisterFinancierView />,
 }
 
 /** Internal consoles — every one mounts its own DashboardLayout. */

@@ -39,6 +39,9 @@ const VIEWS = new Set<View>([
   'forgot-password',
   'reset-password',
   'verify-email',
+  // Registration doors (Phase 3) — full-page public wizards on the storefront.
+  'register-company',
+  'register-financier',
 ])
 
 /** Serialize a view + params into a query string (no leading "?"). */

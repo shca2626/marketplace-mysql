@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { AtSign, KeyRound, Loader2, Mail, Store, Tag, Ticket, User as UserIcon } from 'lucide-react'
+import { AtSign, Building2, KeyRound, Landmark, Loader2, Mail, Ticket, User as UserIcon } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
 import type { SessionUser } from '@/lib/types'
@@ -15,7 +15,6 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Separator } from '@/components/ui/separator'
 
 export function AuthModal() {
@@ -30,8 +29,6 @@ export function AuthModal() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
-  const [role, setRole] = useState<'BUYER' | 'SELLER'>('BUYER')
-  const [storeName, setStoreName] = useState('')
   // RBAC Phase 2: staff invitations — the admin console issues a token per
   // invited email; pasting it here consumes the invitation and assigns the
   // scoped role on registration (server-side via consumeInvitation).
@@ -77,12 +74,13 @@ export function AuthModal() {
         const res = await fetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          // Customer fast path — individuals are always BUYERs (no C2C).
+          // Companies (merchants) and financiers use the dedicated wizards:
+          // ?view=register-company / ?view=register-financier.
           body: JSON.stringify({
             name,
             email,
             password,
-            role,
-            storeName: storeName || undefined,
             ...(showInvite && inviteToken.trim() ? { inviteToken: inviteToken.trim() } : {}),
           }),
         })
@@ -110,12 +108,12 @@ export function AuthModal() {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-xl">
-            {mode === 'login' ? 'Welcome back' : 'Create your account'}
+            {mode === 'login' ? 'Welcome back' : 'Create your customer account'}
           </DialogTitle>
           <DialogDescription>
             {mode === 'login'
               ? 'Sign in to continue shopping on Vendora.'
-              : 'Join the marketplace — buy, review and sell.'}
+              : 'Shop solar gear, review products and track your orders.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -137,46 +135,6 @@ export function AuthModal() {
                   />
                 </div>
               </div>
-              <div className="space-y-1.5">
-                <Label>I want to…</Label>
-                <RadioGroup
-                  value={role}
-                  onValueChange={(v) => setRole(v as 'BUYER' | 'SELLER')}
-                  className="grid grid-cols-2 gap-2"
-                >
-                  <Label
-                    htmlFor="role-buyer"
-                    className="flex cursor-pointer items-center gap-2 rounded-xl border-2 p-3 transition-colors has-[[data-state=checked]]:border-primary"
-                  >
-                    <RadioGroupItem value="BUYER" id="role-buyer" />
-                    <Tag size={15} className="text-muted-foreground" />
-                    <span className="text-sm font-medium">Shop</span>
-                  </Label>
-                  <Label
-                    htmlFor="role-seller"
-                    className="flex cursor-pointer items-center gap-2 rounded-xl border-2 p-3 transition-colors has-[[data-state=checked]]:border-primary"
-                  >
-                    <RadioGroupItem value="SELLER" id="role-seller" />
-                    <Store size={15} className="text-muted-foreground" />
-                    <span className="text-sm font-medium">Sell</span>
-                  </Label>
-                </RadioGroup>
-              </div>
-              {role === 'SELLER' && (
-                <div className="space-y-1.5">
-                  <Label htmlFor="auth-store">Store name</Label>
-                  <div className="relative">
-                    <Store className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      id="auth-store"
-                      value={storeName}
-                      onChange={(e) => setStoreName(e.target.value)}
-                      placeholder="e.g. Willow & Pine"
-                      className="pl-9"
-                    />
-                  </div>
-                </div>
-              )}
               <div className="space-y-1.5">
                 {showInvite ? (
                   <>
@@ -302,6 +260,50 @@ export function AuthModal() {
           </p>
 
           <Separator />
+
+          {mode === 'register' && (
+            <div className="rounded-xl border bg-muted/30 p-3">
+              {/* ── Business doors — companies & financiers have dedicated wizards ── */}
+              <p className="text-xs font-semibold text-foreground">Registering a business?</p>
+              <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+                Selling on Vendora happens through registered companies — customers shop, companies sell.
+              </p>
+              <div className="mt-2 grid gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeAuth()
+                    navigate('register-company')
+                  }}
+                  className="flex items-center gap-2 rounded-lg bg-background px-3 py-2 text-left text-xs font-medium shadow-sm transition hover:bg-accent"
+                >
+                  <Building2 size={14} className="shrink-0 text-primary" />
+                  <span className="min-w-0 flex-1">
+                    Merchant / Company
+                    <span className="block font-normal text-muted-foreground">
+                      Register a company to sell and buy in bulk
+                    </span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeAuth()
+                    navigate('register-financier')
+                  }}
+                  className="flex items-center gap-2 rounded-lg bg-background px-3 py-2 text-left text-xs font-medium shadow-sm transition hover:bg-accent"
+                >
+                  <Landmark size={14} className="shrink-0 text-primary" />
+                  <span className="min-w-0 flex-1">
+                    Financing entity
+                    <span className="block font-normal text-muted-foreground">
+                      Bank, MFI or e-wallet — offer financing on the platform
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="rounded-xl border border-dashed bg-muted/40 p-3 text-center">
             <p className="text-xs text-muted-foreground">
