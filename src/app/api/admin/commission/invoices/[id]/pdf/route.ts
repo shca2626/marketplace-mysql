@@ -4,11 +4,12 @@ import {
   getCommissionInvoiceForPdf,
   CommissionServiceError,
 } from '@/server/modules/commission/service'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 import { renderCommissionInvoicePdf } from '@/lib/commission-invoice-pdf'
 
 // GET /api/admin/commission/invoices/[id]/pdf — the commission invoice
-// document (pdf-lib, same pattern as the quote PDF). Admins and the billed
-// seller can download.
+// document (pdf-lib, same pattern as the quote PDF). Platform staff with
+// payouts.view and the billed seller can download.
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -16,7 +17,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     const { id } = await ctx.params
     const invoice = await getCommissionInvoiceForPdf(id)
 
-    const isAdmin = user.role === 'ADMIN'
+    // Canonical platform check (legacy User.role === 'ADMIN' bypass retired).
+    const isAdmin = await userHasPlatformPermission(user.id, 'payouts.view')
     const isSeller = invoice.sellerId === user.id
     if (!isAdmin && !isSeller) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })

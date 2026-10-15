@@ -180,6 +180,19 @@ export async function userHasAnyPlatformPermission(userId: string, permissions: 
   return count > 0
 }
 
+/**
+ * True when the user holds any platform-scope role assignment (platform
+ * staff). Canonical fact for audit labels and staff-vs-customer branching —
+ * replaces the legacy `User.role === 'ADMIN'` discriminator. The seeded
+ * platform.super-admin assignment guarantees parity with legacy admins.
+ */
+export async function userIsPlatformStaff(userId: string): Promise<boolean> {
+  const count = await db.userRole.count({
+    where: { userId, organizationId: '' },
+  })
+  return count > 0
+}
+
 // ── Catalog ─────────────────────────────────────────────────────────────────
 
 export function getCatalog(): PermissionDomain[] {

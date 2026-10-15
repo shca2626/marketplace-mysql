@@ -4,8 +4,10 @@ import { getSessionUser } from '@/lib/auth'
 import { assertSameOrigin } from '@/lib/http'
 import { deleteRenditions } from '@/lib/storage/image-pipeline'
 import { getStorage } from '@/lib/storage'
+import { userHasAnyPlatformPermission } from '@/server/modules/rbac/service'
 
-// DELETE /api/uploads/[id] — remove an uploaded asset (owner or ADMIN).
+// DELETE /api/uploads/[id] — remove an uploaded asset (owner, or platform
+// staff with catalog.products.update / storefront.manage).
 // Refuses with 409 while the asset is referenced by a product (images JSON or
 // a variant image) or appears in past order snapshots — those URLs must keep
 // resolving. Files are removed idempotently.
@@ -20,7 +22,12 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   const asset = await db.mediaAsset.findUnique({ where: { id } })
   if (!asset) return NextResponse.json({ error: 'Asset not found' }, { status: 404 })
 
-  if (user.role !== 'ADMIN' && asset.uploadedById !== user.id) {
+  // Canonical platform check (legacy User.role === 'ADMIN' bypass retired).
+  const canManageAny = await userHasAnyPlatformPermission(user.id, [
+    'catalog.products.update',
+    'storefront.manage',
+  ])
+  if (!canManageAny && asset.uploadedById !== user.id) {
     return NextResponse.json({ error: 'You can only delete your own uploads' }, { status: 403 })
   }
 

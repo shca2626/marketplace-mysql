@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/auth'
 import { favoriteIdsFor, productInclude, serializeProduct } from '@/lib/serialize'
 import { ensureUniqueSlug, productFormSchema, slugify, createProduct } from '@/server/modules/products/service'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 
@@ -34,15 +35,22 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(48, Math.max(1, parseInt(sp.get('limit') || '24') || 24))
 
     let sessionUserId: string | null = null
-    let isAdmin = false
     const user = await getSessionUser()
-    if (user) isAdmin = user.role === 'ADMIN'
     if (mine) {
       if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       sessionUserId = user.id
     }
-    if (allScope && !isAdmin)
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+    // Admin catalog browser requires the canonical platform permission
+    // (catalog.products.view) — the legacy User.role === 'ADMIN' bypass is
+    // retired; super-admins hold the permission via their seeded assignment.
+    if (allScope) {
+      if (!user) return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+      if (!(await userHasPlatformPermission(user.id, 'catalog.products.view')))
+        return NextResponse.json(
+          { error: 'Admin access required', code: 'MISSING_PERMISSION' },
+          { status: 403, headers: { 'X-Authz-Deny': 'MISSING_PERMISSION' } }
+        )
+    }
 
     const where: Record<string, unknown> = {}
     if (mine) {
@@ -172,7 +180,10 @@ export async function POST(req: NextRequest) {
     const category = await db.category.findUnique({ where: { id: parsed.data.categoryId } })
     if (!category) return NextResponse.json({ error: 'Category not found' }, { status: 400 })
 
-    if (user.role === 'ADMIN') {
+    // Platform staff holding catalog.products.create → platform-managed
+    // listing, live immediately (legacy User.role === 'ADMIN' bypass retired;
+    // super-admins hold the permission via their seeded assignment).
+    if (await userHasPlatformPermission(user.id, 'catalog.products.create')) {
       try {
         const product = await createProduct(user.id, parsed.data)
         return NextResponse.json({ product: serializeProduct(product!) }, { status: 201 })

@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib'
 import { getSessionUser } from '@/lib/auth'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 import { db } from '@/lib/db'
 
 /**
  * GET /api/quotes/[id]/pdf — server-rendered quote document.
  *
- * Auth mirrors RFQ thread access: the buyer (requester), platform admins, or
- * the issuing seller (platform-facilitated quotes → the admin who issued).
- * Output: a single-page A4 PDF letterhead with line items, totals, terms and
- * validity — a B2B-ready document buyers can attach to POs.
+ * Auth mirrors RFQ thread access: the buyer (requester), platform staff with
+ * rfq.pipeline.view, or the issuing seller (platform-facilitated quotes →
+ * the admin who issued). Output: a single-page A4 PDF letterhead with line
+ * items, totals, terms and validity — a B2B-ready document buyers can
+ * attach to POs.
  */
 
 const INK = rgb(0.13, 0.11, 0.1) // warm near-black
@@ -63,7 +65,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!quote) return NextResponse.json({ error: 'Quote not found' }, { status: 404 })
 
   const isRequester = quote.rfq.userId === session.id
-  const isAdmin = session.role === 'ADMIN'
+  // Canonical platform check (legacy User.role === 'ADMIN' bypass retired).
+  const isAdmin = await userHasPlatformPermission(session.id, 'rfq.pipeline.view')
   const isIssuer = quote.sellerId === session.id || quote.createdBy.id === session.id
   if (!isRequester && !isAdmin && !isIssuer) {
     return NextResponse.json({ error: 'Access denied' }, { status: 403 })

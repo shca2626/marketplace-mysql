@@ -12,6 +12,7 @@ import {
   REQUEST_ATTACHMENT_PARENT_TYPES,
 } from '@/server/modules/financing/types'
 import { assertApplicantActor } from '@/server/modules/financing/shared'
+import { userIsPlatformStaff, userHasPlatformPermission } from '@/server/modules/rbac/service'
 
 // POST /api/financing/attachments — link an AccountDocument from the vault to
 // a request as a free-form attachment (guarantee docs, studies, project
@@ -59,9 +60,11 @@ export async function POST(req: NextRequest) {
       applicantUserId = parent.submittedById
       organizationId = parent.organizationId
     }
-    // parent owner check: the applicant themself or an ACTIVE org member
-    // (platform admins may attach on behalf of applicants — support flows)
-    if (user.role !== 'ADMIN') {
+    // parent owner check: the applicant themself or an ACTIVE org member.
+    // Platform reviewers (financing.gate.review) may attach on behalf of
+    // applicants — support flows (canonical check; legacy ADMIN bypass retired).
+    const isPlatformReviewer = await userHasPlatformPermission(user.id, 'financing.gate.review')
+    if (!isPlatformReviewer) {
       await assertApplicantActor(user.id, { createdById: applicantUserId, organizationId })
     }
 
@@ -75,7 +78,7 @@ export async function POST(req: NextRequest) {
       throw new FinancingServiceError('That document was replaced and is no longer active', 409)
     }
     const ownsDoc = doc.userId === user.id || (organizationId !== null && doc.organizationId === organizationId)
-    if (!ownsDoc && user.role !== 'ADMIN') {
+    if (!ownsDoc && !isPlatformReviewer) {
       throw new FinancingServiceError('You can only attach documents from your own vault', 403)
     }
 
@@ -90,7 +93,8 @@ export async function POST(req: NextRequest) {
 
     await recordAudit({
       actorId: user.id,
-      actorType: user.role === 'ADMIN' ? 'ADMIN' : 'USER',
+      // Canonical platform-staff fact (legacy User.role === 'ADMIN' label retired).
+      actorType: isPlatformReviewer || (await userIsPlatformStaff(user.id)) ? 'ADMIN' : 'USER',
       action: 'REQUEST_ATTACHMENT_ADDED',
       entityType: 'RequestAttachment',
       entityId: attachment.id,

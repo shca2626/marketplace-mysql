@@ -5,6 +5,7 @@ import { financingError } from '@/lib/financing-api'
 import { FinancingServiceError } from '@/server/modules/financing/types'
 import { assertApplicantActor } from '@/server/modules/financing/shared'
 import { listChecklist } from '@/server/modules/financing/submissions'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 
 // GET /api/financing/requests/[id]/checklist — the request's requirement
 // checklist with per-item verdicts (applicant side; the service's
@@ -19,7 +20,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       select: { createdById: true, organizationId: true },
     })
     if (!row) throw new FinancingServiceError('Financing request not found', 404)
-    if (user.role !== 'ADMIN') {
+    // Platform staff with financing.gate.view may inspect any checklist
+    // (canonical check; legacy User.role === 'ADMIN' bypass retired).
+    if (!(await userHasPlatformPermission(user.id, 'financing.gate.view'))) {
       await assertApplicantActor(user.id, { createdById: row.createdById, organizationId: row.organizationId })
     }
     const checklist = await listChecklist({ type: 'FINANCING', id })

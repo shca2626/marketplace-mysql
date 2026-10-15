@@ -213,6 +213,19 @@ export const PERMISSION_DOMAINS: PermissionDomain[] = [
       { key: 'whatsapp.manage', label: 'Manage WhatsApp', description: 'Pair/disconnect senders, send messages, run campaigns, edit templates and rules.' },
     ],
   },
+  {
+    key: 'notifications',
+    label: 'Notifications & Jobs',
+    scope: 'PLATFORM',
+    description: 'Notification digests and scheduled background jobs.',
+    permissions: [
+      {
+        key: 'notifications.digest.run',
+        label: 'Run digest batch',
+        description: 'Manually trigger the scheduled notification digest run (cron entry point).',
+      },
+    ],
+  },
 
   // ── ORG domains (organization consoles) ──────────────────────────────────
   {

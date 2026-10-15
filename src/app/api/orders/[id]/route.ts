@@ -9,6 +9,7 @@ import { recordCommissionForDeliveredOrder } from '@/server/modules/commission/s
 import { emitNotifications } from '@/server/modules/notifications/service'
 import { assertSameOrigin } from '@/lib/http'
 import { userHasOrgPermission } from '@/server/authz/evaluator'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 
 const STATUS_FLOW = ['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED']
 
@@ -46,8 +47,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
     const isBuyer = order.buyerId === user.id
     const isSeller = order.items.some((i) => i.sellerId === user.id)
-    const isAdmin = user.role === 'ADMIN'
-    if (!isBuyer && !isSeller && !isAdmin)
+    // Platform staff with orders.view may inspect any order (canonical check;
+    // legacy User.role === 'ADMIN' bypass retired).
+    const isPlatform = await userHasPlatformPermission(user.id, 'orders.view')
+    if (!isBuyer && !isSeller && !isPlatform)
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     return NextResponse.json({ order: serializeOrder(order, isSeller && !isBuyer ? user.id : undefined) })
@@ -121,7 +124,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
 
     const isSeller = order.items.some((i) => i.sellerId === user.id)
-    const isAdmin = user.role === 'ADMIN'
+    // Platform staff with orders.update may advance fulfillment on any order.
+    const isAdmin = await userHasPlatformPermission(user.id, 'orders.update')
     // Company fulfillment path: org member holding org.sales.fulfill
     const fulfilledViaOrg = !isSeller && !isAdmin ? await orgFulfillmentAllowed(user.id, order) : null
     if (!isSeller && !isAdmin && !fulfilledViaOrg)

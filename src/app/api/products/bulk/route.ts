@@ -6,6 +6,7 @@ import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { CACHE_TAGS, invalidateTags } from '@/lib/cache'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 import { createProduct, productFormSchema } from '@/server/modules/products/service'
+import { userHasAnyPlatformPermission } from '@/server/modules/rbac/service'
 import type { ImportRow } from '@/lib/product-io'
 
 /**
@@ -127,7 +128,13 @@ export async function POST(req: NextRequest) {
   try {
     const user = await getSessionUser()
     if (!user) return NextResponse.json({ error: 'Please sign in first' }, { status: 401 })
-    if (user.role !== 'SELLER' && user.role !== 'ADMIN')
+    // Sellers manage their own rows; platform staff with catalog.products.update
+    // may operate on the catalog (canonical check; legacy ADMIN bypass retired).
+    const isPlatformBulk = await userHasAnyPlatformPermission(user.id, [
+      'catalog.products.update',
+      'catalog.products.create',
+    ])
+    if (user.role !== 'SELLER' && !isPlatformBulk)
       return NextResponse.json({ error: 'Only sellers can manage products in bulk' }, { status: 403 })
     if (user.role === 'SELLER' && user.status === 'SUSPENDED')
       return NextResponse.json({ error: 'Your vendor account is suspended' }, { status: 403 })

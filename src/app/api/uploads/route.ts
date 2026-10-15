@@ -5,10 +5,12 @@ import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 import { UPLOAD_LIMITS, processImageUpload } from '@/lib/storage/image-pipeline'
 import { serializeMediaAsset } from '@/lib/serialize-media'
+import { userHasAnyPlatformPermission } from '@/server/modules/rbac/service'
 import type { MediaAssetDTO } from '@/lib/types'
 
 // POST /api/uploads — multipart image upload (day-1 storage core).
-// Authenticated SELLER/ADMIN only. Each file is magic-byte-sniffed, size-capped,
+// Sellers, or platform staff holding catalog.products.create / storefront.manage
+// (listing + hero-slide media). Each file is magic-byte-sniffed, size-capped,
 // processed into webp renditions (EXIF stripped) and tracked as a MediaAsset
 // (sha256-deduplicated). Product.images then references the medium URL.
 export async function POST(req: NextRequest) {
@@ -17,7 +19,13 @@ export async function POST(req: NextRequest) {
 
   const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Please sign in first' }, { status: 401 })
-  if (user.role !== 'SELLER' && user.role !== 'ADMIN') {
+  // Canonical gates (legacy User.role === 'ADMIN' bypass retired): sellers by
+  // account type, platform staff by the media-carrying permissions.
+  const isPlatformUploader = await userHasAnyPlatformPermission(user.id, [
+    'catalog.products.create',
+    'storefront.manage',
+  ])
+  if (user.role !== 'SELLER' && !isPlatformUploader) {
     return NextResponse.json({ error: 'Only sellers can upload media' }, { status: 403 })
   }
   if (user.role === 'SELLER' && user.status === 'SUSPENDED') {
@@ -96,7 +104,8 @@ export async function POST(req: NextRequest) {
 }
 
 // GET /api/uploads — the signed-in user's media library (paged, newest first).
-// Powers the seller form's "My library" section; ADMIN sees every asset.
+// Powers the seller form's "My library" section; platform staff holding
+// catalog.products.view / storefront.manage see every asset (canonical check).
 export async function GET(req: NextRequest) {
   try {
     const user = await getSessionUser()
@@ -106,7 +115,11 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(Math.max(Number(searchParams.get('limit')) || 24, 1), 60)
     const offset = Math.max(Number(searchParams.get('offset')) || 0, 0)
 
-    const where = user.role === 'ADMIN' ? {} : { uploadedById: user.id }
+    const seeAll = await userHasAnyPlatformPermission(user.id, [
+      'catalog.products.view',
+      'storefront.manage',
+    ])
+    const where = seeAll ? {} : { uploadedById: user.id }
     const [rows, total] = await Promise.all([
       db.mediaAsset.findMany({ where, orderBy: { createdAt: 'desc' }, take: limit, skip: offset }),
       db.mediaAsset.count({ where }),

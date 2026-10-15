@@ -31,8 +31,13 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     ])
     if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
     const isOwner = viewer?.id === product.sellerId
-    const isAdmin = viewer?.role === 'ADMIN'
-    if (product.seller.status === 'SUSPENDED' && !isOwner && !isAdmin) {
+    // Platform staff holding catalog.products.view can open suspended vendors'
+    // listings (canonical check; legacy User.role === 'ADMIN' bypass retired).
+    const staffViewer =
+      viewer && !isOwner && product.seller.status === 'SUSPENDED'
+        ? await userHasPlatformPermission(viewer.id, 'catalog.products.view')
+        : false
+    if (product.seller.status === 'SUSPENDED' && !isOwner && !staffViewer) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 })
     }
 
@@ -81,9 +86,10 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const { id } = await ctx.params
     const user = await getSessionUser()
     if (!user) return NextResponse.json({ error: 'Please sign in first' }, { status: 401 })
-    // RBAC Phase 2: legacy admins bypass; staff need the catalog moderation
-    // permission (e.g. the Catalog Moderator role).
-    if (user.role !== 'ADMIN' && !(await userHasPlatformPermission(user.id, 'catalog.products.moderate')))
+    // Platform moderation requires the catalog.products.moderate permission
+    // (canonical only — the legacy admin role bypass is retired; super-admins
+    // hold the permission via their seeded platform.super-admin assignment).
+    if (!(await userHasPlatformPermission(user.id, 'catalog.products.moderate')))
       return NextResponse.json(
         { error: 'Access denied — moderating products requires the "catalog.products.moderate" permission.' },
         { status: 403 }
@@ -130,8 +136,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
 }
 
-// PUT /api/products/[id] — update (owner, or platform admin override).
-// Variants are replaced atomically.
+// PUT /api/products/[id] — update (owner, or platform staff override with
+// catalog.products.update). Variants are replaced atomically.
 export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
     const csrf = assertSameOrigin(req)
@@ -147,7 +153,8 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
     const product = await db.product.findUnique({ where: { id } })
     if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
     const isOwner = product.sellerId === user.id
-    const isAdmin = user.role === 'ADMIN'
+    // Platform override requires catalog.products.update (canonical check).
+    const isAdmin = await userHasPlatformPermission(user.id, 'catalog.products.update')
     if (!isOwner && !isAdmin)
       return NextResponse.json({ error: 'You can only edit your own products' }, { status: 403 })
     // Admins editing someone else's listing is a moderation event — audit it.
@@ -253,8 +260,8 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
   }
 }
 
-// DELETE /api/products/[id] — delete or archive (owner, or platform admin
-// override — admin takedown archives rows with order history, deletes the rest)
+// DELETE /api/products/[id] — delete or archive (owner, or platform staff with
+// catalog.products.delete — takedown archives rows with order history, deletes the rest)
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
     const csrf = assertSameOrigin(req)
@@ -270,7 +277,8 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
     const product = await db.product.findUnique({ where: { id } })
     if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
     const isOwner = product.sellerId === user.id
-    const isAdmin = user.role === 'ADMIN'
+    // Platform takedown/delete requires catalog.products.delete (canonical check).
+    const isAdmin = await userHasPlatformPermission(user.id, 'catalog.products.delete')
     if (!isOwner && !isAdmin)
       return NextResponse.json({ error: 'You can only delete your own products' }, { status: 403 })
 

@@ -8,6 +8,7 @@ import {
   softDeleteAccountDocument,
 } from '@/server/modules/financing/documents'
 import { FinancingError } from '@/server/modules/financing/shared'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 
 // PATCH /api/documents/[id] — owner edits metadata (title/issuedAt/expiresAt).
 const schema = z.object({
@@ -102,7 +103,10 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
     if (!doc || !doc.isActive) {
       return NextResponse.json({ error: 'Document not found' }, { status: 404 })
     }
-    if (doc.userId !== user.id && user.role !== 'ADMIN') {
+    // Platform document reviewers (financing.documents.verify) may remove
+    // any vault document; everyone else only their own (canonical check —
+    // legacy User.role === 'ADMIN' bypass retired).
+    if (doc.userId !== user.id && !(await userHasPlatformPermission(user.id, 'financing.documents.verify'))) {
       return NextResponse.json({ error: 'Only the uploader can remove this document' }, { status: 403 })
     }
 

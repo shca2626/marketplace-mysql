@@ -2,15 +2,22 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/auth'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { runDigestBatch } from '@/lib/notifications/digest'
+import { userHasPlatformPermission } from '@/server/modules/rbac/service'
 
-// /api/admin/notifications/digest/run — cron entry point (ADMIN only).
-// Runs one digest batch across every active user with a DAILY/WEEKLY
-// preference and reports { processed, generated, skipped }.
+// /api/admin/notifications/digest/run — cron entry point (platform staff
+// holding notifications.digest.run). Runs one digest batch across every
+// active user with a DAILY/WEEKLY preference and reports
+// { processed, generated, skipped }.
 
 export async function POST(req: NextRequest) {
   const user = await getSessionUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (user.role !== 'ADMIN') return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+  // Canonical platform gate (legacy User.role === 'ADMIN' bypass retired).
+  if (!(await userHasPlatformPermission(user.id, 'notifications.digest.run')))
+    return NextResponse.json(
+      { error: 'Access denied — running the digest batch requires the "notifications.digest.run" permission.' },
+      { status: 403 }
+    )
 
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
