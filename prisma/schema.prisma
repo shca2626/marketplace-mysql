@@ -108,6 +108,7 @@ model User {
   products                Product[]
   productsReviewed        Product[]                     @relation("ProductReviewedBy")
   offersCreated           ProductOffer[]                @relation("ProductOfferSeller")
+  sponsoredPlacements     SponsoredPlacement[]           @relation("SponsoredByUser") // SPONSOR-1: placements this member purchased
   sellerProfiles          SellerProfile[]               @relation("SellerProfileOwner")
   orders                  Order[]
   reviews                 Review[]
@@ -280,6 +281,7 @@ model Product {
   popularRank                 Int? // homepage popular-products ordering (curated); null = not ranked
   publicationAgreedAt         DateTime? // seller accepted the Publication Agreement (audit-logged too)
   publicationAgreementVersion String? // which agreement text version was accepted
+  sponsoredPlacements        SponsoredPlacement[] @relation("SponsoredProducts") // SPONSOR-1: active paid placements boost this product
 
   @@index([categoryId])
   @@index([sellerId, status])
@@ -450,6 +452,7 @@ model Organization {
   offers                  ProductOffer[]      @relation("ProductOfferSellerOrg")
   quotesIssued            Quote[]             @relation("QuoteSellerOrg")
   sellerProfile           SellerProfile?      @relation("SellerProfileOrg")
+  sponsoredPlacements     SponsoredPlacement[] @relation("SponsoredPlacements") // SPONSOR-1: paid placements purchased by this org
   orderItemsSold          OrderItem[]         @relation("OrderItemSellerOrg")
   fulfillmentsAsSellerOrg OrderFulfillment[]  @relation("FulfillmentSellerOrg")
   sellerSubscription      SellerSubscription? @relation("SellerSubscriptionOrg")
@@ -2177,6 +2180,38 @@ model FeeRule {
   @@unique([event, scopeType, scopeId, version])
   @@index([event, isActive, scopeType])
   @@index([scopeType, scopeId])
+}
+
+// ── SPONSOR-1: sponsored/pinned listings ─────────────────────────────────────
+// A company pays (through the fee engine — event SPONSORSHIP, FLAT per-day
+// rules, org-scoped overrides honored) to pin one of its APPROVED shared-catalog
+// products: pinned to the top of the storefront default sort + "Sponsored"
+// badge. One ACTIVE placement per product at a time; expiry is enforced
+// server-side on read (endsAt) and lazily reconciled on write paths.
+model SponsoredPlacement {
+  id             String       @id @default(cuid())
+  productId      String
+  product        Product      @relation("SponsoredProducts", fields: [productId], references: [id], onDelete: Cascade)
+  organizationId String // the sponsoring company (snapshot of product ownership at purchase)
+  organization   Organization @relation("SponsoredPlacements", fields: [organizationId], references: [id])
+  sellerId       String // the member who purchased (actor)
+  seller         User         @relation("SponsoredByUser", fields: [sellerId], references: [id])
+  days           Int // 7 | 14 | 30 — the purchased window
+  amount         Float // price charged (snapshot: days × per-day rate at purchase)
+  currency       String       @default("USD")
+  status         String       @default("ACTIVE") // ACTIVE | EXPIRED | CANCELLED
+  paymentMethod  String       @default("CARD") // CARD (simulated capture) | WALLET (deducted from seller earnings balance)
+  paymentStatus  String       @default("PAID") // PAID | FAILED
+  startsAt       DateTime     @default(now())
+  endsAt         DateTime // startsAt + days
+  feeAssessmentId String? // link to the immutable SPONSORSHIP ledger row
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([status, endsAt])
+  @@index([productId, status])
+  @@index([organizationId, status])
+  @@index([sellerId]) // MYSQL-FK-INDEX: sellerId relation needs its own leftmost index
 }
 
 model FinancingContractTemplate {

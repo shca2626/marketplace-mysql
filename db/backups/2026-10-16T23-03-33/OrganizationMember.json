@@ -1,0 +1,42 @@
+[
+ {
+  "id": "cmv9puslb003npyj6y9soc3yw",
+  "organizationId": "cmv9pur1d003lpyj6hzxw94vt",
+  "userId": "cmv9pj6i00006pyj6zflrlnjd",
+  "role": "OWNER",
+  "jobTitle": "Founder & Lead Engineer",
+  "createdAt": "2026-10-15T15:51:25.248Z"
+ },
+ {
+  "id": "cmv9q7a46004apyoq7oh7u8zo",
+  "organizationId": "cmv9q78yn0048pyoq27f2qao3",
+  "userId": "cmv9pj82s0007pyj6ieztgr8k",
+  "role": "OWNER",
+  "jobTitle": "Founder & Lead Engineer",
+  "createdAt": "2026-10-15T16:01:07.831Z"
+ },
+ {
+  "id": "cmv9q7h7y004npyoqrwyxkjkb",
+  "organizationId": "cmv9q7g9e004lpyoqih3rxbyo",
+  "userId": "cmv9pj91j0008pyj66biuh172",
+  "role": "OWNER",
+  "jobTitle": "Founder & Lead Engineer",
+  "createdAt": "2026-10-15T16:01:17.038Z"
+ },
+ {
+  "id": "cmv9q7mzo004ypyoq1391omww",
+  "organizationId": "cmv9q7m14004wpyoq71vss3pn",
+  "userId": "cmv9pja0c0009pyj69epuv49h",
+  "role": "OWNER",
+  "jobTitle": "Founder & Lead Engineer",
+  "createdAt": "2026-10-15T16:01:24.516Z"
+ },
+ {
+  "id": "cmv9q7sxz0059pyoqz135eows",
+  "organizationId": "cmv9q7rzf0057pyoq82dmx3z2",
+  "userId": "cmv9pjaz6000apyj64fzirk56",
+  "role": "OWNER",
+  "jobTitle": "Founder & Lead Engineer",
+  "createdAt": "2026-10-15T16:01:32.231Z"
+ }
+]

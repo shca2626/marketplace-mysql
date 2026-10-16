@@ -56,7 +56,7 @@ export async function apiRequest<T = unknown>(
 
 // ── Status badge palette (warm theme — no blue/indigo) ──────────────────────
 
-type BadgeMap = Record<string, { label: string; badge: string }>
+export type BadgeMap = Record<string, { label: string; badge: string }>
 
 export const ORG_STATUS_MAP: BadgeMap = {
   PENDING_VERIFICATION: {

@@ -21,15 +21,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState } from 'react'
-import { Calculator, Landmark, Layers, ScrollText, Wallet, type LucideIcon } from 'lucide-react'
+import { Calculator, Landmark, Layers, Megaphone, ScrollText, Wallet, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { FeeRulesTab } from './monetization/fee-rules-tab'
 import { SimulatorTab } from './monetization/simulator-tab'
 import { LedgerTab } from './monetization/ledger-tab'
 import { RevenueTab } from './monetization/revenue-tab'
 import { SubscriptionsTab } from './monetization/subscriptions-tab'
+import { SponsorshipsTab } from './monetization/sponsorships-tab'
 
-type SectionKey = 'rules' | 'simulator' | 'ledger' | 'revenue' | 'subscriptions'
+type SectionKey = 'rules' | 'simulator' | 'ledger' | 'revenue' | 'subscriptions' | 'sponsorships'
 
 const SECTIONS: { key: SectionKey; label: string; icon: LucideIcon }[] = [
   { key: 'rules', label: 'Fee Rules', icon: Layers },
@@ -37,6 +38,7 @@ const SECTIONS: { key: SectionKey; label: string; icon: LucideIcon }[] = [
   { key: 'ledger', label: 'Fee Ledger', icon: ScrollText },
   { key: 'revenue', label: 'Revenue', icon: Landmark },
   { key: 'subscriptions', label: 'Subscriptions & Plans', icon: Wallet },
+  { key: 'sponsorships', label: 'Sponsorships', icon: Megaphone },
 ]
 
 export function MonetizationConsole() {
@@ -90,6 +92,7 @@ export function MonetizationConsole() {
       {section === 'ledger' && <LedgerTab />}
       {section === 'revenue' && <RevenueTab />}
       {section === 'subscriptions' && <SubscriptionsTab />}
+      {section === 'sponsorships' && <SponsorshipsTab />}
     </div>
   )
 }

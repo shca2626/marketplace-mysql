@@ -1,0 +1,626 @@
+[
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "audit.view"
+ },
+ {
+  "roleId": "cmuq65ypm0001okzeowomotci",
+  "permissionKey": "audit.view"
+ },
+ {
+  "roleId": "cmuq660qk0004okzej737acmr",
+  "permissionKey": "audit.view"
+ },
+ {
+  "roleId": "cmuq9shyb0002oks4b5w9gz9q",
+  "permissionKey": "audit.view"
+ },
+ {
+  "roleId": "cmuq9sirk0003oks4jkpuxb91",
+  "permissionKey": "audit.view"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "catalog.products.create"
+ },
+ {
+  "roleId": "cmuq9shyb0002oks4b5w9gz9q",
+  "permissionKey": "catalog.products.create"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "catalog.products.delete"
+ },
+ {
+  "roleId": "cmuq9shyb0002oks4b5w9gz9q",
+  "permissionKey": "catalog.products.delete"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "catalog.products.moderate"
+ },
+ {
+  "roleId": "cmuq9shyb0002oks4b5w9gz9q",
+  "permissionKey": "catalog.products.moderate"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "catalog.products.update"
+ },
+ {
+  "roleId": "cmuq9shyb0002oks4b5w9gz9q",
+  "permissionKey": "catalog.products.update"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "catalog.products.view"
+ },
+ {
+  "roleId": "cmuq9shyb0002oks4b5w9gz9q",
+  "permissionKey": "catalog.products.view"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "coupons.manage"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "coupons.view"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "disputes.resolve"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "disputes.view"
+ },
+ {
+  "roleId": "cmuq660qk0004okzej737acmr",
+  "permissionKey": "disputes.view"
+ },
+ {
+  "roleId": "cmuq664vn000aokzegwvjr9hh",
+  "permissionKey": "financier.accreditations.manage"
+ },
+ {
+  "roleId": "cmuq664vn000aokzegwvjr9hh",
+  "permissionKey": "financier.agreements.manage"
+ },
+ {
+  "roleId": "cmuq665pg000bokzefry47qsr",
+  "permissionKey": "financier.agreements.manage"
+ },
+ {
+  "roleId": "cmuq664vn000aokzegwvjr9hh",
+  "permissionKey": "financier.offers.manage"
+ },
+ {
+  "roleId": "cmuq665pg000bokzefry47qsr",
+  "permissionKey": "financier.offers.manage"
+ },
+ {
+  "roleId": "cmuq664vn000aokzegwvjr9hh",
+  "permissionKey": "financier.requests.view"
+ },
+ {
+  "roleId": "cmuq665pg000bokzefry47qsr",
+  "permissionKey": "financier.requests.view"
+ },
+ {
+  "roleId": "cmuq666cn000cokzel0t6qwcp",
+  "permissionKey": "financier.requests.view"
+ },
+ {
+  "roleId": "cmuspehqj000doildnutflrun",
+  "permissionKey": "financier.requests.view"
+ },
+ {
+  "roleId": "cmuq664vn000aokzegwvjr9hh",
+  "permissionKey": "financier.services.manage"
+ },
+ {
+  "roleId": "cmuspehqj000doildnutflrun",
+  "permissionKey": "financier.services.manage"
+ },
+ {
+  "roleId": "cmuq664vn000aokzegwvjr9hh",
+  "permissionKey": "financier.services.publish"
+ },
+ {
+  "roleId": "cmuq664vn000aokzegwvjr9hh",
+  "permissionKey": "financier.team.manage"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "financing.documents.verify"
+ },
+ {
+  "roleId": "cmuq65ypm0001okzeowomotci",
+  "permissionKey": "financing.documents.verify"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "financing.fees.manage"
+ },
+ {
+  "roleId": "cmuq9sirk0003oks4jkpuxb91",
+  "permissionKey": "financing.fees.manage"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "financing.gate.review"
+ },
+ {
+  "roleId": "cmuq65ypm0001okzeowomotci",
+  "permissionKey": "financing.gate.review"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "financing.gate.view"
+ },
+ {
+  "roleId": "cmuq65ypm0001okzeowomotci",
+  "permissionKey": "financing.gate.view"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "financing.institutions.manage"
+ },
+ {
+  "roleId": "cmuq65ypm0001okzeowomotci",
+  "permissionKey": "financing.institutions.manage"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "financing.requirements.manage"
+ },
+ {
+  "roleId": "cmuq65ypm0001okzeowomotci",
+  "permissionKey": "financing.requirements.manage"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "modules.manage"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "notifications.digest.run"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "orders.update"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "orders.view"
+ },
+ {
+  "roleId": "cmuq660qk0004okzej737acmr",
+  "permissionKey": "orders.view"
+ },
+ {
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "permissionKey": "org.approvals.manage"
+ },
+ {
+  "roleId": "cmuq6624a0006okze3ijghd5a",
+  "permissionKey": "org.approvals.manage"
+ },
+ {
+  "roleId": "cmuq663ep0008okze6njue98c",
+  "permissionKey": "org.approvals.manage"
+ },
+ {
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "permissionKey": "org.finance.apply"
+ },
+ {
+  "roleId": "cmuq6624a0006okze3ijghd5a",
+  "permissionKey": "org.finance.apply"
+ },
+ {
+  "roleId": "cmuq662ri0007okze6m9q9ojn",
+  "permissionKey": "org.finance.apply"
+ },
+ {
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "permissionKey": "org.finance.view"
+ },
+ {
+  "roleId": "cmuq6624a0006okze3ijghd5a",
+  "permissionKey": "org.finance.view"
+ },
+ {
+  "roleId": "cmuq662ri0007okze6m9q9ojn",
+  "permissionKey": "org.finance.view"
+ },
+ {
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "permissionKey": "org.members.invite"
+ },
+ {
+  "roleId": "cmuq6624a0006okze3ijghd5a",
+  "permissionKey": "org.members.invite"
+ },
+ {
+  "roleId": "cmuq664vn000aokzegwvjr9hh",
+  "permissionKey": "org.members.invite"
+ },
+ {
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "permissionKey": "org.members.manage"
+ },
+ {
+  "roleId": "cmuq6624a0006okze3ijghd5a",
+  "permissionKey": "org.members.manage"
+ },
+ {
+  "roleId": "cmuq664vn000aokzegwvjr9hh",
+  "permissionKey": "org.members.manage"
+ },
+ {
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "permissionKey": "org.offers.manage"
+ },
+ {
+  "roleId": "cmuq6624a0006okze3ijghd5a",
+  "permissionKey": "org.offers.manage"
+ },
+ {
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "permissionKey": "org.orders.view"
+ },
+ {
+  "roleId": "cmuq6624a0006okze3ijghd5a",
+  "permissionKey": "org.orders.view"
+ },
+ {
+  "roleId": "cmuq662ri0007okze6m9q9ojn",
+  "permissionKey": "org.orders.view"
+ },
+ {
+  "roleId": "cmuq663ep0008okze6njue98c",
+  "permissionKey": "org.orders.view"
+ },
+ {
+  "roleId": "cmuq664560009okze392x0hxr",
+  "permissionKey": "org.orders.view"
+ },
+ {
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "permissionKey": "org.pricelists.manage"
+ },
+ {
+  "roleId": "cmuq6624a0006okze3ijghd5a",
+  "permissionKey": "org.pricelists.manage"
+ },
+ {
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "permissionKey": "org.pricelists.view"
+ },
+ {
+  "roleId": "cmuq6624a0006okze3ijghd5a",
+  "permissionKey": "org.pricelists.view"
+ },
+ {
+  "roleId": "cmuq662ri0007okze6m9q9ojn",
+  "permissionKey": "org.pricelists.view"
+ },
+ {
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "permissionKey": "org.profile.update"
+ },
+ {
+  "roleId": "cmuq6624a0006okze3ijghd5a",
+  "permissionKey": "org.profile.update"
+ },
+ {
+  "roleId": "cmuq664vn000aokzegwvjr9hh",
+  "permissionKey": "org.profile.update"
+ },
+ {
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "permissionKey": "org.profile.view"
+ },
+ {
+  "roleId": "cmuq6624a0006okze3ijghd5a",
+  "permissionKey": "org.profile.view"
+ },
+ {
+  "roleId": "cmuq662ri0007okze6m9q9ojn",
+  "permissionKey": "org.profile.view"
+ },
+ {
+  "roleId": "cmuq663ep0008okze6njue98c",
+  "permissionKey": "org.profile.view"
+ },
+ {
+  "roleId": "cmuq664560009okze392x0hxr",
+  "permissionKey": "org.profile.view"
+ },
+ {
+  "roleId": "cmuq664vn000aokzegwvjr9hh",
+  "permissionKey": "org.profile.view"
+ },
+ {
+  "roleId": "cmuq665pg000bokzefry47qsr",
+  "permissionKey": "org.profile.view"
+ },
+ {
+  "roleId": "cmuq666cn000cokzel0t6qwcp",
+  "permissionKey": "org.profile.view"
+ },
+ {
+  "roleId": "cmuspehqj000doildnutflrun",
+  "permissionKey": "org.profile.view"
+ },
+ {
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "permissionKey": "org.proposals.manage"
+ },
+ {
+  "roleId": "cmuq6624a0006okze3ijghd5a",
+  "permissionKey": "org.proposals.manage"
+ },
+ {
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "permissionKey": "org.rfq.create"
+ },
+ {
+  "roleId": "cmuq6624a0006okze3ijghd5a",
+  "permissionKey": "org.rfq.create"
+ },
+ {
+  "roleId": "cmuq662ri0007okze6m9q9ojn",
+  "permissionKey": "org.rfq.create"
+ },
+ {
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "permissionKey": "org.rfq.view"
+ },
+ {
+  "roleId": "cmuq6624a0006okze3ijghd5a",
+  "permissionKey": "org.rfq.view"
+ },
+ {
+  "roleId": "cmuq662ri0007okze6m9q9ojn",
+  "permissionKey": "org.rfq.view"
+ },
+ {
+  "roleId": "cmuq663ep0008okze6njue98c",
+  "permissionKey": "org.rfq.view"
+ },
+ {
+  "roleId": "cmuq664560009okze392x0hxr",
+  "permissionKey": "org.rfq.view"
+ },
+ {
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "permissionKey": "org.sales.fulfill"
+ },
+ {
+  "roleId": "cmuq6624a0006okze3ijghd5a",
+  "permissionKey": "org.sales.fulfill"
+ },
+ {
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "permissionKey": "org.sales.view"
+ },
+ {
+  "roleId": "cmuq6624a0006okze3ijghd5a",
+  "permissionKey": "org.sales.view"
+ },
+ {
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "permissionKey": "org.selling.view"
+ },
+ {
+  "roleId": "cmuq6624a0006okze3ijghd5a",
+  "permissionKey": "org.selling.view"
+ },
+ {
+  "roleId": "cmuq661dr0005okzekkiryxhg",
+  "permissionKey": "org.stores.manage"
+ },
+ {
+  "roleId": "cmuq6624a0006okze3ijghd5a",
+  "permissionKey": "org.stores.manage"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "orgs.create"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "orgs.suspend"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "orgs.update"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "orgs.verify"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "orgs.view"
+ },
+ {
+  "roleId": "cmuq660qk0004okzej737acmr",
+  "permissionKey": "orgs.view"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "payments.capture"
+ },
+ {
+  "roleId": "cmuq9sirk0003oks4jkpuxb91",
+  "permissionKey": "payments.capture"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "payments.view"
+ },
+ {
+  "roleId": "cmuq9sirk0003oks4jkpuxb91",
+  "permissionKey": "payments.view"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "payouts.manage"
+ },
+ {
+  "roleId": "cmuq9sirk0003oks4jkpuxb91",
+  "permissionKey": "payouts.manage"
+ },
+ {
+  "roleId": "cmuvnk1jm000nnejwp3p97n38",
+  "permissionKey": "payouts.manage"
+ },
+ {
+  "roleId": "cmv9vk70y000npycc22uhd55k",
+  "permissionKey": "payouts.manage"
+ },
+ {
+  "roleId": "cmva2ulqt000npym3uholgw7n",
+  "permissionKey": "payouts.manage"
+ },
+ {
+  "roleId": "cmva2zbbj000npyntjhmqnkcd",
+  "permissionKey": "payouts.manage"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "payouts.view"
+ },
+ {
+  "roleId": "cmuq9sirk0003oks4jkpuxb91",
+  "permissionKey": "payouts.view"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "platform.overview.view"
+ },
+ {
+  "roleId": "cmuq65ypm0001okzeowomotci",
+  "permissionKey": "platform.overview.view"
+ },
+ {
+  "roleId": "cmuq660qk0004okzej737acmr",
+  "permissionKey": "platform.overview.view"
+ },
+ {
+  "roleId": "cmuq9shyb0002oks4b5w9gz9q",
+  "permissionKey": "platform.overview.view"
+ },
+ {
+  "roleId": "cmuq9sirk0003oks4jkpuxb91",
+  "permissionKey": "platform.overview.view"
+ },
+ {
+  "roleId": "cmut816oi000boij2kkzs36n1",
+  "permissionKey": "platform.overview.view"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "pricing.manage"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "pricing.view"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "rbac.manage"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "rbac.roles.create"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "rbac.roles.delete"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "rbac.roles.update"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "rbac.roles.view"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "rfq.pipeline.view"
+ },
+ {
+  "roleId": "cmuq660qk0004okzej737acmr",
+  "permissionKey": "rfq.pipeline.view"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "rfq.quotes.review"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "rfq.settings.manage"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "staff.invite"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "staff.manage"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "staff.view"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "storefront.manage"
+ },
+ {
+  "roleId": "cmuvnk2yu000rnejwhysm9g3x",
+  "permissionKey": "storefront.manage"
+ },
+ {
+  "roleId": "cmv9vk8jw000rpycciybojns6",
+  "permissionKey": "storefront.manage"
+ },
+ {
+  "roleId": "cmva2uort000rpym3dcxsmgf5",
+  "permissionKey": "storefront.manage"
+ },
+ {
+  "roleId": "cmva2zedm000rpyntfqhh6j75",
+  "permissionKey": "storefront.manage"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "vendors.commission.manage"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "vendors.verify"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "vendors.view"
+ },
+ {
+  "roleId": "cmuq660qk0004okzej737acmr",
+  "permissionKey": "vendors.view"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "whatsapp.manage"
+ },
+ {
+  "roleId": "cmuq65xlh0000okze0r0d5da9",
+  "permissionKey": "whatsapp.view"
+ }
+]

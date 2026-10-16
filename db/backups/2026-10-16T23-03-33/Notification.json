@@ -1,0 +1,13 @@
+[
+ {
+  "id": "cmva394c8001cpypihzgjkx3l",
+  "userId": "cmv9pjcwq000cpyj6n4v0p6pb",
+  "type": "REFUND_STATUS",
+  "title": "Refund RF-2026-000003 submitted",
+  "body": "Your refund request was submitted and is awaiting review.",
+  "linkView": "orders",
+  "linkId": "cmva38ap70011pypi3rn5hko1",
+  "readAt": null,
+  "createdAt": "2026-10-15T22:06:28.665Z"
+ }
+]

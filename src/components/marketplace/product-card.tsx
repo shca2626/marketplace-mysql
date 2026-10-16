@@ -143,8 +143,22 @@ export function ProductCard({ product, index = 0 }: { product: ProductDTO; index
                 No image
               </div>
             )}
+            {/* SPONSOR-1: paid placement badge — amber, visually distinct from
+                the red discount chip (left-top collision → stacks below). */}
+            {product.sponsored && (
+              <Badge className="absolute left-2.5 top-2.5 gap-1 rounded-full bg-amber-500/95 px-2 text-[11px] font-bold text-amber-950 shadow-sm hover:bg-amber-500">
+                <svg viewBox="0 0 24 24" aria-hidden="true" className="h-3 w-3" fill="currentColor">
+                  <path d="M12 2l2.4 2.4 3.3-.5.5 3.3L21 9.6l-2.4 2.4L21 14.4l-2.8 2.4-.5 3.3-3.3-.5L12 22l-2.4-2.4-3.3.5-.5-3.3L3 14.4l2.4-2.4L3 9.6l2.8-2.4.5-3.3 3.3.5L12 2z" opacity="0.35" />
+                  <path d="M12 4.6l1.7 1.7 2.4-.4.4 2.4 2 1.3-2 1.3.4 2.4-2.4-.4L12 16.6l-1.7-1.7-2.4.4-.4-2.4-2-1.3 2-1.3-.4-2.4 2.4.4L12 4.6zm-1.2 8.7l4-4-1.4-1.4-2.6 2.6-1.2-1.2-1.4 1.4 2.6 2.6z" />
+                </svg>
+                Sponsored
+              </Badge>
+            )}
             {discount !== null && (
-              <Badge className="absolute left-2.5 top-2.5 rounded-full bg-red-500/95 px-2 text-[11px] font-bold text-white shadow-sm hover:bg-red-500">
+              <Badge className={cn(
+                'absolute left-2.5 rounded-full bg-red-500/95 px-2 text-[11px] font-bold text-white shadow-sm hover:bg-red-500',
+                product.sponsored ? 'top-11' : 'top-2.5'
+              )}>
                 -{discount}%
               </Badge>
             )}

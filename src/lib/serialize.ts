@@ -83,6 +83,9 @@ type ProductRaw = {
   mpn?: string | null
   isCurated?: boolean
   popularRank?: number | null
+  // ── SPONSOR-1: live sponsored placement flag (optional — the storefront
+  //    list route decorates it; other queries omit it) ──
+  sponsored?: boolean
   // ── Shared-catalog offer aggregation (optional — partial selects may omit) ──
   offers?: {
     id: string
@@ -139,7 +142,7 @@ function serializeVariant(v: ProductVariantRaw): ProductVariantDTO {
   }
 }
 
-export function serializeProduct(p: ProductRaw, favorited = false): ProductDTO {
+export function serializeProduct(p: ProductRaw, favorited = false, sponsored = false): ProductDTO {
   let images: string[] = []
   try {
     const parsed = JSON.parse(p.images || '[]')
@@ -156,6 +159,7 @@ export function serializeProduct(p: ProductRaw, favorited = false): ProductDTO {
     mpn: p.mpn ?? null,
     isCurated: p.isCurated ?? undefined,
     popularRank: p.popularRank ?? null,
+    sponsored: sponsored || p.sponsored || undefined,
     title: p.title,
     description: p.description,
     price: p.price,

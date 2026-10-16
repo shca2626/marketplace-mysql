@@ -164,6 +164,8 @@ export interface ProductDTO {
   isCurated?: boolean
   /** Homepage popular-products ordering; null = unranked. */
   popularRank?: number | null
+  /** SPONSOR-1: has a live paid placement (storefront list decoration only). */
+  sponsored?: boolean
   /** Platform review — admin's reject reason (owner/admin, detail GET only). */
   reviewNote?: string | null
   /** Can the current viewer attach an offer to this listing? */

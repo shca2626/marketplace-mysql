@@ -1,0 +1,29 @@
+[
+ {
+  "id": "cmuvpnszf000dne6cozz2zns8",
+  "version": "v2",
+  "title": "Vendora Publication Agreement — 2026 revision",
+  "body": "I confirm I have the legal right to sell this product, that listing information and certification documents are accurate and current, that pricing and stock claims are truthful, and I accept the Vendora Publication Agreement — including listing takedown, offer suspension and account action for counterfeit, unsafe or misleading listings. Disputes are handled through the platform resolution process before any chargeback.",
+  "isActive": 1,
+  "createdById": "cmuvhj2jw0000netat574v5jf",
+  "createdAt": "2026-10-05T20:37:12.700Z"
+ },
+ {
+  "id": "cmuvppvhp0000ned1c699c0mo",
+  "version": "1.0",
+  "title": "Vendora Publication Agreement (legacy seed)",
+  "body": "I confirm I have the legal right to sell this product, that the listing information and any certification documents are accurate, and I accept the Vendora Publication Agreement (v1.0) — including takedown and account action for counterfeit or misleading listings.",
+  "isActive": 0,
+  "createdById": null,
+  "createdAt": "2026-10-05T20:38:49.261Z"
+ },
+ {
+  "id": "cmuvr7w2b005ene90rykulr4c",
+  "version": "v3",
+  "title": "Vendora Publication Agreement v3",
+  "body": "v3 test body — publication agreement E2E verification by main session.",
+  "isActive": 0,
+  "createdById": "cmuvhj2jw0000netat574v5jf",
+  "createdAt": "2026-10-05T21:20:49.428Z"
+ }
+]

@@ -1,0 +1,34 @@
+[
+ {
+  "key": "ACC",
+  "value": 2
+ },
+ {
+  "key": "AGR",
+  "value": 42
+ },
+ {
+  "key": "FIN",
+  "value": 44
+ },
+ {
+  "key": "PY",
+  "value": 8
+ },
+ {
+  "key": "QTE",
+  "value": 42
+ },
+ {
+  "key": "RF",
+  "value": 3
+ },
+ {
+  "key": "RFQ",
+  "value": 50
+ },
+ {
+  "key": "SUB",
+  "value": 14
+ }
+]

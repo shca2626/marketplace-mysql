@@ -28,6 +28,7 @@ import {
   Plus,
   Receipt,
   ShieldAlert,
+  Sparkles,
   Store as StoreIcon,
   Tag,
   Truck,
@@ -40,6 +41,7 @@ import type { CategoryDTO } from '@/lib/types'
 import { formatDate, formatNumber, formatUSD, timeAgo } from '@/lib/format'
 import { cardImage } from '@/lib/storage/url'
 import { FinancingRfqInboxSub } from '@/components/marketplace/b2b/financing-rfq-inbox'
+import { SponsorshipsSub } from '@/components/marketplace/b2b/sponsorships-section'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -284,6 +286,9 @@ export function SellingSection({ organizationId, orgName }: { organizationId: st
           <TabsTrigger value="financing-rfqs" className="gap-1.5 rounded-lg px-3.5 py-1.5">
             <Landmark size={14} /> Financing RFQs
           </TabsTrigger>
+          <TabsTrigger value="sponsorships" className="gap-1.5 rounded-lg px-3.5 py-1.5">
+            <Sparkles size={14} /> Sponsorships
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="offers" className="mt-5">
@@ -300,6 +305,9 @@ export function SellingSection({ organizationId, orgName }: { organizationId: st
         </TabsContent>
         <TabsContent value="financing-rfqs" className="mt-5">
           <FinancingRfqInboxSub organizationId={organizationId} />
+        </TabsContent>
+        <TabsContent value="sponsorships" className="mt-5">
+          <SponsorshipsSub organizationId={organizationId} />
         </TabsContent>
       </Tabs>
     </section>

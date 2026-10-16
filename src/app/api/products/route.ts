@@ -5,6 +5,7 @@ import { getSessionUser } from '@/lib/auth'
 import { favoriteIdsFor, productInclude, serializeProduct } from '@/lib/serialize'
 import { ensureUniqueSlug, productFormSchema, slugify, createProduct } from '@/server/modules/products/service'
 import { userHasPlatformPermission } from '@/server/modules/rbac/service'
+import { activeSponsoredProductIds } from '@/server/modules/sponsorships/service'
 import { assertSameOrigin, enforceRateLimit } from '@/lib/http'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 
@@ -135,10 +136,36 @@ export async function GET(req: NextRequest) {
     ])
     const pages = Math.max(1, Math.ceil(total / limit))
 
+    // SPONSOR-1: live paid placements decorate the PUBLIC storefront feed — a
+    // "Sponsored" badge everywhere, and (default 'popular' sort, page 1 only,
+    // no active search/filter narrowing the view) the pinned products float
+    // to the top. Sponsored pins are fetched through the SAME public filter so
+    // a sponsored-but-delisted product can never leak into the feed.
+    const isPublicFeed = !mine && !allScope && !orgScope && !sellerId && !idsParam
+    let sponsoredIds = new Set<string>()
+    if (isPublicFeed) {
+      const candidateIds = await activeSponsoredProductIds()
+      if (candidateIds.length > 0) {
+        const pinned = await db.product.findMany({
+          where: { ...where, id: { in: candidateIds } },
+          include: productInclude,
+          orderBy: sorters[sort] ?? sorters.popular,
+          take: candidateIds.length,
+        })
+        sponsoredIds = new Set(pinned.map((p) => p.id))
+        if (page === 1 && sort === 'popular' && terms.length === 0 && !featured) {
+          const pinnedIds = new Set(pinned.map((p) => p.id))
+          const deduped = items.filter((p) => !pinnedIds.has(p.id))
+          items.length = 0
+          items.push(...pinned, ...deduped.slice(0, Math.max(0, limit - pinned.length)))
+        }
+      }
+    }
+
     const favIds = await favoriteIdsFor(user?.id, items.map((p) => p.id))
 
     return NextResponse.json({
-      items: items.map((p) => serializeProduct(p, favIds.has(p.id))),
+      items: items.map((p) => serializeProduct(p, favIds.has(p.id), sponsoredIds.has(p.id))),
       total,
       page,
       pages,

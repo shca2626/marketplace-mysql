@@ -1,0 +1,146 @@
+[
+ {
+  "id": "cmuod0tuk0032luj39pmu5lwr",
+  "topic": "GENERAL",
+  "question": "What is Vendora?",
+  "answer": "Vendora is the platform where Yemen buys, procures and funds solar energy. Shop engineer-reviewed equipment from vetted stores, buy as an organization with RFQs and price lists, or finance your project through verified funding entities — all in one place.",
+  "position": 0,
+  "featured": 1,
+  "isActive": 1
+ },
+ {
+  "id": "cmuod0tuk0033luj3r7hy4kfg",
+  "topic": "GENERAL",
+  "question": "Do I need an account to browse?",
+  "answer": "No. Browsing the market, funding entities and all public pages is open. An account is needed to order, send RFQs or apply for financing — it takes about a minute to create.",
+  "position": 1,
+  "featured": 0,
+  "isActive": 1
+ },
+ {
+  "id": "cmuod0tuk0034luj3l93m382t",
+  "topic": "GENERAL",
+  "question": "Which regions do you serve?",
+  "answer": "Our sellers ship to all governorates, with installer contacts for most. Funding entities each publish their own coverage regions on their program pages.",
+  "position": 2,
+  "featured": 0,
+  "isActive": 1
+ },
+ {
+  "id": "cmuod0tuk0035luj3ksomx8b4",
+  "topic": "GENERAL",
+  "question": "How do I contact a human?",
+  "answer": "Use the contact page — messages reach the right desk (orders, funding, sellers, partnerships) and we answer within one working day.",
+  "position": 3,
+  "featured": 0,
+  "isActive": 1
+ },
+ {
+  "id": "cmuod0tuk0036luj3u72fyxgq",
+  "topic": "FUNDING",
+  "question": "Who provides the financing — Vendora or the entities?",
+  "answer": "The financing always comes from the verified entities (banks and microfinance institutions). Vendora operates the platform: we verify requests, route them to matching programs, and host the offers, agreements and repayment tracking.",
+  "position": 0,
+  "featured": 1,
+  "isActive": 1
+ },
+ {
+  "id": "cmuod0tuk0037luj3vzb4wvfp",
+  "topic": "FUNDING",
+  "question": "What documents do I need to apply?",
+  "answer": "It depends on the entity and program. Typical requirements: national ID, commercial registration for businesses, bank statements for the last 6 months, and sometimes proof of address. Each program page lists its exact requirements before you start.",
+  "position": 1,
+  "featured": 1,
+  "isActive": 1
+ },
+ {
+  "id": "cmuod0tuk0038luj3jijud3xl",
+  "topic": "FUNDING",
+  "question": "Is the financing Sharia-compliant?",
+  "answer": "Many programs are. Al-Kuraimi and Tihama structures are murabaha-based by design; Al-Amal offers both Sharia-compliant and conventional facilities. Every program card carries a Sharia-compliant badge where applicable.",
+  "position": 2,
+  "featured": 0,
+  "isActive": 1
+ },
+ {
+  "id": "cmuod0tuk0039luj3hfnp1aay",
+  "topic": "FUNDING",
+  "question": "How long does a funding decision take?",
+  "answer": "Platform review takes 1–2 working days. Entity decisions typically arrive within 2–5 days after that — the Home Solar Installment Plan from Al-Amal advertises decisions in 3 days, and Kuraimi’s micro facility decides in 48 hours for returning customers.",
+  "position": 3,
+  "featured": 0,
+  "isActive": 1
+ },
+ {
+  "id": "cmuod0tuk003aluj3dia84nbf",
+  "topic": "FUNDING",
+  "question": "Can I compare offers from different entities?",
+  "answer": "Yes — that is the core of the flow. Your request is routed to every matching entity, and their binding offers arrive in one comparison view: amounts, rates, tenors and total payable side by side.",
+  "position": 4,
+  "featured": 0,
+  "isActive": 1
+ },
+ {
+  "id": "cmuod0tuk003bluj35pplio0l",
+  "topic": "FUNDING",
+  "question": "Does applying affect my credit anywhere?",
+  "answer": "Submitting a request on the platform does not. Once you accept an entity’s offer, the resulting agreement is with that institution and follows their reporting.",
+  "position": 5,
+  "featured": 0,
+  "isActive": 1
+ },
+ {
+  "id": "cmuod0tuk003cluj3qn0enycg",
+  "topic": "MARKET",
+  "question": "Are the sellers vetted?",
+  "answer": "Yes. Every store passes identity, stock and contact verification before its first listing. Verified stores carry a badge, and reviews can only come from confirmed orders.",
+  "position": 0,
+  "featured": 0,
+  "isActive": 1
+ },
+ {
+  "id": "cmuod0tuk003dluj3r9opsp7p",
+  "topic": "MARKET",
+  "question": "What if the equipment arrives damaged or wrong?",
+  "answer": "Open a dispute from your dashboard within the protection window. The seller responds on-platform; unresolved cases are escalated to Vendora support with the full order trail as evidence.",
+  "position": 1,
+  "featured": 0,
+  "isActive": 1
+ },
+ {
+  "id": "cmuod0tuk003eluj3fnhlonxy",
+  "topic": "MARKET",
+  "question": "Can I buy one panel, or only full systems?",
+  "answer": "Both. Individual components are sold per unit, and our catalog also curates complete systems with compatibility data so components work together.",
+  "position": 2,
+  "featured": 0,
+  "isActive": 1
+ },
+ {
+  "id": "cmuod0tuk003fluj3qin5gr8x",
+  "topic": "SELL",
+  "question": "How much does it cost to sell on Vendora?",
+  "answer": "Opening a store and listing products is free. A commission applies only when you sell — the current rate is published in the seller console before your first listing.",
+  "position": 0,
+  "featured": 1,
+  "isActive": 1
+ },
+ {
+  "id": "cmuod0tuk003gluj3rieyc3qo",
+  "topic": "SELL",
+  "question": "What do I need to open a store?",
+  "answer": "A national ID for individuals or a commercial registration for companies, real stock, and a way to fulfill orders. Verification usually completes within two working days.",
+  "position": 1,
+  "featured": 0,
+  "isActive": 1
+ },
+ {
+  "id": "cmuod0tuk003hluj3bvb0cvfy",
+  "topic": "SELL",
+  "question": "Can I sell to businesses too?",
+  "answer": "Yes — verified stores automatically receive RFQs from organizations. You can also join entity supplier-accreditation programs to unlock institutional demand.",
+  "position": 2,
+  "featured": 0,
+  "isActive": 1
+ }
+]
