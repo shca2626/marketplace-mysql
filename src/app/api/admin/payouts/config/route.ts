@@ -11,7 +11,9 @@ export async function GET() {
 }
 
 // PUT /api/admin/payouts/config — set the platform default commission percent
-// (0-90). Vendors without a per-vendor override settle at this rate.
+// (0-90) + the commission trigger stage (CONFIG-1). Vendors without a
+// per-vendor override settle at this rate; the trigger stage defines the
+// fulfillment stage at which a commission obligation comes into existence.
 export async function PUT(req: NextRequest) {
   const csrf = assertSameOrigin(req)
   if (csrf) return csrf
@@ -23,7 +25,10 @@ export async function PUT(req: NextRequest) {
   if (su.error) return su.error
   try {
     const body = await req.json()
-    const config = await updatePayoutsConfig({ defaultCommissionPercent: Number(body?.defaultCommissionPercent) })
+    const config = await updatePayoutsConfig({
+      defaultCommissionPercent: Number(body?.defaultCommissionPercent),
+      ...(typeof body?.commissionTriggerStage === 'string' ? { commissionTriggerStage: body.commissionTriggerStage } : {}),
+    })
     return NextResponse.json({ config })
   } catch (err) {
     if (err instanceof PayoutServiceError) {

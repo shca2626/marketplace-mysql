@@ -6,6 +6,7 @@ import { serializeOrder } from '@/lib/serialize'
 import { cancelApprovalForOrder } from '@/server/modules/approvals/service'
 import { cancelPaymentForOrder } from '@/server/modules/payments/service'
 import { recordCommissionForDeliveredOrder } from '@/server/modules/commission/service'
+import { getPayoutsConfig } from '@/server/modules/payouts/service'
 import { emitNotifications } from '@/server/modules/notifications/service'
 import { assertSameOrigin } from '@/lib/http'
 import { userHasOrgPermission } from '@/server/authz/evaluator'
@@ -152,12 +153,15 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       )
     }
 
-    // DELIVERED is the SUCCESSFUL STAGE: the commission trigger runs inside
-    // the SAME transaction as the status flip, so an obligation can never
-    // dangle against an undelivered order (and vice versa). Idempotent per
-    // (order, seller) — repeated transitions are blocked above anyway.
+    // CONFIG-1: the commission trigger stage is owner-configured (payouts
+    // setting) — DELIVERED by default. The obligation + ledger rows are
+    // written inside the SAME transaction as the status flip, so an obligation
+    // can never dangle against an order that did not reach the configured
+    // stage (and vice versa). Idempotent per (order, seller).
+    const payoutsCfg = await getPayoutsConfig()
+    const triggerStage = payoutsCfg.commissionTriggerStage ?? 'DELIVERED'
     const updated =
-      parsed.data.status === 'DELIVERED'
+      parsed.data.status === triggerStage
         ? await db.$transaction(async (tx) => {
             const row = await tx.order.update({
               where: { id },
@@ -167,7 +171,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
             await recordCommissionForDeliveredOrder(tx, {
               id: row.id,
               buyerId: row.buyerId,
-              items: row.items.map((i) => ({ sellerId: i.sellerId, price: i.price, quantity: i.quantity })),
+              items: row.items.map((i) => ({ sellerId: i.sellerId, sellerOrgId: i.sellerOrgId, price: i.price, quantity: i.quantity })),
             })
             return row
           })

@@ -454,9 +454,27 @@ export function RequestDetail({ requestId, onBack }: { requestId: string; onBack
           </div>
           <GateMeter verified={r.gate.verified} waived={r.gate.waived} totalRequired={r.gate.totalRequired} />
           <div className="space-y-2">
-            {r.submissions.map((s) => (
-              <ChecklistVerdictRow key={s.id} sub={s} />
-            ))}
+            {r.submissions.map((s, i) => {
+              // CONFIG-1: submissions arrive phase-first — draw a stage header
+              // whenever the sequence phase changes (financier-defined stages).
+              const phase = s.requirement.phase
+              const prevPhase = i > 0 ? r.submissions[i - 1].requirement.phase : undefined
+              const phaseBreak = phase != null && phase !== prevPhase
+              return (
+                <div key={s.id} className="space-y-2">
+                  {phaseBreak && (
+                    <div className="flex items-center gap-2 pt-1" aria-label={`Phase ${phase}`}>
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">
+                        {r.submissions.slice(0, i + 1).filter((x) => x.requirement.phase === phase).length}
+                      </span>
+                      <span className="text-[11px] font-bold uppercase tracking-wide text-primary">{phase}</span>
+                      <span className="h-px flex-1 bg-border" />
+                    </div>
+                  )}
+                  <ChecklistVerdictRow sub={s} />
+                </div>
+              )
+            })}
             {r.submissions.length === 0 && (
               <p className="rounded-lg border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
                 The checklist is generated when the request is submitted.

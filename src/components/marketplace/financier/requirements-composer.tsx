@@ -25,6 +25,7 @@ import {
   Plus,
   Search,
   Sparkles,
+  Milestone,
   Trash2,
   Unlock,
 } from 'lucide-react'
@@ -399,6 +400,7 @@ function AttachConfig({
   const [cfg, setCfg] = useState({
     isRequired: true,
     displayOrder: nextOrder,
+    phase: '',
     instructions: '',
     autoPassAccredited: false,
   })
@@ -411,6 +413,7 @@ function AttachConfig({
         conditionTemplateId: condition.id,
         isRequired: cfg.isRequired,
         displayOrder: cfg.displayOrder,
+        phase: cfg.phase.trim() || null,
         instructions: cfg.instructions.trim() || null,
         autoPassAccredited: cfg.autoPassAccredited,
       }),
@@ -460,6 +463,22 @@ function AttachConfig({
             className="h-9 rounded-lg"
           />
         </div>
+      </div>
+      <div className="mt-3 space-y-1">
+        <Label htmlFor={`phase-${condition.id}`} className="text-xs">
+          Sequence phase (optional — groups this step into a named stage)
+        </Label>
+        <Input
+          id={`phase-${condition.id}`}
+          value={cfg.phase}
+          onChange={(e) => setCfg((c) => ({ ...c, phase: e.target.value }))}
+          maxLength={60}
+          placeholder="e.g. Pre-approval · Due diligence · Contracting"
+          className="h-9 rounded-lg"
+        />
+        <p className="text-[11px] text-muted-foreground">
+          Requirements sharing a phase render as one stage of your agreement sequence — blank = ungrouped baseline.
+        </p>
       </div>
       <div className="mt-3 space-y-1">
         <Label htmlFor={`instr-${condition.id}`} className="text-xs">
@@ -658,6 +677,11 @@ export function RequirementsComposer({
                           {conditionTypeLabel(req.template.conditionType)}
                         </span>
                         <ScopeChip scope={req.template.scope} />
+                        {req.phase && (
+                          <span className="inline-flex items-center gap-0.5 rounded-full bg-sky-100 px-1.5 py-px text-[10px] font-semibold text-sky-800 dark:bg-sky-950 dark:text-sky-300">
+                            <Milestone size={9} /> {req.phase}
+                          </span>
+                        )}
                         {req.autoPassAccredited && (
                           <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-1.5 py-px text-[10px] font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
                             <Unlock size={9} /> auto-pass
@@ -716,6 +740,23 @@ export function RequirementsComposer({
                         Save
                       </Button>
                     )}
+                  </div>
+                  <div className="flex items-center gap-2 border-t px-3 py-2">
+                    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Phase
+                    </span>
+                    <Input
+                      defaultValue={req.phase ?? ''}
+                      key={`phase-${req.id}-${req.phase ?? ''}`}
+                      onBlur={(e) => {
+                        const next = e.target.value.trim()
+                        if (next !== (req.phase ?? '')) void patchRequirement(req, { phase: next || null })
+                      }}
+                      maxLength={60}
+                      placeholder="Ungrouped — set a stage like “Due diligence” to structure your sequence"
+                      className="h-8 rounded-lg border-dashed text-xs"
+                      aria-label={`Sequence phase for ${req.template.title}`}
+                    />
                   </div>
                 </li>
               )

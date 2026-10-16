@@ -23,8 +23,29 @@ import { db } from '@/lib/db'
 // the PLATFORM ORDER_COMMISSION rule reproduces the 10% commission exactly.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const FEE_EVENTS = ['ORDER_COMMISSION', 'FINANCING_SUCCESS', 'SUBSCRIPTION_RENEWAL'] as const
+// CONFIG-1 (workflow-configurable commissions): the event catalog covers every
+// commission class the platform can earn — sales (direct/RFQ/B2B all land on
+// ORDER_COMMISSION), financing success, subscription billing, accreditation
+// brokerage (recorded when the platform gate forwards an accreditation to the
+// institution), sponsorship/featuring slots, and financing referral/service
+// fees (only when a rule exists — no rule ⇒ no fee, per spec).
+export const FEE_EVENTS = [
+  'ORDER_COMMISSION',
+  'FINANCING_SUCCESS',
+  'SUBSCRIPTION_RENEWAL',
+  'ACCREDITATION',
+  'SPONSORSHIP',
+  'FINANCING_REFERRAL',
+] as const
 export type FeeEvent = (typeof FEE_EVENTS)[number]
+
+/** Events whose fee base is a money amount the caller supplies. */
+export const FEE_MONEY_BASED_EVENTS: readonly FeeEvent[] = [
+  'ORDER_COMMISSION',
+  'FINANCING_SUCCESS',
+  'SUBSCRIPTION_RENEWAL',
+  'FINANCING_REFERRAL',
+]
 
 export const FEE_ACTOR_TYPES = ['SELLER', 'FINANCIER', 'PLATFORM'] as const
 export type FeeActorType = (typeof FEE_ACTOR_TYPES)[number]
@@ -566,4 +587,31 @@ export async function resolveOrderCommissionPercent(
     }
   }
   return { percent: pct, source: 'LEGACY', rule: null }
+}
+
+// ── seller → org context bridge (CONFIG-1) ──────────────────────────────────
+
+/**
+ * Build the fee-scope context for a seller USER so commission rules can be
+ * scoped per organization / org-type. Resolution: an explicit org (e.g.
+ * OrderItem.sellerOrgId snapshot) → the seller's org membership → empty
+ * (PLATFORM-only chain). Legacy C2C-era sellers without an org resolve
+ * against PLATFORM rules only.
+ */
+export async function sellerFeeActorCtx(sellerId: string, orgId?: string | null): Promise<FeeActorCtx> {
+  if (orgId) {
+    const org = await db.organization.findUnique({
+      where: { id: orgId },
+      select: { id: true, orgType: true },
+    })
+    if (org) return { orgId: org.id, orgType: org.orgType }
+  }
+  const membership = await db.organizationMember.findFirst({
+    where: { userId: sellerId },
+    select: { organizationId: true, organization: { select: { orgType: true } } },
+  })
+  if (membership) {
+    return { orgId: membership.organizationId, orgType: membership.organization?.orgType ?? null }
+  }
+  return {}
 }

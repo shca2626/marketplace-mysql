@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { recordAudit } from '@/server/modules/audit/service'
+import { getOrgLimits } from '@/server/modules/subscriptions/service'
 import { assertServiceOwnership, type FinancierStaffContext } from './guards'
 import { composeServiceChecklist } from './conditions'
 import { serializeAccountDocument } from './documents'
@@ -364,6 +365,21 @@ export async function createBranch(
   staff: FinancierStaffContext,
   payload: BranchCreatePayload
 ): Promise<FinancierBranchDTO> {
+  // CONFIG-1: branch count is plan-limited when the org's plan (or the free
+  // tier) defines maxBranches — blank/null = unlimited, per spec limits.
+  const limits = await getOrgLimits(staff.organization.id)
+  const cap = limits.maxBranches
+  if (cap != null) {
+    const count = await db.financierBranch.count({
+      where: { financierProfileId: staff.profile.id, isActive: true },
+    })
+    if (count >= cap) {
+      throw new FinancingCatalogError(
+        `Your current plan caps branches at ${cap}. Contact the platform to raise this limit.`,
+        402
+      )
+    }
+  }
   const branch = await db.financierBranch.create({
     data: {
       financierProfileId: staff.profile.id,

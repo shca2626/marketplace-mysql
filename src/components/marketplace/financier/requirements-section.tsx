@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ListChecks,
   Loader2,
+  Milestone,
   Plus,
   Search,
   Trash2,
@@ -166,7 +167,10 @@ function ComposerDetail({
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const activeReqs = requirements.filter((r) => r.isActive)
-  const sorted = [...activeReqs].sort((a, b) => a.displayOrder - b.displayOrder)
+  // CONFIG-1: phase-first ordering — ungrouped items lead, then staged groups
+  const sorted = [...activeReqs].sort(
+    (a, b) => (a.phase ?? '').localeCompare(b.phase ?? '') || a.displayOrder - b.displayOrder
+  )
 
   const patch = async (req: ServiceRequirementDTO, body: Record<string, unknown>) => {
     setBusyId(req.id)
@@ -265,6 +269,11 @@ function ComposerDetail({
                           <p className="text-[13px] font-semibold leading-snug">{t.title}</p>
                           <ConditionTypeBadge type={t.conditionType} />
                           <ScopeBadge scope={t.scope} />
+                          {req.phase && (
+                            <span className="inline-flex items-center gap-0.5 rounded-full bg-sky-100 px-1.5 py-px text-[10px] font-semibold text-sky-800 dark:bg-sky-950 dark:text-sky-300">
+                              <Milestone size={9} /> {req.phase}
+                            </span>
+                          )}
                           {req.isRequired ? (
                             <span className="text-[10px] font-bold uppercase tracking-wide text-rose-600 dark:text-rose-400">Required</span>
                           ) : (
@@ -312,6 +321,25 @@ function ComposerDetail({
                                 </span>
                               </span>
                             </label>
+                            <div className="space-y-1.5">
+                              <Label className="text-[11px]">Sequence phase</Label>
+                              <Input
+                                defaultValue={req.phase ?? ''}
+                                key={`phase-${req.id}-${req.phase ?? ''}`}
+                                maxLength={60}
+                                disabled={busyId === req.id}
+                                placeholder="Ungrouped — e.g. “Pre-approval”, “Due diligence”, “Contracting”"
+                                className="h-8 rounded-lg text-xs"
+                                aria-label={`Sequence phase for ${t.title}`}
+                                onBlur={(e) => {
+                                  const v = e.target.value.trim() || null
+                                  if (v !== (req.phase ?? null)) void patch(req, { phase: v })
+                                }}
+                              />
+                              <p className="text-[10px] text-muted-foreground">
+                                Requirements sharing a phase form one stage of the agreement sequence your applicants follow.
+                              </p>
+                            </div>
                             <div className="space-y-1.5">
                               <Label className="text-[11px]">Per-service instructions</Label>
                               <Textarea
@@ -540,6 +568,7 @@ function AttachDialog({
 }) {
   const [isRequired, setIsRequired] = useState(true)
   const [autoPass, setAutoPass] = useState(false)
+  const [phase, setPhase] = useState('')
   const [instructions, setInstructions] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [initializedFor, setInitializedFor] = useState<string | null>(null)
@@ -549,6 +578,7 @@ function AttachDialog({
     setInitializedFor(key)
     setIsRequired(true)
     setAutoPass(false)
+    setPhase('')
     setInstructions('')
   }
   if (!template && initializedFor !== null) setInitializedFor(null)
@@ -563,6 +593,7 @@ function AttachDialog({
         conditionTemplateId: template.id,
         isRequired,
         displayOrder: nextOrder,
+        phase: phase.trim() || null,
         instructions: instructions.trim() || null,
         autoPassAccredited: autoPass,
       }),
@@ -595,6 +626,22 @@ function AttachDialog({
               <span className="block text-xs font-normal text-muted-foreground">Companies with a live accreditation from you get this item auto-verified.</span>
             </span>
           </label>
+          <div className="space-y-1.5">
+            <Label htmlFor="attach-phase" className="text-xs">
+              Sequence phase (optional)
+            </Label>
+            <Input
+              id="attach-phase"
+              value={phase}
+              onChange={(e) => setPhase(e.target.value)}
+              maxLength={60}
+              placeholder="e.g. Pre-approval · Due diligence · Contracting"
+              className="h-9 rounded-lg text-sm"
+            />
+            <p className="text-[10px] text-muted-foreground">
+              Requirements sharing a phase form one stage of the agreement sequence — blank = ungrouped.
+            </p>
+          </div>
           <div className="space-y-1.5">
             <Label htmlFor="attach-instructions" className="text-xs">
               Per-service instructions (optional)

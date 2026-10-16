@@ -37,6 +37,15 @@ import { FinancingTab } from './admin/financing-tab'
 import { RbacTab } from './admin/rbac-tab'
 import { CommissionTab } from './admin/commission-tab'
 import { ModulesTab } from './admin/modules-tab'
+import { MonetizationConsole } from './admin/monetization-console'
+import { SettlementsTab } from './admin/settlements-tab'
+import { CurrenciesConsole } from './admin/currencies-console'
+import { AgreementsTab } from './admin/agreements-tab'
+import { CertificationsTab } from './admin/certifications-tab'
+import { SpecAttributesTab } from './admin/spec-attributes-tab'
+import { SecurityTab } from './admin/security-tab'
+import { KycProviderConsole } from './admin/kyc-provider/kyc-provider-console'
+import { WhatsAppTab } from './admin/whatsapp-tab'
 import { AdminSettings } from './admin-settings'
 import { RfqSettings } from './admin/settings/rfq-settings'
 
@@ -104,6 +113,9 @@ function AdminDashboard({ user }: { user: SessionUser | null }) {
       {activeSection === 'commissions' && <CommissionTab />}
       {activeSection === 'modules' && <ModulesTab />}
       {activeSection === 'payouts' && <PayoutsTab />}
+      {activeSection === 'monetization' && <MonetizationConsole />}
+      {activeSection === 'settlements' && <SettlementsTab />}
+      {activeSection === 'currencies' && <CurrenciesConsole />}
       {activeSection === 'financing' && <FinancingTab />}
       {activeSection === 'organizations' && <OrganizationsTab />}
       {activeSection === 'pricing' && <PricingTab />}
@@ -113,6 +125,12 @@ function AdminDashboard({ user }: { user: SessionUser | null }) {
       {activeSection === 'rbac' && <RbacTab user={user} />}
       {activeSection === 'rfq-settings' && <RfqSettings />}
       {activeSection === 'storefront' && <AdminSettings />}
+      {activeSection === 'agreements' && <AgreementsTab />}
+      {activeSection === 'certifications' && <CertificationsTab />}
+      {activeSection === 'spec-attributes' && <SpecAttributesTab />}
+      {activeSection === 'security' && <SecurityTab user={user} />}
+      {activeSection === 'kyc' && <KycProviderConsole />}
+      {activeSection === 'whatsapp' && <WhatsAppTab />}
       {activeSection === 'audit' && <AuditTab />}
     </DashboardLayout>
   )

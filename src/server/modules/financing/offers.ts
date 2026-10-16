@@ -3,6 +3,9 @@ import { recordAudit } from '@/server/modules/audit/service'
 import { emitNotification, emitNotifications } from '@/server/modules/notifications/service'
 import { nextNumber } from '@/server/modules/sequences/service'
 import { resolvePanel } from '@/server/modules/settings/service'
+import { assessFee, resolveFeeRule } from '@/server/modules/fees/service'
+import { resolveFinancingSuccessPercent } from '@/server/modules/fees/admin'
+import type { FeeActorCtx, ResolvedFeeRule } from '@/server/modules/fees/service'
 import { FinancingError, assertApplicantActor, assertApplicantOfferAcceptor, iso, type OfferStatus } from './shared'
 
 /**
@@ -408,7 +411,10 @@ async function acceptOfferCore(
   tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
   offer: { id: string; requestId: string; amount: number; currency: string },
   agreementNumber: string,
-  successPercent: number
+  successPercent: number,
+  feeCtx: FeeActorCtx,
+  rateSource: 'RULE' | 'LEGACY',
+  feeRule: ResolvedFeeRule | null
 ): Promise<string> {
   const now = new Date()
   // freeze the accepted offer + decline every other SENT offer on the request
@@ -447,7 +453,9 @@ async function acceptOfferCore(
   const agreement = await tx.financingAgreement.create({
     data: { number: agreementNumber, offerId: offer.id, acceptedAt: now, status: 'ACTIVE', fundingStatus: 'PENDING' },
   })
-  // FinancingFee SUCCESS — the platform's commission (D-001/002)
+  // FinancingFee SUCCESS — the platform's commission (D-001/002).
+  // CONFIG-1: percent comes through the configurable chain (fee rule scoped
+  // to the financier ORG → ORG_TYPE → PLATFORM → legacy rfq-settings panel).
   const percent = successPercent
   const feeAmount = Math.round(offer.amount * (percent / 100) * 100) / 100
   await tx.financingFee.create({
@@ -460,6 +468,62 @@ async function acceptOfferCore(
       status: 'ACCRUED',
     },
   })
+  // Immutable ledger mirror (Monetization → Revenue reconciliation).
+  // Idempotent per agreement; rule-snapshotted when a rule resolved.
+  await assessFee(
+    {
+      event: 'FINANCING_SUCCESS',
+      actorType: 'FINANCIER',
+      actorOrgId: feeCtx.orgId ?? null,
+      ctx: feeCtx,
+      baseAmount: offer.amount,
+      currency: 'USD',
+      calcInputs: {
+        flow: 'financing-success',
+        percent,
+        rateSource,
+        legacyAmount: feeAmount,
+        note: 'platform commission on an accepted financing offer',
+      },
+      idempotencyKey: `FINANCING_SUCCESS:agreement:${agreement.id}`,
+      refType: 'AGREEMENT',
+      refId: agreement.id,
+    },
+    tx,
+    feeRule
+  )
+  // CONFIG-1 (financing referral/service fee): accrues ONLY when the platform
+  // enabled a FINANCING_REFERRAL fee rule (ORG → ORG_TYPE → PLATFORM). No
+  // rule ⇒ no fee — per the standalone-financing spec ("a service/referral
+  // fee may be recorded if the platform enables it; otherwise none").
+  try {
+    const referralRule = await resolveFeeRule('FINANCING_REFERRAL', feeCtx)
+    if (referralRule) {
+      await assessFee(
+        {
+          event: 'FINANCING_REFERRAL',
+          actorType: 'FINANCIER',
+          actorOrgId: feeCtx.orgId ?? null,
+          ctx: feeCtx,
+          baseAmount: offer.amount,
+          currency: 'USD',
+          calcInputs: {
+            flow: 'financing-referral',
+            ruleId: referralRule.id,
+            note: 'platform referral/service fee on financing routing (only when enabled)',
+          },
+          idempotencyKey: `FINANCING_REFERRAL:agreement:${agreement.id}`,
+          refType: 'AGREEMENT',
+          refId: agreement.id,
+        },
+        tx,
+        referralRule
+      )
+    }
+  } catch (err) {
+    // The referral fee must never block acceptance — audit-only failure.
+    console.error('[financing/offers] referral fee accrual failed', err)
+  }
   return agreement.id
 }
 
@@ -488,14 +552,36 @@ export async function acceptOffer(
   }
 
   // mint the AGR number + resolve the fee percent BEFORE the transaction
-  // (nextNumber opens its own tx — write-lock discipline)
+  // (nextNumber opens its own tx — write-lock discipline).
+  // CONFIG-1: fee rule scoped to the financier (ORG → ORG_TYPE → PLATFORM)
+  // first; the rfq-settings financingFees panel stays as the legacy fallback.
+  const financierOrgForFee = await db.financingRequest
+    .findUnique({
+      where: { id: offer.requestId },
+      select: { service: { select: { financierProfile: { select: { organizationId: true } } } } },
+    })
+    .then((r) => r?.service.financierProfile.organizationId ?? null)
   const [agreementNumber, feesPanel] = await Promise.all([
     nextNumber('AGR'),
     resolvePanel('financingFees'),
   ])
-  const successPercent = Number(feesPanel.financierSuccessPercent) || 0
+  const legacyPercent = Number(feesPanel.financierSuccessPercent) || 0
+  const resolved = await resolveFinancingSuccessPercent(
+    financierOrgForFee ? { orgId: financierOrgForFee } : {},
+    legacyPercent
+  )
+  const successPercent = resolved.percent
   const agreementId = await db.$transaction(
-    async (tx) => acceptOfferCore(tx, offer, agreementNumber, successPercent),
+    async (tx) =>
+      acceptOfferCore(
+        tx,
+        offer,
+        agreementNumber,
+        successPercent,
+        financierOrgForFee ? { orgId: financierOrgForFee } : {},
+        resolved.source,
+        resolved.rule
+      ),
     { timeout: 30_000 } // remote-DB latency: default 5s is too tight for the agreement+fee+notifications tx
   )
 

@@ -2,7 +2,8 @@ import { db } from '@/lib/db'
 import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
 import { emitNotification } from '@/server/modules/notifications/service'
 import { nextNumber } from '@/server/modules/sequences/service'
-import { getPayoutsConfig } from '@/server/modules/payouts/service'
+import { getPayoutsConfig, DEFAULT_COMMISSION_TRIGGER_STAGE } from '@/server/modules/payouts/service'
+import { assessFee, resolveOrderCommissionPercent, sellerFeeActorCtx, type ResolvedFeeRule, type FeeActorCtx } from '@/server/modules/fees/service'
 
 /**
  * COMMISSION — the intermediary monetization core (§8 of the Company-to-
@@ -35,23 +36,65 @@ const usd = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits
 
 // ── Obligation creation (idempotent trigger) ────────────────────────────────
 
-export const COMMISSION_TRIGGER_STAGE = 'DELIVERED' as const
+/**
+ * CONFIG-1: the commission trigger stage is now owner-configured (payouts
+ * setting `commissionTriggerStage`) — kept for backward compatibility as the
+ * default when no setting exists. See COMMISSION_TRIGGER_STAGES in payouts.
+ */
+export const COMMISSION_TRIGGER_STAGE = DEFAULT_COMMISSION_TRIGGER_STAGE
+
+export interface CommissionTriggerInfo {
+  stage: string
+  rate: number
+  rateSource: 'VENDOR_OVERRIDE' | 'RULE' | 'LEGACY'
+  ctx: FeeActorCtx
+  rule: ResolvedFeeRule | null
+}
+
+/**
+ * Resolve everything the obligation + ledger rows need for one (order, seller)
+ * pair: the configured trigger stage and the commission rate through the
+ * configurable chain — vendor override → fee rule (ORG → ORG_TYPE → PLATFORM)
+ * → legacy payouts default.
+ */
+async function resolveCommissionTrigger(
+  sellerId: string,
+  sellerOrgId: string | null | undefined,
+  vendorOverrideRate: number | null
+): Promise<CommissionTriggerInfo> {
+  const cfg = await getPayoutsConfig()
+  const ctx = await sellerFeeActorCtx(sellerId, sellerOrgId)
+  if (vendorOverrideRate != null && Number.isFinite(vendorOverrideRate)) {
+    return { stage: cfg.commissionTriggerStage ?? COMMISSION_TRIGGER_STAGE, rate: vendorOverrideRate, rateSource: 'VENDOR_OVERRIDE', ctx, rule: null }
+  }
+  const resolved = await resolveOrderCommissionPercent(ctx)
+  return {
+    stage: cfg.commissionTriggerStage ?? COMMISSION_TRIGGER_STAGE,
+    rate: resolved.percent,
+    rateSource: resolved.source,
+    ctx,
+    rule: resolved.rule,
+  }
+}
 
 /**
  * Create one CommissionObligation per (order, seller) — idempotent: existing
- * pairs are skipped, so repeated DELIVERED transitions and backfills never
- * double-count. Called inside the order-status transaction.
+ * pairs are skipped, so repeated trigger-stage transitions and backfills never
+ * double-count. Called inside the order-status transaction. Also appends one
+ * immutable FeeAssessment ledger row per pair (idempotent key) so the
+ * Monetization → Revenue console reconciles real order commission.
  */
 export async function recordCommissionForDeliveredOrder(
   tx: Tx,
-  order: { id: string; buyerId: string; items: { sellerId: string; price: number; quantity: number }[] }
+  order: { id: string; buyerId: string; items: { sellerId: string; sellerOrgId?: string | null; price: number; quantity: number }[] }
 ): Promise<{ created: number }> {
-  const cfg = await getPayoutsConfig()
-
   // Per-seller base = Σ price×qty of that seller's items (mirrors payout math)
-  const baseBySeller = new Map<string, number>()
+  const baseBySeller = new Map<string, { base: number; sellerOrgId: string | null }>()
   for (const item of order.items) {
-    baseBySeller.set(item.sellerId, (baseBySeller.get(item.sellerId) ?? 0) + item.price * item.quantity)
+    const cur = baseBySeller.get(item.sellerId) ?? { base: 0, sellerOrgId: item.sellerOrgId ?? null }
+    cur.base += item.price * item.quantity
+    cur.sellerOrgId = cur.sellerOrgId ?? item.sellerOrgId ?? null
+    baseBySeller.set(item.sellerId, cur)
   }
 
   // Already-recorded pairs are skipped (idempotency)
@@ -62,40 +105,66 @@ export async function recordCommissionForDeliveredOrder(
   const done = new Set(existing.map((o) => o.sellerId))
 
   let created = 0
-  for (const [sellerId, baseF] of baseBySeller) {
+  for (const [sellerId, agg] of baseBySeller) {
     if (done.has(sellerId)) continue
     const seller = await tx.user.findUnique({
       where: { id: sellerId },
       select: { commissionRate: true },
     })
-    const rate = seller?.commissionRate ?? cfg.defaultCommissionPercent
-    const base = Math.round(baseF * 100) / 100
-    const amount = Math.round(base * (rate / 100) * 100) / 100
-    await tx.commissionObligation.create({
+    const info = await resolveCommissionTrigger(sellerId, agg.sellerOrgId, seller?.commissionRate ?? null)
+    const base = Math.round(agg.base * 100) / 100
+    const amount = Math.round(base * (info.rate / 100) * 100) / 100
+    const obligation = await tx.commissionObligation.create({
       data: {
         orderId: order.id,
         sellerId,
         baseAmount: base,
-        commissionRate: rate,
+        commissionRate: info.rate,
         amount,
         status: 'PENDING',
-        triggerStage: COMMISSION_TRIGGER_STAGE,
+        triggerStage: info.stage,
       },
     })
+    // Immutable ledger row — rule-snapshotted when a rule resolved, legacy
+    // carry-over otherwise. Idempotent per (order, seller) pair.
+    await assessFee(
+      {
+        event: 'ORDER_COMMISSION',
+        actorType: 'SELLER',
+        actorOrgId: info.ctx.orgId ?? null,
+        ctx: info.ctx,
+        baseAmount: base,
+        currency: 'USD',
+        calcInputs: {
+          flow: 'obligation',
+          percent: info.rate,
+          rateSource: info.rateSource,
+          obligationId: obligation.id,
+          legacyAmount: amount,
+        },
+        idempotencyKey: `ORDER_COMMISSION:order:${order.id}:seller:${sellerId}`,
+        refType: 'ORDER',
+        refId: order.id,
+      },
+      tx,
+      info.rule
+    )
     created++
   }
   return { created }
 }
 
 /**
- * Backfill — scan DELIVERED (non-cancelled) orders that have no obligations
+ * Backfill — scan trigger-stage (non-cancelled) orders that have no obligations
  * yet and create them. Covers orders delivered before this module existed.
  * Idempotent by construction (recordCommissionForDeliveredOrder skips pairs).
  */
 export async function backfillCommissionObligations(adminId: string): Promise<{ ordersScanned: number; created: number }> {
+  const cfg = await getPayoutsConfig()
+  const triggerStage = cfg.commissionTriggerStage ?? COMMISSION_TRIGGER_STAGE
   const delivered = await db.order.findMany({
-    where: { status: 'DELIVERED' },
-    include: { items: { select: { sellerId: true, price: true, quantity: true } } },
+    where: { status: triggerStage },
+    include: { items: { select: { sellerId: true, sellerOrgId: true, price: true, quantity: true } } },
     orderBy: { createdAt: 'asc' },
     take: 500,
   })

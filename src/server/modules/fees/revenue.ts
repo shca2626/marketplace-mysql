@@ -144,11 +144,17 @@ export interface ReconcileResult {
 
 const EVENT_NOTES: Record<FeeEvent, string> = {
   ORDER_COMMISSION:
-    'External = Σ Payout.commission over payouts created in the window with status PENDING or PAID — CANCELLED payouts never receive an assessment, so their commission is excluded.',
+    'External = Σ Payout.commission over payouts created in the window with status PENDING or PAID — CANCELLED payouts never receive an assessment, so their commission is excluded. Commission obligations (B2B intermediary flow) also land here with calcInputs.flow = "obligation".',
   FINANCING_SUCCESS:
     'External = Σ FinancingFee (type SUCCESS, status ≠ WAIVED) created in the window — WAIVED is the financing-side analog of a ledger reversal.',
   SUBSCRIPTION_RENEWAL:
     'External = Σ SubscriptionInvoice (status PAID) created in the window — FAILED invoices never write an assessment.',
+  ACCREDITATION:
+    'External = none yet — the platform accrues this commission only through the fee engine (recorded when the platform gate forwards an accreditation to the institution). Ledger is the source of truth.',
+  SPONSORSHIP:
+    'External = none — sponsorship/featuring purchases are not billed through subscriptions; the ledger is the source of truth when a SPONSORSHIP rule is configured.',
+  FINANCING_REFERRAL:
+    'External = none — the referral/service fee accrues only when the platform enables a rule; the ledger is the source of truth.',
 }
 
 // ── the reconciliation ───────────────────────────────────────────────────────

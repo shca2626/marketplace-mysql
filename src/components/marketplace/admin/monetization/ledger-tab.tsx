@@ -95,6 +95,18 @@ const EVENT_STYLE: Record<string, { label: string; badge: string }> = {
     label: 'Subscription',
     badge: 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300',
   },
+  ACCREDITATION: {
+    label: 'Accreditation',
+    badge: 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300',
+  },
+  SPONSORSHIP: {
+    label: 'Sponsorship',
+    badge: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300',
+  },
+  FINANCING_REFERRAL: {
+    label: 'Referral',
+    badge: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
+  },
 }
 
 const fmt = (n: number) =>
@@ -258,6 +270,9 @@ export function LedgerTab() {
                   <SelectItem value="ORDER_COMMISSION">Order commission</SelectItem>
                   <SelectItem value="FINANCING_SUCCESS">Financing success</SelectItem>
                   <SelectItem value="SUBSCRIPTION_RENEWAL">Subscription renewal</SelectItem>
+                  <SelectItem value="ACCREDITATION">Accreditation</SelectItem>
+                  <SelectItem value="SPONSORSHIP">Sponsorship / featuring</SelectItem>
+                  <SelectItem value="FINANCING_REFERRAL">Financing referral / service</SelectItem>
                 </SelectContent>
               </Select>
             </div>

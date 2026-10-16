@@ -23,6 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
@@ -504,14 +505,18 @@ export function PayoutsTab() {
 function CommissionConfigCard() {
   // Step-up MFA (6.7.5): commission config changes the money split — guarded.
   const { guard: guardStepUp, node: stepUpDialog } = useStepUp()
-  const { data, loading, refetch } = useApi<{ config: { defaultCommissionPercent: number } }>('/api/admin/payouts/config')
+  const { data, loading, refetch } = useApi<{ config: { defaultCommissionPercent: number; commissionTriggerStage?: string } }>(
+    '/api/admin/payouts/config'
+  )
   const [input, setInput] = useState('')
+  const [triggerStage, setTriggerStage] = useState('DELIVERED')
   const [saving, setSaving] = useState(false)
   const [initializedFor, setInitializedFor] = useState<number | null>(null)
 
   if (data && initializedFor !== data.config.defaultCommissionPercent) {
     setInitializedFor(data.config.defaultCommissionPercent)
     setInput(String(data.config.defaultCommissionPercent))
+    setTriggerStage(data.config.commissionTriggerStage ?? 'DELIVERED')
   }
 
   const rate = Number(input)
@@ -528,9 +533,9 @@ function CommissionConfigCard() {
     }
     setSaving(true)
     const res = await guardStepUp(() =>
-      apiRequest<{ config: { defaultCommissionPercent: number } }>('/api/admin/payouts/config', {
+      apiRequest<{ config: { defaultCommissionPercent: number; commissionTriggerStage?: string } }>('/api/admin/payouts/config', {
         method: 'PUT',
-        body: JSON.stringify({ defaultCommissionPercent: rate }),
+        body: JSON.stringify({ defaultCommissionPercent: rate, commissionTriggerStage: triggerStage }),
       })
     )
     setSaving(false)
@@ -541,7 +546,7 @@ function CommissionConfigCard() {
     }
     toast({
       title: `Default commission set to ${rate}%`,
-      description: 'Vendors without an override settle at this rate.',
+      description: `Obligations now trigger when an order reaches ${triggerStage}. Vendors without an override settle at this rate.`,
     })
     void refetch()
   }
@@ -582,7 +587,30 @@ function CommissionConfigCard() {
               <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
             </div>
             <p id="default-commission-hint" className="text-xs text-muted-foreground">
-              Applies to all vendors without an override.
+              Applies to all vendors without an override. Scoped rates per organization / org type can be layered on top
+              in <span className="font-medium text-foreground">Monetization → Fee Rules</span>.
+            </p>
+          </div>
+        )}
+        {loading && !data ? (
+          <Skeleton className="h-10 w-full rounded-xl" />
+        ) : (
+          <div className="space-y-1.5">
+            <Label htmlFor="commission-trigger" className="text-xs text-muted-foreground">
+              Trigger stage (when commission is earned)
+            </Label>
+            <Select value={triggerStage} onValueChange={setTriggerStage}>
+              <SelectTrigger id="commission-trigger" className="h-10 rounded-xl">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="PROCESSING">Processing — earliest, accrues when fulfillment starts</SelectItem>
+                <SelectItem value="SHIPPED">Shipped — accrues when the order ships</SelectItem>
+                <SelectItem value="DELIVERED">Delivered — safest, accrues on confirmed delivery</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              The fulfillment stage at which a commission obligation comes into existence for an order.
             </p>
           </div>
         )}

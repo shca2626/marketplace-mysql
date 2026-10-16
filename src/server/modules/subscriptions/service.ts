@@ -253,7 +253,7 @@ export async function getEffectiveSubscription(orgId: string): Promise<Effective
 
 // ── limits ──────────────────────────────────────────────────────────────────
 
-export const KNOWN_LIMITS = ['maxProducts', 'maxActiveOffers', 'maxUsers'] as const
+export const KNOWN_LIMITS = ['maxProducts', 'maxActiveOffers', 'maxUsers', 'maxBranches', 'maxJobs'] as const
 export type LimitKey = (typeof KNOWN_LIMITS)[number]
 
 /** The effective limits for an org: its plan's, or the free tier's. */

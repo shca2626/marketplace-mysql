@@ -773,7 +773,7 @@ export async function getFinancingRequestDetail(
         include: { conditionTemplate: { include: { options: { orderBy: { position: 'asc' as const } } } } },
       },
     },
-    orderBy: [{ serviceRequirement: { displayOrder: 'asc' } }, { createdAt: 'asc' }],
+    orderBy: [{ serviceRequirement: { phase: 'asc' } }, { serviceRequirement: { displayOrder: 'asc' } }, { createdAt: 'asc' }],
   })
   const { serializeSubmission } = await import('./submissions')
   detail.submissions = subs.map((s) => serializeSubmission(s as never))
@@ -885,7 +885,7 @@ export async function adminGetFinancingRequest(requestId: string): Promise<Finan
       },
       accountDocument: true,
     },
-    orderBy: [{ serviceRequirement: { displayOrder: 'asc' } }, { createdAt: 'asc' }],
+    orderBy: [{ serviceRequirement: { phase: 'asc' } }, { serviceRequirement: { displayOrder: 'asc' } }, { createdAt: 'asc' }],
   })
   const { serializeSubmission } = await import('./submissions')
   detail.submissions = subs.map((s) => ({
@@ -1144,7 +1144,7 @@ export async function financierGetRequest(userId: string, requestId: string): Pr
         include: { conditionTemplate: { include: { options: { orderBy: { position: 'asc' as const } } } } },
       },
     },
-    orderBy: [{ serviceRequirement: { displayOrder: 'asc' } }, { createdAt: 'asc' }],
+    orderBy: [{ serviceRequirement: { phase: 'asc' } }, { serviceRequirement: { displayOrder: 'asc' } }, { createdAt: 'asc' }],
   })
   const { serializeSubmission } = await import('./submissions')
   detail.submissions = subs.map((s) => serializeSubmission(s as never))

@@ -3,6 +3,7 @@ import { recordAudit } from '@/server/modules/audit/service'
 import { emitNotification, emitNotifications } from '@/server/modules/notifications/service'
 import { nextNumber } from '@/server/modules/sequences/service'
 import { resolvePanel } from '@/server/modules/settings/service'
+import { resolveFeeRule, computeFee, assessFee } from '@/server/modules/fees/service'
 import {
   FinancingError,
   CANCELABLE_PRE_FORWARD,
@@ -495,6 +496,54 @@ export async function forwardAccreditationRequest(
     })
   })
 
+  // CONFIG-1 (accreditation commission): the platform's brokerage commission
+  // for reviewing + forwarding an accreditation to the institution — recorded
+  // at gate-pass time per the workflow spec ("platform checks requirements and
+  // records the platform commission"). Configurable from Monetization → Fee
+  // Rules (event ACCREDITATION); FLAT rules fit an accreditation (no money
+  // base), PERCENT rules are ignored. No rule ⇒ no commission.
+  try {
+    const accreditationRule = await resolveFeeRule('ACCREDITATION', {
+      orgId: request.service.financierProfile.organizationId,
+    })
+    if (accreditationRule && accreditationRule.dimension === 'FLAT') {
+      const commission = computeFee(accreditationRule, 0).amount
+      await assessFee(
+        {
+          event: 'ACCREDITATION',
+          actorType: 'SELLER', // the accredited company is the paying org
+          actorOrgId: request.organizationId,
+          ctx: { orgId: request.service.financierProfile.organizationId },
+          baseAmount: 0,
+          currency: 'USD',
+          calcInputs: {
+            flow: 'accreditation',
+            ruleId: accreditationRule.id,
+            legacyAmount: commission,
+            note: 'platform accreditation brokerage commission (recorded at gate pass)',
+          },
+          idempotencyKey: `ACCREDITATION:request:${requestId}`,
+          refType: 'ACCREDITATION_REQUEST',
+          refId: requestId,
+        },
+        undefined,
+        accreditationRule
+      )
+      await recordAudit({
+        actorId: adminId,
+        actorType: 'ADMIN',
+        action: 'FEE_ACCRUED',
+        entityType: 'AccreditationRequest',
+        entityId: requestId,
+        summary: `ACCREDITATION commission of ${commission.toFixed(2)} recorded on ${request.number}`,
+        metadata: { ruleId: accreditationRule.id, amount: commission },
+      })
+    }
+  } catch (err) {
+    // Commission recording must never block the forward itself — audit-only.
+    console.error('[accreditation] commission accrual failed', err)
+  }
+
   await recordAudit({
     actorId: adminId,
     actorType: 'ADMIN',
@@ -570,7 +619,7 @@ async function attachChecklist(detail: AccreditationRequestDetailDTO, requestId:
         include: { conditionTemplate: { include: { options: { orderBy: { position: 'asc' as const } } } } },
       },
     },
-    orderBy: [{ serviceRequirement: { displayOrder: 'asc' } }, { createdAt: 'asc' }],
+    orderBy: [{ serviceRequirement: { phase: 'asc' } }, { serviceRequirement: { displayOrder: 'asc' } }, { createdAt: 'asc' }],
   })
   const { serializeSubmission } = await import('./submissions')
   detail.submissions = subs.map((s) => serializeSubmission(s as never))

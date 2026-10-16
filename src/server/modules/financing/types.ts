@@ -435,6 +435,13 @@ export const requirementAttachSchema = z.object({
   conditionTemplateId: z.string().min(1),
   isRequired: z.boolean().default(true),
   displayOrder: z.number().int().min(0).max(999).default(0),
+  phase: z
+    .string()
+    .trim()
+    .max(60)
+    .optional()
+    .nullable()
+    .transform((v) => (v === undefined ? undefined : v && v.trim() ? v.trim() : null)),
   instructions: z.string().trim().max(500).optional().nullable(),
   autoPassAccredited: z.boolean().default(false),
 })

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/auth'
-import { PLATFORM_COMMISSION_RATE } from '@/lib/pricing'
+import { resolveOrderCommissionPercent, sellerFeeActorCtx } from '@/server/modules/fees/service'
 
 // GET /api/seller/stats — dashboard KPIs, sales-by-day, top products
 export async function GET() {
@@ -45,9 +45,13 @@ export async function GET() {
     // ── Payout summary (read-only, derived from live order items) ──
     // Net = gross − platform commission. "Available" covers DELIVERED items
     // (settled), "in transit" covers PAID/PROCESSING/SHIPPED (clearing).
+    // CONFIG-1: the commission rate resolves through the configurable chain
+    // (vendor override → fee rule → payouts default) — no more hardcoded 8%.
     const round2 = (n: number) => Math.round(n * 100) / 100
+    const feeCtx = await sellerFeeActorCtx(user.id)
+    const commissionRate = (user.commissionRate ?? (await resolveOrderCommissionPercent(feeCtx)).percent) / 100
     const grossSales = round2(revenue)
-    const platformFee = round2(grossSales * PLATFORM_COMMISSION_RATE)
+    const platformFee = round2(grossSales * commissionRate)
     const netEarnings = round2(grossSales - platformFee)
     let deliveredGross = 0
     let transitGross = 0
@@ -56,7 +60,7 @@ export async function GET() {
       if (item.order.status === 'DELIVERED') deliveredGross += amount
       else transitGross += amount // PAID | PROCESSING | SHIPPED
     }
-    const netOf = (gross: number) => round2(gross - gross * PLATFORM_COMMISSION_RATE)
+    const netOf = (gross: number) => round2(gross - gross * commissionRate)
     const nextPayout = new Date()
     nextPayout.setHours(12, 0, 0, 0)
     nextPayout.setDate(nextPayout.getDate() + ((5 - nextPayout.getDay() + 7) % 7 || 7)) // next Friday

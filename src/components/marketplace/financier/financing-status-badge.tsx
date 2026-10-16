@@ -125,6 +125,7 @@ export interface ServiceRequirementDTO {
   conditionTemplateId: string
   isRequired: boolean
   displayOrder: number
+  phase: string | null
   instructions: string | null
   autoPassAccredited: boolean
   isActive: boolean

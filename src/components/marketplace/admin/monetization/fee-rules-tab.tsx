@@ -98,7 +98,14 @@ interface OrgLite {
 
 // ── Vocabulary (mirrors the engine spine) ────────────────────────────────────
 
-const FEE_EVENTS = ['ORDER_COMMISSION', 'FINANCING_SUCCESS', 'SUBSCRIPTION_RENEWAL'] as const
+const FEE_EVENTS = [
+  'ORDER_COMMISSION',
+  'FINANCING_SUCCESS',
+  'SUBSCRIPTION_RENEWAL',
+  'ACCREDITATION',
+  'SPONSORSHIP',
+  'FINANCING_REFERRAL',
+] as const
 const FEE_ACTOR_TYPES = ['SELLER', 'FINANCIER', 'PLATFORM'] as const
 const FEE_SCOPE_TYPES = ['PLATFORM', 'ORG_TYPE', 'ORG'] as const
 const FEE_ORG_TYPES = ['COMPANY', 'BANK', 'MFI', 'EWALLET'] as const
@@ -115,6 +122,18 @@ const EVENT_META: Record<string, { label: string; badge: string }> = {
   SUBSCRIPTION_RENEWAL: {
     label: 'Subscription renewal',
     badge: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
+  },
+  ACCREDITATION: {
+    label: 'Accreditation',
+    badge: 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300',
+  },
+  SPONSORSHIP: {
+    label: 'Sponsorship / featuring',
+    badge: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300',
+  },
+  FINANCING_REFERRAL: {
+    label: 'Financing referral / service',
+    badge: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
   },
 }
 

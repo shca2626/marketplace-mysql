@@ -62,6 +62,7 @@ export interface ServiceRequirementDTO {
   conditionTemplateId: string
   isRequired: boolean
   displayOrder: number
+  phase: string | null
   instructions: string | null
   autoPassAccredited: boolean
   isActive: boolean
@@ -462,6 +463,7 @@ export interface AttachRequirementInput {
   conditionTemplateId: string
   isRequired?: boolean
   displayOrder?: number
+  phase?: string | null
   instructions?: string | null
   autoPassAccredited?: boolean
 }
@@ -502,6 +504,7 @@ export async function attachServiceRequirement(
         data: {
           isRequired: input.isRequired ?? true,
           displayOrder: input.displayOrder ?? existing.displayOrder,
+          phase: input.phase ?? null,
           instructions: input.instructions?.trim() || null,
           autoPassAccredited: input.autoPassAccredited ?? false,
           isActive: true,
@@ -514,6 +517,7 @@ export async function attachServiceRequirement(
           conditionTemplateId: input.conditionTemplateId,
           isRequired: input.isRequired ?? true,
           displayOrder: input.displayOrder ?? activeCount,
+          phase: input.phase ?? null,
           instructions: input.instructions?.trim() || null,
           autoPassAccredited: input.autoPassAccredited ?? false,
         },
@@ -538,6 +542,7 @@ export async function updateServiceRequirement(
   input: {
     isRequired?: boolean
     displayOrder?: number
+    phase?: string | null
     instructions?: string | null
     autoPassAccredited?: boolean
     isActive?: boolean
@@ -555,6 +560,7 @@ export async function updateServiceRequirement(
     data: {
       ...(input.isRequired !== undefined ? { isRequired: input.isRequired } : {}),
       ...(input.displayOrder !== undefined ? { displayOrder: input.displayOrder } : {}),
+      ...(input.phase !== undefined ? { phase: input.phase?.trim() || null } : {}),
       ...(input.instructions !== undefined ? { instructions: input.instructions?.trim() || null } : {}),
       ...(input.autoPassAccredited !== undefined ? { autoPassAccredited: input.autoPassAccredited } : {}),
       ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
@@ -614,6 +620,7 @@ function serializeRequirement(
     conditionTemplateId: r.conditionTemplateId,
     isRequired: r.isRequired,
     displayOrder: r.displayOrder,
+    phase: r.phase,
     instructions: r.instructions,
     autoPassAccredited: r.autoPassAccredited,
     isActive: r.isActive,
@@ -626,7 +633,7 @@ export async function listServiceRequirements(serviceId: string): Promise<Servic
   const rows = await db.serviceRequirement.findMany({
     where: { serviceId, isActive: true },
     include: { conditionTemplate: { include: templateInclude } },
-    orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+    orderBy: [{ phase: 'asc' }, { displayOrder: 'asc' }, { createdAt: 'asc' }],
   })
   return rows.map((r) => serializeRequirement(r as never))
 }
@@ -642,6 +649,6 @@ export async function composeServiceChecklist(serviceId: string) {
     // conditionTemplate.options is a nested relation — it needs an explicit
     // include for the public requirement labels (SELECT options live there).
     include: { conditionTemplate: { include: { options: true } } },
-    orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+    orderBy: [{ phase: 'asc' }, { displayOrder: 'asc' }, { createdAt: 'asc' }],
   })
 }

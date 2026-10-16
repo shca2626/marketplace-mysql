@@ -101,6 +101,9 @@ const FEE_EVENTS = [
   { value: 'ORDER_COMMISSION', label: 'Order commission' },
   { value: 'FINANCING_SUCCESS', label: 'Financing success' },
   { value: 'SUBSCRIPTION_RENEWAL', label: 'Subscription renewal' },
+  { value: 'ACCREDITATION', label: 'Accreditation' },
+  { value: 'SPONSORSHIP', label: 'Sponsorship / featuring' },
+  { value: 'FINANCING_REFERRAL', label: 'Financing referral / service' },
 ]
 
 const FEE_ORG_TYPES = ['COMPANY', 'BANK', 'MFI', 'EWALLET'] as const

@@ -220,6 +220,12 @@ function PlanEditDialog({
   const [maxUsers, setMaxUsers] = useState(
     plan?.limits.maxUsers != null ? String(plan.limits.maxUsers) : ''
   )
+  const [maxBranches, setMaxBranches] = useState(
+    plan?.limits.maxBranches != null ? String(plan.limits.maxBranches) : ''
+  )
+  const [maxJobs, setMaxJobs] = useState(
+    plan?.limits.maxJobs != null ? String(plan.limits.maxJobs) : ''
+  )
   const [sortOrder, setSortOrder] = useState(String(plan?.sortOrder ?? 0))
   const [isActive, setIsActive] = useState(plan?.isActive ?? true)
   const [saving, setSaving] = useState(false)
@@ -256,6 +262,8 @@ function PlanEditDialog({
           maxProducts: parseLimit(maxProducts),
           maxActiveOffers: parseLimit(maxActiveOffers),
           maxUsers: parseLimit(maxUsers),
+          maxBranches: parseLimit(maxBranches),
+          maxJobs: parseLimit(maxJobs),
         },
         isActive,
         sortOrder: Number(sortOrder) || 0,
@@ -375,6 +383,28 @@ function PlanEditDialog({
               placeholder="Unlimited"
               value={maxUsers}
               onChange={(e) => setMaxUsers(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="plan-maxBranches">Max branches</Label>
+            <Input
+              id="plan-maxBranches"
+              type="number"
+              min={0}
+              placeholder="Unlimited"
+              value={maxBranches}
+              onChange={(e) => setMaxBranches(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="plan-maxJobs">Max job posts</Label>
+            <Input
+              id="plan-maxJobs"
+              type="number"
+              min={0}
+              placeholder="Unlimited"
+              value={maxJobs}
+              onChange={(e) => setMaxJobs(e.target.value)}
             />
           </div>
           <p className="text-[11px] text-muted-foreground sm:col-span-3">

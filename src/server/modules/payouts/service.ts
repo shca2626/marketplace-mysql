@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { recordAudit, recordAuditTx } from '@/server/modules/audit/service'
 import { emitNotification } from '@/server/modules/notifications/service'
 import { nextNumber } from '@/server/modules/sequences/service'
+import { resolveOrderCommissionPercent, sellerFeeActorCtx } from '@/server/modules/fees/service'
 
 /**
  * Payouts — platform → vendor settlement of marketplace revenue.
@@ -22,11 +23,22 @@ export class PayoutServiceError extends Error {
 
 // ── Configuration ───────────────────────────────────────────────────────────
 
+/** Fulfillment stages a commission obligation can be configured to trigger on
+ * (CONFIG-1: the owner-defined SUCCESSFUL stage — no longer hardcoded). */
+export const COMMISSION_TRIGGER_STAGES = ['PROCESSING', 'SHIPPED', 'DELIVERED'] as const
+export type CommissionTriggerStage = (typeof COMMISSION_TRIGGER_STAGES)[number]
+export const DEFAULT_COMMISSION_TRIGGER_STAGE: CommissionTriggerStage = 'DELIVERED'
+
 export interface PayoutsConfig {
   defaultCommissionPercent: number // 0..90
+  commissionTriggerStage?: CommissionTriggerStage
 }
 
-const DEFAULT_PAYOUTS: PayoutsConfig = { defaultCommissionPercent: 10 }
+const DEFAULT_PAYOUTS: PayoutsConfig = { defaultCommissionPercent: 10, commissionTriggerStage: DEFAULT_COMMISSION_TRIGGER_STAGE }
+
+function parseTriggerStage(v: unknown): CommissionTriggerStage | undefined {
+  return COMMISSION_TRIGGER_STAGES.includes(v as CommissionTriggerStage) ? (v as CommissionTriggerStage) : undefined
+}
 
 export async function getPayoutsConfig(): Promise<PayoutsConfig> {
   const row = await db.platformSetting.findUnique({ where: { key: 'payouts' } })
@@ -37,6 +49,7 @@ export async function getPayoutsConfig(): Promise<PayoutsConfig> {
     return {
       defaultCommissionPercent:
         Number.isFinite(pct) && pct >= 0 && pct <= 90 ? pct : DEFAULT_PAYOUTS.defaultCommissionPercent,
+      commissionTriggerStage: parseTriggerStage(parsed.commissionTriggerStage) ?? DEFAULT_COMMISSION_TRIGGER_STAGE,
     }
   } catch {
     return DEFAULT_PAYOUTS
@@ -47,7 +60,8 @@ export async function updatePayoutsConfig(patch: Partial<PayoutsConfig>): Promis
   const pct = Number(patch.defaultCommissionPercent)
   if (!Number.isFinite(pct) || pct < 0 || pct > 90)
     throw new PayoutServiceError('Commission must be between 0 and 90 percent', 400)
-  const next: PayoutsConfig = { defaultCommissionPercent: pct }
+  const trigger = parseTriggerStage(patch.commissionTriggerStage) ?? DEFAULT_COMMISSION_TRIGGER_STAGE
+  const next: PayoutsConfig = { defaultCommissionPercent: pct, commissionTriggerStage: trigger }
   await db.platformSetting.upsert({
     where: { key: 'payouts' },
     create: { key: 'payouts', value: JSON.stringify(next) },
@@ -79,8 +93,8 @@ export async function previewPayout(sellerId: string): Promise<PayoutPreview> {
   })
   if (!seller || seller.role !== 'SELLER') throw new PayoutServiceError('Vendor not found', 404)
 
-  const [cfg, items] = await Promise.all([
-    getPayoutsConfig(),
+  const [ctx, items] = await Promise.all([
+    sellerFeeActorCtx(sellerId),
     db.orderItem.findMany({
       where: {
         sellerId,
@@ -92,7 +106,7 @@ export async function previewPayout(sellerId: string): Promise<PayoutPreview> {
     }),
   ])
 
-  const commissionRate = seller.commissionRate ?? cfg.defaultCommissionPercent
+  const commissionRate = seller.commissionRate ?? (await resolveOrderCommissionPercent(ctx)).percent
   const gross = items.reduce((s, i) => s + i.price * i.quantity, 0)
   const commission = Math.round(gross * (commissionRate / 100) * 100) / 100
 
@@ -130,8 +144,11 @@ export async function generatePayout(adminId: string, sellerId: string) {
     })
     if (items.length === 0) throw new PayoutServiceError('Nothing to settle — no paid, unsettled items', 409)
 
-    const cfg = await getPayoutsConfig()
-    const commissionRate = seller.commissionRate ?? cfg.defaultCommissionPercent
+    // CONFIG-1: commission resolves through the fee-rule engine (ORG →
+    // ORG_TYPE → PLATFORM) with the legacy vendor override kept on top.
+    const ctx = await sellerFeeActorCtx(sellerId)
+    const resolved = await resolveOrderCommissionPercent(ctx)
+    const commissionRate = seller.commissionRate ?? resolved.percent
     const gross = Math.round(items.reduce((s, i) => s + i.price * i.quantity, 0) * 100) / 100
     const commission = Math.round(gross * (commissionRate / 100) * 100) / 100
     const net = Math.round((gross - commission) * 100) / 100

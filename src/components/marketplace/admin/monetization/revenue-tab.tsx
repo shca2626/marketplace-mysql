@@ -21,10 +21,13 @@
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
+  BadgeCheck,
   CalendarRange,
   Download,
+  Handshake,
   Landmark,
   Loader2,
+  Megaphone,
   RefreshCw,
   ScrollText,
   ShieldAlert,
@@ -123,6 +126,24 @@ const EVENT_META: Record<string, { label: string; badge: string; bar: string; ic
     bar: 'bg-violet-500',
     icon: CalendarRange,
   },
+  ACCREDITATION: {
+    label: 'Accreditation',
+    badge: 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300',
+    bar: 'bg-sky-500',
+    icon: BadgeCheck,
+  },
+  SPONSORSHIP: {
+    label: 'Sponsorship / featuring',
+    badge: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300',
+    bar: 'bg-rose-500',
+    icon: Megaphone,
+  },
+  FINANCING_REFERRAL: {
+    label: 'Financing referral / service',
+    badge: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
+    bar: 'bg-orange-500',
+    icon: Handshake,
+  },
 }
 
 const ORG_TYPE_BADGE: Record<string, string> = {
@@ -136,6 +157,9 @@ const KPI_PREFER: Record<string, string> = {
   ORDER_COMMISSION: 'USD',
   FINANCING_SUCCESS: 'YER',
   SUBSCRIPTION_RENEWAL: 'USD',
+  ACCREDITATION: 'USD',
+  SPONSORSHIP: 'USD',
+  FINANCING_REFERRAL: 'YER',
 }
 
 const SCROLLBAR =

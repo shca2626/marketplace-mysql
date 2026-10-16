@@ -12,6 +12,7 @@ const schema = z.object({
   conditionTemplateId: z.string(),
   isRequired: z.boolean().optional(),
   displayOrder: z.number().int().min(0).max(999).optional(),
+  phase: z.string().trim().max(60).nullable().optional().transform((v) => (v === undefined ? undefined : v && v.trim() ? v.trim() : null)),
   instructions: z.string().trim().max(1000).nullable().optional(),
   autoPassAccredited: z.boolean().optional(),
 })

@@ -1464,7 +1464,8 @@ model ServiceRequirement {
   conditionTemplate   ConditionTemplate @relation(fields: [conditionTemplateId], references: [id])
   isRequired          Boolean           @default(true) // optional conditions inform but never gate
   displayOrder        Int               @default(0)
-  instructions        String?           @db.Text // MYSQL: financier's per-service override text
+  phase               String? // CONFIG-1: sequence stage ("Pre-approval", "Due diligence", "Contracting"…) — financiers structure different agreement sequences; null = ungrouped
+  instructions        String?          @db.Text // MYSQL: financier's per-service override text
   autoPassAccredited  Boolean           @default(false) // auto-VERIFIED when applicant org holds a live accreditation from THIS financier (DP-26)
   isActive            Boolean           @default(true)
   createdAt           DateTime          @default(now())

@@ -50,6 +50,7 @@ export interface RequirementSubmissionDTO {
     id: string
     isRequired: boolean
     displayOrder: number
+    phase: string | null
     instructions: string | null
     autoPassAccredited: boolean
     template: {
@@ -107,6 +108,7 @@ export function serializeSubmission(s: SubmissionRaw): RequirementSubmissionDTO 
       id: r.id,
       isRequired: r.isRequired,
       displayOrder: r.displayOrder,
+      phase: r.phase,
       instructions: r.instructions,
       autoPassAccredited: r.autoPassAccredited,
       template: {
@@ -719,7 +721,7 @@ export async function generateChecklist(
   const requirements = await db.serviceRequirement.findMany({
     where: { serviceId, isActive: true },
     include: { conditionTemplate: { include: { options: { orderBy: { position: 'asc' as const } } } } },
-    orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+    orderBy: [{ phase: 'asc' }, { displayOrder: 'asc' }, { createdAt: 'asc' }],
   })
 
   const parent = parentType === 'FINANCING' ? { financingRequestId: parentId } : { accreditationRequestId: parentId }
@@ -753,7 +755,11 @@ export async function generateChecklist(
   const refreshed = await db.requirementSubmission.findMany({
     where: parentType === 'FINANCING' ? { financingRequestId: parentId } : { accreditationRequestId: parentId },
     include: submissionInclude,
-    orderBy: [{ serviceRequirement: { displayOrder: 'asc' } }, { createdAt: 'asc' }],
+    orderBy: [
+      { serviceRequirement: { phase: 'asc' } },
+      { serviceRequirement: { displayOrder: 'asc' } },
+      { createdAt: 'asc' },
+    ],
   })
   return refreshed.map((s) => serializeSubmission(s as never))
 }
@@ -936,7 +942,7 @@ export async function listChecklist(
   const requirements = await db.serviceRequirement.findMany({
     where: { serviceId: parentRow.serviceId, isActive: true },
     include: { conditionTemplate: { select: { conditionType: true, title: true, documentType: true } } },
-    orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+    orderBy: [{ phase: 'asc' }, { displayOrder: 'asc' }, { createdAt: 'asc' }],
   })
   const submissions = await db.requirementSubmission.findMany({
     where:
