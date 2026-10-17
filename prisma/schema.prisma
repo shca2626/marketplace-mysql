@@ -128,6 +128,13 @@ model User {
   disputesResolved        Dispute[]                     @relation("DisputeResolver")
   complaintsRaised         Complaint[]                   @relation("ComplaintRaisedBy") // COMPLAINT-1: trust reports against companies
   complaintsResolved      Complaint[]                   @relation("ComplaintResolver")
+  companyFollows          CompanyFollow[]               @relation("CompanyFollows") // NETW-1: companies this user follows
+  jobPostings             JobPosting[]                  @relation("JobPostingsBy") // NETW-1: job postings authored by this member
+  jobApplications         JobApplication[]              @relation("JobApplicationsBy") // NETW-1: applications this user submitted
+  referralCode            ReferralCode?                 @relation("ReferralCodeOwner") // NETW-1: this user's shareable code
+  referredByReferrals     User[]                        @relation("UserReferredBy") // NETW-1: users who joined with this user's code
+  referredById            String? // NETW-1: the referrer when this account was created via a referral code
+  referredBy              User?                          @relation("UserReferredBy", fields: [referredById], references: [id])
   recurringSchedules      RecurringRfq[]
   mediaAssets             MediaAsset[]                  @relation("MediaAssets")
   paymentsCaptured        Payment[]                     @relation("PaymentsCapturedBy")
@@ -457,6 +464,8 @@ model Organization {
   sponsoredPlacements     SponsoredPlacement[] @relation("SponsoredPlacements") // SPONSOR-1: paid placements purchased by this org
   complaintsAgainst       Complaint[]         @relation("ComplaintTargetOrg") // COMPLAINT-1: trust reports against this company
   complaintsFiled         Complaint[]         @relation("ComplaintFiledByOrg") // COMPLAINT-1: reports filed on behalf of this company
+  companyFollowers         CompanyFollow[]     @relation("CompanyFollowers") // NETW-1: users following this company
+  jobPostings             JobPosting[]        @relation("JobPostingsOrg") // NETW-1: this org's job board postings
   orderItemsSold          OrderItem[]         @relation("OrderItemSellerOrg")
   fulfillmentsAsSellerOrg OrderFulfillment[]  @relation("FulfillmentSellerOrg")
   sellerSubscription      SellerSubscription? @relation("SellerSubscriptionOrg")
@@ -2885,4 +2894,76 @@ model WhatsAppTemplate {
   updatedAt DateTime @updatedAt
 
   campaigns BulkCampaign[]
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NETW-1 — actor-networking surfaces: company follows, jobs board, referrals.
+// Narrow additive migration 20261017020000_follow_jobs_referrals.
+// ═══════════════════════════════════════════════════════════════════════════
+
+model CompanyFollow {
+  id        String       @id @default(cuid())
+  userId    String // the follower (any authenticated actor: buyer, merchant, financier staff…)
+  user      User         @relation("CompanyFollows", fields: [userId], references: [id], onDelete: Cascade)
+  orgId     String // the company being followed (COMPANY orgs only — server-enforced)
+  org       Organization  @relation("CompanyFollowers", fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now())
+
+  @@unique([userId, orgId]) // leftmost userId covers user-side lookups (MYSQL-FK-INDEX)
+  @@index([orgId])
+}
+
+model JobPosting {
+  id              String        @id @default(cuid())
+  number          String        @unique // JOB-2026-000001
+  orgId           String
+  org             Organization  @relation("JobPostingsOrg", fields: [orgId], references: [id])
+  postedById      String
+  postedBy        User          @relation("JobPostingsBy", fields: [postedById], references: [id])
+  title           String
+  department      String?
+  location        String?
+  employmentType  String        @default("FULL_TIME") // FULL_TIME | PART_TIME | CONTRACT | INTERNSHIP | TEMPORARY
+  description     String        @db.Text // MYSQL: free-form long content
+  requirements    String?       @db.Text // MYSQL: free-form long content
+  salaryMin       Int? // monthly USD-equivalent, optional — omit to keep it private
+  salaryMax       Int?
+  salaryCurrency  String        @default("USD")
+  status          String        @default("OPEN") // OPEN | PAUSED | CLOSED
+  views           Int           @default(0)
+  expiresAt       DateTime? // optional auto-expiry; null = until closed
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  applications JobApplication[]
+
+  @@index([orgId, status])
+  @@index([status, createdAt])
+  @@index([postedById]) // MYSQL-FK-INDEX: postedById relation needs its own leftmost index
+}
+
+model JobApplication {
+  id           String      @id @default(cuid())
+  jobId        String
+  job          JobPosting  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  applicantId  String
+  applicant    User        @relation("JobApplicationsBy", fields: [applicantId], references: [id])
+  coverNote    String      @db.Text // MYSQL: free-form long content
+  contactEmail String? // reply-to hint; defaults to the account email
+  status       String      @default("PENDING") // PENDING | VIEWED | SHORTLISTED | REJECTED | WITHDRAWN
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@unique([jobId, applicantId]) // one application per user per job
+  @@index([applicantId, status])
+  @@index([jobId, status])
+}
+
+model ReferralCode {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation("ReferralCodeOwner", fields: [userId], references: [id], onDelete: Cascade)
+  code      String   @unique // 8 chars, unambiguous alphabet
+  createdAt DateTime @default(now())
+
 }

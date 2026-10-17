@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-16T23:13:02.913Z",
+  "generatedAt": "2026-10-17T16:20:00.000Z",
   "routes": [
     {
       "route": "/api",
@@ -337,7 +337,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Commission-invoice PDF: admin-or-billed-seller access. NOTE (RBAC completion): the admin check is still the legacy User.role flag — classified MANUAL_REVIEW to track it; server-side ownership check for the seller branch."
+      "notes": "Commission-invoice PDF: admin-or-billed-seller access. NOTE (RBAC completion): the admin check is still the legacy User.role flag \u2014 classified MANUAL_REVIEW to track it; server-side ownership check for the seller branch."
     },
     {
       "route": "/api/admin/commission/invoices/[id]/void",
@@ -1015,6 +1015,30 @@
       "moduleKeys": []
     },
     {
+      "route": "/api/admin/jobs",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [
+        "jobs.view"
+      ],
+      "moduleKeys": [],
+      "notes": "NETW-1 admin jobs queue (jobs.view)."
+    },
+    {
+      "route": "/api/admin/jobs/[id]",
+      "bucket": "PLATFORM_PRIVILEGED",
+      "methods": [
+        "PATCH"
+      ],
+      "permissionKeys": [
+        "jobs.moderate"
+      ],
+      "moduleKeys": [],
+      "notes": "NETW-1 moderation close with mandatory reason (jobs.moderate)."
+    },
+    {
       "route": "/api/admin/kyc/cases",
       "bucket": "PLATFORM_PRIVILEGED",
       "methods": [
@@ -1091,7 +1115,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Digest trigger — internal endpoint guarded by header secret + optional session; runs the digest job (see service). Ops-only."
+      "notes": "Digest trigger \u2014 internal endpoint guarded by header secret + optional session; runs the digest job (see service). Ops-only."
     },
     {
       "route": "/api/admin/orders",
@@ -1977,6 +2001,26 @@
       "moduleKeys": []
     },
     {
+      "route": "/api/applications/[id]",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "PATCH"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "NETW-1 two-sided transitions \u2014 actor identity decides the branch server-side: applicant withdraw vs company status (org-gated). Ownership/membership verified in service."
+    },
+    {
+      "route": "/api/applications/mine",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "NETW-1 applicant view of own applications (own rows only)."
+    },
+    {
       "route": "/api/approvals",
       "bucket": "AUTHENTICATED_USER",
       "methods": [
@@ -2012,7 +2056,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Self-service — verifies current password; bumps sessionVersion."
+      "notes": "Self-service \u2014 verifies current password; bumps sessionVersion."
     },
     {
       "route": "/api/auth/forgot-password",
@@ -2098,7 +2142,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Registration door (B2B company self-signup) — creates account + org."
+      "notes": "Registration door (B2B company self-signup) \u2014 creates account + org."
     },
     {
       "route": "/api/auth/register/financier",
@@ -2108,7 +2152,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Financier door — creates account via email-bound invitation token (hashed, 6.5)."
+      "notes": "Financier door \u2014 creates account via email-bound invitation token (hashed, 6.5)."
     },
     {
       "route": "/api/auth/reset-password",
@@ -2204,7 +2248,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Seller-scoped certification CRUD — ownership checked in service (seller profile owner)."
+      "notes": "Seller-scoped certification CRUD \u2014 ownership checked in service (seller profile owner)."
     },
     {
       "route": "/api/chat/widget/messages",
@@ -2232,7 +2276,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Public webchat widget (WA-CHAT) — anonymous by design; the session cookie is read only to prefill the visitor name/phone and link an existing account (guard-lint scans MANUAL_REVIEW because of the optional getSessionUser call, reviewed as PUBLIC)."
+      "notes": "Public webchat widget (WA-CHAT) \u2014 anonymous by design; the session cookie is read only to prefill the visitor name/phone and link an existing account (guard-lint scans MANUAL_REVIEW because of the optional getSessionUser call, reviewed as PUBLIC)."
     },
     {
       "route": "/api/complaints",
@@ -2263,7 +2307,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "COMPLAINT-1 Selling->Complaints panel: complaints against the caller org (?organizationId= — membership + OWNER/ADMIN/org.offers.manage verified in the service, same doctrine as /api/sponsor)."
+      "notes": "COMPLAINT-1 Selling->Complaints panel: complaints against the caller org (?organizationId= \u2014 membership + OWNER/ADMIN/org.offers.manage verified in the service, same doctrine as /api/sponsor)."
     },
     {
       "route": "/api/contact",
@@ -3220,7 +3264,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Public financing hub listing (GET). POST (apply) requires session — inline auth in handler."
+      "notes": "Public financing hub listing (GET). POST (apply) requires session \u2014 inline auth in handler."
     },
     {
       "route": "/api/financing/services/[id]",
@@ -3251,6 +3295,37 @@
       "moduleKeys": []
     },
     {
+      "route": "/api/follows",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "NETW-1 follows: GET own following list; POST follow a company (org-type/status/self-follow guards in service, rate-limited)."
+    },
+    {
+      "route": "/api/follows/[orgId]",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "DELETE"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "NETW-1 unfollow (own row only \u2014 the (userId, orgId) unique key scopes the delete)."
+    },
+    {
+      "route": "/api/follows/org",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "NETW-1 company-side audience list (any member can view; read-only intel \u2014 membership verified in service)."
+    },
+    {
       "route": "/api/fx",
       "bucket": "PUBLIC",
       "methods": [
@@ -3268,6 +3343,39 @@
       "permissionKeys": [],
       "moduleKeys": [],
       "notes": "Public storefront home payload; optional session personalization."
+    },
+    {
+      "route": "/api/jobs",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "NETW-1 jobs board: GET is the PUBLIC feed (no session \u2014 filters + pagination); POST publishes a posting (requireUser + org membership + org.jobs.manage verified in service, rate-limited)."
+    },
+    {
+      "route": "/api/jobs/[id]",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "PATCH"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "NETW-1 job detail: GET public detail (view counter); with ?organizationId= it becomes the company management view (membership + org.jobs.manage). PATCH updates/moves status (org-gated, rate-limited)."
+    },
+    {
+      "route": "/api/jobs/[id]/applications",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "NETW-1 applications: GET company-side pipeline (org-gated); POST apply (any authenticated actor; job-open + no-self-apply + dedupe enforced in service, rate-limited)."
     },
     {
       "route": "/api/kyc/cases",
@@ -3404,7 +3512,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Buyer payment attempt — ownership checked in payment service."
+      "notes": "Buyer payment attempt \u2014 ownership checked in payment service."
     },
     {
       "route": "/api/orders/[id]/refund",
@@ -3414,7 +3522,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Session buyer (getSessionUser + ownership check inside requestRefund: only the order buyer may request; refundable only when money actually moved — paidStates guard). Rate-limited like checkout."
+      "notes": "Session buyer (getSessionUser + ownership check inside requestRefund: only the order buyer may request; refundable only when money actually moved \u2014 paidStates guard). Rate-limited like checkout."
     },
     {
       "route": "/api/orders/[id]/settlement",
@@ -3655,7 +3763,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Offer update/delete — offer seller ownership checked in service."
+      "notes": "Offer update/delete \u2014 offer seller ownership checked in service."
     },
     {
       "route": "/api/products/brands",
@@ -3797,6 +3905,16 @@
       "moduleKeys": []
     },
     {
+      "route": "/api/referrals",
+      "bucket": "AUTHENTICATED_USER",
+      "methods": [
+        "GET"
+      ],
+      "permissionKeys": [],
+      "moduleKeys": [],
+      "notes": "NETW-1 referral program: own code + own stats (get-or-create on own row only)."
+    },
+    {
       "route": "/api/refunds",
       "bucket": "MANUAL_REVIEW",
       "methods": [
@@ -3804,7 +3922,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Session user (getSessionUser): returns only the caller’s own refunds (buyerRefunds scopes by order.buyerId = userId)."
+      "notes": "Session user (getSessionUser): returns only the caller\u2019s own refunds (buyerRefunds scopes by order.buyerId = userId)."
     },
     {
       "route": "/api/refunds/[id]/cancel",
@@ -3814,7 +3932,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Session user (getSessionUser): cancelRefund verifies the refund’s order belongs to the caller before any transition; only REQUESTED/APPROVED are cancellable."
+      "notes": "Session user (getSessionUser): cancelRefund verifies the refund\u2019s order belongs to the caller before any transition; only REQUESTED/APPROVED are cancellable."
     },
     {
       "route": "/api/reviews",
@@ -3945,7 +4063,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Seller fulfillment queue — items where sellerId = caller."
+      "notes": "Seller fulfillment queue \u2014 items where sellerId = caller."
     },
     {
       "route": "/api/seller/profile",
@@ -3975,7 +4093,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Seller self-service subscription view — org resolved from the CALLER's SellerProfile (never a parameter)."
+      "notes": "Seller self-service subscription view \u2014 org resolved from the CALLER's SellerProfile (never a parameter)."
     },
     {
       "route": "/api/seller/subscription/action",
@@ -3985,16 +4103,17 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Seller self-service subscription actions (change-plan / cancel) — org resolved from the CALLER's SellerProfile (never a parameter)."
+      "notes": "Seller self-service subscription actions (change-plan / cancel) \u2014 org resolved from the CALLER's SellerProfile (never a parameter)."
     },
     {
       "route": "/api/sellers/[id]",
-      "bucket": "PUBLIC",
+      "bucket": "MANUAL_REVIEW",
       "methods": [
         "GET"
       ],
       "permissionKeys": [],
-      "moduleKeys": []
+      "moduleKeys": [],
+      "notes": "Public storefront profile (no auth). NETW-1: optional session read (getSessionUser) only decorates the company follow state \u2014 never gates the response."
     },
     {
       "route": "/api/settings",
@@ -4089,7 +4208,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Media asset delete — ownership checked (uploadedById = caller) OR platform RBAC catalog.products.update (TENANT-AUDIT F-01/F-11: legacy User.role=ADMIN bypass removed)."
+      "notes": "Media asset delete \u2014 ownership checked (uploadedById = caller) OR platform RBAC catalog.products.update (TENANT-AUDIT F-01/F-11: legacy User.role=ADMIN bypass removed)."
     },
     {
       "route": "/api/uploads/document",
@@ -4109,7 +4228,7 @@
       ],
       "permissionKeys": [],
       "moduleKeys": [],
-      "notes": "Private-vault authenticated proxy (6.6.4): session re-authenticated per retrieval; HMAC-signed one-time nonce (VaultAccessGrant) verified + atomically consumed; access RE-authorized against the 6.8 matrix (owner / financing.documents.verify / org member per class / financier review scope) inside consumeVaultUrl — not a static permission key. Cache-Control: no-store; never redirects to storage/CDN."
+      "notes": "Private-vault authenticated proxy (6.6.4): session re-authenticated per retrieval; HMAC-signed one-time nonce (VaultAccessGrant) verified + atomically consumed; access RE-authorized against the 6.8 matrix (owner / financing.documents.verify / org member per class / financier review scope) inside consumeVaultUrl \u2014 not a static permission key. Cache-Control: no-store; never redirects to storage/CDN."
     }
   ]
 }

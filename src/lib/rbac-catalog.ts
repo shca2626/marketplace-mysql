@@ -171,6 +171,16 @@ export const PERMISSION_DOMAINS: PermissionDomain[] = [
     ],
   },
   {
+    key: 'jobs',
+    label: 'Jobs Board',
+    scope: 'PLATFORM',
+    description: 'The public jobs board — postings, applicants and moderation.',
+    permissions: [
+      { key: 'jobs.view', label: 'View jobs', description: 'Browse every job posting across companies.' },
+      { key: 'jobs.moderate', label: 'Moderate jobs', description: 'Close job postings for trust & safety reasons.' },
+    ],
+  },
+  {
     key: 'storefront',
     label: 'Storefront',
     scope: 'PLATFORM',
@@ -290,6 +300,7 @@ export const PERMISSION_DOMAINS: PermissionDomain[] = [
       { key: 'org.offers.manage', label: 'Manage offers', description: 'Create and edit the company\'s offers (price, stock, variants, lead time) on shared-catalog products.' },
       { key: 'org.proposals.manage', label: 'Propose products', description: 'Submit new product proposals and manage them until platform approval.' },
       { key: 'org.stores.manage', label: 'Manage stores', description: 'Create and manage the company\'s store(s) within the platform store limit.' },
+      { key: 'org.jobs.manage', label: 'Manage job postings', description: 'Post, edit and close the company\'s job openings and review applicants.' },
       { key: 'org.sales.view', label: 'View sales orders', description: 'See incoming sales orders and fulfillment queues for company offers.' },
       { key: 'org.sales.fulfill', label: 'Fulfill sales orders', description: 'Advance fulfillment status on orders for company offers.' },
     ],
@@ -430,6 +441,7 @@ export const SYSTEM_ROLES: RoleTemplate[] = [
       'rfq.pipeline.view',
       'disputes.view',
       'complaints.view',
+      'jobs.view',
       'audit.view',
     ],
   },
@@ -570,6 +582,7 @@ export const COMPANY_ORG_PERMISSIONS: string[] = [
   'org.offers.manage',
   'org.proposals.manage',
   'org.stores.manage',
+  'org.jobs.manage',
   'org.sales.view',
   'org.sales.fulfill',
 ]

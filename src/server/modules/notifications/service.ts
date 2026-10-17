@@ -29,6 +29,9 @@ export type NotificationType =
   | 'RFQ_DISPUTE' // seller: a buyer raised a dispute on your order
   | 'RFQ_DISPUTE_STATUS' // buyer: your dispute moved (responded / resolved / escalated)
   | 'COMPLAINT_STATUS' // COMPLAINT-1: complainant / target-org — complaint filed, answered or closed
+  | 'NEW_FOLLOWER' // NETW-1: company OWNER/ADMIN — someone started following the company
+  | 'JOB_STATUS' // NETW-1: company (new application / withdrawn) · applicant (application moved)
+  | 'REFERRAL_JOINED' // NETW-1: referrer — someone joined with their referral code
   | 'RECURRING_PREVIEW' // buyer: your recurring RFQ publishes soon
   | 'RECURRING_PUBLISHED' // buyer: a recurring run was published
   | 'RECURRING_PAUSED' // buyer: schedule auto-paused (empty cycles) or skipped
@@ -74,7 +77,7 @@ export interface EmitInput {
   type: NotificationType
   title: string
   body?: string | null
-  linkView: 'rfq' | 'orders' | 'business' | 'seller' | 'disputes' | 'complaints' | 'admin' | 'financing' | 'financier' | 'account'
+  linkView: 'rfq' | 'orders' | 'business' | 'seller' | 'disputes' | 'complaints' | 'jobs' | 'admin' | 'financing' | 'financier' | 'account'
   linkId?: string | null
 }
 

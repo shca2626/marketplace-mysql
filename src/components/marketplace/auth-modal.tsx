@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { AtSign, Building2, KeyRound, Landmark, Loader2, Mail, Ticket, User as UserIcon } from 'lucide-react'
+import { AtSign, Building2, Gift, KeyRound, Landmark, Loader2, Mail, Ticket, User as UserIcon } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
 import type { SessionUser } from '@/lib/types'
@@ -34,6 +34,13 @@ export function AuthModal() {
   // scoped role on registration (server-side via consumeInvitation).
   const [showInvite, setShowInvite] = useState(false)
   const [inviteToken, setInviteToken] = useState('')
+  // NETW-1: referral code — prefilled from ?ref= (captured on landing) or typed
+  const [referralCode, setReferralCode] = useState(() => {
+    if (typeof window === 'undefined') return ''
+    const url = new URL(window.location.href)
+    return url.searchParams.get('ref')?.toUpperCase().slice(0, 24) ?? window.localStorage.getItem('vendora:ref') ?? ''
+  })
+  const [showReferral, setShowReferral] = useState(() => referralCode.trim().length > 0)
   const [loading, setLoading] = useState(false)
 
   const finish = (user: SessionUser) => {
@@ -82,6 +89,7 @@ export function AuthModal() {
             email,
             password,
             ...(showInvite && inviteToken.trim() ? { inviteToken: inviteToken.trim() } : {}),
+            ...(showReferral && referralCode.trim() ? { referralCode: referralCode.trim() } : {}),
           }),
         })
         const json = await res.json()
@@ -174,6 +182,47 @@ export function AuthModal() {
                     className="inline-flex items-center gap-1.5 text-xs font-medium text-primary underline-offset-2 hover:underline"
                   >
                     <Ticket size={13} /> I have an invitation code
+                  </button>
+                )}
+              </div>
+
+              {/* NETW-1: referral code (optional, ?ref-prefilled) */}
+              <div className="space-y-1.5">
+                {showReferral ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="auth-referral">Referral code</Label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowReferral(false)
+                          setReferralCode('')
+                        }}
+                        className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <Gift className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="auth-referral"
+                        value={referralCode}
+                        onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                        placeholder="e.g. 7KDPWXAQ"
+                        maxLength={24}
+                        className="pl-9 font-mono tracking-wider"
+                        autoComplete="off"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowReferral(true)}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-primary underline-offset-2 hover:underline"
+                  >
+                    <Gift size={13} /> I have a referral code
                   </button>
                 )}
               </div>

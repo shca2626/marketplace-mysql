@@ -1,0 +1,22 @@
+[
+ {
+  "key": "catalog",
+  "value": "{\"publishReview\":\"NEW_SELLERS\",\"editReview\":\"OFF\"}",
+  "updatedAt": "2026-10-03T02:54:08.676Z"
+ },
+ {
+  "key": "kyc-provider-secrets",
+  "value": "{\"mock\":\"f44e161eea3703bad442362c31629afa4bc778f8abf251495abbc9dc7a285e7e\"}",
+  "updatedAt": "2026-10-06T02:50:42.289Z"
+ },
+ {
+  "key": "marketplace.stores",
+  "value": "{\"multiStoreEnabled\":false,\"maxStoresPerCompany\":1}",
+  "updatedAt": "2026-10-17T00:35:40.858Z"
+ },
+ {
+  "key": "storefront",
+  "value": "{\"general\":{\"siteName\":\"Vendora\",\"tagline\":\"The solar energy marketplace — panels, storage, inverters and pumps from stores that size systems properly.\",\"announcementEnabled\":true,\"announcementText\":\"Free shipping on orders over $100 · Engineer-reviewed solar gear · Use code SUN10 for 10% off your first array\",\"sampleImages\":[\"/api/media/2026/10/810405ec-26i73b.medium.png\",\"/api/media/2026/10/7d84e0f9-rz3nca.medium.png\",\"/api/media/2026/10/abc95a74-uyqq65.medium.png\",\"/api/media/2026/10/84bd897b-mt5v1q.medium.png\",\"/api/media/2026/10/57623b30-7jcr9o.medium.png\",\"/api/media/2026/10/1548544e-sielf1.medium.png\",\"/api/media/2026/10/baecd32e-0wvajf.medium.png\",\"/api/media/2026/10/2f88aac4-0n5n73.medium.png\"]},\"theme\":{\"defaultTheme\":\"light\",\"accent\":\"#193d8f\",\"radius\":\"cozy\"},\"layout\":{\"container\":\"wide\",\"productColumns\":\"5\"},\"slider\":{\"enabled\":false,\"orientation\":\"horizontal\",\"autoplay\":true,\"intervalSec\":6,\"height\":\"tall\",\"showArrows\":true,\"showDots\":true}}",
+  "updatedAt": "2026-10-15T16:15:15.056Z"
+ }
+]

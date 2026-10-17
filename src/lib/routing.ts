@@ -35,6 +35,8 @@ const VIEWS = new Set<View>([
   'rfqs',
   'business',
   'complaints',
+  'following',
+  'jobs',
   'financing',
   'financier',
   'forgot-password',

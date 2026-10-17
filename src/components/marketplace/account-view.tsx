@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import { ReferralCard } from './referral-card'
 
 export function AccountView() {
   const user = useMarketplace((s) => s.user)
@@ -143,6 +144,9 @@ export function AccountView() {
             </div>
           </CardContent>
         </Card>
+
+        {/* NETW-1: Referral program */}
+        <ReferralCard />
       </div>
     </div>
   )

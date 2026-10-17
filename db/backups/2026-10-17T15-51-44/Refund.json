@@ -1,0 +1,22 @@
+[
+ {
+  "id": "cmva390u00017pypii6do6svj",
+  "number": "RF-2026-000003",
+  "orderId": "cmva38ap70011pypi3rn5hko1",
+  "requestedById": "cmv9pjcwq000cpyj6n4v0p6pb",
+  "reason": "One lamp arrived cracked — requesting a refund for the set.",
+  "status": "APPROVED",
+  "decidedNote": null,
+  "amountTotal": 39.99,
+  "currency": "USD",
+  "paymentReference": null,
+  "approvedById": null,
+  "approvedAt": "2026-10-15T22:07:48.028Z",
+  "completedById": null,
+  "completedAt": null,
+  "deniedAt": null,
+  "cancelledAt": null,
+  "createdAt": "2026-10-15T22:06:24.121Z",
+  "updatedAt": "2026-10-15T22:07:48.146Z"
+ }
+]

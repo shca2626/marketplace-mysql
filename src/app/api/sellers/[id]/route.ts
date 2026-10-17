@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getSessionUser } from '@/lib/auth'
+import { storeFollowState } from '@/server/modules/follows/service'
 
 // GET /api/sellers/[id] — public storefront profile for any seller.
 // Read-only aggregation over existing tables (no new transaction surface).
+// NETW-1: also resolves the COMPANY org behind the storefront and returns the
+// public follow context (follower count + whether the viewer follows).
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -54,6 +58,15 @@ export async function GET(
     }, new Map<string, { id: string; name: string; slug: string; count: number }>())
     const categories = [...categoryMap.values()]
 
+    // NETW-1: follow state (best-effort — a seller without a COMPANY org has none)
+    let follow: Awaited<ReturnType<typeof storeFollowState>> = null
+    try {
+      const viewer = await getSessionUser()
+      follow = await storeFollowState(id, viewer?.id ?? null)
+    } catch {
+      follow = null
+    }
+
     return NextResponse.json({
       seller: {
         id: seller.id,
@@ -67,6 +80,7 @@ export async function GET(
         reviewCount,
       },
       categories,
+      follow,
     })
   } catch (err) {
     console.error('seller public GET error', err)

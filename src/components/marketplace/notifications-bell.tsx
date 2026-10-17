@@ -313,6 +313,10 @@ export function NotificationsBell() {
           // COMPLAINT-1: complainant surface — my complaints console
           navigate('complaints')
           break
+        case 'jobs':
+          // NETW-1: applicant surface — the public jobs board (My applications)
+          navigate('jobs')
+          break
         case 'business':
           navigate('business')
           break

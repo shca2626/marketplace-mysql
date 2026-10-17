@@ -16,6 +16,7 @@ import { BusinessView } from '@/components/marketplace/b2b/business-view'
 import { OrdersView } from '@/components/marketplace/orders-view'
 import { FavoritesView } from '@/components/marketplace/favorites-view'
 import { ComplaintsView } from '@/components/marketplace/complaints-view'
+import { FollowingView } from '@/components/marketplace/following-view'
 
 function BuyerPage({ activeKey, children }: { activeKey: string; children: React.ReactNode }) {
   const navigate = useMarketplace((s) => s.navigate)
@@ -63,6 +64,14 @@ export function BuyerComplaintsPage() {
   return (
     <BuyerPage activeKey="complaints">
       <ComplaintsView />
+    </BuyerPage>
+  )
+}
+
+export function BuyerFollowingPage() {
+  return (
+    <BuyerPage activeKey="following">
+      <FollowingView />
     </BuyerPage>
   )
 }

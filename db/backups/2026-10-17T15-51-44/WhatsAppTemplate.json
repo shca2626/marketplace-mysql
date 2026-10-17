@@ -1,0 +1,57 @@
+[
+ {
+  "id": "cmuvherjb000enebbu2a3rofi",
+  "name": "welcome-buyer",
+  "category": "UTILITY",
+  "language": "ar",
+  "body": "أهلاً وسهلاً {{name}} في سوق فيندورا 🌞\nوجهتك الأولى لأنظمة الطاقة الشمسية ولوحاتها ومحولاتها في اليمن، بأفضل الأسعار وضمان معتمد.\nتصفح آلاف المنتجات الآن وسجّل طلبك خلال دقيقة.",
+  "status": "APPROVED",
+  "useCount": 0,
+  "createdAt": "2026-10-05T16:46:13.992Z",
+  "updatedAt": "2026-10-05T16:46:13.992Z"
+ },
+ {
+  "id": "cmuvhes5r000fnebbee3wgtcy",
+  "name": "order-shipped",
+  "category": "UTILITY",
+  "language": "ar",
+  "body": "مرحباً {{name}}، تم شحن طلبك رقم {{order}} 🚚\nسيتواصل معك مندوب التوصيل قبل الوصول بوقت كافٍ.\nشكراً لتسوقك من سوق فيندورا — شريكك في حلول الطاقة.",
+  "status": "APPROVED",
+  "useCount": 0,
+  "createdAt": "2026-10-05T16:46:14.799Z",
+  "updatedAt": "2026-10-05T16:46:14.799Z"
+ },
+ {
+  "id": "cmuvheslr000gnebb2w4wnmjt",
+  "name": "ramadan-promo",
+  "category": "MARKETING",
+  "language": "ar",
+  "body": "رمضان كريم {{name}}! 🌙\nاحتفالاً بالشهر الفضيل، خصم {{discount}} على جميع أنظمة الطاقة الشمسية والبطاريات في سوق فيندورا.\nالعرض ساري حتى نهاية الشهر — اطلب الآن قبل نفاد الكمية.",
+  "status": "APPROVED",
+  "useCount": 0,
+  "createdAt": "2026-10-05T16:46:15.375Z",
+  "updatedAt": "2026-10-05T16:46:15.375Z"
+ },
+ {
+  "id": "cmuvhet1q000hnebbchf7wq70",
+  "name": "eid-greeting",
+  "category": "MARKETING",
+  "language": "ar",
+  "body": "مرحبا {{name}} 🎉 خصم {{discount}}% بمناسبة العيد على {{product}}",
+  "status": "DRAFT",
+  "useCount": 0,
+  "createdAt": "2026-10-05T16:46:15.951Z",
+  "updatedAt": "2026-10-05T16:46:15.951Z"
+ },
+ {
+  "id": "cmuvk50bj000jnez0c5pqr60v",
+  "name": "e2e-test-template",
+  "category": "MARKETING",
+  "language": "ar",
+  "body": "Hi {{name}}! Your order {{order}} ships today. Code {{code}} gives {{discount}} off.",
+  "status": "DRAFT",
+  "useCount": 0,
+  "createdAt": "2026-10-05T18:02:37.663Z",
+  "updatedAt": "2026-10-05T18:02:37.663Z"
+ }
+]

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useTheme } from 'next-themes'
 import {
   BarChart3,
+  Briefcase,
   Building2,
   Check,
   ChevronDown,
@@ -225,6 +226,16 @@ export function Header() {
               <p className="px-3 pb-1 pt-4 text-xs font-semibold uppercase tracking-wider text-bh-muted">
                 For business
               </p>
+              <Button
+                variant="ghost"
+                className="w-full justify-start"
+                onClick={() => {
+                  setMobileOpen(false)
+                  navigate('jobs')
+                }}
+              >
+                <Briefcase size={15} className="mr-2 text-bh-gold-dark" /> Jobs board
+              </Button>
               <Button
                 variant="ghost"
                 className="w-full justify-start"
@@ -493,6 +504,17 @@ export function Header() {
           {/* Business doors — company & financier registration (visible to everyone) */}
           <span className="mx-1 h-4 w-px bg-bh-border" />
           <div className="ml-auto flex items-center gap-1">
+            <button
+              onClick={() => navigate('jobs')}
+              className={cn(
+                'flex items-center gap-1 rounded-full px-3 py-1 text-[13px] font-medium transition-colors',
+                view === 'jobs'
+                  ? 'bg-bh-navy text-white'
+                  : 'text-bh-subtle hover:bg-bh-bg-gold/60 hover:text-bh-navy'
+              )}
+            >
+              <Briefcase size={13} /> Jobs
+            </button>
             <button
               onClick={() => navigate('register-company')}
               className={cn(

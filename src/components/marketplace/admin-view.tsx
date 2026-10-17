@@ -47,6 +47,7 @@ import { SpecAttributesTab } from './admin/spec-attributes-tab'
 import { SecurityTab } from './admin/security-tab'
 import { KycProviderConsole } from './admin/kyc-provider/kyc-provider-console'
 import { WhatsAppTab } from './admin/whatsapp-tab'
+import { JobsTab } from './admin/jobs-tab'
 import { AdminSettings } from './admin-settings'
 import { RfqSettings } from './admin/settings/rfq-settings'
 
@@ -120,6 +121,8 @@ function AdminDashboard({ user }: { user: SessionUser | null }) {
       {activeSection === 'financing' && <FinancingTab />}
       {activeSection === 'organizations' && <OrganizationsTab />}
       {activeSection === 'complaints' && <ComplaintsTab />}
+      {activeSection === 'jobs' && <JobsTab />}
+      {activeSection === 'jobs' && <JobsTab />}
       {activeSection === 'pricing' && <PricingTab />}
       {activeSection === 'coupons' && <CouponsTab />}
       {activeSection === 'rfqs' && <RfqsTab />}

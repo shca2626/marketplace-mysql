@@ -1,0 +1,18 @@
+[
+ {
+  "id": "cmva38cnq0015pypibiprvoip",
+  "orderId": "cmva38ap70011pypi3rn5hko1",
+  "method": "CARD",
+  "status": "SUCCEEDED",
+  "amount": 46.98,
+  "currency": "USD",
+  "reference": "SIM-MVA38D0J",
+  "instructions": null,
+  "dueAt": null,
+  "paidAt": "2026-10-15T22:05:53.712Z",
+  "capturedById": null,
+  "note": null,
+  "createdAt": "2026-10-15T22:05:52.791Z",
+  "updatedAt": "2026-10-15T22:05:53.714Z"
+ }
+]

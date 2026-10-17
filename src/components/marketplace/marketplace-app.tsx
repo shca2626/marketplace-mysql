@@ -37,9 +37,10 @@ import { SellerView } from './seller-view'
 import { AdminView } from './admin-view'
 // Buyer console pages — existing views mounted in the shared dashboard shell.
 import { BuyerDashboard } from '@/components/dashboards/buyer-dashboard'
-import { BuyerRfqsPage, BuyerBusinessPage, BuyerOrdersPage, BuyerFavoritesPage, BuyerComplaintsPage } from '@/components/dashboards/buyer-pages'
+import { BuyerRfqsPage, BuyerBusinessPage, BuyerOrdersPage, BuyerFavoritesPage, BuyerComplaintsPage, BuyerFollowingPage } from '@/components/dashboards/buyer-pages'
 import { FinancingView } from './financing-view'
 import { FinancierView } from './financier-view'
+import { JobsView } from './jobs-view'
 import { RegisterCompanyView } from './register/register-company-view'
 import { RegisterFinancierView } from './register/register-financier-view'
 import { CartDrawer } from './cart-drawer'
@@ -61,6 +62,7 @@ const STOREFRONT_VIEWS: Record<string, () => React.ReactNode> = {
   'verify-email': () => <VerifyEmailView />,
   // Public registration doors (Phase 3) — full-page wizards that keep the
   // storefront chrome (header/footer) via RegisterDoorShell.
+  jobs: () => <JobsView />, // NETW-1: public storefront jobs board
   'register-company': () => <RegisterCompanyView />,
   'register-financier': () => <RegisterFinancierView />,
 }
@@ -75,6 +77,7 @@ const CONSOLE_VIEWS: Record<string, () => React.ReactNode> = {
   orders: () => <BuyerOrdersPage />,
   favorites: () => <BuyerFavoritesPage />,
   complaints: () => <BuyerComplaintsPage />,
+  following: () => <BuyerFollowingPage />,
   financing: () => <FinancingView />,
   financier: () => <FinancierView />,
 }
@@ -94,6 +97,19 @@ export function MarketplaceApp() {
     setSpaActive(true)
     return () => setSpaActive(false)
   }, [setSpaActive])
+
+  // NETW-1: capture ?ref=CODE on any landing (referral share links) so the
+  // signup surfaces (auth modal / company wizard) can pick it up later.
+  useEffect(() => {
+    try {
+      const ref = new URLSearchParams(window.location.search).get('ref')
+      if (ref && ref.length >= 4 && ref.length <= 24) {
+        window.localStorage.setItem('vendora:ref', ref.toUpperCase())
+      }
+    } catch {
+      // storage unavailable (private mode) — the modal still reads ?ref live
+    }
+  }, [])
 
   // Restore persisted cart (after hydration to avoid SSR mismatch) and session.
   // Deep-link boot: honor ?view=… params from the URL on first paint,

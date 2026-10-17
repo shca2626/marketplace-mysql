@@ -51,6 +51,7 @@ import {
   Shapes,
   MessageCircle,
   Flag,
+  UserPlus,
 } from 'lucide-react'
 import type { View, ViewParams } from '@/store/marketplace'
 
@@ -115,6 +116,7 @@ export const ADMIN_NAV: NavConfig = {
         { key: 'orders', label: 'Orders', icon: ShoppingBag, description: 'Every order across the marketplace', permission: 'orders.view' },
         { key: 'organizations', label: 'Organizations', icon: Building2, description: 'Companies, banks, MFIs & e-wallets', permission: 'orgs.view' },
         { key: 'complaints', label: 'Complaints', icon: Flag, description: 'Company trust reports & resolutions', permission: 'complaints.view' },
+        { key: 'jobs', label: 'Jobs', icon: Briefcase, description: 'Jobs board postings & moderation', permission: 'jobs.view' },
         { key: 'pricing', label: 'Pricing & Lists', icon: Tags, description: 'Price lists & customer groups', permission: 'pricing.view' },
         { key: 'coupons', label: 'Coupons', icon: Ticket, description: 'Promotions & discount codes', permission: 'coupons.view' },
       ],
@@ -175,6 +177,7 @@ export const ADMIN_NAV: NavConfig = {
     financing: { title: 'Financing', description: 'The platform verification gate — review queues, financier institutions, fees and the shared requirements library.' },
     organizations: { title: 'Organizations', description: 'Manage companies, banks, MFIs, e-wallets and their members.' },
     complaints: { title: 'Complaints', description: 'Company trust reports — triage severity, review responses and close the case.' },
+    jobs: { title: 'Jobs Board', description: 'Every job posting across companies — review content and close postings that break the rules.' },
     pricing: { title: 'Pricing & Lists', description: 'Price lists and customer groups that drive contract pricing.' },
     coupons: { title: 'Coupons', description: 'Create and monitor promotional discount codes.' },
     rfqs: { title: 'RFQ Pipeline', description: 'Every request for quote, negotiation and conversion on the platform.' },
@@ -268,7 +271,13 @@ export const BUYER_NAV: NavConfig = {
       ],
     },
     {
-      // §12.1 / IA-002: identity + vault live in the Account domain — not Financing.
+      label: 'Networking',
+      items: [
+        { key: 'following', label: 'Following', icon: UserPlus, description: 'Companies you follow', view: 'following' },
+        { key: 'jobs', label: 'Jobs Board', icon: Briefcase, description: 'Open roles across solar companies', view: 'jobs' },
+      ],
+    },
+    {
       label: 'Account',
       items: [
         { key: 'profile', label: 'Profile & Security', icon: UserCog, description: 'Name, phone, email & password', view: 'account', params: { accountTab: 'profile' } },
@@ -290,6 +299,8 @@ export const BUYER_NAV: NavConfig = {
     orders: { title: 'My Orders', description: 'Purchases, delivery tracking and invoices.' },
     favorites: { title: 'Favorites', description: 'Products you saved for later.' },
     complaints: { title: 'Complaints & Reports', description: 'Company trust reports you filed — status, responses and outcomes.' },
+    following: { title: 'Following', description: 'Companies you follow — their storefront pulse, one tap away.' },
+    jobs: { title: 'Jobs Board', description: 'Open roles across the solar ecosystem — apply with your Vendora profile.' },
   },
 }
 
@@ -364,6 +375,7 @@ export const DASHBOARD_VIEWS = new Set<View>([
   'orders',
   'favorites',
   'complaints',
+  'following',
   'financing',
   'financier',
 ])

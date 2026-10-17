@@ -1,0 +1,17 @@
+[
+ {
+  "id": "cmv5trnek0043r7itirpjhnhb",
+  "phone": "+967777888999",
+  "waJid": null,
+  "source": "WEBCHAT",
+  "name": "ali",
+  "publicToken": "cdfc771d705856f06d81c50f71cdb851ba9dcf4c755666cb23ae107e55f306ec",
+  "userId": "cmv5tqe88003zr7itecjuxhqn",
+  "unreadCount": 2,
+  "lastMessageAt": "2026-10-12T22:30:15.356Z",
+  "lastMessageBody": "how",
+  "autoReply": 1,
+  "createdAt": "2026-10-12T22:29:52.316Z",
+  "updatedAt": "2026-10-12T22:30:15.357Z"
+ }
+]

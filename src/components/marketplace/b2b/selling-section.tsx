@@ -14,6 +14,7 @@ import {
   ArchiveRestore,
   BadgeCheck,
   Boxes,
+  Briefcase,
   Building2,
   CalendarDays,
   ClipboardCheck,
@@ -43,6 +44,8 @@ import { cardImage } from '@/lib/storage/url'
 import { FinancingRfqInboxSub } from '@/components/marketplace/b2b/financing-rfq-inbox'
 import { SponsorshipsSub } from '@/components/marketplace/b2b/sponsorships-section'
 import { ComplaintsReceivedSub } from '@/components/marketplace/b2b/complaints-received'
+import { JobsSub } from '@/components/marketplace/b2b/jobs-section'
+import { AudienceSub } from '@/components/marketplace/b2b/audience-section'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -293,6 +296,12 @@ export function SellingSection({ organizationId, orgName }: { organizationId: st
           <TabsTrigger value="complaints" className="gap-1.5 rounded-lg px-3.5 py-1.5">
             <ShieldAlert size={14} /> Complaints
           </TabsTrigger>
+          <TabsTrigger value="jobs" className="gap-1.5 rounded-lg px-3.5 py-1.5">
+            <Briefcase size={14} /> Jobs
+          </TabsTrigger>
+          <TabsTrigger value="audience" className="gap-1.5 rounded-lg px-3.5 py-1.5">
+            <Users size={14} /> Audience
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="offers" className="mt-5">
@@ -315,6 +324,12 @@ export function SellingSection({ organizationId, orgName }: { organizationId: st
         </TabsContent>
         <TabsContent value="complaints" className="mt-5">
           <ComplaintsReceivedSub organizationId={organizationId} orgName={orgName} />
+        </TabsContent>
+        <TabsContent value="jobs" className="mt-5">
+          <JobsSub organizationId={organizationId} orgName={orgName} />
+        </TabsContent>
+        <TabsContent value="audience" className="mt-5">
+          <AudienceSub organizationId={organizationId} orgName={orgName} />
         </TabsContent>
       </Tabs>
     </section>

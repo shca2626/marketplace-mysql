@@ -478,6 +478,10 @@ export function RegisterCompanyView() {
         password,
         email: account.email.trim() || undefined,
         role: 'BUYER',
+        // NETW-1: referral attribution — picked up from a ?ref= landing
+        ...(typeof window !== 'undefined'
+          ? { referralCode: window.localStorage.getItem('vendora:ref') ?? undefined }
+          : {}),
       }),
     })
     setCreatingAccount(false)

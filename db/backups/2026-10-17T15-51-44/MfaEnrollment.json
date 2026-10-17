@@ -1,0 +1,32 @@
+[
+ {
+  "id": "cmvbl7i230004swlckyxy7orx",
+  "userId": "cmvbl7grp0000swlcdz8e5bl9",
+  "method": "TOTP",
+  "secretEnc": "v1.BJGsc1TMLmUl5hWX.HcigsPDAULJzN3ddoVSoRxzRPP3g_ba1a92Q.9ioV8ZHE9AO2CuxhRIrWhA",
+  "confirmedAt": "2026-10-16T23:16:52.394Z",
+  "lastTotpStep": null,
+  "createdAt": "2026-10-16T23:16:52.395Z",
+  "updatedAt": "2026-10-16T23:16:52.395Z"
+ },
+ {
+  "id": "cmvbl7xr30004swm8opadferq",
+  "userId": "cmvbl7v110000swm8up6cpse7",
+  "method": "TOTP",
+  "secretEnc": "v1._p39XACpB544u6M6.vHpTg52LG-jsP8bM2vz9iKy_yGUeJFabqk_B.JGQpzTVhJLmb1gnnn_8ecA",
+  "confirmedAt": "2026-10-16T23:17:12.734Z",
+  "lastTotpStep": null,
+  "createdAt": "2026-10-16T23:17:12.735Z",
+  "updatedAt": "2026-10-16T23:17:12.735Z"
+ },
+ {
+  "id": "cmvbnwbey0004swz5m8yna1di",
+  "userId": "cmvbnw9nz0000swz53dc90qpl",
+  "method": "TOTP",
+  "secretEnc": "v1.fBc7w_UQmAEmp02t.ZuzzTeohcnqjXhVYLGdHs0yN6yo4TbNFGvWU.i5U0H0dt946YMsEyi3BVaA",
+  "confirmedAt": "2026-10-17T00:32:09.417Z",
+  "lastTotpStep": null,
+  "createdAt": "2026-10-17T00:32:09.418Z",
+  "updatedAt": "2026-10-17T00:32:09.418Z"
+ }
+]

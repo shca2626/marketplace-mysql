@@ -1,0 +1,128 @@
+[
+ {
+  "id": "cmuvl2i560000nez8v5hhbell",
+  "code": "USD",
+  "name": "US Dollar",
+  "symbol": "$",
+  "decimals": 2,
+  "isActive": 1,
+  "createdAt": "2026-10-05T18:28:40.410Z"
+ },
+ {
+  "id": "cmuvl2iwu0001nez8rpe30nbo",
+  "code": "YER",
+  "name": "Yemeni Rial",
+  "symbol": "ر.ي",
+  "decimals": 0,
+  "isActive": 1,
+  "createdAt": "2026-10-05T18:28:41.406Z"
+ },
+ {
+  "id": "cmuvl2je50002nez8svhbmfwc",
+  "code": "SAR",
+  "name": "Saudi Riyal",
+  "symbol": "﷼",
+  "decimals": 2,
+  "isActive": 1,
+  "createdAt": "2026-10-05T18:28:42.029Z"
+ },
+ {
+  "id": "cmuvl85ws0003ne7ts2j3r0cz",
+  "code": "AED",
+  "name": "UAE Dirham",
+  "symbol": "د.إ",
+  "decimals": 2,
+  "isActive": 1,
+  "createdAt": "2026-10-05T18:33:04.493Z"
+ },
+ {
+  "id": "cmuvl87v20004ne7tj6e3e3bl",
+  "code": "EGP",
+  "name": "Egyptian Pound",
+  "symbol": "ج.م",
+  "decimals": 2,
+  "isActive": 0,
+  "createdAt": "2026-10-05T18:33:05.311Z"
+ },
+ {
+  "id": "cmuvl88ce0005ne7tf71dblss",
+  "code": "JOD",
+  "name": "Jordanian Dinar",
+  "symbol": "د.ا",
+  "decimals": 3,
+  "isActive": 0,
+  "createdAt": "2026-10-05T18:33:07.646Z"
+ },
+ {
+  "id": "cmuvl88tp0006ne7tdmn7a0ku",
+  "code": "KWD",
+  "name": "Kuwaiti Dinar",
+  "symbol": "د.ك",
+  "decimals": 3,
+  "isActive": 0,
+  "createdAt": "2026-10-05T18:33:08.270Z"
+ },
+ {
+  "id": "cmuvl89b20007ne7tix89g4b1",
+  "code": "QAR",
+  "name": "Qatari Riyal",
+  "symbol": "ر.ق",
+  "decimals": 2,
+  "isActive": 0,
+  "createdAt": "2026-10-05T18:33:08.894Z"
+ },
+ {
+  "id": "cmuvl89se0008ne7tdaf79d2k",
+  "code": "BHD",
+  "name": "Bahraini Dinar",
+  "symbol": "د.ب",
+  "decimals": 3,
+  "isActive": 0,
+  "createdAt": "2026-10-05T18:33:09.518Z"
+ },
+ {
+  "id": "cmuvl8a9q0009ne7trjafi0m2",
+  "code": "OMR",
+  "name": "Omani Rial",
+  "symbol": "ر.ع",
+  "decimals": 3,
+  "isActive": 0,
+  "createdAt": "2026-10-05T18:33:10.142Z"
+ },
+ {
+  "id": "cmuvl8ar1000ane7tx4ic9mhf",
+  "code": "EUR",
+  "name": "Euro",
+  "symbol": "€",
+  "decimals": 2,
+  "isActive": 0,
+  "createdAt": "2026-10-05T18:33:10.766Z"
+ },
+ {
+  "id": "cmuvl8b8d000bne7t41hxbzlw",
+  "code": "GBP",
+  "name": "British Pound",
+  "symbol": "£",
+  "decimals": 2,
+  "isActive": 0,
+  "createdAt": "2026-10-05T18:33:11.389Z"
+ },
+ {
+  "id": "cmuvl8bt6000cne7teq3hed36",
+  "code": "TRY",
+  "name": "Turkish Lira",
+  "symbol": "₺",
+  "decimals": 2,
+  "isActive": 0,
+  "createdAt": "2026-10-05T18:33:12.013Z"
+ },
+ {
+  "id": "cmuvl8cai000dne7toc0vkyo7",
+  "code": "CNY",
+  "name": "Chinese Yuan",
+  "symbol": "¥",
+  "decimals": 2,
+  "isActive": 0,
+  "createdAt": "2026-10-05T18:33:12.762Z"
+ }
+]

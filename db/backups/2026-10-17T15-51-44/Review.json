@@ -1,0 +1,929 @@
+[
+ {
+  "id": "cmv9qlsqo005hpykp2wzzx1id",
+  "productId": "cmv9qk77w0026pykp8vkjtv43",
+  "userId": "cmv9pjcwq000cpyj6n4v0p6pb",
+  "rating": 3,
+  "comment": "Exceeded the spec sheet — output is consistently above rated on clear days.",
+  "verified": 1,
+  "createdAt": "2026-10-13T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qltvz005jpykpjvvzrmu6",
+  "productId": "cmv9qk77w0026pykp8vkjtv43",
+  "userId": "cmv9pjdvk000dpyj6j244vu0l",
+  "rating": 5,
+  "comment": "The manual is actually useful — clear wiring diagrams and torque specs.",
+  "verified": 0,
+  "createdAt": "2026-10-11T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qlund005lpykpu0cw913d",
+  "productId": "cmv9qk77w0026pykp8vkjtv43",
+  "userId": "cmv9pjeud000epyj6e4j8ihut",
+  "rating": 5,
+  "comment": "Delivery took a few extra days but the seller kept me updated the whole way.",
+  "verified": 1,
+  "createdAt": "2026-10-09T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qlves005npykpov9mziw7",
+  "productId": "cmv9qk8dn0028pykpmo2ljpnw",
+  "userId": "cmv9pjdvk000dpyj6j244vu0l",
+  "rating": 5,
+  "comment": "Installed two months ago, zero issues. Build quality is genuinely heavy-duty.",
+  "verified": 1,
+  "createdAt": "2026-10-10T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qlw67005ppykpkbt2gur7",
+  "productId": "cmv9qk8dn0028pykpmo2ljpnw",
+  "userId": "cmv9pjeud000epyj6e4j8ihut",
+  "rating": 5,
+  "comment": "Works exactly as described. The app/monitoring is a nice bonus.",
+  "verified": 0,
+  "createdAt": "2026-10-08T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qlwxl005rpykpyfeieizl",
+  "productId": "cmv9qk8dn0028pykpmo2ljpnw",
+  "userId": "cmv9pjft7000fpyj61xzbpqwz",
+  "rating": 4,
+  "comment": "Bought a second unit after the first proved itself. Recommended.",
+  "verified": 1,
+  "createdAt": "2026-10-06T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qlxp0005tpykpi9ox0pol",
+  "productId": "cmv9qk8dn0028pykpmo2ljpnw",
+  "userId": "cmv9pjgs0000gpyj66hfjz578",
+  "rating": 4,
+  "comment": "Does what it promises. Instructions could be clearer but support answered within hours.",
+  "verified": 0,
+  "createdAt": "2026-10-04T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qlyn8005vpykpfxa5arfu",
+  "productId": "cmv9qk9ce002apykpvo95q5f9",
+  "userId": "cmv9pjeud000epyj6e4j8ihut",
+  "rating": 5,
+  "comment": "Great value for the capacity. Replaced my old lead-acids and the weight difference is unreal.",
+  "verified": 1,
+  "createdAt": "2026-10-07T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qlzem005xpykp57zaymdq",
+  "productId": "cmv9qk9ce002apykpvo95q5f9",
+  "userId": "cmv9pjft7000fpyj61xzbpqwz",
+  "rating": 4,
+  "comment": "Solid construction, terminals/connectors are properly made, not chintzy.",
+  "verified": 0,
+  "createdAt": "2026-10-05T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qm061005zpykp67whhm46",
+  "productId": "cmv9qk9ce002apykpvo95q5f9",
+  "userId": "cmv9pjgs0000gpyj66hfjz578",
+  "rating": 4,
+  "comment": "So far so good — three months of daily use without a hiccup.",
+  "verified": 1,
+  "createdAt": "2026-10-03T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qm0xf0061pykptp66ikgw",
+  "productId": "cmv9qk9ce002apykpvo95q5f9",
+  "userId": "cmv9pjbxy000bpyj62ba6kkvp",
+  "rating": 5,
+  "comment": "Exactly as listed. Sizing matched my array perfectly and it just works.",
+  "verified": 0,
+  "createdAt": "2026-10-01T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qm1ov0063pykp3yxzqncv",
+  "productId": "cmv9qk9ce002apykpvo95q5f9",
+  "userId": "cmv9pjcwq000cpyj6n4v0p6pb",
+  "rating": 4,
+  "comment": "Shipping was quick and the packaging survived the courier. Would order again.",
+  "verified": 1,
+  "createdAt": "2026-09-29T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qm2gb0065pykp57tjn15k",
+  "productId": "cmv9qka41002cpykpqmawppxf",
+  "userId": "cmv9pjft7000fpyj61xzbpqwz",
+  "rating": 4,
+  "comment": "Running it through a full season now — hot days, dust storms, no complaints.",
+  "verified": 1,
+  "createdAt": "2026-10-04T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qm37o0067pykp9xib09f3",
+  "productId": "cmv9qka41002cpykpqmawppxf",
+  "userId": "cmv9pjgs0000gpyj66hfjz578",
+  "rating": 3,
+  "comment": "Good product at a fair price. The mounting hardware included was a pleasant surprise.",
+  "verified": 0,
+  "createdAt": "2026-10-02T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qm3z30069pykptahn7qc7",
+  "productId": "cmv9qka41002cpykpqmawppxf",
+  "userId": "cmv9pjbxy000bpyj62ba6kkvp",
+  "rating": 5,
+  "comment": "Very happy. Performance matches the datasheet within measurement error.",
+  "verified": 1,
+  "createdAt": "2026-09-30T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qm4qh006bpykpeciwxgu5",
+  "productId": "cmv9qkavg002epykpgemphxs6",
+  "userId": "cmv9pjgs0000gpyj66hfjz578",
+  "rating": 4,
+  "comment": "Does what it promises. Instructions could be clearer but support answered within hours.",
+  "verified": 1,
+  "createdAt": "2026-10-01T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qm5hv006dpykpsgk0q9vm",
+  "productId": "cmv9qkavg002epykpgemphxs6",
+  "userId": "cmv9pjbxy000bpyj62ba6kkvp",
+  "rating": 5,
+  "comment": "Seller is an engineer — answered every technical question before I bought.",
+  "verified": 0,
+  "createdAt": "2026-09-29T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qm699006fpykp8pfrzo98",
+  "productId": "cmv9qkavg002epykpgemphxs6",
+  "userId": "cmv9pjcwq000cpyj6n4v0p6pb",
+  "rating": 4,
+  "comment": "Sizing help before the order was spot on. Running exactly as predicted.",
+  "verified": 1,
+  "createdAt": "2026-09-27T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qm70n006hpykpltzof62z",
+  "productId": "cmv9qkavg002epykpgemphxs6",
+  "userId": "cmv9pjdvk000dpyj6j244vu0l",
+  "rating": 5,
+  "comment": "Installed two months ago, zero issues. Build quality is genuinely heavy-duty.",
+  "verified": 0,
+  "createdAt": "2026-09-25T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qm7s0006jpykpo4tpif88",
+  "productId": "cmv9qkbmu002gpykpnw8rs64s",
+  "userId": "cmv9pjbxy000bpyj62ba6kkvp",
+  "rating": 5,
+  "comment": "Exactly as listed. Sizing matched my array perfectly and it just works.",
+  "verified": 1,
+  "createdAt": "2026-09-28T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qm8je006lpykpcftreeav",
+  "productId": "cmv9qkbmu002gpykpnw8rs64s",
+  "userId": "cmv9pjcwq000cpyj6n4v0p6pb",
+  "rating": 4,
+  "comment": "Shipping was quick and the packaging survived the courier. Would order again.",
+  "verified": 0,
+  "createdAt": "2026-09-26T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qm9as006npykpwjsr5w50",
+  "productId": "cmv9qkbmu002gpykpnw8rs64s",
+  "userId": "cmv9pjdvk000dpyj6j244vu0l",
+  "rating": 5,
+  "comment": "Third purchase from this store. Consistent quality every time.",
+  "verified": 1,
+  "createdAt": "2026-09-24T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qma26006ppykpvl8smbq2",
+  "productId": "cmv9qkbmu002gpykpnw8rs64s",
+  "userId": "cmv9pjeud000epyj6e4j8ihut",
+  "rating": 5,
+  "comment": "Great value for the capacity. Replaced my old lead-acids and the weight difference is unreal.",
+  "verified": 0,
+  "createdAt": "2026-09-22T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmb0d006rpykpm3gvj98l",
+  "productId": "cmv9qkbmu002gpykpnw8rs64s",
+  "userId": "cmv9pjft7000fpyj61xzbpqwz",
+  "rating": 4,
+  "comment": "Solid construction, terminals/connectors are properly made, not chintzy.",
+  "verified": 1,
+  "createdAt": "2026-09-20T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmbrs006tpykpifos08q4",
+  "productId": "cmv9qkce9002ipykp1cy5b37z",
+  "userId": "cmv9pjcwq000cpyj6n4v0p6pb",
+  "rating": 4,
+  "comment": "Exceeded the spec sheet — output is consistently above rated on clear days.",
+  "verified": 1,
+  "createdAt": "2026-09-25T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmcj5006vpykptuji5dq8",
+  "productId": "cmv9qkce9002ipykp1cy5b37z",
+  "userId": "cmv9pjdvk000dpyj6j244vu0l",
+  "rating": 5,
+  "comment": "The manual is actually useful — clear wiring diagrams and torque specs.",
+  "verified": 0,
+  "createdAt": "2026-09-23T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmdaj006xpykpcqqtyw1h",
+  "productId": "cmv9qkce9002ipykp1cy5b37z",
+  "userId": "cmv9pjeud000epyj6e4j8ihut",
+  "rating": 3,
+  "comment": "Delivery took a few extra days but the seller kept me updated the whole way.",
+  "verified": 1,
+  "createdAt": "2026-09-21T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qme1x006zpykpho6xt2aa",
+  "productId": "cmv9qkd5o002kpykp93yl8ury",
+  "userId": "cmv9pjdvk000dpyj6j244vu0l",
+  "rating": 5,
+  "comment": "Installed two months ago, zero issues. Build quality is genuinely heavy-duty.",
+  "verified": 1,
+  "createdAt": "2026-09-22T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmeta0071pykpkqxk9e5l",
+  "productId": "cmv9qkd5o002kpykp93yl8ury",
+  "userId": "cmv9pjeud000epyj6e4j8ihut",
+  "rating": 5,
+  "comment": "Works exactly as described. The app/monitoring is a nice bonus.",
+  "verified": 0,
+  "createdAt": "2026-09-20T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmfks0073pykp1d5wbrji",
+  "productId": "cmv9qkd5o002kpykp93yl8ury",
+  "userId": "cmv9pjft7000fpyj61xzbpqwz",
+  "rating": 4,
+  "comment": "Bought a second unit after the first proved itself. Recommended.",
+  "verified": 1,
+  "createdAt": "2026-09-18T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmgc60075pykpo2xwiwu1",
+  "productId": "cmv9qkd5o002kpykp93yl8ury",
+  "userId": "cmv9pjgs0000gpyj66hfjz578",
+  "rating": 4,
+  "comment": "Does what it promises. Instructions could be clearer but support answered within hours.",
+  "verified": 0,
+  "createdAt": "2026-09-16T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmh3k0077pykp4ohg7c95",
+  "productId": "cmv9qkdx3002mpykp88cpj5yt",
+  "userId": "cmv9pjeud000epyj6e4j8ihut",
+  "rating": 5,
+  "comment": "Great value for the capacity. Replaced my old lead-acids and the weight difference is unreal.",
+  "verified": 1,
+  "createdAt": "2026-09-19T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmhuz0079pykpeikxuhee",
+  "productId": "cmv9qkdx3002mpykp88cpj5yt",
+  "userId": "cmv9pjft7000fpyj61xzbpqwz",
+  "rating": 4,
+  "comment": "Solid construction, terminals/connectors are properly made, not chintzy.",
+  "verified": 0,
+  "createdAt": "2026-09-17T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmime007bpykpqyvcnlyf",
+  "productId": "cmv9qkdx3002mpykp88cpj5yt",
+  "userId": "cmv9pjgs0000gpyj66hfjz578",
+  "rating": 4,
+  "comment": "So far so good — three months of daily use without a hiccup.",
+  "verified": 1,
+  "createdAt": "2026-09-15T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmjdr007dpykpiahgutym",
+  "productId": "cmv9qkdx3002mpykp88cpj5yt",
+  "userId": "cmv9pjbxy000bpyj62ba6kkvp",
+  "rating": 5,
+  "comment": "Exactly as listed. Sizing matched my array perfectly and it just works.",
+  "verified": 0,
+  "createdAt": "2026-09-13T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmk56007fpykp673klu98",
+  "productId": "cmv9qkdx3002mpykp88cpj5yt",
+  "userId": "cmv9pjcwq000cpyj6n4v0p6pb",
+  "rating": 4,
+  "comment": "Shipping was quick and the packaging survived the courier. Would order again.",
+  "verified": 1,
+  "createdAt": "2026-09-11T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmkwk007hpykpmisxx1gn",
+  "productId": "cmv9qkeoi002opykpqnd4duvs",
+  "userId": "cmv9pjft7000fpyj61xzbpqwz",
+  "rating": 3,
+  "comment": "Running it through a full season now — hot days, dust storms, no complaints.",
+  "verified": 1,
+  "createdAt": "2026-09-16T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmlny007jpykp888tgvk5",
+  "productId": "cmv9qkeoi002opykpqnd4duvs",
+  "userId": "cmv9pjgs0000gpyj66hfjz578",
+  "rating": 4,
+  "comment": "Good product at a fair price. The mounting hardware included was a pleasant surprise.",
+  "verified": 0,
+  "createdAt": "2026-09-14T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmmfc007lpykp2zx3w48a",
+  "productId": "cmv9qkeoi002opykpqnd4duvs",
+  "userId": "cmv9pjbxy000bpyj62ba6kkvp",
+  "rating": 5,
+  "comment": "Very happy. Performance matches the datasheet within measurement error.",
+  "verified": 1,
+  "createdAt": "2026-09-12T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmndk007npykppvpayddt",
+  "productId": "cmv9qkffw002qpykp3et3brvk",
+  "userId": "cmv9pjgs0000gpyj66hfjz578",
+  "rating": 4,
+  "comment": "Does what it promises. Instructions could be clearer but support answered within hours.",
+  "verified": 1,
+  "createdAt": "2026-09-13T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmo4x007ppykp9n62eqb9",
+  "productId": "cmv9qkffw002qpykp3et3brvk",
+  "userId": "cmv9pjbxy000bpyj62ba6kkvp",
+  "rating": 5,
+  "comment": "Seller is an engineer — answered every technical question before I bought.",
+  "verified": 0,
+  "createdAt": "2026-09-11T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmowb007rpykp9kmi7zsy",
+  "productId": "cmv9qkffw002qpykp3et3brvk",
+  "userId": "cmv9pjcwq000cpyj6n4v0p6pb",
+  "rating": 4,
+  "comment": "Sizing help before the order was spot on. Running exactly as predicted.",
+  "verified": 1,
+  "createdAt": "2026-09-09T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmpnp007tpykpkgbdxbrl",
+  "productId": "cmv9qkffw002qpykp3et3brvk",
+  "userId": "cmv9pjdvk000dpyj6j244vu0l",
+  "rating": 5,
+  "comment": "Installed two months ago, zero issues. Build quality is genuinely heavy-duty.",
+  "verified": 0,
+  "createdAt": "2026-09-07T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmqf3007vpykpiwnmi10t",
+  "productId": "cmv9qkg7b002spykp7lfbwr7w",
+  "userId": "cmv9pjbxy000bpyj62ba6kkvp",
+  "rating": 5,
+  "comment": "Exactly as listed. Sizing matched my array perfectly and it just works.",
+  "verified": 1,
+  "createdAt": "2026-09-10T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmr6g007xpykpkt8r2nhk",
+  "productId": "cmv9qkg7b002spykp7lfbwr7w",
+  "userId": "cmv9pjcwq000cpyj6n4v0p6pb",
+  "rating": 4,
+  "comment": "Shipping was quick and the packaging survived the courier. Would order again.",
+  "verified": 0,
+  "createdAt": "2026-09-08T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmrxu007zpykpypurdbmw",
+  "productId": "cmv9qkg7b002spykp7lfbwr7w",
+  "userId": "cmv9pjdvk000dpyj6j244vu0l",
+  "rating": 5,
+  "comment": "Third purchase from this store. Consistent quality every time.",
+  "verified": 1,
+  "createdAt": "2026-09-06T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmsp80081pykptc1vs1wh",
+  "productId": "cmv9qkg7b002spykp7lfbwr7w",
+  "userId": "cmv9pjeud000epyj6e4j8ihut",
+  "rating": 5,
+  "comment": "Great value for the capacity. Replaced my old lead-acids and the weight difference is unreal.",
+  "verified": 0,
+  "createdAt": "2026-09-04T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmtgm0083pykpttzjaeiq",
+  "productId": "cmv9qkg7b002spykp7lfbwr7w",
+  "userId": "cmv9pjft7000fpyj61xzbpqwz",
+  "rating": 4,
+  "comment": "Solid construction, terminals/connectors are properly made, not chintzy.",
+  "verified": 1,
+  "createdAt": "2026-09-02T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmu800085pykp2f19smz7",
+  "productId": "cmv9qkgyq002upykpeyvi5456",
+  "userId": "cmv9pjcwq000cpyj6n4v0p6pb",
+  "rating": 4,
+  "comment": "Exceeded the spec sheet — output is consistently above rated on clear days.",
+  "verified": 1,
+  "createdAt": "2026-09-07T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmuzf0087pykpv6miurhg",
+  "productId": "cmv9qkgyq002upykpeyvi5456",
+  "userId": "cmv9pjdvk000dpyj6j244vu0l",
+  "rating": 3,
+  "comment": "The manual is actually useful — clear wiring diagrams and torque specs.",
+  "verified": 0,
+  "createdAt": "2026-09-05T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmvqt0089pykpo8m7dh5d",
+  "productId": "cmv9qkgyq002upykpeyvi5456",
+  "userId": "cmv9pjeud000epyj6e4j8ihut",
+  "rating": 5,
+  "comment": "Delivery took a few extra days but the seller kept me updated the whole way.",
+  "verified": 1,
+  "createdAt": "2026-09-03T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmwi6008bpykp8x5z57z3",
+  "productId": "cmv9qkhq4002wpykpdfldaez9",
+  "userId": "cmv9pjdvk000dpyj6j244vu0l",
+  "rating": 5,
+  "comment": "Installed two months ago, zero issues. Build quality is genuinely heavy-duty.",
+  "verified": 1,
+  "createdAt": "2026-09-04T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmx9k008dpykpsr61e9zg",
+  "productId": "cmv9qkhq4002wpykpdfldaez9",
+  "userId": "cmv9pjeud000epyj6e4j8ihut",
+  "rating": 5,
+  "comment": "Works exactly as described. The app/monitoring is a nice bonus.",
+  "verified": 0,
+  "createdAt": "2026-09-02T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmy0x008fpykp39glrjt2",
+  "productId": "cmv9qkhq4002wpykpdfldaez9",
+  "userId": "cmv9pjft7000fpyj61xzbpqwz",
+  "rating": 4,
+  "comment": "Bought a second unit after the first proved itself. Recommended.",
+  "verified": 1,
+  "createdAt": "2026-08-31T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmysb008hpykpjm96laby",
+  "productId": "cmv9qkhq4002wpykpdfldaez9",
+  "userId": "cmv9pjgs0000gpyj66hfjz578",
+  "rating": 4,
+  "comment": "Does what it promises. Instructions could be clearer but support answered within hours.",
+  "verified": 0,
+  "createdAt": "2026-08-29T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qmzqi008jpykpkghuqt72",
+  "productId": "cmv9qkihj002ypykpgckeryyt",
+  "userId": "cmv9pjeud000epyj6e4j8ihut",
+  "rating": 5,
+  "comment": "Great value for the capacity. Replaced my old lead-acids and the weight difference is unreal.",
+  "verified": 1,
+  "createdAt": "2026-09-01T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qn0hw008lpykpvysogb1h",
+  "productId": "cmv9qkihj002ypykpgckeryyt",
+  "userId": "cmv9pjft7000fpyj61xzbpqwz",
+  "rating": 4,
+  "comment": "Solid construction, terminals/connectors are properly made, not chintzy.",
+  "verified": 0,
+  "createdAt": "2026-08-30T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qn199008npykpiw7ps2of",
+  "productId": "cmv9qkihj002ypykpgckeryyt",
+  "userId": "cmv9pjgs0000gpyj66hfjz578",
+  "rating": 4,
+  "comment": "So far so good — three months of daily use without a hiccup.",
+  "verified": 1,
+  "createdAt": "2026-08-28T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qn20n008ppykp2v8ey0yr",
+  "productId": "cmv9qkihj002ypykpgckeryyt",
+  "userId": "cmv9pjbxy000bpyj62ba6kkvp",
+  "rating": 5,
+  "comment": "Exactly as listed. Sizing matched my array perfectly and it just works.",
+  "verified": 0,
+  "createdAt": "2026-08-26T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qn2s0008rpykpwo8jrqup",
+  "productId": "cmv9qkihj002ypykpgckeryyt",
+  "userId": "cmv9pjcwq000cpyj6n4v0p6pb",
+  "rating": 4,
+  "comment": "Shipping was quick and the packaging survived the courier. Would order again.",
+  "verified": 1,
+  "createdAt": "2026-10-13T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qn3je008tpykpdtwnoaib",
+  "productId": "cmv9qkj8y0030pykpi9ey1jsj",
+  "userId": "cmv9pjft7000fpyj61xzbpqwz",
+  "rating": 4,
+  "comment": "Running it through a full season now — hot days, dust storms, no complaints.",
+  "verified": 1,
+  "createdAt": "2026-08-29T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qn4ar008vpykp53s7kay3",
+  "productId": "cmv9qkj8y0030pykpi9ey1jsj",
+  "userId": "cmv9pjgs0000gpyj66hfjz578",
+  "rating": 4,
+  "comment": "Good product at a fair price. The mounting hardware included was a pleasant surprise.",
+  "verified": 0,
+  "createdAt": "2026-08-27T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qn525008xpykp8x0ul4jy",
+  "productId": "cmv9qkj8y0030pykpi9ey1jsj",
+  "userId": "cmv9pjbxy000bpyj62ba6kkvp",
+  "rating": 3,
+  "comment": "Very happy. Performance matches the datasheet within measurement error.",
+  "verified": 1,
+  "createdAt": "2026-08-25T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qn5tj008zpykp76kmffp0",
+  "productId": "cmv9qkk0d0032pykpspcnnoo4",
+  "userId": "cmv9pjgs0000gpyj66hfjz578",
+  "rating": 4,
+  "comment": "Does what it promises. Instructions could be clearer but support answered within hours.",
+  "verified": 1,
+  "createdAt": "2026-08-26T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qn6kx0091pykp5bd9q2da",
+  "productId": "cmv9qkk0d0032pykpspcnnoo4",
+  "userId": "cmv9pjbxy000bpyj62ba6kkvp",
+  "rating": 5,
+  "comment": "Seller is an engineer — answered every technical question before I bought.",
+  "verified": 0,
+  "createdAt": "2026-10-13T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qn7ca0093pykptulcx1dr",
+  "productId": "cmv9qkk0d0032pykpspcnnoo4",
+  "userId": "cmv9pjcwq000cpyj6n4v0p6pb",
+  "rating": 4,
+  "comment": "Sizing help before the order was spot on. Running exactly as predicted.",
+  "verified": 1,
+  "createdAt": "2026-10-11T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qn83o0095pykpux4koy3e",
+  "productId": "cmv9qkk0d0032pykpspcnnoo4",
+  "userId": "cmv9pjdvk000dpyj6j244vu0l",
+  "rating": 5,
+  "comment": "Installed two months ago, zero issues. Build quality is genuinely heavy-duty.",
+  "verified": 0,
+  "createdAt": "2026-10-09T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qn8v20097pykpp7qw1o6p",
+  "productId": "cmv9qkkrr0034pykpmbtknc06",
+  "userId": "cmv9pjbxy000bpyj62ba6kkvp",
+  "rating": 5,
+  "comment": "Exactly as listed. Sizing matched my array perfectly and it just works.",
+  "verified": 1,
+  "createdAt": "2026-10-12T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qn9mg0099pykpdkkw8s73",
+  "productId": "cmv9qkkrr0034pykpmbtknc06",
+  "userId": "cmv9pjcwq000cpyj6n4v0p6pb",
+  "rating": 4,
+  "comment": "Shipping was quick and the packaging survived the courier. Would order again.",
+  "verified": 0,
+  "createdAt": "2026-10-10T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnadu009bpykpncunazv3",
+  "productId": "cmv9qkkrr0034pykpmbtknc06",
+  "userId": "cmv9pjdvk000dpyj6j244vu0l",
+  "rating": 5,
+  "comment": "Third purchase from this store. Consistent quality every time.",
+  "verified": 1,
+  "createdAt": "2026-10-08T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnb58009dpykpwbi8rx2r",
+  "productId": "cmv9qkkrr0034pykpmbtknc06",
+  "userId": "cmv9pjeud000epyj6e4j8ihut",
+  "rating": 5,
+  "comment": "Great value for the capacity. Replaced my old lead-acids and the weight difference is unreal.",
+  "verified": 0,
+  "createdAt": "2026-10-06T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnc3g009fpykpuwhxs8um",
+  "productId": "cmv9qkkrr0034pykpmbtknc06",
+  "userId": "cmv9pjft7000fpyj61xzbpqwz",
+  "rating": 4,
+  "comment": "Solid construction, terminals/connectors are properly made, not chintzy.",
+  "verified": 1,
+  "createdAt": "2026-10-04T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qncut009hpykpjg1hjy7y",
+  "productId": "cmv9qklq00036pykpov1glvp6",
+  "userId": "cmv9pjcwq000cpyj6n4v0p6pb",
+  "rating": 3,
+  "comment": "Exceeded the spec sheet — output is consistently above rated on clear days.",
+  "verified": 1,
+  "createdAt": "2026-10-09T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qndm7009jpykpyqz1r9hh",
+  "productId": "cmv9qklq00036pykpov1glvp6",
+  "userId": "cmv9pjdvk000dpyj6j244vu0l",
+  "rating": 5,
+  "comment": "The manual is actually useful — clear wiring diagrams and torque specs.",
+  "verified": 0,
+  "createdAt": "2026-10-07T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnedk009lpykpoyr1pjut",
+  "productId": "cmv9qklq00036pykpov1glvp6",
+  "userId": "cmv9pjeud000epyj6e4j8ihut",
+  "rating": 5,
+  "comment": "Delivery took a few extra days but the seller kept me updated the whole way.",
+  "verified": 1,
+  "createdAt": "2026-10-05T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnf4y009npykpl70kuqxw",
+  "productId": "cmv9qkmhe0038pykp0jea11mp",
+  "userId": "cmv9pjdvk000dpyj6j244vu0l",
+  "rating": 5,
+  "comment": "Installed two months ago, zero issues. Build quality is genuinely heavy-duty.",
+  "verified": 1,
+  "createdAt": "2026-10-06T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnfwd009ppykptg7egi9o",
+  "productId": "cmv9qkmhe0038pykp0jea11mp",
+  "userId": "cmv9pjeud000epyj6e4j8ihut",
+  "rating": 5,
+  "comment": "Works exactly as described. The app/monitoring is a nice bonus.",
+  "verified": 0,
+  "createdAt": "2026-10-04T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qngnr009rpykps5fqc5s8",
+  "productId": "cmv9qkmhe0038pykp0jea11mp",
+  "userId": "cmv9pjft7000fpyj61xzbpqwz",
+  "rating": 4,
+  "comment": "Bought a second unit after the first proved itself. Recommended.",
+  "verified": 1,
+  "createdAt": "2026-10-02T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnhf5009tpykpt5adltu2",
+  "productId": "cmv9qkmhe0038pykp0jea11mp",
+  "userId": "cmv9pjgs0000gpyj66hfjz578",
+  "rating": 4,
+  "comment": "Does what it promises. Instructions could be clearer but support answered within hours.",
+  "verified": 0,
+  "createdAt": "2026-09-30T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qni6k009vpykp6j811lby",
+  "productId": "cmv9qkn8t003apykpuryz40xn",
+  "userId": "cmv9pjeud000epyj6e4j8ihut",
+  "rating": 5,
+  "comment": "Great value for the capacity. Replaced my old lead-acids and the weight difference is unreal.",
+  "verified": 1,
+  "createdAt": "2026-10-03T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnixy009xpykptgu0cvpa",
+  "productId": "cmv9qkn8t003apykpuryz40xn",
+  "userId": "cmv9pjft7000fpyj61xzbpqwz",
+  "rating": 4,
+  "comment": "Solid construction, terminals/connectors are properly made, not chintzy.",
+  "verified": 0,
+  "createdAt": "2026-10-01T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnjpc009zpykpmy2g4igv",
+  "productId": "cmv9qkn8t003apykpuryz40xn",
+  "userId": "cmv9pjgs0000gpyj66hfjz578",
+  "rating": 4,
+  "comment": "So far so good — three months of daily use without a hiccup.",
+  "verified": 1,
+  "createdAt": "2026-09-29T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnkgp00a1pykpgfnn6eic",
+  "productId": "cmv9qkn8t003apykpuryz40xn",
+  "userId": "cmv9pjbxy000bpyj62ba6kkvp",
+  "rating": 5,
+  "comment": "Exactly as listed. Sizing matched my array perfectly and it just works.",
+  "verified": 0,
+  "createdAt": "2026-09-27T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnl8300a3pykpe7opn2h9",
+  "productId": "cmv9qkn8t003apykpuryz40xn",
+  "userId": "cmv9pjcwq000cpyj6n4v0p6pb",
+  "rating": 4,
+  "comment": "Shipping was quick and the packaging survived the courier. Would order again.",
+  "verified": 1,
+  "createdAt": "2026-09-25T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnlzh00a5pykpztnwk0if",
+  "productId": "cmv9qko08003cpykps3o6ew4t",
+  "userId": "cmv9pjft7000fpyj61xzbpqwz",
+  "rating": 4,
+  "comment": "Running it through a full season now — hot days, dust storms, no complaints.",
+  "verified": 1,
+  "createdAt": "2026-09-30T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnmqv00a7pykpgl4sroz8",
+  "productId": "cmv9qko08003cpykps3o6ew4t",
+  "userId": "cmv9pjgs0000gpyj66hfjz578",
+  "rating": 3,
+  "comment": "Good product at a fair price. The mounting hardware included was a pleasant surprise.",
+  "verified": 0,
+  "createdAt": "2026-09-28T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnni800a9pykpyle6t830",
+  "productId": "cmv9qko08003cpykps3o6ew4t",
+  "userId": "cmv9pjbxy000bpyj62ba6kkvp",
+  "rating": 5,
+  "comment": "Very happy. Performance matches the datasheet within measurement error.",
+  "verified": 1,
+  "createdAt": "2026-09-26T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnogf00abpykpmj2dfh9r",
+  "productId": "cmv9qkoro003epykpe2tmxpp0",
+  "userId": "cmv9pjgs0000gpyj66hfjz578",
+  "rating": 4,
+  "comment": "Does what it promises. Instructions could be clearer but support answered within hours.",
+  "verified": 1,
+  "createdAt": "2026-09-27T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnp7t00adpykpm2hmvy4e",
+  "productId": "cmv9qkoro003epykpe2tmxpp0",
+  "userId": "cmv9pjbxy000bpyj62ba6kkvp",
+  "rating": 5,
+  "comment": "Seller is an engineer — answered every technical question before I bought.",
+  "verified": 0,
+  "createdAt": "2026-09-25T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnpz700afpykp2eyw7wb9",
+  "productId": "cmv9qkoro003epykpe2tmxpp0",
+  "userId": "cmv9pjcwq000cpyj6n4v0p6pb",
+  "rating": 4,
+  "comment": "Sizing help before the order was spot on. Running exactly as predicted.",
+  "verified": 1,
+  "createdAt": "2026-09-23T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnqqk00ahpykpe6gjoss4",
+  "productId": "cmv9qkoro003epykpe2tmxpp0",
+  "userId": "cmv9pjdvk000dpyj6j244vu0l",
+  "rating": 5,
+  "comment": "Installed two months ago, zero issues. Build quality is genuinely heavy-duty.",
+  "verified": 0,
+  "createdAt": "2026-09-21T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnrhy00ajpykpaak5mn1e",
+  "productId": "cmv9qkpj2003gpykp07r823ve",
+  "userId": "cmv9pjbxy000bpyj62ba6kkvp",
+  "rating": 5,
+  "comment": "Exactly as listed. Sizing matched my array perfectly and it just works.",
+  "verified": 1,
+  "createdAt": "2026-09-24T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qns9c00alpykp3fugf58s",
+  "productId": "cmv9qkpj2003gpykp07r823ve",
+  "userId": "cmv9pjcwq000cpyj6n4v0p6pb",
+  "rating": 4,
+  "comment": "Shipping was quick and the packaging survived the courier. Would order again.",
+  "verified": 0,
+  "createdAt": "2026-09-22T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnt0q00anpykp98g52h55",
+  "productId": "cmv9qkpj2003gpykp07r823ve",
+  "userId": "cmv9pjdvk000dpyj6j244vu0l",
+  "rating": 5,
+  "comment": "Third purchase from this store. Consistent quality every time.",
+  "verified": 1,
+  "createdAt": "2026-09-20T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnts300appykpecisbl1s",
+  "productId": "cmv9qkpj2003gpykp07r823ve",
+  "userId": "cmv9pjeud000epyj6e4j8ihut",
+  "rating": 5,
+  "comment": "Great value for the capacity. Replaced my old lead-acids and the weight difference is unreal.",
+  "verified": 0,
+  "createdAt": "2026-09-18T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnujh00arpykpgmini04o",
+  "productId": "cmv9qkpj2003gpykp07r823ve",
+  "userId": "cmv9pjft7000fpyj61xzbpqwz",
+  "rating": 4,
+  "comment": "Solid construction, terminals/connectors are properly made, not chintzy.",
+  "verified": 1,
+  "createdAt": "2026-09-16T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnvau00atpykp9v0n6hjt",
+  "productId": "cmv9qkqah003ipykpr7ymkdjm",
+  "userId": "cmv9pjcwq000cpyj6n4v0p6pb",
+  "rating": 4,
+  "comment": "Exceeded the spec sheet — output is consistently above rated on clear days.",
+  "verified": 1,
+  "createdAt": "2026-09-21T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnw2800avpykp3fgxg29t",
+  "productId": "cmv9qkqah003ipykpr7ymkdjm",
+  "userId": "cmv9pjdvk000dpyj6j244vu0l",
+  "rating": 5,
+  "comment": "The manual is actually useful — clear wiring diagrams and torque specs.",
+  "verified": 0,
+  "createdAt": "2026-09-19T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnwtm00axpykpy4dzlutn",
+  "productId": "cmv9qkqah003ipykpr7ymkdjm",
+  "userId": "cmv9pjeud000epyj6e4j8ihut",
+  "rating": 3,
+  "comment": "Delivery took a few extra days but the seller kept me updated the whole way.",
+  "verified": 1,
+  "createdAt": "2026-09-17T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnxkz00azpykptkucjc2y",
+  "productId": "cmv9qkr1x003kpykpyh8co7xd",
+  "userId": "cmv9pjdvk000dpyj6j244vu0l",
+  "rating": 5,
+  "comment": "Installed two months ago, zero issues. Build quality is genuinely heavy-duty.",
+  "verified": 1,
+  "createdAt": "2026-09-18T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnycc00b1pykpgwczq9ym",
+  "productId": "cmv9qkr1x003kpykpyh8co7xd",
+  "userId": "cmv9pjeud000epyj6e4j8ihut",
+  "rating": 5,
+  "comment": "Works exactly as described. The app/monitoring is a nice bonus.",
+  "verified": 0,
+  "createdAt": "2026-09-16T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnz3r00b3pykpv8qp6ko8",
+  "productId": "cmv9qkr1x003kpykpyh8co7xd",
+  "userId": "cmv9pjft7000fpyj61xzbpqwz",
+  "rating": 4,
+  "comment": "Bought a second unit after the first proved itself. Recommended.",
+  "verified": 1,
+  "createdAt": "2026-09-14T14:00:00.000Z"
+ },
+ {
+  "id": "cmv9qnzv400b5pykp5uy4np28",
+  "productId": "cmv9qkr1x003kpykpyh8co7xd",
+  "userId": "cmv9pjgs0000gpyj66hfjz578",
+  "rating": 4,
+  "comment": "Does what it promises. Instructions could be clearer but support answered within hours.",
+  "verified": 0,
+  "createdAt": "2026-09-12T14:00:00.000Z"
+ }
+]

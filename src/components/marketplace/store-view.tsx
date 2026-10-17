@@ -14,6 +14,7 @@ import {
   Star,
   Store,
   TrendingUp,
+  UserPlus,
 } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { useMarketplace } from '@/store/marketplace'
@@ -41,6 +42,12 @@ import { cn } from '@/lib/utils'
 interface StoreProfileResponse {
   seller: StoreDTO
   categories: StoreCategoryDTO[]
+  follow?: {
+    orgId: string
+    orgName: string
+    followerCount: number
+    viewerFollows: boolean
+  } | null
 }
 
 interface ProductsResponse {
@@ -62,6 +69,7 @@ export function StoreView() {
   const sellerId = useMarketplace((s) => s.params.sellerId)
   const navigate = useMarketplace((s) => s.navigate)
   const user = useMarketplace((s) => s.user)
+  const openAuth = useMarketplace((s) => s.openAuth)
 
   const { data: profile, loading: profileLoading, error: profileError } = useApi<StoreProfileResponse>(
     sellerId ? `/api/sellers/${sellerId}` : null
@@ -72,6 +80,40 @@ export function StoreView() {
   const [sort, setSort] = useState('popular')
   const [visible, setVisible] = useState(PAGE_SIZE)
   const [justShared, setJustShared] = useState(false)
+  // NETW-1: company follow state (local mirror of the server's answer — the
+  // button re-renders instantly while the toggle persists server-side)
+  const [follows, setFollows] = useState<boolean | null>(null)
+  const followCtx = profile?.follow ?? null
+  const effectiveFollows = follows ?? followCtx?.viewerFollows ?? false
+  const followerCount = followCtx?.followerCount ?? 0
+
+  const toggleFollow = async () => {
+    if (!followCtx || !user) return
+    const next = !effectiveFollows
+    setFollows(next) // optimistic
+    const res = next
+      ? await fetch('/api/follows', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orgId: followCtx.orgId }),
+        }).catch(() => null)
+      : await fetch(`/api/follows/${followCtx.orgId}`, { method: 'DELETE' }).catch(() => null)
+    if (!res || !res.ok) {
+      setFollows(!next) // rollback
+      const json = res ? await res.json().catch(() => ({})) : {}
+      toast({
+        title: next ? 'Could not follow' : 'Could not unfollow',
+        description: json.error ?? 'Please try again in a moment.',
+        variant: 'destructive',
+      })
+      return
+    }
+    toast(
+      next
+        ? { title: `Following ${storeName}`, description: 'New from this company lands in your Following feed.' }
+        : { title: `Unfollowed ${storeName}` }
+    )
+  }
 
   // Cover picked by the seller (client-side, per-browser — schema frozen this phase)
   const [cover] = useState(() => (sellerId ? getStoreCover(sellerId) : null))
@@ -219,6 +261,31 @@ export function StoreView() {
                   onClick={() => navigate('seller')}
                 >
                   <LayoutDashboard size={15} className="mr-1.5" /> Manage your store
+                </Button>
+              )}
+              {/* NETW-1: follow the company behind this storefront */}
+              {followCtx && !isOwnStore && (
+                <Button
+                  variant={effectiveFollows ? 'secondary' : 'default'}
+                  className={cn('rounded-xl', effectiveFollows && 'gap-1.5')}
+                  onClick={() => (user ? void toggleFollow() : openAuth('login', { view: 'store', params: { sellerId: sellerId ?? undefined } }))}
+                  aria-pressed={effectiveFollows}
+                >
+                  {effectiveFollows ? (
+                    <>
+                      <Check size={15} className="mr-1" /> Following
+                      {followerCount > 0 && (
+                        <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold tabular-nums">
+                          {followerCount}
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus size={15} className="mr-1.5" /> Follow
+                      {followerCount > 0 && <span className="font-normal opacity-80">· {followerCount}</span>}
+                    </>
+                  )}
                 </Button>
               )}
               {sellerId && (

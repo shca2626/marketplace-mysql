@@ -1,0 +1,62 @@
+[
+ {
+  "id": "3baa025f-0f3f-4031-bf6c-ec4975852e46",
+  "checksum": "adfcc8bcb86d25465bb392981b14509c0ae00e53ede32a98d8f8fbb061ee35d0",
+  "finished_at": "2026-10-06T22:54:46.335Z",
+  "migration_name": "20261006090000_offer_accept_approval",
+  "logs": null,
+  "rolled_back_at": null,
+  "started_at": "2026-10-06T22:54:45.122Z",
+  "applied_steps_count": "1"
+ },
+ {
+  "id": "42bcd060-8378-43cf-bb19-d11818ce03d3",
+  "checksum": "5b70b09d6072ce63d7ffd1252eb540d1842dfbc9fca45f7a6d54358b1272336d",
+  "finished_at": "2026-10-16T23:05:32.841Z",
+  "migration_name": "20261017000000_sponsored_placements",
+  "logs": null,
+  "rolled_back_at": null,
+  "started_at": "2026-10-16T23:05:30.720Z",
+  "applied_steps_count": "1"
+ },
+ {
+  "id": "63876229-162a-4ad5-85d4-738a03014dd2",
+  "checksum": "2db12f36309dfb369d88c56efccafd722432411e242cec967a590b0349ee14c8",
+  "finished_at": "2026-10-12T17:53:32.493Z",
+  "migration_name": "20260923185559_catalog_sort_indexes",
+  "logs": null,
+  "rolled_back_at": null,
+  "started_at": "2026-10-12T17:53:31.228Z",
+  "applied_steps_count": "1"
+ },
+ {
+  "id": "6b33e9b6-f0fc-4f97-848d-21714cf5fe9c",
+  "checksum": "e3bd6888e06f73c1b7a303128c2bf8e28a2448e1d531bd5aa0819f454f71b0e1",
+  "finished_at": "2026-10-17T00:14:10.910Z",
+  "migration_name": "20261017010000_complaints",
+  "logs": null,
+  "rolled_back_at": null,
+  "started_at": "2026-10-17T00:14:09.062Z",
+  "applied_steps_count": "1"
+ },
+ {
+  "id": "88a98a3c-3773-4a34-9e24-972d1d7e5dcf",
+  "checksum": "fb3f4e098f7b7513cb9741adb36ecd01838b9e0ff35aa956ffbdb93a4d1af52c",
+  "finished_at": "2026-10-16T01:41:21.932Z",
+  "migration_name": "20261016000000_service_requirement_phase",
+  "logs": null,
+  "rolled_back_at": null,
+  "started_at": "2026-10-16T01:41:20.618Z",
+  "applied_steps_count": "1"
+ },
+ {
+  "id": "a4e453c6-9d36-4752-bdbd-2611e160b90a",
+  "checksum": "f3356171142a06fd8d07287cd4f452018f0c8b431aa1a7211718943fa8744ec9",
+  "finished_at": "2026-10-06T16:24:24.043Z",
+  "migration_name": "0_init",
+  "logs": "",
+  "rolled_back_at": null,
+  "started_at": "2026-10-06T16:24:24.043Z",
+  "applied_steps_count": "0"
+ }
+]

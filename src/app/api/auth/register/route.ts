@@ -10,6 +10,14 @@ import { claimOrgInvitationTx } from '@/server/modules/org-rbac/service'
 import { appBaseUrl, issueEmailVerificationToken } from '@/lib/auth-tokens'
 import { emailVerificationEmail } from '@/lib/emails/auth-emails'
 import { sendMail } from '@/lib/mailer'
+import { verifyOtpProof } from '@/server/modules/otp/service'
+import { normalizeE164, normalizeYemeniPhone } from '@/lib/phone'
+import {
+  claimReferralTx,
+  notifyReferrerJoined,
+  ReferralError,
+  resolveReferralCode,
+} from '@/server/modules/referrals/service'
 
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').max(60),
@@ -24,6 +32,14 @@ const registerSchema = z.object({
   // invited role is granted to the freshly created account (invitation marked
   // ACCEPTED). Org invitations also create the OrganizationMember row.
   inviteToken: z.string().min(10).max(128).optional(),
+  // NETW-1: phone + verified OTP proof (company wizard step 1 collects both —
+  // previously stripped here, meaning the OTP was never actually verified).
+  // A provided phone REQUIRES a proof token; the proof is verified against
+  // the exact E.164-normalized number before the account is created.
+  phone: z.string().regex(/^\+?[0-9]{8,15}$/, 'Invalid phone number').optional(),
+  otpToken: z.string().min(10).max(2048).optional(),
+  // NETW-1: referral code — resolved and claimed inside the transaction.
+  referralCode: z.string().min(4).max(24).optional(),
 })
 
 export async function POST(req: NextRequest) {
@@ -42,7 +58,46 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       )
     }
-    const { name, email, password, inviteToken } = parsed.data
+    const { name, email, password, inviteToken, phone, otpToken, referralCode } = parsed.data
+
+    // NETW-1: a provided phone must come with a VERIFIED OTP proof — the
+    // company wizard collects both; honoring them here closes the gap where
+    // the proof was silently stripped (never verified). The proof is signed
+    // against the NORMALIZED number (same doctrine as the financier door).
+    let verifiedPhone: string | null = null
+    if (phone) {
+      if (!otpToken) {
+        return NextResponse.json(
+          { error: 'A verification code is required with a phone number' },
+          { status: 400 }
+        )
+      }
+      const normalized = normalizeYemeniPhone(phone) ?? normalizeE164(phone)
+      if (!normalized) {
+        return NextResponse.json({ error: 'Invalid phone number' }, { status: 400 })
+      }
+      if (!verifyOtpProof(otpToken, normalized, 'REGISTER')) {
+        return NextResponse.json(
+          { error: 'That phone verification code is invalid or expired' },
+          { status: 400 }
+        )
+      }
+      verifiedPhone = normalized
+    }
+
+    // NETW-1: resolve the referral code BEFORE creating anything — a bad code
+    // is a hard 400 (the user can drop it and retry, attribution is explicit).
+    let referrer: { referrerId: string } | null = null
+    if (referralCode) {
+      try {
+        referrer = await resolveReferralCode(referralCode)
+      } catch (err) {
+        if (err instanceof ReferralError) {
+          return NextResponse.json({ error: err.message, code: err.code }, { status: err.status })
+        }
+        throw err
+      }
+    }
 
     const existing = await db.user.findUnique({ where: { email: email.toLowerCase() } })
     if (existing) {
@@ -76,8 +131,15 @@ export async function POST(req: NextRequest) {
               email: email.toLowerCase(),
               password: hashPassword(password),
               role: 'BUYER',
+              ...(verifiedPhone ? { phone: verifiedPhone, phoneVerifiedAt: new Date() } : {}),
             },
           })
+
+          // NETW-1: claim the referral inside the same transaction (stamps
+          // referredById + writes the USER_REFERRED audit row atomically).
+          if (referrer) {
+            await claimReferralTx(tx, { id: user.id, name: user.name }, referrer)
+          }
 
           if (invite) {
             await tx.userRole.create({
@@ -150,6 +212,11 @@ export async function POST(req: NextRequest) {
       entityId: user.id,
       summary: `New buyer registered: ${user.email}`,
     })
+
+    // NETW-1: fire-and-forget — tell the referrer their code worked.
+    if (referrer) {
+      void notifyReferrerJoined(referrer, { name: user.name }).catch(() => undefined)
+    }
 
     // AUTHSEC-1: auto-enroll the new account in email verification. The
     // welcome link goes out fire-and-forget — registration itself must never

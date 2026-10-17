@@ -75,6 +75,8 @@ export type View =
   | 'rfqs'
   | 'business'
   | 'complaints' // COMPLAINT-1: buyer console — my complaints & trust reports
+  | 'following' // NETW-1: buyer console — companies this user follows
+  | 'jobs' // NETW-1: public storefront jobs board
   | 'financing' // applicant surface: financing requests + accreditation + documents center
   | 'financier' // financier console: services, inbox, offers, accreditations
   | 'forgot-password' // AUTHSEC-1: email → reset link

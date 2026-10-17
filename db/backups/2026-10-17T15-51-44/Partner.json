@@ -1,0 +1,98 @@
+[
+ {
+  "id": "cmuod0tu5001cluj3otpt9dla",
+  "financierProfileId": null,
+  "name": "Yemen Solar Association",
+  "monogram": "YSA",
+  "accentColor": "#d97706",
+  "websiteUrl": "https://ysa.example.org",
+  "kind": "NGO",
+  "position": 0,
+  "isActive": 1,
+  "createdAt": "2026-09-30T17:09:02.093Z"
+ },
+ {
+  "id": "cmuod0tu5001dluj3vpylrpqx",
+  "financierProfileId": null,
+  "name": "Green Energy Council",
+  "monogram": "GEC",
+  "accentColor": "#059669",
+  "websiteUrl": "https://gec.example.org",
+  "kind": "NGO",
+  "position": 1,
+  "isActive": 1,
+  "createdAt": "2026-09-30T17:09:02.093Z"
+ },
+ {
+  "id": "cmuod0tu5001eluj3kloeyh1i",
+  "financierProfileId": null,
+  "name": "Sana’a Chamber of Commerce",
+  "monogram": "SCC",
+  "accentColor": "#b45309",
+  "websiteUrl": "https://scc.example.org",
+  "kind": "GOVERNMENT",
+  "position": 2,
+  "isActive": 1,
+  "createdAt": "2026-09-30T17:09:02.093Z"
+ },
+ {
+  "id": "cmuod0tu5001fluj3kew6emp6",
+  "financierProfileId": null,
+  "name": "Rural Development Fund",
+  "monogram": "RDF",
+  "accentColor": "#7c2d12",
+  "websiteUrl": null,
+  "kind": "GOVERNMENT",
+  "position": 3,
+  "isActive": 1,
+  "createdAt": "2026-09-30T17:09:02.093Z"
+ },
+ {
+  "id": "cmuod0tu5001gluj3fwqwx4xu",
+  "financierProfileId": null,
+  "name": "SME Development Agency",
+  "monogram": "SME",
+  "accentColor": "#9a3412",
+  "websiteUrl": null,
+  "kind": "GOVERNMENT",
+  "position": 4,
+  "isActive": 1,
+  "createdAt": "2026-09-30T17:09:02.093Z"
+ },
+ {
+  "id": "cmuod0tu5001hluj3fuvj7zmg",
+  "financierProfileId": null,
+  "name": "Renewable Energy Society",
+  "monogram": "RES",
+  "accentColor": "#0f766e",
+  "websiteUrl": null,
+  "kind": "NGO",
+  "position": 5,
+  "isActive": 1,
+  "createdAt": "2026-09-30T17:09:02.093Z"
+ },
+ {
+  "id": "cmuod0tu5001iluj35y1yymfu",
+  "financierProfileId": null,
+  "name": "Trade & Industry Federation",
+  "monogram": "TIF",
+  "accentColor": "#a16207",
+  "websiteUrl": null,
+  "kind": "PARTNER",
+  "position": 6,
+  "isActive": 1,
+  "createdAt": "2026-09-30T17:09:02.093Z"
+ },
+ {
+  "id": "cmuod0tu5001jluj3c3iu49or",
+  "financierProfileId": null,
+  "name": "Water Users Alliance",
+  "monogram": "WUA",
+  "accentColor": "#0369a1",
+  "websiteUrl": null,
+  "kind": "PARTNER",
+  "position": 7,
+  "isActive": 1,
+  "createdAt": "2026-09-30T17:09:02.093Z"
+ }
+]

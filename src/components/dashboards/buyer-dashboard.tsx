@@ -41,6 +41,7 @@ import { formatDate, initials } from '@/lib/format'
 import type { OrderDTO, RfqDTO } from '@/lib/types'
 import { DashboardLayout, PageHeader, SignInRequired } from './dashboard-layout'
 import { ProfileSecurityPanel } from './buyer-profile-security'
+import { ReferralCard } from '@/components/marketplace/referral-card'
 import { BUYER_NAV } from './nav-config'
 import type { NavItem } from './nav-config'
 import { Button } from '@/components/ui/button'
@@ -399,6 +400,9 @@ export function BuyerDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* NETW-1: referral program — code, invites and join stats */}
+      <ReferralCard />
     </DashboardLayout>
   )
 }

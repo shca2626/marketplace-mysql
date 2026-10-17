@@ -62,6 +62,9 @@ export const RATE_LIMITS = {
   productWrite: { limit: 60, windowMs: 10 * 60_000 }, // per user (create/update/delete/bulk)
   review: { limit: 10, windowMs: 60 * 60_000 }, // per user
   complaint: { limit: 10, windowMs: 60 * 60_000 }, // per user — complaint filing (COMPLAINT-1)
+  follow: { limit: 30, windowMs: 10 * 60_000 }, // per user — company follow/unfollow toggling (NETW-1)
+  jobWrite: { limit: 30, windowMs: 10 * 60_000 }, // per user — job posting create/update (NETW-1)
+  jobApply: { limit: 20, windowMs: 60 * 60_000 }, // per user — job applications (NETW-1)
   order: { limit: 20, windowMs: 10 * 60_000 }, // per user (checkout)
   mediaRead: { limit: 600, windowMs: 60_000 }, // per IP — generous, responses are immutable
   digest: { limit: 10, windowMs: 10 * 60_000 }, // per user (preview/generate digest actions)

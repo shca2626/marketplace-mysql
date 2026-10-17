@@ -1,0 +1,17 @@
+[
+ {
+  "id": "cmva3ibru001wpypiuq39pfed",
+  "orderId": "cmva3i9s2001spypisrp7l0th",
+  "method": "WIRE",
+  "reference": null,
+  "status": "DECLARED",
+  "declaredById": "cmv9pj6i00006pyj6zflrlnjd",
+  "declaredAt": "2026-10-15T22:13:38.202Z",
+  "settledAt": null,
+  "confirmedById": null,
+  "confirmedAt": null,
+  "note": null,
+  "createdAt": "2026-10-15T22:13:38.202Z",
+  "updatedAt": "2026-10-15T22:13:38.202Z"
+ }
+]

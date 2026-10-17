@@ -13,6 +13,7 @@ import {
 import { Breadcrumbs } from '@/components/site/breadcrumbs'
 import { ProductCard } from '@/components/marketplace/product-card'
 import { StarRating } from '@/components/marketplace/star-rating'
+import { StoreFollowButton } from '@/components/marketplace/store-follow-button'
 import { getPublicStore } from '@/app/market/(public)/queries'
 import { siteBaseUrl, toAbsoluteUrl } from '@/lib/site-url'
 import { formatDate, formatNumber, initials } from '@/lib/format'
@@ -142,6 +143,10 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
                   {data.seller.avgRating > 0 ? `${data.seller.avgRating} store rating` : 'No ratings yet'}
                 </span>
               </div>
+            </div>
+            {/* NETW-1: follow the company behind this storefront */}
+            <div className="shrink-0 sm:pt-9">
+              <StoreFollowButton sellerId={data.seller.id} storeName={storeName} />
             </div>
           </div>
 
