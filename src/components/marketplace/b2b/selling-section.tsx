@@ -42,6 +42,7 @@ import { formatDate, formatNumber, formatUSD, timeAgo } from '@/lib/format'
 import { cardImage } from '@/lib/storage/url'
 import { FinancingRfqInboxSub } from '@/components/marketplace/b2b/financing-rfq-inbox'
 import { SponsorshipsSub } from '@/components/marketplace/b2b/sponsorships-section'
+import { ComplaintsReceivedSub } from '@/components/marketplace/b2b/complaints-received'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -289,6 +290,9 @@ export function SellingSection({ organizationId, orgName }: { organizationId: st
           <TabsTrigger value="sponsorships" className="gap-1.5 rounded-lg px-3.5 py-1.5">
             <Sparkles size={14} /> Sponsorships
           </TabsTrigger>
+          <TabsTrigger value="complaints" className="gap-1.5 rounded-lg px-3.5 py-1.5">
+            <ShieldAlert size={14} /> Complaints
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="offers" className="mt-5">
@@ -308,6 +312,9 @@ export function SellingSection({ organizationId, orgName }: { organizationId: st
         </TabsContent>
         <TabsContent value="sponsorships" className="mt-5">
           <SponsorshipsSub organizationId={organizationId} />
+        </TabsContent>
+        <TabsContent value="complaints" className="mt-5">
+          <ComplaintsReceivedSub organizationId={organizationId} orgName={orgName} />
         </TabsContent>
       </Tabs>
     </section>

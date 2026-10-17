@@ -1,0 +1,58 @@
+[
+ {
+  "id": "cmv9qpaph00d3pykp28f47d9e",
+  "eyebrow": "Renewable Energy Marketplace",
+  "title": "Power everything with sunlight",
+  "subtitle": "Tier-1 solar panels, LiFePO4 storage, inverters and pumping — from engineer-owned stores that size systems properly.",
+  "image": "/api/media/2026/10/ec0473a8-siqoa3.full.png",
+  "ctaLabel": "Shop solar panels",
+  "ctaView": "catalog",
+  "ctaCategory": "solar-panels",
+  "position": 0,
+  "active": 1,
+  "createdAt": "2026-10-15T16:15:08.406Z",
+  "updatedAt": "2026-10-15T16:15:08.406Z"
+ },
+ {
+  "id": "cmv9qpcnc00d4pykpwpzm4of4",
+  "eyebrow": "High-efficiency panels",
+  "title": "Monocrystalline & bifacial, up to 550W",
+  "subtitle": "25–30 year warranties, half-cut PERC cells and glass-glass construction for decades of harvest.",
+  "image": "/api/media/2026/10/f472540e-77d2l9.full.png",
+  "ctaLabel": "Browse panels",
+  "ctaView": "catalog",
+  "ctaCategory": "solar-panels",
+  "position": 1,
+  "active": 1,
+  "createdAt": "2026-10-15T16:15:09.884Z",
+  "updatedAt": "2026-10-15T16:15:09.884Z"
+ },
+ {
+  "id": "cmv9qpdue00d5pykp2ys0orhy",
+  "eyebrow": "Batteries & storage",
+  "title": "Store the sun, use it at night",
+  "subtitle": "Modular wall batteries from 5kWh to 20kWh — stack them as your system grows.",
+  "image": "/api/media/2026/10/90800a13-dl6i3n.full.png",
+  "ctaLabel": "Shop storage",
+  "ctaView": "catalog",
+  "ctaCategory": "batteries-storage",
+  "position": 2,
+  "active": 1,
+  "createdAt": "2026-10-15T16:15:12.470Z",
+  "updatedAt": "2026-10-15T16:15:12.470Z"
+ },
+ {
+  "id": "cmv9qpen300d6pykpv9ekx7e0",
+  "eyebrow": "Solar water pumping",
+  "title": "Pump water anywhere the sun shines",
+  "subtitle": "Submersible, borehole and irrigation pumps that run straight from your array — no fuel, no grid.",
+  "image": "/api/media/2026/10/8d1f1aa7-v0tla6.full.png",
+  "ctaLabel": "Shop pumps",
+  "ctaView": "catalog",
+  "ctaCategory": "solar-pumps",
+  "position": 3,
+  "active": 1,
+  "createdAt": "2026-10-15T16:15:13.503Z",
+  "updatedAt": "2026-10-15T16:15:13.503Z"
+ }
+]

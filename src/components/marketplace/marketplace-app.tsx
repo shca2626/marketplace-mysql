@@ -37,7 +37,7 @@ import { SellerView } from './seller-view'
 import { AdminView } from './admin-view'
 // Buyer console pages — existing views mounted in the shared dashboard shell.
 import { BuyerDashboard } from '@/components/dashboards/buyer-dashboard'
-import { BuyerRfqsPage, BuyerBusinessPage, BuyerOrdersPage, BuyerFavoritesPage } from '@/components/dashboards/buyer-pages'
+import { BuyerRfqsPage, BuyerBusinessPage, BuyerOrdersPage, BuyerFavoritesPage, BuyerComplaintsPage } from '@/components/dashboards/buyer-pages'
 import { FinancingView } from './financing-view'
 import { FinancierView } from './financier-view'
 import { RegisterCompanyView } from './register/register-company-view'
@@ -74,6 +74,7 @@ const CONSOLE_VIEWS: Record<string, () => React.ReactNode> = {
   business: () => <BuyerBusinessPage />,
   orders: () => <BuyerOrdersPage />,
   favorites: () => <BuyerFavoritesPage />,
+  complaints: () => <BuyerComplaintsPage />,
   financing: () => <FinancingView />,
   financier: () => <FinancierView />,
 }

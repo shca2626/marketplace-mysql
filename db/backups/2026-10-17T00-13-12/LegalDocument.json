@@ -1,0 +1,22 @@
+[
+ {
+  "id": "cmuod0tul003iluj3kkk09fov",
+  "slug": "terms",
+  "title": "Terms of Service",
+  "summary": "The agreement between you and Vendora covering the marketplace, funding platform and seller services.",
+  "body": "These Terms of Service govern your use of the Vendora platform, including the marketplace, the procurement tools and the financing request service. By creating an account or placing an order you accept these terms.\n\n## 1. The platform\nVendora operates an online marketplace where independent sellers offer solar equipment, and a platform through which verified funding entities offer financing programs. Unless stated otherwise, Vendora is not the seller of marketplace items and is not the financier of any program.\n\n## 2. Accounts\nYou must provide accurate information and keep your credentials secure. Business accounts may add members with roles; the organization is responsible for actions taken under its accounts.\n\n## 3. Marketplace purchases\nContracts of sale are concluded between you and the seller. Prices, availability and delivery terms are set by sellers. We facilitate payment, order tracking and disputes.\n\n## 4. Disputes\nIf an order arrives damaged, incomplete or materially different from its listing, open a dispute within the protection window published at checkout. Vendora mediates with access to the full order trail and may issue refunds or compensation from seller guarantees where warranted.\n\n## 5. Financing requests\nFinancing requests submitted through the platform are routed to verified entities. Offers, agreements and repayment obligations exist between you and the entity. Vendora verifies documentation and hosts the process but does not lend money.\n\n## 6. Prohibited conduct\nFraudulent listings, manipulation of reviews, harassment of other users, and attempts to circumthesize platform safety controls are grounds for immediate termination.\n\n## 7. Liability\nThe platform is provided on an as-is basis to the extent permitted by law. We do not exclude liability for fraud or for anything that cannot lawfully be excluded.\n\n## 8. Changes\nWe may update these terms with 14 days notice for material changes. Continued use after the effective date constitutes acceptance.",
+  "version": "1.1",
+  "effectiveAt": "2026-09-30T17:09:02.110Z",
+  "updatedAt": "2026-09-30T17:09:02.110Z"
+ },
+ {
+  "id": "cmuod0tum003jluj3yoxf0728",
+  "slug": "privacy",
+  "title": "Privacy Policy",
+  "summary": "What data Vendora collects, why we collect it, and the choices you have.",
+  "body": "This policy explains how Vendora handles personal data when you use the marketplace, procurement tools and financing service.\n\n## What we collect\n- **Account data**: name, email, phone, and for businesses the commercial registration details you provide\n- **Order data**: items, amounts, delivery addresses and order history\n- **Financing data**: the documents and information you submit with a financing request, and the status of any resulting offer or agreement\n- **Usage data**: pages visited and technical events needed to run and secure the service\n\n## Why we process it\nTo operate the marketplace (orders, payments, disputes), to route financing requests to entities whose programs match your project, to verify identity as required by our funding partners, and to keep the platform secure.\n\n## Who we share it with\n- **Sellers**: the information needed to fulfil your order\n- **Funding entities**: the documents and details of your financing request, when you submit one\n- **Service providers**: payment and email infrastructure, under contract\n- We do not sell personal data.\n\n## Retention\nOrder and financing records are retained for the periods required by commercial practice and applicable regulation. You may request deletion of your account; records we must legally retain are minimized and access-restricted.\n\n## Your choices\nYou can access, correct or export your data from your dashboard, or by contacting us through the contact page. Security settings let you review sessions and revoke devices.\n\n## Contact\nQuestions about this policy reach the same desks listed on our contact page.",
+  "version": "1.1",
+  "effectiveAt": "2026-09-30T17:09:02.110Z",
+  "updatedAt": "2026-09-30T17:09:02.110Z"
+ }
+]

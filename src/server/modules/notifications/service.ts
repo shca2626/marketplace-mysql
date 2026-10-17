@@ -28,6 +28,7 @@ export type NotificationType =
   | 'APPROVAL_DECIDED' // requester: your purchase was approved/rerejected
   | 'RFQ_DISPUTE' // seller: a buyer raised a dispute on your order
   | 'RFQ_DISPUTE_STATUS' // buyer: your dispute moved (responded / resolved / escalated)
+  | 'COMPLAINT_STATUS' // COMPLAINT-1: complainant / target-org — complaint filed, answered or closed
   | 'RECURRING_PREVIEW' // buyer: your recurring RFQ publishes soon
   | 'RECURRING_PUBLISHED' // buyer: a recurring run was published
   | 'RECURRING_PAUSED' // buyer: schedule auto-paused (empty cycles) or skipped
@@ -73,7 +74,7 @@ export interface EmitInput {
   type: NotificationType
   title: string
   body?: string | null
-  linkView: 'rfq' | 'orders' | 'business' | 'seller' | 'disputes' | 'admin' | 'financing' | 'financier' | 'account'
+  linkView: 'rfq' | 'orders' | 'business' | 'seller' | 'disputes' | 'complaints' | 'admin' | 'financing' | 'financier' | 'account'
   linkId?: string | null
 }
 

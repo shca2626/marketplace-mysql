@@ -309,6 +309,10 @@ export function NotificationsBell() {
         case 'orders':
           navigate('orders')
           break
+        case 'complaints':
+          // COMPLAINT-1: complainant surface — my complaints console
+          navigate('complaints')
+          break
         case 'business':
           navigate('business')
           break

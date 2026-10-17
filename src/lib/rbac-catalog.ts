@@ -161,6 +161,16 @@ export const PERMISSION_DOMAINS: PermissionDomain[] = [
     ],
   },
   {
+    key: 'complaints',
+    label: 'Complaints',
+    scope: 'PLATFORM',
+    description: 'Company trust reports — the order-agnostic complaint queue.',
+    permissions: [
+      { key: 'complaints.view', label: 'View complaints', description: 'Browse company complaints and trust reports.' },
+      { key: 'complaints.manage', label: 'Triage & resolve complaints', description: 'Set severity, respond and resolve or dismiss complaints.' },
+    ],
+  },
+  {
     key: 'storefront',
     label: 'Storefront',
     scope: 'PLATFORM',
@@ -419,6 +429,7 @@ export const SYSTEM_ROLES: RoleTemplate[] = [
       'vendors.view',
       'rfq.pipeline.view',
       'disputes.view',
+      'complaints.view',
       'audit.view',
     ],
   },

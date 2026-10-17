@@ -74,6 +74,7 @@ export type View =
   | 'admin'
   | 'rfqs'
   | 'business'
+  | 'complaints' // COMPLAINT-1: buyer console — my complaints & trust reports
   | 'financing' // applicant surface: financing requests + accreditation + documents center
   | 'financier' // financier console: services, inbox, offers, accreditations
   | 'forgot-password' // AUTHSEC-1: email → reset link

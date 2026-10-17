@@ -126,6 +126,8 @@ model User {
   disputesRaised          Dispute[]                     @relation("DisputeRaisedBy")
   disputesAgainst         Dispute[]                     @relation("DisputeSeller")
   disputesResolved        Dispute[]                     @relation("DisputeResolver")
+  complaintsRaised         Complaint[]                   @relation("ComplaintRaisedBy") // COMPLAINT-1: trust reports against companies
+  complaintsResolved      Complaint[]                   @relation("ComplaintResolver")
   recurringSchedules      RecurringRfq[]
   mediaAssets             MediaAsset[]                  @relation("MediaAssets")
   paymentsCaptured        Payment[]                     @relation("PaymentsCapturedBy")
@@ -453,6 +455,8 @@ model Organization {
   quotesIssued            Quote[]             @relation("QuoteSellerOrg")
   sellerProfile           SellerProfile?      @relation("SellerProfileOrg")
   sponsoredPlacements     SponsoredPlacement[] @relation("SponsoredPlacements") // SPONSOR-1: paid placements purchased by this org
+  complaintsAgainst       Complaint[]         @relation("ComplaintTargetOrg") // COMPLAINT-1: trust reports against this company
+  complaintsFiled         Complaint[]         @relation("ComplaintFiledByOrg") // COMPLAINT-1: reports filed on behalf of this company
   orderItemsSold          OrderItem[]         @relation("OrderItemSellerOrg")
   fulfillmentsAsSellerOrg OrderFulfillment[]  @relation("FulfillmentSellerOrg")
   sellerSubscription      SellerSubscription? @relation("SellerSubscriptionOrg")
@@ -945,6 +949,47 @@ model Dispute {
   @@index([raisedById])
   @@index([sellerId])
   @@index([orderId])
+  @@index([resolvedById]) // MYSQL-FK-INDEX: resolvedById relation needs its own leftmost index
+}
+
+// ── COMPLAINT-1: company complaints / trust reports ─────────────────────────
+// Order-agnostic trust & safety surface (the order-bound refund flow lives in
+// Dispute): any authenticated user reports a COMPANY for misleading info,
+// counterfeits, conduct, pricing or IP issues. The target org gets one
+// response; platform staff triage severity and resolve. Statuses:
+//   OPEN → ORG_RESPONDED (org's single response) → RESOLVED / DISMISSED (admin)
+//   OPEN → WITHDRAWN (complainant, before the org responds)
+model Complaint {
+  id             String    @id @default(cuid())
+  number         String    @unique // CMP-2026-000001
+  targetOrgId    String // the company being complained about
+  targetOrg      Organization @relation("ComplaintTargetOrg", fields: [targetOrgId], references: [id])
+  raisedById     String // complainant user
+  raisedBy       User      @relation("ComplaintRaisedBy", fields: [raisedById], references: [id])
+  raisedByOrgId  String? // complainant's organization when filed on behalf of a company (B2B context)
+  raisedByOrg    Organization? @relation("ComplaintFiledByOrg", fields: [raisedByOrgId], references: [id])
+  orderId        String? // loose FK: linked order context (kept when the order is deleted)
+  productId      String? // loose FK: linked product context
+  category       String // MISLEADING_INFO | COUNTERFEIT | CONDUCT | PRICING | FULFILLMENT | IP_INFRINGEMENT | OTHER
+  subject        String
+  body           String    @db.Text // MYSQL: complaint description, free-form long content
+  status         String    @default("OPEN") // OPEN | ORG_RESPONDED | RESOLVED | DISMISSED | WITHDRAWN
+  orgResponse    String?   @db.Text // MYSQL: the company's single response
+  orgRespondedAt DateTime?
+  severity       String    @default("NORMAL") // NORMAL | HIGH | CRITICAL — admin triage flag
+  resolutionNote String?   @db.Text // MYSQL: admin's resolution note, free-form
+  resolvedById   String?
+  resolvedBy     User?     @relation("ComplaintResolver", fields: [resolvedById], references: [id])
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status, createdAt])
+  @@index([targetOrgId, status])
+  @@index([raisedById])
+  @@index([raisedByOrgId])
+  @@index([orderId])
+  @@index([productId])
   @@index([resolvedById]) // MYSQL-FK-INDEX: resolvedById relation needs its own leftmost index
 }
 

@@ -273,6 +273,7 @@ export function serializeOrder(
       quantity: number
       variantId?: string | null
       variantName?: string | null
+      sellerOrgId?: string | null
     }[]
   },
   sellerId?: string

@@ -8,6 +8,7 @@ import {
   Check,
   ClipboardList,
   CreditCard,
+  Flag,
   Hourglass,
   Landmark,
   Loader2,
@@ -42,6 +43,7 @@ import {
   RefundStatusChip,
   type BuyerRefundDTO,
 } from './refund-dialogs'
+import { FileComplaintDialog } from './complaints-view'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -171,6 +173,8 @@ export function OrdersView() {
   )
   const [disputeDetail, setDisputeDetail] = useState<DisputeDTO | null>(null)
   const [showAllDisputes, setShowAllDisputes] = useState(false)
+  // COMPLAINT-1: company trust report filed straight from an order card
+  const [reportOrder, setReportOrder] = useState<OrderDTO | null>(null)
   const disputes = disputesData?.raised ?? []
   const disputesConfig = rfqConfig?.disputes ?? null
   const openDisputeByOrder = useMemo(
@@ -786,6 +790,18 @@ export function OrdersView() {
                           View dispute
                         </Button>
                       )}
+                      {/* COMPLAINT-1: company-level trust report (distinct from the order dispute) */}
+                      {order.status !== 'CANCELLED' && order.items.some((i) => i.sellerOrgId) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 rounded-full text-xs"
+                          onClick={() => setReportOrder(order)}
+                        >
+                          <Flag size={12} className="mr-1" />
+                          Report company
+                        </Button>
+                      )}
                       {/* Refund actions — request new or view live request (Phase 5) */}
                       {orderRefundable(order) && !openRefundByOrder.has(order.id) && (
                         <RefundRequestDialog order={order} onCreated={() => void refetchRefunds()}>
@@ -845,6 +861,22 @@ export function OrdersView() {
 
       {/* Refund detail (opened from an order chip / action) */}
       <RefundDetailDialog refund={refundDetail} onClosed={() => { setRefundDetail(null); void refetchRefunds() }} />
+
+      {/* COMPLAINT-1: file a company trust report from an order card */}
+      {reportOrder && (
+        <FileComplaintDialog
+          open
+          onOpenChange={(v) => !v && setReportOrder(null)}
+          presetOrgId={
+            // pre-select the company when the order has exactly one seller org
+            [...new Set(reportOrder.items.map((i) => i.sellerOrgId).filter((v): v is string => Boolean(v)))].length === 1
+              ? (reportOrder.items.map((i) => i.sellerOrgId).find(Boolean) ?? undefined)
+              : undefined
+          }
+          presetOrderId={reportOrder.id}
+          onFiled={() => navigate('complaints')}
+        />
+      )}
 
       {/* Pay-later dialog for PENDING_PAYMENT orders */}
       <Dialog open={!!payDialogOrder} onOpenChange={(open) => (open ? undefined : closePayDialog())}>

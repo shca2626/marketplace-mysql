@@ -24,6 +24,7 @@ import type { SessionUser } from '@/lib/types'
 import { AuditTab } from './admin/audit-tab'
 import { CouponsTab } from './admin/coupons-tab'
 import { OrganizationsTab } from './admin/organizations-tab'
+import { ComplaintsTab } from './admin/complaints-tab'
 import { OverviewTab } from './admin/overview-tab'
 import { PricingTab } from './admin/pricing-tab'
 import { RfqsTab } from './admin/rfqs-tab'
@@ -118,6 +119,7 @@ function AdminDashboard({ user }: { user: SessionUser | null }) {
       {activeSection === 'currencies' && <CurrenciesConsole />}
       {activeSection === 'financing' && <FinancingTab />}
       {activeSection === 'organizations' && <OrganizationsTab />}
+      {activeSection === 'complaints' && <ComplaintsTab />}
       {activeSection === 'pricing' && <PricingTab />}
       {activeSection === 'coupons' && <CouponsTab />}
       {activeSection === 'rfqs' && <RfqsTab />}

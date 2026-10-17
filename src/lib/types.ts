@@ -235,6 +235,7 @@ export interface OrderItemDTO {
   mine?: boolean
   variantId?: string | null
   variantName?: string | null
+  sellerOrgId?: string | null // COMPLAINT-1: selling organization snapshot — powers the per-order complaint flow
 }
 
 export interface OrderPaymentDTO {
